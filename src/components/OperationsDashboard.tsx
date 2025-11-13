@@ -13,6 +13,7 @@ export function OperationsDashboard() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [onlineFilter, setOnlineFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     fetchDeliveryPersons();
@@ -62,8 +63,15 @@ export function OperationsDashboard() {
 
       if (error) throw error;
       setDeliveryPersons(data || []);
-    } catch (error) {
-      console.error('Error fetching delivery persons:', error);
+      setErrorMessage(null);
+    } catch (err: unknown) {
+      const e = err as { code?: string; message?: string };
+      const msg = e?.message || 'Erro ao buscar entregadores';
+      if ((e?.code && e.code === 'PGRST205') || msg.includes('Could not find the table')) {
+        setErrorMessage('Tabela delivery_persons não encontrada. Aplique as migrações no Supabase.');
+      } else {
+        setErrorMessage(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -152,6 +160,11 @@ export function OperationsDashboard() {
           </div>
 
           <div className="flex-1 overflow-y-auto p-4">
+            {errorMessage && (
+              <div className="mb-4 px-3 py-2 rounded border border-red-200 bg-red-50 text-red-700 text-sm">
+                {errorMessage}
+              </div>
+            )}
             <div className="flex items-center gap-2 mb-4">
               <Users size={18} className="text-slate-600" />
               <h3 className="font-semibold text-slate-900">

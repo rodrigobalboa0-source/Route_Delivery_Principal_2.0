@@ -3,6 +3,23 @@ import type { Database } from '../lib/database.types';
 
 type DeliveryPerson = Database['public']['Tables']['delivery_persons']['Row'];
 
+type GLMap = {
+  on: (event: string, handler: (ev?: unknown) => void) => void;
+  remove: () => void;
+};
+
+type GLMarker = {
+  setLngLat: (lngLat: [number, number]) => GLMarker;
+  getElement: () => HTMLElement;
+  addTo: (map: GLMap) => GLMarker;
+  setPopup: (popup: unknown) => GLMarker;
+  remove: () => void;
+};
+
+type GLPopup = {
+  setHTML: (html: string) => GLPopup;
+};
+
 interface MapViewProps {
   deliveryPersons: DeliveryPerson[];
   center?: [number, number];
@@ -10,37 +27,73 @@ interface MapViewProps {
 
 export function MapView({ deliveryPersons, center = [-23.5505, -46.6333] }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
-  const markers = useRef<Map<string, mapboxgl.Marker>>(new Map());
+  const map = useRef<GLMap | null>(null);
+  const markers = useRef<Map<string, GLMarker>>(new Map());
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
 
     const script = document.createElement('script');
-    script.src = 'https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.js';
+    script.src = 'https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.js';
     script.async = true;
     document.head.appendChild(script);
 
     const link = document.createElement('link');
-    link.href = 'https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.css';
+    link.href = 'https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css';
     link.rel = 'stylesheet';
     document.head.appendChild(link);
 
     script.onload = () => {
       if (!mapContainer.current) return;
 
-      (window as any).mapboxgl.accessToken = 'pk.eyJ1IjoiZGVtby1tYXBib3giLCJhIjoiY2wxYWJvcmQxMDB3aTNrbzI5cnQ3cGM5cCJ9.yD3V0r3BNO3TqRd1T9C7Uw';
+      const maplibre = (window as unknown as {
+        maplibregl: {
+          Map: new (opts: unknown) => GLMap;
+          Popup: new (opts: unknown) => GLPopup;
+          Marker: new (el: HTMLElement) => GLMarker;
+        };
+      }).maplibregl;
 
-      map.current = new (window as any).mapboxgl.Map({
+      const osmRasterStyle = {
+        version: 8,
+        sources: {
+          osm: {
+            type: 'raster',
+            tiles: [
+              'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+              'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+              'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png'
+            ],
+            tileSize: 256,
+            maxzoom: 19,
+            attribution: '© OpenStreetMap contributors'
+          }
+        },
+        layers: [
+          {
+            id: 'osm',
+            type: 'raster',
+            source: 'osm'
+          }
+        ]
+      } as unknown;
+
+      map.current = new maplibre.Map({
         container: mapContainer.current,
-        style: 'mapbox://styles/mapbox/streets-v12',
+        style: osmRasterStyle,
         center: [center[1], center[0]],
         zoom: 12,
+        maxZoom: 19,
       });
 
       map.current.on('load', () => {
         setMapLoaded(true);
+      });
+
+      map.current.on('error', () => {
+        setMapError('Erro ao carregar o mapa.');
       });
     };
 
@@ -48,7 +101,7 @@ export function MapView({ deliveryPersons, center = [-23.5505, -46.6333] }: MapV
       map.current?.remove();
       map.current = null;
     };
-  }, []);
+  }, [center]);
 
   useEffect(() => {
     if (!mapLoaded || !map.current) return;
@@ -85,7 +138,13 @@ export function MapView({ deliveryPersons, center = [-23.5505, -46.6333] }: MapV
           el.style.backgroundColor = '#6b7280';
         }
 
-        const popup = new (window as any).mapboxgl.Popup({ offset: 25 }).setHTML(
+        const w = window as unknown as {
+          maplibregl: {
+            Popup: new (opts: unknown) => GLPopup;
+            Marker: new (el: HTMLElement) => GLMarker;
+          };
+        };
+        const popup = new w.maplibregl.Popup({ offset: 25 }).setHTML(
           `<div style="padding: 8px;">
             <strong>${person.name}</strong><br/>
             <span>Status: ${person.status}</span><br/>
@@ -93,10 +152,10 @@ export function MapView({ deliveryPersons, center = [-23.5505, -46.6333] }: MapV
           </div>`
         );
 
-        const marker = new (window as any).mapboxgl.Marker(el)
+        const marker = new w.maplibregl.Marker(el)
           .setLngLat([person.current_longitude, person.current_latitude])
           .setPopup(popup)
-          .addTo(map.current);
+          .addTo(map.current as GLMap);
 
         markers.current.set(person.id, marker);
       }
@@ -113,9 +172,16 @@ export function MapView({ deliveryPersons, center = [-23.5505, -46.6333] }: MapV
   return (
     <div className="relative w-full h-full">
       <div ref={mapContainer} className="w-full h-full rounded-lg" />
-      {!mapLoaded && (
+      {!mapLoaded && !mapError && (
         <div className="absolute inset-0 flex items-center justify-center bg-slate-100 rounded-lg">
           <div className="text-slate-600">Carregando mapa...</div>
+        </div>
+      )}
+      {mapError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-100 rounded-lg">
+          <div className="text-red-600 font-medium px-4 py-2 bg-red-50 border border-red-200 rounded">
+            {mapError}
+          </div>
         </div>
       )}
     </div>
