@@ -1,0 +1,113 @@
+import { useState } from 'react';
+import { supabase } from '../lib/supabase';
+
+export function AuthPage() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSignIn = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (signInError) throw signInError;
+
+      if (remember) {
+      }
+    } catch (e: unknown) {
+      const msg = (e as { message?: string })?.message || 'Falha no login';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSignUp = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+      if (signUpError) throw signUpError;
+    } catch (e: unknown) {
+      const msg = (e as { message?: string })?.message || 'Falha no cadastro';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-100">
+      <div className="w-full max-w-4xl bg-white rounded-2xl shadow border border-slate-200 overflow-hidden grid grid-cols-1 md:grid-cols-2">
+        <div className="relative p-8 md:p-10 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white">
+          <div className="absolute inset-0 bg-black/20" />
+          <div className="flex items-center justify-center mb-6">
+            <img
+              src="/Screenshot_20251113_103247-Photoroom.png"
+              alt="RouteDelivery"
+              className="h-20 md:h-24 object-contain"
+            />
+          </div>
+          <h1 className="text-3xl md:text-4xl font-bold">Bem-vindo de volta!</h1>
+          <p className="mt-2 text-slate-100">Acesse sua conta para continuar</p>
+          
+        </div>
+        <div className="p-8 md:p-10">
+          <h2 className="text-2xl font-semibold text-slate-900 mb-6">Entrar</h2>
+          {error && (
+            <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</div>
+          )}
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">E-mail</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                placeholder="seu@email.com"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Senha</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                placeholder="••••••••"
+              />
+            </div>
+            <div className="flex items-center justify-between text-xs text-slate-600">
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+                Lembrar-me
+              </label>
+              <button className="hover:underline">Esqueceu a senha?</button>
+            </div>
+            <button
+              onClick={handleSignIn}
+              disabled={loading}
+              className="w-full px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-medium disabled:opacity-50"
+            >
+              {loading ? 'Entrando...' : 'Entrar'}
+            </button>
+            <div className="text-xs text-slate-600 text-center">
+              Novo por aqui?{' '}
+              <button onClick={handleSignUp} className="text-sky-600 hover:underline">Criar uma conta</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
