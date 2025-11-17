@@ -1,35 +1,27 @@
 import { Map } from 'lucide-react';
-import { useState } from 'react';
 
 interface SidebarProps {
   activeMenu: string;
   onMenuChange: (menu: string) => void;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
-export function Sidebar({ activeMenu, onMenuChange }: SidebarProps) {
-  const [collapsed, setCollapsed] = useState(true);
+export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose }: SidebarProps) {
   const menuItems = [{ id: 'operations', label: 'Menu de Operações', icon: Map }];
 
   return (
     <aside
-      className={`${collapsed ? 'w-16' : 'w-64'} bg-slate-900 text-white min-h-screen flex flex-col transition-all duration-200`}
-      onMouseEnter={() => setCollapsed(false)}
-      onMouseLeave={() => setCollapsed(true)}
+      className={`fixed top-0 left-0 h-screen w-56 bg-slate-900 text-white flex flex-col border-r border-slate-800 transition-transform duration-200 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
+      role="dialog"
+      aria-modal="true"
     >
-      <div className="p-6 border-b border-slate-700 flex items-center justify-center">
-        {collapsed ? (
-          <img
-            src="/Screenshot_20251113_103247-Photoroom.png"
-            alt="RouteDelivery"
-            className="h-8 object-contain"
-          />
-        ) : (
-          <img
-            src="/Screenshot_20251113_103247-Photoroom.png"
-            alt="RouteDelivery"
-            className="h-20 object-contain"
-          />
-        )}
+      <div className="h-14 px-4 border-b border-slate-800 flex items-center justify-between">
+        <div className="font-semibold">Menu</div>
+        <button onClick={onClose} className="p-2 rounded hover:bg-slate-800" aria-label="Fechar menu">
+          <span className="block w-4 h-0.5 bg-white rotate-45 translate-y-0.5" />
+          <span className="block w-4 h-0.5 bg-white -rotate-45 -translate-y-0.5" />
+        </button>
       </div>
 
       <nav className="flex-1 p-4">
@@ -42,14 +34,14 @@ export function Sidebar({ activeMenu, onMenuChange }: SidebarProps) {
               <li key={item.id}>
                 <button
                   onClick={() => onMenuChange(item.id)}
-                  className={`w-full flex items-center ${collapsed ? 'justify-center h-12 px-0' : 'gap-3 px-4 py-3'} rounded-lg transition-all ${
+                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-all text-sm ${
                     isActive
                       ? 'bg-sky-500 text-white shadow-lg'
                       : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                   }`}
                 >
                   <Icon size={20} />
-                  {!collapsed && <span className="font-medium">{item.label}</span>}
+                  <span className="font-medium">{item.label}</span>
                 </button>
               </li>
             );
@@ -58,9 +50,7 @@ export function Sidebar({ activeMenu, onMenuChange }: SidebarProps) {
       </nav>
 
       <div className="p-4 border-t border-slate-700">
-        {!collapsed && (
-          <div className="text-slate-400 text-xs text-center">v1.0.0</div>
-        )}
+        <div className="text-slate-400 text-xs text-center">v1.0.0</div>
       </div>
     </aside>
   );
