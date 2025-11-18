@@ -42,7 +42,31 @@ export function OperationsDashboard() {
     let filtered = [...deliveryPersons];
 
     if (statusFilter !== 'all') {
-      filtered = filtered.filter((p) => p.status === statusFilter);
+      const mapStatus = (val: string): ('disponivel' | 'em_entrega' | 'inativo') | null => {
+        switch (val) {
+          case 'localizando_entregador':
+          case 'aguardando_entregador':
+          case 'no_estabelecimento':
+          case 'a_caminho_do_cliente':
+          case 'chegou_no_cliente':
+          case 'retornando_ao_estabelecimento':
+          case 'retornou_ao_estabelecimento':
+          case 'entrega_em_andamento':
+            return 'em_entrega';
+          case 'finalizada':
+          case 'cancelada':
+          case 'devolvido':
+            return 'inativo';
+          case 'indiferente':
+            return null;
+          default:
+            return null;
+        }
+      };
+      const mapped = mapStatus(statusFilter);
+      if (mapped) {
+        filtered = filtered.filter((p) => p.status === mapped);
+      }
     }
 
     if (onlineFilter === 'online') {
@@ -136,9 +160,18 @@ export function OperationsDashboard() {
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
                 >
                   <option value="all">Todos</option>
-                  <option value="disponivel">Disponível</option>
-                  <option value="em_entrega">Em Entrega</option>
-                  <option value="inativo">Inativo</option>
+                  <option value="indiferente">Indiferente</option>
+                  <option value="localizando_entregador">Localizando Entregador</option>
+                  <option value="aguardando_entregador">Aguardando Entregador</option>
+                  <option value="no_estabelecimento">Entregador no Estabelecimento</option>
+                  <option value="a_caminho_do_cliente">Entregador a Caminho do Cliente</option>
+                  <option value="chegou_no_cliente">Entregador Chegou no Cliente</option>
+                  <option value="retornando_ao_estabelecimento">Entregador retornando ao Estabelecimento</option>
+                  <option value="retornou_ao_estabelecimento">Entregador retornou ao Estabelecimento</option>
+                  <option value="finalizada">Finalizada</option>
+                  <option value="cancelada">Cancelada</option>
+                  <option value="devolvido">Devolvido</option>
+                  <option value="entrega_em_andamento">Entrega em andamento</option>
                 </select>
               </div>
 
