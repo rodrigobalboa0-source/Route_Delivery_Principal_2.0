@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../lib/supabase';
 import { Modal } from '../Modal';
 import type { Database } from '../../lib/database.types';
 
@@ -135,8 +135,34 @@ export function ClientesPanel() {
   };
 
   const handleDelete = async (id: string) => {
-    await supabase.from('clientes').delete().eq('id', id);
-    await fetchClientes();
+    try {
+      const { data: row } = await supabase.from('clientes').select('email').eq('id', id).maybeSingle();
+      const email = ((row as { email?: string } | null)?.email || '').trim().toLowerCase();
+      await supabase.from('clientes').delete().eq('id', id);
+      if (email) {
+        await (supabase as unknown as { from: (t: string) => { delete: () => { ilike: (c: string, v: string) => Promise<unknown> } } })
+          .from('users')
+          .delete()
+          .ilike('email', email);
+        try {
+          await fetch(`${SUPABASE_URL}/functions/v1/delete-auth-user-by-email`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+            body: JSON.stringify({ email }),
+          });
+        } catch (e) { void e; }
+        try {
+          const { data: session } = await supabase.auth.getSession();
+          const currentEmail = (session.session?.user?.email || '').trim().toLowerCase();
+          if (currentEmail && currentEmail === email) {
+            await supabase.auth.signOut();
+            try { localStorage.removeItem('cliente_context'); } catch (e) { void e; }
+          }
+        } catch (e) { void e; }
+      }
+    } finally {
+      await fetchClientes();
+    }
   };
 
   const openEdit = async (c: Cliente) => {
