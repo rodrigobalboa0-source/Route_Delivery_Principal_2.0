@@ -36,7 +36,7 @@ export function AuthPage() {
 
   const handleSignUpStart = () => {
     try {
-      window.open('/cadastro', '_blank');
+      window.open('/#cadastro', '_blank');
     } catch {
       setSignupOpen(true);
       setSignupRole('');
