@@ -4,7 +4,7 @@ import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase';
 import { MapView } from './MapView';
 import { DeliveryPersonCard } from './DeliveryPersonCard';
 import type { Database } from '../lib/database.types';
-
+type Entregador = Database['public']['Tables']['entregadores']['Row'];
 type DeliveryPerson = Database['public']['Tables']['delivery_persons']['Row'];
 
 export function OperationsDashboard() {
@@ -66,16 +66,59 @@ export function OperationsDashboard() {
         p.then((v: T) => { clearTimeout(t); resolve(v); }, (e: unknown) => { clearTimeout(t); reject(e); });
       });
     try {
-      const result = await withTimeout(
-        supabase
-          .from('delivery_persons')
-          .select('*')
-          .order('name'),
-        8000
+      const [eRes, dRes] = await Promise.all([
+        withTimeout(
+          supabase
+            .from('entregadores')
+            .select('id, nome_completo, email, telefone, status, created_at, updated_at')
+            .order('nome_completo'),
+          8000
+        ),
+        withTimeout(
+          supabase
+            .from('nova_entrega')
+            .select('entregador_id, status')
+            .in('status', [
+              'localizando_entregador',
+              'aguardando_entregador',
+              'no_estabelecimento',
+              'a_caminho_do_cliente',
+              'chegou_no_cliente',
+              'retornando_ao_estabelecimento',
+              'retornou_ao_estabelecimento',
+              'entrega_em_andamento',
+            ]),
+          8000
+        ),
+      ]);
+      const entregadores = (eRes as { data?: Entregador[] }).data || [];
+      const entregasAtivas = new Set(
+        (((dRes as { data?: { entregador_id?: string | null }[] }).data) || [])
+          .map((x) => (x.entregador_id || '').trim())
+          .filter((v) => v)
       );
-      const { data, error } = result as unknown as { data?: DeliveryPerson[]; error?: { code?: string; message?: string } };
-      if (error) throw error;
-      setDeliveryPersons((data || []) as DeliveryPerson[]);
+
+      const now = Date.now();
+      const mapped: DeliveryPerson[] = entregadores.map((e) => {
+        const baseStatus = e.status === 'ativo' ? 'disponivel' : 'inativo';
+        const status: DeliveryPerson['status'] = entregasAtivas.has(e.id) ? 'em_entrega' : baseStatus;
+        const updatedAt = e.updated_at ? Date.parse(e.updated_at) : 0;
+        const is_online = Boolean(updatedAt && now - updatedAt < 15 * 60 * 1000);
+        return {
+          id: e.id,
+          name: e.nome_completo,
+          email: e.email || '',
+          phone: e.telefone || '',
+          status,
+          is_online,
+          current_latitude: null,
+          current_longitude: null,
+          last_location_update: e.updated_at || null,
+          created_at: e.created_at,
+          updated_at: e.updated_at || e.created_at,
+        };
+      });
+      setDeliveryPersons(mapped);
       setErrorMessage(null);
     } catch (err: unknown) {
       const e = err as { code?: string; message?: string };
@@ -93,9 +136,7 @@ export function OperationsDashboard() {
           msg = `Falha ${r.status}`;
         }
       } catch (err) { void err; }
-      if ((e?.code && e.code === 'PGRST205') || msg.includes('Could not find the table')) {
-        setErrorMessage('Tabela delivery_persons não encontrada. Aplique as migrações no Supabase.');
-      } else if (msg.toLowerCase().includes('invalid api key')) {
+      if (msg.toLowerCase().includes('invalid api key')) {
         setErrorMessage('Chave API inválida. Atualize VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.');
       } else {
         if (msg) setErrorMessage(msg);
