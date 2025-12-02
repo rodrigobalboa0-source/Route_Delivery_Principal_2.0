@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Filter, Users } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase';
 import { MapView } from './MapView';
 import { DeliveryPersonCard } from './DeliveryPersonCard';
 import type { Database } from '../lib/database.types';
@@ -17,25 +17,6 @@ export function OperationsDashboard() {
 
   useEffect(() => {
     fetchDeliveryPersons();
-
-    const channel = supabase
-      .channel('delivery_persons_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'delivery_persons',
-        },
-        () => {
-          fetchDeliveryPersons();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, []);
 
   useEffect(() => {
@@ -79,22 +60,45 @@ export function OperationsDashboard() {
   }, [deliveryPersons, statusFilter, onlineFilter]);
 
   const fetchDeliveryPersons = async () => {
+    const withTimeout = <T,>(p: { then: (onFulfilled: (v: T) => unknown, onRejected?: (e: unknown) => unknown) => unknown }, ms: number) =>
+      new Promise<T>((resolve, reject) => {
+        const t = setTimeout(() => reject(new Error('Tempo excedido na consulta')), ms);
+        p.then((v: T) => { clearTimeout(t); resolve(v); }, (e: unknown) => { clearTimeout(t); reject(e); });
+      });
     try {
-      const { data, error } = await supabase
-        .from('delivery_persons')
-        .select('*')
-        .order('name');
-
+      const result = await withTimeout(
+        supabase
+          .from('delivery_persons')
+          .select('*')
+          .order('name'),
+        8000
+      );
+      const { data, error } = result as unknown as { data?: DeliveryPerson[]; error?: { code?: string; message?: string } };
       if (error) throw error;
-      setDeliveryPersons(data || []);
+      setDeliveryPersons((data || []) as DeliveryPerson[]);
       setErrorMessage(null);
     } catch (err: unknown) {
       const e = err as { code?: string; message?: string };
-      const msg = e?.message || 'Erro ao buscar entregadores';
+      let msg = e?.message || 'Erro ao buscar entregadores';
+      try {
+        const r = await fetch(`${SUPABASE_URL}/rest/v1/delivery_persons?select=*`, {
+          headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+        });
+        if (r.ok) {
+          const json = await r.json();
+          setDeliveryPersons(json as DeliveryPerson[]);
+          setErrorMessage(null);
+          msg = '';
+        } else {
+          msg = `Falha ${r.status}`;
+        }
+      } catch (err) { void err; }
       if ((e?.code && e.code === 'PGRST205') || msg.includes('Could not find the table')) {
         setErrorMessage('Tabela delivery_persons não encontrada. Aplique as migrações no Supabase.');
+      } else if (msg.toLowerCase().includes('invalid api key')) {
+        setErrorMessage('Chave API inválida. Atualize VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.');
       } else {
-        setErrorMessage(msg);
+        if (msg) setErrorMessage(msg);
       }
     } finally {
       setLoading(false);

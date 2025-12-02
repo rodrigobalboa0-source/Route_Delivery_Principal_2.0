@@ -1,9 +1,19 @@
 interface TopBarProps {
   onMenuToggle: () => void;
+  onLogout: () => void;
+  activeMenu: string;
+  userRole: 'operador' | 'cliente' | 'entregador';
   userName?: string;
 }
 
-export function TopBar({ onMenuToggle, userName }: TopBarProps) {
+export function TopBar({ onMenuToggle, onLogout, activeMenu, userRole, userName }: TopBarProps) {
+  const fallback = (() => {
+    if (userRole === 'operador') return 'Administrador';
+    if (userRole === 'cliente') return 'Cliente';
+    if (userRole === 'entregador') return 'Entregador';
+    if (typeof activeMenu === 'string' && activeMenu.startsWith('operations')) return 'Administrador';
+    return 'usuário';
+  })();
   return (
     <header className="w-full h-14 bg-slate-900 text-white flex items-center justify-between px-4 border-b border-slate-800">
       <div className="flex items-center gap-3">
@@ -22,8 +32,9 @@ export function TopBar({ onMenuToggle, userName }: TopBarProps) {
           className="h-12 md:h-16 object-contain"
         />
       </div>
-      <div className="text-sm text-slate-300">
-        {`Olá, ${userName || 'usuário'}`}
+      <div className="flex items-center gap-3">
+        <div className="text-sm text-slate-300">{`Olá, ${userName || fallback}`}</div>
+        <button onClick={onLogout} className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-sm">Sair</button>
       </div>
     </header>
   );

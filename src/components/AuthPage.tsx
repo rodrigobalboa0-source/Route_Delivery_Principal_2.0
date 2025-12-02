@@ -19,6 +19,7 @@ export function AuthPage() {
       if (signInError) throw signInError;
 
       if (remember) {
+        void 0;
       }
     } catch (e: unknown) {
       const msg = (e as { message?: string })?.message || 'Falha no login';
