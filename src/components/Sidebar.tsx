@@ -17,7 +17,7 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose }: SidebarPr
     { id: 'nova', label: 'Nova entrega', icon: PlusSquare },
   ];
   const cadastroItems = [
-    { id: 'cadastro_clientes', label: 'Clientes', icon: Users },
+    { id: 'cadastro_clientes', label: 'Comericio', icon: Users },
     { id: 'cadastro_contas', label: 'Contas gerenciais', icon: Wallet },
     { id: 'cadastro_entregadores', label: 'Entregadores', icon: Truck },
     { id: 'cadastro_grupos', label: 'Grupos operacionais', icon: Layers },

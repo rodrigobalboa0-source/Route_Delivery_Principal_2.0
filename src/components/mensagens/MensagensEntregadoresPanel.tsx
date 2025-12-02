@@ -41,6 +41,18 @@ export function MensagensEntregadoresPanel() {
     fetchEntregadores();
   }, [fetchEntregadores]);
 
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('mensagens_preselect');
+      if (!raw) return;
+      const v = JSON.parse(raw) as { tipo?: 'cliente' | 'entregador'; alvoId?: string };
+      localStorage.removeItem('mensagens_preselect');
+      if (v?.tipo === 'entregador' && v.alvoId) {
+        void handleSelectEntregador(v.alvoId);
+      }
+    } catch (e) { void e; }
+  }, []);
+
   const withTimeout = <T,>(p: { then: (onFulfilled: (v: T) => unknown, onRejected?: (e: unknown) => unknown) => unknown }, ms: number) =>
     new Promise<T>((resolve, reject) => {
       const t = setTimeout(() => reject(new Error('Tempo excedido na consulta')), ms);

@@ -19,6 +19,18 @@ export function MensagensClientesPanel() {
     fetchClientes();
   }, []);
 
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('mensagens_preselect');
+      if (!raw) return;
+      const v = JSON.parse(raw) as { tipo?: 'cliente' | 'entregador'; alvoId?: string };
+      localStorage.removeItem('mensagens_preselect');
+      if (v?.tipo === 'cliente' && v.alvoId) {
+        void handleSelectCliente(v.alvoId);
+      }
+    } catch (e) { void e; }
+  }, []);
+
   const fetchClientes = async () => {
     const { data } = await supabase.from('clientes').select('id, nome_completo').order('nome_completo');
     setClientes((data || []) as Cliente[]);

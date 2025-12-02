@@ -69,6 +69,43 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    const allowed = new Set([
+      'operations',
+      'cadastro_clientes',
+      'cadastro_contas',
+      'cadastro_entregadores',
+      'cadastro_grupos',
+      'cadastro_modais',
+      'cadastro_precificacao',
+      'cadastro_preco_espera',
+      'cadastro_preco_dinamico_demanda',
+      'cadastro_preco_dinamico_entregador',
+      'cadastro_servicos_opcionais',
+      'mensagens_entregadores',
+      'mensagens_clientes',
+      'mensagens_historico',
+      'nova_criar',
+      'financeiro_contas_receber',
+      'financeiro_contas_pagar',
+      'financeiro_emissao_notas',
+      'financeiro_emissao_recibos',
+      'financeiro_credito_clientes',
+      'financeiro_comissao_entregadores',
+      'financeiro_acertos_entregadores',
+      'financeiro_faturamento_mensal',
+      'financeiro_revisao_agendamentos',
+    ]);
+    const apply = () => {
+      const h = (window.location.hash || '').replace('#', '');
+      if (h && allowed.has(h)) setActiveMenu(h);
+    };
+    apply();
+    const onHash = () => apply();
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
   if (!authenticated) {
     return <AuthPage />;
   }
@@ -102,6 +139,7 @@ function App() {
         onMenuChange={(menu) => {
           setActiveMenu(menu);
           setSidebarOpen(true);
+          try { window.location.hash = menu; } catch (e) { void e; }
         }}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}

@@ -209,8 +209,9 @@ export function ClientesPanel() {
             <input value={form.nome_completo} onChange={(e) => setForm({ ...form, nome_completo: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
           </div>
           <div>
-            <label className="text-xs text-slate-700">CPF</label>
+            <label className="text-xs text-slate-700">CNPJ ou CPF</label>
             <input value={form.cpf} onChange={(e) => setForm({ ...form, cpf: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
+            <div className="text-[11px] text-slate-500 mt-1">Informe o CNPJ ou CPF do comércio ou pessoa</div>
           </div>
           <div>
             <label className="text-xs text-slate-700">Data de nascimento</label>
@@ -298,8 +299,9 @@ export function ClientesPanel() {
             <input value={editForm.nome_completo} onChange={(e) => setEditForm({ ...editForm, nome_completo: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
           </div>
           <div>
-            <label className="text-xs text-slate-700">CPF</label>
+            <label className="text-xs text-slate-700">CNPJ ou CPF</label>
             <input value={editForm.cpf} onChange={(e) => setEditForm({ ...editForm, cpf: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
+            <div className="text-[11px] text-slate-500 mt-1">Informe o CNPJ ou CPF do comércio ou pessoa</div>
           </div>
           <div>
             <label className="text-xs text-slate-700">Data de nascimento</label>
