@@ -174,7 +174,7 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose }: SidebarPr
       </nav>
 
       <div className="p-4 border-t border-slate-700">
-        <div className="text-slate-400 text-xs text-center">v1.1.4</div>
+        <div className="text-slate-400 text-xs text-center">v1.8.5</div>
       </div>
     </aside>
   );
