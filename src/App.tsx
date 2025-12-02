@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { OperationsDashboard } from './components/OperationsDashboard';
 import { AuthPage } from './components/AuthPage';
@@ -34,6 +34,94 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userName, setUserName] = useState<string | undefined>(undefined);
   const [userRole, setUserRole] = useState<'operador' | 'cliente' | 'entregador'>('operador');
+  const roleResolvedRef = useRef(false);
+
+  const resolveRole = async (uid: string, emailRaw: string) => {
+    if (roleResolvedRef.current) return;
+    const email = (emailRaw || '').trim().toLowerCase();
+    const { data: uData } = await supabase.from('users').select('role, full_name, email').eq('id', uid).maybeSingle();
+    const role = ((uData as { role?: string } | null)?.role || '').trim();
+    if (role === 'operador') {
+      setUserRole('operador');
+      roleResolvedRef.current = true;
+      try { localStorage.removeItem('cliente_context'); localStorage.removeItem('entregador_context'); } catch (e) { void e; }
+      return;
+    }
+    if (role === 'cliente') {
+      const { data: c } = await supabase.from('clientes').select('id, nome_completo').ilike('email', email).maybeSingle();
+      if ((c as { id?: string } | null)?.id) {
+        setUserRole('cliente');
+        roleResolvedRef.current = true;
+      try {
+        const cid = ((c as { id?: string } | null)?.id) || '';
+        const cnome = ((c as { nome_completo?: string } | null)?.nome_completo) || '';
+        localStorage.setItem('cliente_context', JSON.stringify({ id: cid, nome: cnome }));
+      } catch (e) { void e; }
+        return;
+      }
+    }
+    if (role === 'entregador') {
+      const { data: eData } = await supabase.from('entregadores').select('id, nome_completo').ilike('email', email).maybeSingle();
+      if ((eData as { id?: string } | null)?.id) {
+        setUserRole('entregador');
+        roleResolvedRef.current = true;
+        try {
+          const eid = ((eData as { id?: string } | null)?.id) || '';
+          const enome = ((eData as { nome_completo?: string } | null)?.nome_completo) || '';
+          localStorage.setItem('entregador_context', JSON.stringify({ id: eid, nome: enome }));
+        } catch (e) { void e; }
+        return;
+      }
+    }
+    const { data: admin } = await supabase.from('contas_gerenciais').select('id').ilike('email_acesso', email).maybeSingle();
+    if ((admin as { id?: string } | null)?.id) {
+      const nome = userName || email;
+      await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown, o?: unknown) => Promise<unknown> } }).from('users').upsert({ id: uid, full_name: nome, email, role: 'operador' });
+      setUserRole('operador');
+      roleResolvedRef.current = true;
+      try { localStorage.removeItem('cliente_context'); localStorage.removeItem('entregador_context'); } catch (e) { void e; }
+      return;
+    }
+    const { data: c2 } = await supabase.from('clientes').select('id, nome_completo').ilike('email', email).maybeSingle();
+    if ((c2 as { id?: string } | null)?.id) {
+      const nome = userName || email;
+      await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown, o?: unknown) => Promise<unknown> } }).from('users').upsert({ id: uid, full_name: nome, email, role: 'cliente' });
+      setUserRole('cliente');
+      roleResolvedRef.current = true;
+      try {
+        const cid2 = ((c2 as { id?: string } | null)?.id) || '';
+        const cnome2 = ((c2 as { nome_completo?: string } | null)?.nome_completo) || '';
+        localStorage.setItem('cliente_context', JSON.stringify({ id: cid2, nome: cnome2 }));
+      } catch (e) { void e; }
+      return;
+    }
+    const { data: e2 } = await supabase.from('entregadores').select('id, nome_completo').ilike('email', email).maybeSingle();
+    if ((e2 as { id?: string } | null)?.id) {
+      const nome = userName || email;
+      await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown, o?: unknown) => Promise<unknown> } }).from('users').upsert({ id: uid, full_name: nome, email, role: 'entregador' });
+      setUserRole('entregador');
+      roleResolvedRef.current = true;
+      try {
+        const eid2 = ((e2 as { id?: string } | null)?.id) || '';
+        const enome2 = ((e2 as { nome_completo?: string } | null)?.nome_completo) || '';
+        localStorage.setItem('entregador_context', JSON.stringify({ id: eid2, nome: enome2 }));
+      } catch (e) { void e; }
+      return;
+    }
+    const nomeFallback = userName || email;
+    const up = await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown, o?: { onConflict?: string }) => { select: (s: string) => { maybeSingle: () => Promise<{ data: unknown }> } } } }).from('entregadores').upsert({ nome_completo: nomeFallback, email, status: 'ativo' }, { onConflict: 'email' }).select('id, nome_completo').maybeSingle();
+    const created = (up.data || null) as { id?: string; nome_completo?: string } | null;
+    if (created?.id) {
+      await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown, o?: unknown) => Promise<unknown> } }).from('users').upsert({ id: uid, full_name: nomeFallback, email, role: 'entregador' });
+      setUserRole('entregador');
+      roleResolvedRef.current = true;
+      try { localStorage.setItem('entregador_context', JSON.stringify({ id: created.id, nome: created.nome_completo || '' })); } catch (e) { void e; }
+    } else {
+      setUserRole('operador');
+      roleResolvedRef.current = true;
+      try { localStorage.removeItem('cliente_context'); localStorage.removeItem('entregador_context'); } catch (e) { void e; }
+    }
+  };
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -48,6 +136,8 @@ function App() {
           .then(({ data }) => {
             setUserName((data as { full_name: string | null } | null)?.full_name || undefined);
           });
+        const email = (data.session?.user?.email || '').trim().toLowerCase();
+        if (email) resolveRole(uid, email);
       }
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -62,48 +152,13 @@ function App() {
           .then(({ data }) => {
             setUserName((data as { full_name: string | null } | null)?.full_name || undefined);
           });
+        const email = (session?.user?.email || '').trim().toLowerCase();
+        if (email) resolveRole(uid, email);
       }
     });
     return () => {
       sub.subscription.unsubscribe();
     };
-  }, []);
-
-  useEffect(() => {
-    const allowed = new Set([
-      'operations',
-      'cadastro_clientes',
-      'cadastro_contas',
-      'cadastro_entregadores',
-      'cadastro_grupos',
-      'cadastro_modais',
-      'cadastro_precificacao',
-      'cadastro_preco_espera',
-      'cadastro_preco_dinamico_demanda',
-      'cadastro_preco_dinamico_entregador',
-      'cadastro_servicos_opcionais',
-      'mensagens_entregadores',
-      'mensagens_clientes',
-      'mensagens_historico',
-      'nova_criar',
-      'financeiro_contas_receber',
-      'financeiro_contas_pagar',
-      'financeiro_emissao_notas',
-      'financeiro_emissao_recibos',
-      'financeiro_credito_clientes',
-      'financeiro_comissao_entregadores',
-      'financeiro_acertos_entregadores',
-      'financeiro_faturamento_mensal',
-      'financeiro_revisao_agendamentos',
-    ]);
-    const apply = () => {
-      const h = (window.location.hash || '').replace('#', '');
-      if (h && allowed.has(h)) setActiveMenu(h);
-    };
-    apply();
-    const onHash = () => apply();
-    window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
   }, []);
 
   if (!authenticated) {
@@ -139,10 +194,10 @@ function App() {
         onMenuChange={(menu) => {
           setActiveMenu(menu);
           setSidebarOpen(true);
-          try { window.location.hash = menu; } catch (e) { void e; }
         }}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        userRole={userRole}
       />
       <main className={`flex-1 transition-all duration-200 ${sidebarOpen ? 'pl-56' : 'pl-0'}`}>
         <div className="h-[calc(100vh-56px)] overflow-y-auto overflow-x-hidden scrollbar-modern">

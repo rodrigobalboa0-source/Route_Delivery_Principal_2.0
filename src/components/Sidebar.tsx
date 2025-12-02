@@ -6,9 +6,10 @@ interface SidebarProps {
   onMenuChange: (menu: string) => void;
   isOpen: boolean;
   onClose: () => void;
+  userRole: 'operador' | 'cliente' | 'entregador';
 }
 
-export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose }: SidebarProps) {
+export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole }: SidebarProps) {
   const menuItems = [
     { id: 'operations', label: 'Menu de Operações', icon: Map },
     { id: 'cadastro', label: 'Cadastro', icon: Layers },
@@ -31,6 +32,11 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose }: SidebarPr
   const [cadastroOpen, setCadastroOpen] = useState(false);
   const [mensagensOpen, setMensagensOpen] = useState(false);
   const [financeiroOpen, setFinanceiroOpen] = useState(false);
+  const visibleMenuItems = ((): { id: string; label: string; icon: any }[] => {
+    if (userRole === 'cliente') return menuItems.filter((m) => ['operations', 'mensagens'].includes(m.id));
+    if (userRole === 'entregador') return menuItems.filter((m) => ['mensagens'].includes(m.id));
+    return menuItems;
+  })();
   const mensagensItems = [
     { id: 'mensagens_entregadores', label: 'Entregadores', icon: MessageSquare },
     { id: 'mensagens_clientes', label: 'Clientes', icon: MessageSquare },
@@ -65,7 +71,7 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose }: SidebarPr
 
       <nav className="flex-1 p-4 overflow-y-auto overflow-x-hidden scrollbar-modern">
         <ul className="space-y-2">
-          {menuItems.map((item) => {
+          {visibleMenuItems.map((item) => {
             const Icon = item.icon;
             const isActive = item.id === 'cadastro'
               ? cadastroOpen || activeMenu.startsWith('cadastro')
@@ -124,7 +130,11 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose }: SidebarPr
 
                 {item.id === 'mensagens' && mensagensOpen && (
                   <ul className="mt-1 space-y-1">
-                    {mensagensItems.map((sub) => {
+                    {(userRole === 'cliente'
+                      ? mensagensItems.filter((s) => ['mensagens_clientes', 'mensagens_historico'].includes(s.id))
+                      : userRole === 'entregador'
+                        ? mensagensItems.filter((s) => ['mensagens_entregadores', 'mensagens_historico'].includes(s.id))
+                        : mensagensItems).map((sub) => {
                       const SubIcon = sub.icon;
                       const active = activeMenu === sub.id;
                       return (

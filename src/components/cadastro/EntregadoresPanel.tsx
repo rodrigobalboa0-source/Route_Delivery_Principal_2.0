@@ -53,6 +53,7 @@ export function EntregadoresPanel() {
     data_nascimento: '',
     telefone: '',
     email: '',
+    senha: '',
     veiculo_tipo: '',
     veiculo_modelo: '',
     veiculo_placa: '',
@@ -72,20 +73,78 @@ export function EntregadoresPanel() {
     setError(null);
     const { data, error } = await supabase.from('entregadores').select('*').order('nome_completo');
     if (error) setError(error.message);
-    setEntregadores(data || []);
+    const list = (data || []) as Entregador[];
+    const byEmail = new Map<string, Entregador>();
+    for (const e of list) {
+      const key = ((e.email || '').trim().toLowerCase()) || e.id;
+      if (!byEmail.has(key)) byEmail.set(key, e);
+    }
+    let dedup = Array.from(byEmail.values());
+    try {
+      const { data: admins } = await supabase.from('contas_gerenciais').select('email_acesso');
+      const adminSet = new Set((admins || []).map((a: { email_acesso?: string | null }) => (a.email_acesso || '').trim().toLowerCase()));
+      dedup = dedup.filter((e) => !adminSet.has(((e.email || '').trim().toLowerCase())));
+      const { data: usersAdmin } = await (supabase as unknown as { from: (t: string) => { select: (s: string) => { eq: (c: string, v: string) => Promise<{ data?: { email?: string; role?: string }[] }> } } }).from('users').select('email, role').eq('role', 'operador');
+      const opSet = new Set(((usersAdmin || []) as { email?: string; role?: string }[]).map((u) => (u.email || '').trim().toLowerCase()));
+      dedup = dedup.filter((e) => !opSet.has(((e.email || '').trim().toLowerCase())));
+    } catch { /* ignore */ }
+    setEntregadores(dedup);
     setLoading(false);
   };
 
   const handleSubmit = async () => {
     setLoading(true);
     setError(null);
+    const emailKey = (form.email || '').trim().toLowerCase();
+    if (emailKey) {
+      const { data: exists, error: existsErr } = await supabase.from('entregadores').select('id').ilike('email', emailKey).maybeSingle();
+      if (!existsErr && (exists as { id?: string } | null)?.id) {
+        setError('Já existe entregador com este e-mail');
+        setLoading(false);
+        return;
+      }
+      const { data: admin, error: adminErr } = await supabase.from('contas_gerenciais').select('id').ilike('email_acesso', emailKey).maybeSingle();
+      if (!adminErr && (admin as { id?: string } | null)?.id) {
+        setError('E-mail pertence a uma conta administrativa');
+        setLoading(false);
+        return;
+      }
+      const { data: userAdmin } = await (supabase as unknown as { from: (t: string) => { select: (s: string) => { ilike: (c: string, v: string) => { eq: (c: string, v: string) => Promise<{ data?: { id?: string }[] }> } } } }).from('users').select('id').ilike('email', emailKey).eq('role', 'operador');
+      if ((userAdmin || []).length > 0) {
+        setError('E-mail pertence a uma conta administrativa');
+        setLoading(false);
+        return;
+      }
+    }
+    try {
+      const shouldRegisterAuth = Boolean((form.email || '').trim()) && Boolean((form.senha || '').trim());
+      if (shouldRegisterAuth) {
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: form.email,
+          password: form.senha,
+        });
+        if (signUpError) {
+          setError(signUpError.message);
+          setLoading(false);
+          return;
+        } else if (signUpData?.user?.id) {
+          const uid = signUpData.user.id;
+          void (supabase as unknown as { from: (t: string) => { upsert: (v: unknown) => Promise<unknown> } })
+            .from('users')
+            .upsert({ id: uid, email: emailKey, full_name: form.nome_completo, role: 'entregador' });
+        }
+      }
+    } catch (e) {
+      const msg = (e as { message?: string })?.message;
+      if (msg) setError(msg);
+    }
     const res = await sbInsert('entregadores', {
       nome_completo: form.nome_completo,
       cpf: form.cpf || null,
       rg: form.rg || null,
       data_nascimento: form.data_nascimento || null,
       telefone: form.telefone || null,
-      email: form.email || null,
+      email: emailKey || null,
       veiculo_tipo: (form.veiculo_tipo || null) as Entregador['veiculo_tipo'],
       veiculo_modelo: form.veiculo_modelo || null,
       veiculo_placa: form.veiculo_placa || null,
@@ -97,7 +156,7 @@ export function EntregadoresPanel() {
     });
     const r = res as unknown as { error?: { message?: string } };
     if (r.error?.message) setError(r.error.message);
-    setForm({ nome_completo: '', cpf: '', rg: '', data_nascimento: '', telefone: '', email: '', veiculo_tipo: '', veiculo_modelo: '', veiculo_placa: '', veiculo_ano: '', cnh_valida: false, tipo_entrega: '', taxa_entrega: '', status: 'inativo' });
+    setForm({ nome_completo: '', cpf: '', rg: '', data_nascimento: '', telefone: '', email: '', senha: '', veiculo_tipo: '', veiculo_modelo: '', veiculo_placa: '', veiculo_ano: '', cnh_valida: false, tipo_entrega: '', taxa_entrega: '', status: 'inativo' });
     await fetchEntregadores();
   };
 
@@ -168,6 +227,7 @@ export function EntregadoresPanel() {
           <input type="date" placeholder="Nascimento" value={form.data_nascimento} onChange={(e) => setForm({ ...form, data_nascimento: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
           <input placeholder="Telefone" value={form.telefone} onChange={(e) => setForm({ ...form, telefone: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
           <input type="email" placeholder="E-mail" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+          <input type="password" placeholder="Senha (para criar acesso)" value={form.senha} onChange={(e) => setForm({ ...form, senha: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
           <select value={form.veiculo_tipo} onChange={(e) => setForm({ ...form, veiculo_tipo: e.target.value })} className="px-3 py-2 border border-slate-300 rounded">
             <option value="">Tipo de veículo</option>
             <option value="moto">Moto</option>

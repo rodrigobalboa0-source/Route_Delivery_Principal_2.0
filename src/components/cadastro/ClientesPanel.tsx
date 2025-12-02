@@ -40,6 +40,7 @@ export function ClientesPanel() {
     data_nascimento: '',
     telefone: '',
     email: '',
+    senha: '',
     metodo_pagamento_preferido: '',
     observacoes: '',
   });
@@ -80,12 +81,32 @@ export function ClientesPanel() {
   const handleSubmit = async () => {
     setLoading(true);
     setError(null);
+    try {
+      const shouldRegisterAuth = Boolean((form.email || '').trim()) && Boolean((form.senha || '').trim());
+      if (shouldRegisterAuth) {
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: form.email,
+          password: form.senha,
+        });
+        if (signUpError) {
+          setError(signUpError.message);
+        } else if (signUpData?.user?.id) {
+          const uid = signUpData.user.id;
+          void (supabase as unknown as { from: (t: string) => { upsert: (v: unknown) => Promise<unknown> } })
+            .from('users')
+            .upsert({ id: uid, email: form.email, full_name: form.nome_completo, role: 'user' });
+        }
+      }
+    } catch (e) {
+      const msg = (e as { message?: string })?.message;
+      if (msg) setError(msg);
+    }
     const res = await sbInsert('clientes', {
       nome_completo: form.nome_completo,
       cpf: form.cpf || null,
       data_nascimento: form.data_nascimento || null,
       telefone: form.telefone || null,
-      email: form.email || null,
+      email: (form.email || '').trim() ? (form.email || '').trim().toLowerCase() : null,
       metodo_pagamento_preferido: form.metodo_pagamento_preferido || null,
       observacoes: form.observacoes || null,
     });
@@ -108,7 +129,7 @@ export function ClientesPanel() {
         referencia_entrega: e.referencia_entrega || null,
       });
     }
-    setForm({ nome_completo: '', cpf: '', data_nascimento: '', telefone: '', email: '', metodo_pagamento_preferido: '', observacoes: '' });
+    setForm({ nome_completo: '', cpf: '', data_nascimento: '', telefone: '', email: '', senha: '', metodo_pagamento_preferido: '', observacoes: '' });
     setEnderecos([]);
     await fetchClientes();
   };
@@ -221,10 +242,14 @@ export function ClientesPanel() {
             <label className="text-xs text-slate-700">Telefone / WhatsApp</label>
             <input value={form.telefone} onChange={(e) => setForm({ ...form, telefone: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
           </div>
-          <div>
-            <label className="text-xs text-slate-700">E-mail</label>
-            <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
-          </div>
+        <div>
+          <label className="text-xs text-slate-700">E-mail</label>
+          <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
+        </div>
+        <div>
+          <label className="text-xs text-slate-700">Senha</label>
+          <input type="password" value={form.senha} onChange={(e) => setForm({ ...form, senha: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
+        </div>
           <div>
             <label className="text-xs text-slate-700">Método de pagamento preferido</label>
             <input value={form.metodo_pagamento_preferido} onChange={(e) => setForm({ ...form, metodo_pagamento_preferido: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />

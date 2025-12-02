@@ -7,6 +7,10 @@ export function AuthPage() {
   const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [signupOpen, setSignupOpen] = useState(false);
+  const [signupRole, setSignupRole] = useState<'entregador' | 'cliente' | ''>('');
+  const [signupNome, setSignupNome] = useState('');
+  const [signupTelefone, setSignupTelefone] = useState('');
 
   const handleSignIn = async () => {
     setLoading(true);
@@ -22,24 +26,47 @@ export function AuthPage() {
         void 0;
       }
     } catch (e: unknown) {
-      const msg = (e as { message?: string })?.message || 'Falha no login';
+      let msg = (e as { message?: string })?.message || 'Falha no login';
+      if (/email not confirmed/i.test(msg)) msg = 'Você precisa confirmar seu e-mail primeiro para logar';
       setError(msg);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSignUp = async () => {
+  const handleSignUpStart = () => {
+    setSignupOpen(true);
+    setSignupRole('');
+    setSignupNome('');
+    setSignupTelefone('');
+    setError(null);
+  };
+
+  const handleSignUpConfirm = async () => {
+    if (!email || !password || !signupRole || !signupNome) { setError('Preencha e-mail, senha, tipo e nome'); return; }
     setLoading(true);
     setError(null);
     try {
-      const { error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-      });
+      const eml = email.trim().toLowerCase();
+      const { data, error: signUpError } = await supabase.auth.signUp({ email: eml, password });
       if (signUpError) throw signUpError;
+      const uid = data?.user?.id || '';
+      if (signupRole === 'cliente') {
+        await (supabase as unknown as { from: (t: string) => { insert: (v: unknown) => Promise<unknown> } })
+          .from('clientes')
+          .insert({ nome_completo: signupNome, email: eml, telefone: signupTelefone || null });
+      } else if (signupRole === 'entregador') {
+        await (supabase as unknown as { from: (t: string) => { insert: (v: unknown) => Promise<unknown> } })
+          .from('entregadores')
+          .insert({ nome_completo: signupNome, email: eml, telefone: signupTelefone || null, status: 'ativo' });
+      }
+      void (supabase as unknown as { from: (t: string) => { upsert: (v: unknown) => Promise<unknown> } })
+        .from('users')
+        .upsert({ id: uid || undefined, email: eml, full_name: signupNome, role: 'user' });
+      setSignupOpen(false);
     } catch (e: unknown) {
-      const msg = (e as { message?: string })?.message || 'Falha no cadastro';
+      let msg = (e as { message?: string })?.message || 'Falha no cadastro';
+      if (/email not confirmed/i.test(msg)) msg = 'Você precisa confirmar seu e-mail primeiro para logar';
       setError(msg);
     } finally {
       setLoading(false);
@@ -104,11 +131,48 @@ export function AuthPage() {
             </button>
             <div className="text-xs text-slate-600 text-center">
               Novo por aqui?{' '}
-              <button onClick={handleSignUp} className="text-sky-600 hover:underline">Criar uma conta</button>
+              <button onClick={handleSignUpStart} className="text-sky-600 hover:underline">Criar uma conta</button>
             </div>
           </div>
         </div>
       </div>
+      {signupOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
+          <div className="w-full max-w-md bg-white rounded-xl shadow p-6">
+            <div className="text-lg font-semibold text-slate-900 mb-2">Criar conta</div>
+            <div className="text-sm text-slate-600 mb-4">Escolha o tipo de conta e informe seus dados</div>
+            <div className="space-y-3">
+              <div className="flex items-center gap-4 text-sm">
+                <label className="flex items-center gap-2"><input type="radio" checked={signupRole==='cliente'} onChange={() => setSignupRole('cliente')} /> Comercio</label>
+                <label className="flex items-center gap-2"><input type="radio" checked={signupRole==='entregador'} onChange={() => setSignupRole('entregador')} /> Entregador</label>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Nome completo</label>
+                <input value={signupNome} onChange={(e) => setSignupNome(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Telefone</label>
+                <input value={signupTelefone} onChange={(e) => setSignupTelefone(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">E-mail</label>
+                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Senha</label>
+                  <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-3 mt-2">
+                <button onClick={() => setSignupOpen(false)} className="px-3 py-2 rounded bg-slate-200 text-slate-800 text-sm">Cancelar</button>
+                <button onClick={handleSignUpConfirm} disabled={loading} className="px-3 py-2 rounded bg-sky-600 hover:bg-sky-700 text-white text-sm disabled:opacity-50">Criar</button>
+              </div>
+              <div className="text-[11px] text-slate-500">Após criar, confirme seu e-mail para poder acessar</div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

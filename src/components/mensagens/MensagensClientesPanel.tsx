@@ -14,6 +14,8 @@ export function MensagensClientesPanel() {
   const [selectedCliente, setSelectedCliente] = useState<string>('');
   const [canal, setCanal] = useState<'email' | 'sms' | 'push' | 'app' | ''>('');
   const [texto, setTexto] = useState('');
+  const [clienteNome, setClienteNome] = useState<string>('');
+  const [isClienteUser, setIsClienteUser] = useState(false);
 
   useEffect(() => {
     fetchClientes();
@@ -21,17 +23,28 @@ export function MensagensClientesPanel() {
 
   useEffect(() => {
     try {
+      const ctxRaw = localStorage.getItem('cliente_context');
+      if (ctxRaw) {
+        const ctx = JSON.parse(ctxRaw) as { id?: string; nome?: string };
+        if (ctx?.id) {
+          setIsClienteUser(true);
+          setClienteNome(ctx.nome || 'Cliente');
+          void handleSelectCliente(ctx.id);
+        }
+      }
       const raw = localStorage.getItem('mensagens_preselect');
-      if (!raw) return;
-      const v = JSON.parse(raw) as { tipo?: 'cliente' | 'entregador'; alvoId?: string };
-      localStorage.removeItem('mensagens_preselect');
-      if (v?.tipo === 'cliente' && v.alvoId) {
-        void handleSelectCliente(v.alvoId);
+      if (raw) {
+        const v = JSON.parse(raw) as { tipo?: 'cliente' | 'entregador'; alvoId?: string };
+        localStorage.removeItem('mensagens_preselect');
+        if (v?.tipo === 'cliente' && v.alvoId) {
+          void handleSelectCliente(v.alvoId);
+        }
       }
     } catch (e) { void e; }
   }, []);
 
   const fetchClientes = async () => {
+    if (isClienteUser) { setClientes([]); return; }
     const { data } = await supabase.from('clientes').select('id, nome_completo').order('nome_completo');
     setClientes((data || []) as Cliente[]);
   };
@@ -100,13 +113,19 @@ export function MensagensClientesPanel() {
       {error && <div className="mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</div>}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white border border-slate-200 rounded-lg p-4">
-          <div className="text-sm text-slate-700 mb-2">Selecionar cliente</div>
-          <select value={selectedCliente} onChange={(e) => handleSelectCliente(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded">
-            <option value="">Escolha</option>
-            {clientes.map((c) => (
-              <option key={c.id} value={c.id}>{(c as unknown as { nome_completo?: string }).nome_completo || 'Cliente'}</option>
-            ))}
-          </select>
+          {!isClienteUser ? (
+            <>
+              <div className="text-sm text-slate-700 mb-2">Selecionar cliente</div>
+              <select value={selectedCliente} onChange={(e) => handleSelectCliente(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded">
+                <option value="">Escolha</option>
+                {clientes.map((c) => (
+                  <option key={c.id} value={c.id}>{(c as unknown as { nome_completo?: string }).nome_completo || 'Cliente'}</option>
+                ))}
+              </select>
+            </>
+          ) : (
+            <div className="text-sm text-slate-700">Cliente: {clienteNome || 'Cliente'}</div>
+          )}
           <div className="mt-3">
             <select value={canal} onChange={(e) => setCanal(e.target.value as 'email' | 'sms' | 'app' | '')} className="w-full px-3 py-2 border border-slate-300 rounded">
               <option value="">Canal</option>

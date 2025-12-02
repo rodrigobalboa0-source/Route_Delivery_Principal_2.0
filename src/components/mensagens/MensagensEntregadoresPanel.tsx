@@ -14,6 +14,8 @@ export function MensagensEntregadoresPanel() {
   const [error, setError] = useState<string | null>(null);
   const [selectedEntregador, setSelectedEntregador] = useState<string>('');
   const [texto, setTexto] = useState('');
+  const [isEntregadorUser, setIsEntregadorUser] = useState(false);
+  const [entregadorNome, setEntregadorNome] = useState('');
 
   const fetchEntregadores = useCallback(async () => {
     try {
@@ -43,6 +45,15 @@ export function MensagensEntregadoresPanel() {
 
   useEffect(() => {
     try {
+      const ctxRaw = localStorage.getItem('entregador_context');
+      if (ctxRaw) {
+        const ctx = JSON.parse(ctxRaw) as { id?: string; nome?: string };
+        if (ctx?.id) {
+          setIsEntregadorUser(true);
+          setEntregadorNome(ctx.nome || 'Entregador');
+          void handleSelectEntregador(ctx.id);
+        }
+      }
       const raw = localStorage.getItem('mensagens_preselect');
       if (!raw) return;
       const v = JSON.parse(raw) as { tipo?: 'cliente' | 'entregador'; alvoId?: string };
@@ -143,16 +154,22 @@ export function MensagensEntregadoresPanel() {
       {error && <div className="mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</div>}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white border border-slate-200 rounded-lg p-4">
-          <div className="text-sm text-slate-700 mb-2">Selecionar entregador</div>
-          <select value={selectedEntregador} onChange={(e) => handleSelectEntregador(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded">
-            <option value="">Escolha</option>
-            {entregadores.map((e) => (
-              <option key={e.id} value={e.id}>{e.nome_completo}</option>
-            ))}
-          </select>
+          {!isEntregadorUser ? (
+            <>
+              <div className="text-sm text-slate-700 mb-2">Selecionar entregador</div>
+              <select value={selectedEntregador} onChange={(e) => handleSelectEntregador(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded">
+                <option value="">Escolha</option>
+                {entregadores.map((e) => (
+                  <option key={e.id} value={e.id}>{e.nome_completo}</option>
+                ))}
+              </select>
+            </>
+          ) : (
+            <div className="text-sm text-slate-700">Entregador: {entregadorNome || 'Entregador'}</div>
+          )}
         </div>
         <div className="md:col-span-2 bg-white border border-slate-200 rounded-lg flex flex-col">
-          <div className="px-4 py-2 border-b border-slate-200 text-sm text-slate-600">{conversaId ? 'Conversa' : 'Selecione um entregador'}</div>
+          <div className="px-4 py-2 border-b border-slate-200 text-sm text-slate-600">{conversaId ? 'Conversa' : (isEntregadorUser ? 'Conversa' : 'Selecione um entregador')}</div>
           <div className="flex-1 overflow-y-auto p-4 space-y-2">
             {loadingList && <div className="text-slate-600">Carregando...</div>}
             {!loadingList && mensagens.length === 0 && conversaId && <div className="text-slate-600">Nenhuma mensagem</div>}
