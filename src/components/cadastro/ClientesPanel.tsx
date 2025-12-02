@@ -16,11 +16,17 @@ type EnderecoEdit = {
   referencia_entrega?: string | null;
 };
 
-export function ClientesPanel() {
+export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' }) {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Cliente | null>(null);
+  const [showForm, setShowForm] = useState(mode === 'public');
+  const Chevron = ({ open }: { open: boolean }) => (
+    <svg viewBox="0 0 24 24" className={`w-4 h-4 transition-transform duration-300 ${open ? 'rotate-180' : ''}`}>
+      <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
   const [editForm, setEditForm] = useState({
     nome_completo: '',
     cpf: '',
@@ -29,6 +35,18 @@ export function ClientesPanel() {
     email: '',
     metodo_pagamento_preferido: '',
     observacoes: '',
+    segmento: '',
+    data_inicio: '',
+    razao_social: '',
+    nome_fantasia: '',
+    cadastro_via: '',
+    tipo_documento: 'cnpj',
+    cnpj: '',
+    lead_por: '',
+    franquia: '',
+    hub: '',
+    foto_url: '',
+    foto_base64: '',
   });
   const [editEnderecos, setEditEnderecos] = useState<EnderecoEdit[]>([]);
   const [editEnderecoNovo, setEditEnderecoNovo] = useState<EnderecoEdit>({ cep: '', rua: '', numero: '', complemento: '', bairro: '', cidade: '', referencia_entrega: '' });
@@ -43,7 +61,23 @@ export function ClientesPanel() {
     senha: '',
     metodo_pagamento_preferido: '',
     observacoes: '',
+    segmento: '',
+    data_inicio: '',
+    razao_social: '',
+    nome_fantasia: '',
+    cadastro_via: '',
+    tipo_documento: 'cnpj',
+    cnpj: '',
+    lead_por: '',
+    franquia: '',
+    hub: '',
+    foto_url: '',
+    foto_base64: '',
   });
+  const [fotoFile, setFotoFile] = useState<File | null>(null);
+  const [fotoPreview, setFotoPreview] = useState<string>('');
+  const [editFotoFile, setEditFotoFile] = useState<File | null>(null);
+  const [editFotoPreview, setEditFotoPreview] = useState<string>('');
   const [enderecos, setEnderecos] = useState<EnderecoInsert[]>([]);
   const [enderecoAtual, setEnderecoAtual] = useState<EnderecoInsert>({
     cliente_id: '',
@@ -117,6 +151,26 @@ export function ClientesPanel() {
       return;
     }
     const cid = (r.data?.id || '') as string;
+    if (fotoFile) {
+      try {
+        const fileName = `clientes/${cid}/foto-${Date.now()}-${(fotoFile.name || 'foto').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
+        const up = await (supabase as unknown as { storage: { from: (b: string) => { upload: (p: string, f: File, o?: unknown) => Promise<{ data?: { path?: string }; error?: { message?: string } }>; getPublicUrl: (p: string) => { data: { publicUrl: string } } } } })
+          .storage.from('images')
+          .upload(fileName, fotoFile, { upsert: true });
+        if (!up.error && up.data?.path) {
+          const publicUrl = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
+          setForm((prev) => ({ ...prev, foto_url: publicUrl }));
+        } else {
+          const reader = new FileReader();
+          reader.onload = () => setForm((prev) => ({ ...prev, foto_base64: String(reader.result || '') }));
+          reader.readAsDataURL(fotoFile);
+        }
+      } catch {
+        const reader = new FileReader();
+        reader.onload = () => setForm((prev) => ({ ...prev, foto_base64: String(reader.result || '') }));
+        reader.readAsDataURL(fotoFile);
+      }
+    }
     for (const e of enderecos) {
       await sbInsert('cliente_enderecos', {
         cliente_id: cid,
@@ -129,7 +183,49 @@ export function ClientesPanel() {
         referencia_entrega: e.referencia_entrega || null,
       });
     }
-    setForm({ nome_completo: '', cpf: '', data_nascimento: '', telefone: '', email: '', senha: '', metodo_pagamento_preferido: '', observacoes: '' });
+    try {
+      await (supabase as unknown as { from: (t: string) => { update: (v: unknown) => { eq: (c: string, v: unknown) => Promise<unknown> } } })
+        .from('clientes')
+        .update({
+          segmento: form.segmento || null,
+          data_inicio: form.data_inicio || null,
+          razao_social: form.razao_social || null,
+          nome_fantasia: form.nome_fantasia || null,
+          cadastro_via: form.cadastro_via || null,
+          tipo_documento: form.tipo_documento || null,
+          cnpj: form.cnpj || null,
+          lead_por: form.lead_por || null,
+          franquia: form.franquia || null,
+          hub: form.hub || null,
+          foto_url: form.foto_url || null,
+          foto_base64: form.foto_base64 || null,
+        })
+        .eq('id', cid);
+    } catch (e) {
+      const extras = {
+        segmento: form.segmento,
+        data_inicio: form.data_inicio,
+        razao_social: form.razao_social,
+        nome_fantasia: form.nome_fantasia,
+        cadastro_via: form.cadastro_via,
+        tipo_documento: form.tipo_documento,
+        cnpj: form.cnpj,
+        lead_por: form.lead_por,
+        franquia: form.franquia,
+        hub: form.hub,
+        foto_url: form.foto_url,
+        foto_base64: form.foto_base64,
+      };
+      const mergedObs = JSON.stringify({ extras, observacoes: form.observacoes || '' });
+      await (supabase as unknown as { from: (t: string) => { update: (v: unknown) => { eq: (c: string, v: unknown) => Promise<unknown> } } })
+        .from('clientes')
+        .update({ observacoes: mergedObs })
+        .eq('id', cid);
+      void e;
+    }
+    setForm({ nome_completo: '', cpf: '', data_nascimento: '', telefone: '', email: '', senha: '', metodo_pagamento_preferido: '', observacoes: '', segmento: '', data_inicio: '', razao_social: '', nome_fantasia: '', cadastro_via: '', tipo_documento: 'cnpj', cnpj: '', lead_por: '', franquia: '', hub: '', foto_url: '', foto_base64: '' });
+    setFotoFile(null);
+    setFotoPreview('');
     setEnderecos([]);
     await fetchClientes();
   };
@@ -175,7 +271,43 @@ export function ClientesPanel() {
       email: c.email || '',
       metodo_pagamento_preferido: c.metodo_pagamento_preferido || '',
       observacoes: c.observacoes || '',
+      segmento: '',
+      data_inicio: '',
+      razao_social: '',
+      nome_fantasia: '',
+      cadastro_via: '',
+      tipo_documento: 'cnpj',
+      cnpj: '',
+      lead_por: '',
+      franquia: '',
+      hub: '',
+      foto_url: '',
+      foto_base64: '',
     });
+    try {
+      const obs = String(c.observacoes || '');
+      const parsed = obs.startsWith('{') ? JSON.parse(obs) : null;
+      const extras = parsed?.extras || null;
+      if (extras) {
+        setEditForm((prev) => ({
+          ...prev,
+          segmento: extras.segmento || '',
+          data_inicio: extras.data_inicio || '',
+          razao_social: extras.razao_social || '',
+          nome_fantasia: extras.nome_fantasia || '',
+          cadastro_via: extras.cadastro_via || '',
+          tipo_documento: extras.tipo_documento || 'cnpj',
+          cnpj: extras.cnpj || '',
+          lead_por: extras.lead_por || '',
+          franquia: extras.franquia || '',
+          hub: extras.hub || '',
+          foto_url: extras.foto_url || '',
+          foto_base64: extras.foto_base64 || '',
+        }));
+        if (extras.foto_url) setEditFotoPreview(extras.foto_url);
+        if (extras.foto_base64) setEditFotoPreview(extras.foto_base64);
+      }
+    } catch (e) { void e; }
     const { data } = await supabase.from('cliente_enderecos').select('*').eq('cliente_id', c.id).order('created_at');
     const lista = (data || []).map((e: any) => ({
       id: e.id as string,
@@ -196,6 +328,18 @@ export function ClientesPanel() {
     if (!editing) return;
     setLoading(true);
     setError(null);
+    if (editFotoFile && editing?.id) {
+      try {
+        const fileName = `clientes/${editing.id}/foto-${Date.now()}-${(editFotoFile.name || 'foto').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
+        const up2 = await (supabase as unknown as { storage: { from: (b: string) => { upload: (p: string, f: File, o?: unknown) => Promise<{ data?: { path?: string }; error?: { message?: string } }>; getPublicUrl: (p: string) => { data: { publicUrl: string } } } } })
+          .storage.from('images')
+          .upload(fileName, editFotoFile, { upsert: true });
+        if (!up2.error && up2.data?.path) {
+          const publicUrl2 = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up2.data.path).data.publicUrl;
+          setEditForm((prev) => ({ ...prev, foto_url: publicUrl2, foto_base64: '' }));
+        }
+      } catch (e) { void e; }
+    }
     const res = await (supabase as unknown as { from: (t: string) => { update: (v: unknown) => { eq: (c: string, v: unknown) => Promise<unknown> } } })
       .from('clientes')
       .update({
@@ -206,6 +350,18 @@ export function ClientesPanel() {
         email: editForm.email || null,
         metodo_pagamento_preferido: editForm.metodo_pagamento_preferido || null,
         observacoes: editForm.observacoes || null,
+        segmento: editForm.segmento || null,
+        data_inicio: editForm.data_inicio || null,
+        razao_social: editForm.razao_social || null,
+        nome_fantasia: editForm.nome_fantasia || null,
+        cadastro_via: editForm.cadastro_via || null,
+        tipo_documento: editForm.tipo_documento || null,
+        cnpj: editForm.cnpj || null,
+        lead_por: editForm.lead_por || null,
+        franquia: editForm.franquia || null,
+        hub: editForm.hub || null,
+        foto_url: editForm.foto_url || null,
+        foto_base64: editForm.foto_base64 || null,
       })
       .eq('id', editing.id);
     const r = res as unknown as { error?: { message?: string } };
@@ -247,9 +403,105 @@ export function ClientesPanel() {
 
   return (
     <div className="p-6">
-      <h2 className="text-lg font-semibold text-slate-900 mb-4">Clientes</h2>
+      <style>{`
+        .fade-slide-in { animation: fadeSlideIn .25s ease-out; }
+        @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(-6px) scale(0.995); } to { opacity: 1; transform: translateY(0) scale(1); } }
+      `}</style>
+      <h2 className="text-lg font-semibold text-slate-900 mb-4">{mode === 'public' ? 'Cadastrar Comércio' : 'Clientes'}</h2>
+      {mode !== 'public' && (
+        <button onClick={() => setShowForm((v) => !v)} className="w-full mb-3 flex items-center justify-between px-4 py-3 rounded-md bg-sky-600 hover:bg-sky-700 text-white shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500">
+          <span className="text-sm font-semibold">{showForm ? 'Fechar cadastro de comércio' : 'Cadastrar comércio'}</span>
+          <span className="opacity-90"><Chevron open={showForm} /></span>
+        </button>
+      )}
       {error && <div className="mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</div>}
-      <div className="bg-white border border-slate-200 rounded-lg p-4 mb-6">
+      {showForm && (
+      <div className="bg-white border border-slate-200 rounded-lg p-4 mb-6 fade-slide-in shadow-sm">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div className="md:col-span-1 flex flex-col items-center">
+            <div className="w-28 h-28 rounded-full bg-slate-100 border border-slate-300 overflow-hidden mb-2">
+              {fotoPreview ? <img src={fotoPreview} alt="Foto" className="w-full h-full object-cover" /> : <div className="w-full h-full" />}
+            </div>
+            <label className="text-xs text-slate-700 mb-1">Selecione uma foto</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const f = e.target.files?.[0] || null;
+                setFotoFile(f);
+                if (f) {
+                  const reader = new FileReader();
+                  reader.onload = () => setFotoPreview(String(reader.result || ''));
+                  reader.readAsDataURL(f);
+                } else {
+                  setFotoPreview('');
+                }
+              }}
+              className="text-xs"
+            />
+          </div>
+          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-slate-700">Segmento</label>
+              <select value={form.segmento} onChange={(e) => setForm({ ...form, segmento: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded">
+                <option value="">Selecione</option>
+                <option>Comida Variada</option>
+                <option>Hamburgueria</option>
+                <option>Pizzaria</option>
+                <option>Doces</option>
+                <option>Bebidas</option>
+                <option>Mercado</option>
+                <option>Farmácia</option>
+                <option>Outro</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-slate-700">Data de Início</label>
+              <input type="date" value={form.data_inicio} onChange={(e) => setForm({ ...form, data_inicio: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
+            </div>
+            <div className="md:col-span-2">
+              <label className="text-xs text-slate-700">Razão Social</label>
+              <input value={form.razao_social} onChange={(e) => setForm({ ...form, razao_social: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
+            </div>
+            <div className="md:col-span-2">
+              <label className="text-xs text-slate-700">Nome Fantasia</label>
+              <input value={form.nome_fantasia} onChange={(e) => setForm({ ...form, nome_fantasia: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
+            </div>
+            <div>
+              <label className="text-xs text-slate-700">Cadastro via</label>
+              <select value={form.cadastro_via} onChange={(e) => setForm({ ...form, cadastro_via: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded">
+                <option value="">Selecione</option>
+                <option>Sistema do Comerciante</option>
+                <option>App do Comerciante</option>
+                <option>Painel Admin</option>
+                <option>Importação</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-slate-700">Tipo de documento</label>
+              <div className="flex items-center gap-3 mt-1">
+                <label className="text-xs"><input type="radio" checked={form.tipo_documento === 'cpf'} onChange={() => setForm({ ...form, tipo_documento: 'cpf' })} /> CPF</label>
+                <label className="text-xs"><input type="radio" checked={form.tipo_documento === 'cnpj'} onChange={() => setForm({ ...form, tipo_documento: 'cnpj' })} /> CNPJ</label>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-slate-700">CNPJ</label>
+              <input value={form.cnpj} onChange={(e) => setForm({ ...form, cnpj: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
+            </div>
+            <div>
+              <label className="text-xs text-slate-700">Franquias</label>
+              <input value={form.franquia} onChange={(e) => setForm({ ...form, franquia: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
+            </div>
+            <div>
+              <label className="text-xs text-slate-700">Hubs</label>
+              <input value={form.hub} onChange={(e) => setForm({ ...form, hub: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
+            </div>
+            <div>
+              <label className="text-xs text-slate-700">Lead cadastrado por</label>
+              <input value={form.lead_por} onChange={(e) => setForm({ ...form, lead_por: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
+            </div>
+          </div>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label className="text-xs text-slate-700">Nome completo</label>
@@ -309,11 +561,13 @@ export function ClientesPanel() {
         </div>
         <div className="mt-4">
           <button onClick={handleSubmit} disabled={loading} className="px-4 py-2 rounded bg-sky-600 hover:bg-sky-700 text-white text-sm disabled:opacity-50">
-            {loading ? 'Salvando...' : 'Salvar cliente'}
+            {loading ? 'Salvando...' : (mode === 'public' ? 'Cadastrar' : 'Salvar cliente')}
           </button>
         </div>
       </div>
+      )}
 
+      {mode !== 'public' && (
       <div className="bg-white border border-slate-200 rounded-lg">
         <div className="px-4 py-2 border-b border-slate-200 text-sm text-slate-600">Lista de clientes</div>
         {loading ? (
@@ -337,6 +591,7 @@ export function ClientesPanel() {
           </div>
         )}
       </div>
+      )}
       <Modal
         open={Boolean(editing)}
         title="Editar cliente"
@@ -344,7 +599,31 @@ export function ClientesPanel() {
         onConfirm={handleUpdate}
         confirmDisabled={loading}
       >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+          <div className="md:col-span-1 flex flex-col items-center">
+            <div className="w-24 h-24 rounded-full bg-slate-100 border border-slate-300 overflow-hidden mb-2">
+              {editFotoPreview || editForm.foto_url || editForm.foto_base64 ? (
+                <img src={editFotoPreview || editForm.foto_url || editForm.foto_base64} alt="Foto" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full" />
+              )}
+            </div>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const f = e.target.files?.[0] || null;
+                setEditFotoFile(f);
+                if (f) {
+                  const reader = new FileReader();
+                  reader.onload = () => setEditFotoPreview(String(reader.result || ''));
+                  reader.readAsDataURL(f);
+                }
+              }}
+              className="text-xs"
+            />
+          </div>
+          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label className="text-xs text-slate-700">Nome completo</label>
             <input value={editForm.nome_completo} onChange={(e) => setEditForm({ ...editForm, nome_completo: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
@@ -373,6 +652,50 @@ export function ClientesPanel() {
           <div className="md:col-span-2">
             <label className="text-xs text-slate-700">Observações</label>
             <textarea value={editForm.observacoes} onChange={(e) => setEditForm({ ...editForm, observacoes: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
+          </div>
+          <div>
+            <label className="text-xs text-slate-700">Segmento</label>
+            <input value={editForm.segmento} onChange={(e) => setEditForm({ ...editForm, segmento: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
+          </div>
+          <div>
+            <label className="text-xs text-slate-700">Data de Início</label>
+            <input type="date" value={editForm.data_inicio} onChange={(e) => setEditForm({ ...editForm, data_inicio: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
+          </div>
+          <div className="md:col-span-2">
+            <label className="text-xs text-slate-700">Razão Social</label>
+            <input value={editForm.razao_social} onChange={(e) => setEditForm({ ...editForm, razao_social: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
+          </div>
+          <div className="md:col-span-2">
+            <label className="text-xs text-slate-700">Nome Fantasia</label>
+            <input value={editForm.nome_fantasia} onChange={(e) => setEditForm({ ...editForm, nome_fantasia: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
+          </div>
+          <div>
+            <label className="text-xs text-slate-700">Cadastro via</label>
+            <input value={editForm.cadastro_via} onChange={(e) => setEditForm({ ...editForm, cadastro_via: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
+          </div>
+          <div>
+            <label className="text-xs text-slate-700">Tipo de documento</label>
+            <div className="flex items-center gap-3 mt-1">
+              <label className="text-xs"><input type="radio" checked={editForm.tipo_documento === 'cpf'} onChange={() => setEditForm({ ...editForm, tipo_documento: 'cpf' })} /> CPF</label>
+              <label className="text-xs"><input type="radio" checked={editForm.tipo_documento === 'cnpj'} onChange={() => setEditForm({ ...editForm, tipo_documento: 'cnpj' })} /> CNPJ</label>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-slate-700">CNPJ</label>
+            <input value={editForm.cnpj} onChange={(e) => setEditForm({ ...editForm, cnpj: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
+          </div>
+          <div>
+            <label className="text-xs text-slate-700">Franquias</label>
+            <input value={editForm.franquia} onChange={(e) => setEditForm({ ...editForm, franquia: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
+          </div>
+          <div>
+            <label className="text-xs text-slate-700">Hubs</label>
+            <input value={editForm.hub} onChange={(e) => setEditForm({ ...editForm, hub: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
+          </div>
+          <div>
+            <label className="text-xs text-slate-700">Lead cadastrado por</label>
+            <input value={editForm.lead_por} onChange={(e) => setEditForm({ ...editForm, lead_por: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
+          </div>
           </div>
         </div>
         <div className="mt-4">

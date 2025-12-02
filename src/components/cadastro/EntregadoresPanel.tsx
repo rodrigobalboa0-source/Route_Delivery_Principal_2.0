@@ -19,15 +19,27 @@ type CSVRow = {
   tipo_entrega?: 'proprio' | 'terceirizado' | 'parceiro' | ''
   taxa_entrega?: string
   status?: 'ativo' | 'inativo' | ''
+  cep?: string
+  rua?: string
+  numero?: string
+  complemento?: string
+  bairro?: string
+  cidade?: string
 };
 
 const sbInsert = (table: string, values: unknown) => (supabase as unknown as { from: (rel: string) => { insert: (vals: unknown) => Promise<unknown> } }).from(table).insert(values);
 
-export function EntregadoresPanel() {
+export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' }) {
   const [entregadores, setEntregadores] = useState<Entregador[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Entregador | null>(null);
+  const [showForm, setShowForm] = useState(mode === 'public');
+  const Chevron = ({ open }: { open: boolean }) => (
+    <svg viewBox="0 0 24 24" className={`w-4 h-4 transition-transform duration-300 ${open ? 'rotate-180' : ''}`}>
+      <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
   const [editForm, setEditForm] = useState({
     nome_completo: '',
     cpf: '',
@@ -43,7 +55,19 @@ export function EntregadoresPanel() {
     tipo_entrega: '',
     taxa_entrega: '',
     status: 'inativo',
+    cep: '',
+    rua: '',
+    numero: '',
+    complemento: '',
+    bairro: '',
+    cidade: '',
   });
+  const [fotoFile, setFotoFile] = useState<File | null>(null);
+  const [cnhFile, setCnhFile] = useState<File | null>(null);
+  const [comprovanteFile, setComprovanteFile] = useState<File | null>(null);
+  const [fotoPreview, setFotoPreview] = useState('');
+  const [cnhPreview, setCnhPreview] = useState('');
+  const [comprovantePreview, setComprovantePreview] = useState('');
   const [csvFileName, setCsvFileName] = useState('');
   const [csvRows, setCsvRows] = useState<CSVRow[]>([]);
   const [form, setForm] = useState({
@@ -62,7 +86,25 @@ export function EntregadoresPanel() {
     tipo_entrega: '',
     taxa_entrega: '',
     status: 'inativo',
+    cep: '',
+    rua: '',
+    numero: '',
+    complemento: '',
+    bairro: '',
+    cidade: '',
+    foto_url: '',
+    foto_base64: '',
+    cnh_foto_url: '',
+    cnh_foto_base64: '',
+    comprovante_residencia_url: '',
+    comprovante_residencia_base64: '',
   });
+  const [editFotoFile, setEditFotoFile] = useState<File | null>(null);
+  const [editCnhFile, setEditCnhFile] = useState<File | null>(null);
+  const [editComprovanteFile, setEditComprovanteFile] = useState<File | null>(null);
+  const [editFotoPreview, setEditFotoPreview] = useState('');
+  const [editCnhPreview, setEditCnhPreview] = useState('');
+  const [editComprovantePreview, setEditComprovantePreview] = useState('');
 
   useEffect(() => {
     fetchEntregadores();
@@ -145,6 +187,12 @@ export function EntregadoresPanel() {
       data_nascimento: form.data_nascimento || null,
       telefone: form.telefone || null,
       email: emailKey || null,
+      cep: form.cep || null,
+      rua: form.rua || null,
+      numero: form.numero || null,
+      complemento: form.complemento || null,
+      bairro: form.bairro || null,
+      cidade: form.cidade || null,
       veiculo_tipo: (form.veiculo_tipo || null) as Entregador['veiculo_tipo'],
       veiculo_modelo: form.veiculo_modelo || null,
       veiculo_placa: form.veiculo_placa || null,
@@ -154,9 +202,84 @@ export function EntregadoresPanel() {
       taxa_entrega: form.taxa_entrega ? Number(form.taxa_entrega) : null,
       status: form.status as Entregador['status'],
     });
-    const r = res as unknown as { error?: { message?: string } };
-    if (r.error?.message) setError(r.error.message);
-    setForm({ nome_completo: '', cpf: '', rg: '', data_nascimento: '', telefone: '', email: '', senha: '', veiculo_tipo: '', veiculo_modelo: '', veiculo_placa: '', veiculo_ano: '', cnh_valida: false, tipo_entrega: '', taxa_entrega: '', status: 'inativo' });
+    const r = res as unknown as { data?: { id?: string }; error?: { message?: string } };
+    if (r.error?.message) {
+      setError(r.error.message);
+      setLoading(false);
+      return;
+    }
+    const idNew = (r.data?.id || '') as string;
+    if (idNew) {
+      if (fotoFile) {
+        try {
+          const name = `entregadores/${idNew}/foto-${Date.now()}-${(fotoFile.name || 'foto').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
+          const up = await (supabase as unknown as { storage: { from: (b: string) => { upload: (p: string, f: File, o?: unknown) => Promise<{ data?: { path?: string }; error?: { message?: string } }>; getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').upload(name, fotoFile, { upsert: true });
+          if (!up.error && up.data?.path) {
+            const url = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
+            form.foto_url = url;
+          } else {
+            const reader = new FileReader();
+            reader.onload = () => { form.foto_base64 = String(reader.result || ''); };
+            reader.readAsDataURL(fotoFile);
+          }
+        } catch {
+          const reader = new FileReader();
+          reader.onload = () => { form.foto_base64 = String(reader.result || ''); };
+          reader.readAsDataURL(fotoFile);
+        }
+      }
+      if (cnhFile) {
+        try {
+          const name = `entregadores/${idNew}/cnh-${Date.now()}-${(cnhFile.name || 'cnh').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
+          const up = await (supabase as unknown as { storage: { from: (b: string) => { upload: (p: string, f: File, o?: unknown) => Promise<{ data?: { path?: string }; error?: { message?: string } }>; getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').upload(name, cnhFile, { upsert: true });
+          if (!up.error && up.data?.path) {
+            const url = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
+            form.cnh_foto_url = url;
+          } else {
+            const reader = new FileReader();
+            reader.onload = () => { form.cnh_foto_base64 = String(reader.result || ''); };
+            reader.readAsDataURL(cnhFile);
+          }
+        } catch {
+          const reader = new FileReader();
+          reader.onload = () => { form.cnh_foto_base64 = String(reader.result || ''); };
+          reader.readAsDataURL(cnhFile);
+        }
+      }
+      if (comprovanteFile) {
+        try {
+          const name = `entregadores/${idNew}/comprovante-${Date.now()}-${(comprovanteFile.name || 'comprovante').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
+          const up = await (supabase as unknown as { storage: { from: (b: string) => { upload: (p: string, f: File, o?: unknown) => Promise<{ data?: { path?: string }; error?: { message?: string } }>; getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').upload(name, comprovanteFile, { upsert: true });
+          if (!up.error && up.data?.path) {
+            const url = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
+            form.comprovante_residencia_url = url;
+          } else {
+            const reader = new FileReader();
+            reader.onload = () => { form.comprovante_residencia_base64 = String(reader.result || ''); };
+            reader.readAsDataURL(comprovanteFile);
+          }
+        } catch {
+          const reader = new FileReader();
+          reader.onload = () => { form.comprovante_residencia_base64 = String(reader.result || ''); };
+          reader.readAsDataURL(comprovanteFile);
+        }
+      }
+      await (supabase as unknown as { from: (t: string) => { update: (v: unknown) => { eq: (c: string, v: unknown) => Promise<unknown> } } }).from('entregadores').update({
+        foto_url: form.foto_url || null,
+        foto_base64: form.foto_base64 || null,
+        cnh_foto_url: form.cnh_foto_url || null,
+        cnh_foto_base64: form.cnh_foto_base64 || null,
+        comprovante_residencia_url: form.comprovante_residencia_url || null,
+        comprovante_residencia_base64: form.comprovante_residencia_base64 || null,
+      }).eq('id', idNew);
+    }
+    setForm({ nome_completo: '', cpf: '', rg: '', data_nascimento: '', telefone: '', email: '', senha: '', veiculo_tipo: '', veiculo_modelo: '', veiculo_placa: '', veiculo_ano: '', cnh_valida: false, tipo_entrega: '', taxa_entrega: '', status: 'inativo', cep: '', rua: '', numero: '', complemento: '', bairro: '', cidade: '', foto_url: '', foto_base64: '', cnh_foto_url: '', cnh_foto_base64: '', comprovante_residencia_url: '', comprovante_residencia_base64: '' });
+    setFotoFile(null);
+    setCnhFile(null);
+    setComprovanteFile(null);
+    setFotoPreview('');
+    setCnhPreview('');
+    setComprovantePreview('');
     await fetchEntregadores();
   };
 
@@ -208,13 +331,54 @@ export function EntregadoresPanel() {
       tipo_entrega: c.tipo_entrega || '',
       taxa_entrega: c.taxa_entrega != null ? String(c.taxa_entrega) : '',
       status: c.status,
+      cep: (c as any).cep || '',
+      rua: (c as any).rua || '',
+      numero: (c as any).numero || '',
+      complemento: (c as any).complemento || '',
+      bairro: (c as any).bairro || '',
+      cidade: (c as any).cidade || '',
     });
+    setEditFotoPreview((c as unknown as { foto_url?: string; foto_base64?: string }).foto_url || (c as unknown as { foto_base64?: string }).foto_base64 || '');
+    setEditCnhPreview((c as unknown as { cnh_foto_url?: string; cnh_foto_base64?: string }).cnh_foto_url || (c as unknown as { cnh_foto_base64?: string }).cnh_foto_base64 || '');
+    setEditComprovantePreview((c as unknown as { comprovante_residencia_url?: string; comprovante_residencia_base64?: string }).comprovante_residencia_url || (c as unknown as { comprovante_residencia_base64?: string }).comprovante_residencia_base64 || '');
   };
 
   const handleUpdate = async () => {
     if (!editing) return;
     setLoading(true);
     setError(null);
+    if (editing?.id) {
+      if (editFotoFile) {
+        try {
+          const name = `entregadores/${editing.id}/foto-${Date.now()}-${(editFotoFile.name || 'foto').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
+          const up = await (supabase as unknown as { storage: { from: (b: string) => { upload: (p: string, f: File, o?: unknown) => Promise<{ data?: { path?: string }; error?: { message?: string } }>; getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').upload(name, editFotoFile, { upsert: true });
+          if (!up.error && up.data?.path) {
+            const url = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
+            setEditForm((prev) => ({ ...prev, foto_url: url, foto_base64: '' } as any));
+          }
+        } catch (e) { void e; }
+      }
+      if (editCnhFile) {
+        try {
+          const name = `entregadores/${editing.id}/cnh-${Date.now()}-${(editCnhFile.name || 'cnh').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
+          const up = await (supabase as unknown as { storage: { from: (b: string) => { upload: (p: string, f: File, o?: unknown) => Promise<{ data?: { path?: string }; error?: { message?: string } }>; getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').upload(name, editCnhFile, { upsert: true });
+          if (!up.error && up.data?.path) {
+            const url = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
+            setEditForm((prev) => ({ ...prev, cnh_foto_url: url, cnh_foto_base64: '' } as any));
+          }
+        } catch (e) { void e; }
+      }
+      if (editComprovanteFile) {
+        try {
+          const name = `entregadores/${editing.id}/comprovante-${Date.now()}-${(editComprovanteFile.name || 'comprovante').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
+          const up = await (supabase as unknown as { storage: { from: (b: string) => { upload: (p: string, f: File, o?: unknown) => Promise<{ data?: { path?: string }; error?: { message?: string } }>; getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').upload(name, editComprovanteFile, { upsert: true });
+          if (!up.error && up.data?.path) {
+            const url = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
+            setEditForm((prev) => ({ ...prev, comprovante_residencia_url: url, comprovante_residencia_base64: '' } as any));
+          }
+        } catch (e) { void e; }
+      }
+    }
     const res = await (supabase as unknown as { from: (t: string) => { update: (v: unknown) => { eq: (c: string, v: unknown) => Promise<unknown> } } })
       .from('entregadores')
       .update({
@@ -224,6 +388,12 @@ export function EntregadoresPanel() {
         data_nascimento: editForm.data_nascimento || null,
         telefone: editForm.telefone || null,
         email: editForm.email || null,
+        cep: editForm.cep || null,
+        rua: editForm.rua || null,
+        numero: editForm.numero || null,
+        complemento: editForm.complemento || null,
+        bairro: editForm.bairro || null,
+        cidade: editForm.cidade || null,
         veiculo_tipo: (editForm.veiculo_tipo || null) as Entregador['veiculo_tipo'],
         veiculo_modelo: editForm.veiculo_modelo || null,
         veiculo_placa: editForm.veiculo_placa || null,
@@ -232,6 +402,12 @@ export function EntregadoresPanel() {
         tipo_entrega: (editForm.tipo_entrega || null) as Entregador['tipo_entrega'],
         taxa_entrega: editForm.taxa_entrega ? Number(editForm.taxa_entrega) : null,
         status: editForm.status as Entregador['status'],
+        foto_url: (editForm as any).foto_url || null,
+        foto_base64: (editForm as any).foto_base64 || null,
+        cnh_foto_url: (editForm as any).cnh_foto_url || null,
+        cnh_foto_base64: (editForm as any).cnh_foto_base64 || null,
+        comprovante_residencia_url: (editForm as any).comprovante_residencia_url || null,
+        comprovante_residencia_base64: (editForm as any).comprovante_residencia_base64 || null,
       })
       .eq('id', editing.id);
     const r = res as unknown as { error?: { message?: string } };
@@ -243,49 +419,167 @@ export function EntregadoresPanel() {
 
   return (
     <div className="p-6">
+      <style>{`
+        .fade-slide-in { animation: fadeSlideIn .25s ease-out; }
+        @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(-6px) scale(0.995); } to { opacity: 1; transform: translateY(0) scale(1); } }
+      `}</style>
       <h2 className="text-lg font-semibold text-slate-900 mb-4">Entregadores</h2>
+      {mode !== 'public' && (
+        <button onClick={() => setShowForm((v) => !v)} className="w-full mb-3 flex items-center justify-between px-4 py-3 rounded-md bg-sky-600 hover:bg-sky-700 text-white shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500">
+          <span className="text-sm font-semibold">{showForm ? 'Fechar cadastro de entregador' : 'Cadastrar entregador'}</span>
+          <span className="opacity-90"><Chevron open={showForm} /></span>
+        </button>
+      )}
       {error && <div className="mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</div>}
-      <div className="bg-white border border-slate-200 rounded-lg p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <input placeholder="Nome completo" value={form.nome_completo} onChange={(e) => setForm({ ...form, nome_completo: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-          <input placeholder="CPF" value={form.cpf} onChange={(e) => setForm({ ...form, cpf: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-          <input placeholder="RG" value={form.rg} onChange={(e) => setForm({ ...form, rg: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-          <input type="date" placeholder="Nascimento" value={form.data_nascimento} onChange={(e) => setForm({ ...form, data_nascimento: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-          <input placeholder="Telefone" value={form.telefone} onChange={(e) => setForm({ ...form, telefone: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-          <input type="email" placeholder="E-mail" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-          <input type="password" placeholder="Senha (para criar acesso)" value={form.senha} onChange={(e) => setForm({ ...form, senha: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-          <select value={form.veiculo_tipo} onChange={(e) => setForm({ ...form, veiculo_tipo: e.target.value })} className="px-3 py-2 border border-slate-300 rounded">
-            <option value="">Tipo de veículo</option>
-            <option value="moto">Moto</option>
-            <option value="bike">Bike</option>
-            <option value="carro">Carro</option>
-          </select>
-          <input placeholder="Modelo" value={form.veiculo_modelo} onChange={(e) => setForm({ ...form, veiculo_modelo: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-          <input placeholder="Placa" value={form.veiculo_placa} onChange={(e) => setForm({ ...form, veiculo_placa: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-          <input placeholder="Ano" value={form.veiculo_ano} onChange={(e) => setForm({ ...form, veiculo_ano: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-          <div className="flex items-center gap-2">
-            <input id="cnh" type="checkbox" checked={form.cnh_valida} onChange={(e) => setForm({ ...form, cnh_valida: e.target.checked })} />
-            <label htmlFor="cnh" className="text-sm text-slate-700">CNH válida</label>
+      {showForm && (
+      <div className="bg-white border border-slate-200 rounded-lg p-4 mb-6 fade-slide-in shadow-sm">
+        {mode === 'public' ? (
+          <div className="md:flex md:gap-8">
+            <div className="md:w-48 flex flex-col items-center gap-3">
+              <div className="w-28 h-28 rounded-full bg-slate-100 border border-slate-300 overflow-hidden">
+                {fotoPreview ? <img src={fotoPreview} alt="Foto" className="w-full h-full object-cover" /> : <div className="w-full h-full" />}
+              </div>
+              <label htmlFor="upload_foto_pub" className="px-2 py-1 text-xs rounded border border-slate-300 bg-white hover:bg-slate-50 cursor-pointer mt-2">Escolher arquivo</label>
+              <input id="upload_foto_pub" type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0] || null; setFotoFile(f); if (f) { const r = new FileReader(); r.onload = () => setFotoPreview(String(r.result || '')); r.readAsDataURL(f); } else { setFotoPreview(''); } }} className="hidden" />
+              <div className="text-[11px] text-slate-500 mt-1">{fotoFile ? fotoFile.name : 'Nenhum arquivo escolhido'}</div>
+              <div className="text-[11px] text-slate-500">Foto do entregador</div>
+            </div>
+            <div className="md:flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <input placeholder="Nome completo" value={form.nome_completo} onChange={(e) => setForm({ ...form, nome_completo: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+              <input placeholder="CPF" value={form.cpf} onChange={(e) => setForm({ ...form, cpf: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+              <input placeholder="RG" value={form.rg} onChange={(e) => setForm({ ...form, rg: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+              <input type="date" placeholder="Nascimento" value={form.data_nascimento} onChange={(e) => setForm({ ...form, data_nascimento: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+              <input placeholder="Telefone" value={form.telefone} onChange={(e) => setForm({ ...form, telefone: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+              <input type="email" placeholder="E-mail" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+              <input placeholder="CEP" value={form.cep} onChange={(e) => setForm({ ...form, cep: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+              <input placeholder="Rua" value={form.rua} onChange={(e) => setForm({ ...form, rua: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+              <input placeholder="Número" value={form.numero} onChange={(e) => setForm({ ...form, numero: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+              <input placeholder="Complemento" value={form.complemento} onChange={(e) => setForm({ ...form, complemento: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+              <input placeholder="Bairro" value={form.bairro} onChange={(e) => setForm({ ...form, bairro: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+              <input placeholder="Cidade" value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+              <input type="password" placeholder="Senha (para criar acesso)" value={form.senha} onChange={(e) => setForm({ ...form, senha: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+              <select value={form.veiculo_tipo} onChange={(e) => setForm({ ...form, veiculo_tipo: e.target.value })} className="px-3 py-2 border border-slate-300 rounded">
+                <option value="">Tipo de veículo</option>
+                <option value="moto">Moto</option>
+                <option value="bike">Bike</option>
+                <option value="carro">Carro</option>
+              </select>
+              <input placeholder="Modelo" value={form.veiculo_modelo} onChange={(e) => setForm({ ...form, veiculo_modelo: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+              <input placeholder="Placa" value={form.veiculo_placa} onChange={(e) => setForm({ ...form, veiculo_placa: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+              <input placeholder="Ano" value={form.veiculo_ano} onChange={(e) => setForm({ ...form, veiculo_ano: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+              <div className="flex items-center gap-2">
+                <input id="cnh" type="checkbox" checked={form.cnh_valida} onChange={(e) => setForm({ ...form, cnh_valida: e.target.checked })} />
+                <label htmlFor="cnh" className="text-sm text-slate-700">CNH válida</label>
+              </div>
+              <select value={form.tipo_entrega} onChange={(e) => setForm({ ...form, tipo_entrega: e.target.value })} className="px-3 py-2 border border-slate-300 rounded">
+                <option value="">Tipo de entrega</option>
+                <option value="proprio">Próprio</option>
+                <option value="terceirizado">Terceirizado</option>
+                <option value="parceiro">Parceiro</option>
+              </select>
+              <input placeholder="Taxa de entrega" value={form.taxa_entrega} onChange={(e) => setForm({ ...form, taxa_entrega: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+              <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="px-3 py-2 border border-slate-300 rounded">
+                <option value="ativo">Ativo</option>
+                <option value="inativo">Inativo</option>
+              </select>
+            </div>
+            <div className="md:w-48 flex flex-col items-center gap-3 mt-6 md:mt-0">
+              <div className="w-24 h-24 rounded bg-slate-100 border border-slate-300 overflow-hidden">
+                {cnhPreview ? <img src={cnhPreview} alt="CNH" className="w-full h-full object-cover" /> : <div className="w-full h-full" />}
+              </div>
+              <label htmlFor="upload_cnh_pub" className="px-2 py-1 text-xs rounded border border-slate-300 bg-white hover:bg-slate-50 cursor-pointer mt-2">Escolher arquivo</label>
+              <input id="upload_cnh_pub" type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0] || null; setCnhFile(f); if (f) { const r = new FileReader(); r.onload = () => setCnhPreview(String(r.result || '')); r.readAsDataURL(f); } else { setCnhPreview(''); } }} className="hidden" />
+              <div className="text-[11px] text-slate-500 mt-1">{cnhFile ? cnhFile.name : 'Nenhum arquivo escolhido'}</div>
+              <div className="text-[11px] text-slate-500">Foto da CNH</div>
+              <div className="w-24 h-24 rounded bg-slate-100 border border-slate-300 overflow-hidden">
+                {comprovantePreview ? <img src={comprovantePreview} alt="Comprovante" className="w-full h-full object-cover" /> : <div className="w-full h-full" />}
+              </div>
+              <label htmlFor="upload_comp_pub" className="px-2 py-1 text-xs rounded border border-slate-300 bg-white hover:bg-slate-50 cursor-pointer mt-2">Escolher arquivo</label>
+              <input id="upload_comp_pub" type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0] || null; setComprovanteFile(f); if (f) { const r = new FileReader(); r.onload = () => setComprovantePreview(String(r.result || '')); r.readAsDataURL(f); } else { setComprovantePreview(''); } }} className="hidden" />
+              <div className="text-[11px] text-slate-500 mt-1">{comprovanteFile ? comprovanteFile.name : 'Nenhum arquivo escolhido'}</div>
+              <div className="text-[11px] text-slate-500">Comprovante de residência</div>
+            </div>
           </div>
-          <select value={form.tipo_entrega} onChange={(e) => setForm({ ...form, tipo_entrega: e.target.value })} className="px-3 py-2 border border-slate-300 rounded">
-            <option value="">Tipo de entrega</option>
-            <option value="proprio">Próprio</option>
-            <option value="terceirizado">Terceirizado</option>
-            <option value="parceiro">Parceiro</option>
-          </select>
-          <input placeholder="Taxa de entrega" value={form.taxa_entrega} onChange={(e) => setForm({ ...form, taxa_entrega: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-          <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="px-3 py-2 border border-slate-300 rounded">
-            <option value="ativo">Ativo</option>
-            <option value="inativo">Inativo</option>
-          </select>
-        </div>
+        ) : (
+          <>
+            <div className="md:flex md:gap-8">
+              <div className="md:w-48 flex flex-col items-center">
+                <div className="w-28 h-28 rounded-full bg-slate-100 border border-slate-300 overflow-hidden mb-2">
+                  {fotoPreview ? <img src={fotoPreview} alt="Foto" className="w-full h-full object-cover" /> : <div className="w-full h-full" />}
+                </div>
+                <label htmlFor="upload_foto_admin" className="px-2 py-1 text-xs rounded border border-slate-300 bg-white hover:bg-slate-50 cursor-pointer mt-2">Escolher arquivo</label>
+                <input id="upload_foto_admin" type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0] || null; setFotoFile(f); if (f) { const r = new FileReader(); r.onload = () => setFotoPreview(String(r.result || '')); r.readAsDataURL(f); } else { setFotoPreview(''); } }} className="hidden" />
+                <div className="text-[11px] text-slate-500 mt-1">{fotoFile ? fotoFile.name : 'Nenhum arquivo escolhido'}</div>
+                <div className="text-[11px] text-slate-500">Foto do entregador</div>
+              </div>
+              <div className="md:flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input placeholder="Nome completo" value={form.nome_completo} onChange={(e) => setForm({ ...form, nome_completo: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+                <input placeholder="CPF" value={form.cpf} onChange={(e) => setForm({ ...form, cpf: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+                <input placeholder="RG" value={form.rg} onChange={(e) => setForm({ ...form, rg: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+                <input type="date" placeholder="Nascimento" value={form.data_nascimento} onChange={(e) => setForm({ ...form, data_nascimento: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+                <input placeholder="Telefone" value={form.telefone} onChange={(e) => setForm({ ...form, telefone: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+                <input type="email" placeholder="E-mail" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+                <input placeholder="CEP" value={form.cep} onChange={(e) => setForm({ ...form, cep: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+                <input placeholder="Rua" value={form.rua} onChange={(e) => setForm({ ...form, rua: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+                <input placeholder="Número" value={form.numero} onChange={(e) => setForm({ ...form, numero: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+                <input placeholder="Complemento" value={form.complemento} onChange={(e) => setForm({ ...form, complemento: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+                <input placeholder="Bairro" value={form.bairro} onChange={(e) => setForm({ ...form, bairro: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+                <input placeholder="Cidade" value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+                <input type="password" placeholder="Senha (para criar acesso)" value={form.senha} onChange={(e) => setForm({ ...form, senha: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+                <select value={form.veiculo_tipo} onChange={(e) => setForm({ ...form, veiculo_tipo: e.target.value })} className="px-3 py-2 border border-slate-300 rounded">
+                  <option value="">Tipo de veículo</option>
+                  <option value="moto">Moto</option>
+                  <option value="bike">Bike</option>
+                  <option value="carro">Carro</option>
+                </select>
+                <input placeholder="Modelo" value={form.veiculo_modelo} onChange={(e) => setForm({ ...form, veiculo_modelo: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+                <input placeholder="Placa" value={form.veiculo_placa} onChange={(e) => setForm({ ...form, veiculo_placa: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+                <input placeholder="Ano" value={form.veiculo_ano} onChange={(e) => setForm({ ...form, veiculo_ano: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+                <div className="flex items-center gap-2">
+                  <input id="cnh" type="checkbox" checked={form.cnh_valida} onChange={(e) => setForm({ ...form, cnh_valida: e.target.checked })} />
+                  <label htmlFor="cnh" className="text-sm text-slate-700">CNH válida</label>
+                </div>
+                <select value={form.tipo_entrega} onChange={(e) => setForm({ ...form, tipo_entrega: e.target.value })} className="px-3 py-2 border border-slate-300 rounded">
+                  <option value="">Tipo de entrega</option>
+                  <option value="proprio">Próprio</option>
+                  <option value="terceirizado">Terceirizado</option>
+                  <option value="parceiro">Parceiro</option>
+                </select>
+                <input placeholder="Taxa de entrega" value={form.taxa_entrega} onChange={(e) => setForm({ ...form, taxa_entrega: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+                <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="px-3 py-2 border border-slate-300 rounded">
+                  <option value="ativo">Ativo</option>
+                  <option value="inativo">Inativo</option>
+                </select>
+              </div>
+              <div className="md:w-48 flex flex-col items-center gap-3 mt-6 md:mt-0">
+                <div className="w-24 h-24 rounded bg-slate-100 border border-slate-300 overflow-hidden">
+                  {cnhPreview ? <img src={cnhPreview} alt="CNH" className="w-full h-full object-cover" /> : <div className="w-full h-full" />}
+                </div>
+                <label htmlFor="upload_cnh_admin" className="px-2 py-1 text-xs rounded border border-slate-300 bg-white hover:bg-slate-50 cursor-pointer mt-2">Escolher arquivo</label>
+                <input id="upload_cnh_admin" type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0] || null; setCnhFile(f); if (f) { const r = new FileReader(); r.onload = () => setCnhPreview(String(r.result || '')); r.readAsDataURL(f); } else { setCnhPreview(''); } }} className="hidden" />
+                <div className="text-[11px] text-slate-500 mt-1">{cnhFile ? cnhFile.name : 'Nenhum arquivo escolhido'}</div>
+                <div className="text-[11px] text-slate-500">Foto da CNH</div>
+                <div className="w-24 h-24 rounded bg-slate-100 border border-slate-300 overflow-hidden">
+                  {comprovantePreview ? <img src={comprovantePreview} alt="Comprovante" className="w-full h-full object-cover" /> : <div className="w-full h-full" />}
+                </div>
+                <label htmlFor="upload_comp_admin" className="px-2 py-1 text-xs rounded border border-slate-300 bg-white hover:bg-slate-50 cursor-pointer mt-2">Escolher arquivo</label>
+                <input id="upload_comp_admin" type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0] || null; setComprovanteFile(f); if (f) { const r = new FileReader(); r.onload = () => setComprovantePreview(String(r.result || '')); r.readAsDataURL(f); } else { setComprovantePreview(''); } }} className="hidden" />
+                <div className="text-[11px] text-slate-500 mt-1">{comprovanteFile ? comprovanteFile.name : 'Nenhum arquivo escolhido'}</div>
+                <div className="text-[11px] text-slate-500">Comprovante de residência</div>
+              </div>
+              </div>
+            
+          </>
+        )}
         <div className="mt-4">
           <button onClick={handleSubmit} disabled={loading} className="px-4 py-2 rounded bg-sky-600 hover:bg-sky-700 text-white text-sm disabled:opacity-50">
-            {loading ? 'Salvando...' : 'Salvar entregador'}
+            {loading ? 'Salvando...' : (mode === 'public' ? 'Cadastrar' : 'Salvar entregador')}
           </button>
         </div>
       </div>
+      )}
 
+      {mode !== 'public' && (
       <div className="bg-white border border-slate-200 rounded-lg p-4 mb-6">
         <div className="text-sm text-slate-700 mb-2">Importar entregadores via CSV</div>
         <input type="file" accept=".csv" onChange={(e) => {
@@ -325,6 +619,12 @@ export function EntregadoresPanel() {
                 data_nascimento: r.data_nascimento || null,
                 telefone: r.telefone || null,
                 email: r.email || null,
+                cep: r.cep || null,
+                rua: r.rua || null,
+                numero: r.numero || null,
+                complemento: r.complemento || null,
+                bairro: r.bairro || null,
+                cidade: r.cidade || null,
                 veiculo_tipo: (r.veiculo_tipo || null) as Entregador['veiculo_tipo'],
                 veiculo_modelo: r.veiculo_modelo || null,
                 veiculo_placa: r.veiculo_placa || null,
@@ -346,9 +646,11 @@ export function EntregadoresPanel() {
             {loading ? 'Importando...' : 'Importar entregadores'}
           </button>
         </div>
-        <div className="mt-2 text-xs text-slate-600">Cabeçalho: nome_completo, cpf, rg, data_nascimento, telefone, email, veiculo_tipo, veiculo_modelo, veiculo_placa, veiculo_ano, cnh_valida, tipo_entrega, taxa_entrega, status</div>
+        <div className="mt-2 text-xs text-slate-600">Cabeçalho: nome_completo, cpf, rg, data_nascimento, telefone, email, cep, rua, numero, complemento, bairro, cidade, veiculo_tipo, veiculo_modelo, veiculo_placa, veiculo_ano, cnh_valida, tipo_entrega, taxa_entrega, status</div>
       </div>
+      )}
 
+      {mode !== 'public' && (
       <div className="bg-white border border-slate-200 rounded-lg">
         <div className="px-4 py-2 border-b border-slate-200 text-sm text-slate-600">Lista de entregadores</div>
         {loading ? (
@@ -372,6 +674,7 @@ export function EntregadoresPanel() {
           </div>
         )}
       </div>
+      )}
       <Modal
         open={Boolean(editing)}
         title="Editar entregador"
@@ -379,6 +682,15 @@ export function EntregadoresPanel() {
         onConfirm={handleUpdate}
         confirmDisabled={loading}
       >
+        <div className="flex items-center gap-4 mb-4">
+          <div className="flex flex-col items-center">
+            <div className="w-24 h-24 rounded-full bg-slate-100 border border-slate-300 overflow-hidden mb-2">
+              {editFotoPreview ? <img src={editFotoPreview} alt="Foto" className="w-full h-full object-cover" /> : <div className="w-full h-full" />}
+            </div>
+            <input type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0] || null; setEditFotoFile(f); if (f) { const r = new FileReader(); r.onload = () => setEditFotoPreview(String(r.result || '')); r.readAsDataURL(f); } }} className="text-xs" />
+            <div className="text-[11px] text-slate-500">Foto do entregador</div>
+          </div>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <input placeholder="Nome completo" value={editForm.nome_completo} onChange={(e) => setEditForm({ ...editForm, nome_completo: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
           <input placeholder="CPF" value={editForm.cpf} onChange={(e) => setEditForm({ ...editForm, cpf: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
@@ -386,6 +698,12 @@ export function EntregadoresPanel() {
           <input type="date" placeholder="Nascimento" value={editForm.data_nascimento} onChange={(e) => setEditForm({ ...editForm, data_nascimento: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
           <input placeholder="Telefone" value={editForm.telefone} onChange={(e) => setEditForm({ ...editForm, telefone: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
           <input type="email" placeholder="E-mail" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+          <input placeholder="CEP" value={editForm.cep} onChange={(e) => setEditForm({ ...editForm, cep: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+          <input placeholder="Rua" value={editForm.rua} onChange={(e) => setEditForm({ ...editForm, rua: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+          <input placeholder="Número" value={editForm.numero} onChange={(e) => setEditForm({ ...editForm, numero: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+          <input placeholder="Complemento" value={editForm.complemento} onChange={(e) => setEditForm({ ...editForm, complemento: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+          <input placeholder="Bairro" value={editForm.bairro} onChange={(e) => setEditForm({ ...editForm, bairro: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+          <input placeholder="Cidade" value={editForm.cidade} onChange={(e) => setEditForm({ ...editForm, cidade: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
           <select value={editForm.veiculo_tipo} onChange={(e) => setEditForm({ ...editForm, veiculo_tipo: e.target.value })} className="px-3 py-2 border border-slate-300 rounded">
             <option value="">Tipo de veículo</option>
             <option value="moto">Moto</option>
@@ -410,6 +728,22 @@ export function EntregadoresPanel() {
             <option value="ativo">Ativo</option>
             <option value="inativo">Inativo</option>
           </select>
+          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+            <div className="flex flex-col items-center">
+              <div className="w-24 h-24 rounded bg-slate-100 border border-slate-300 overflow-hidden mb-2">
+                {editCnhPreview ? <img src={editCnhPreview} alt="CNH" className="w-full h-full object-cover" /> : <div className="w-full h-full" />}
+              </div>
+              <input type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0] || null; setEditCnhFile(f); if (f) { const r = new FileReader(); r.onload = () => setEditCnhPreview(String(r.result || '')); r.readAsDataURL(f); } }} className="text-xs" />
+              <div className="text-[11px] text-slate-500">Foto da CNH</div>
+            </div>
+            <div className="flex flex-col items-center">
+              <div className="w-24 h-24 rounded bg-slate-100 border border-slate-300 overflow-hidden mb-2">
+                {editComprovantePreview ? <img src={editComprovantePreview} alt="Comprovante" className="w-full h-full object-cover" /> : <div className="w-full h-full" />}
+              </div>
+              <input type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0] || null; setEditComprovanteFile(f); if (f) { const r = new FileReader(); r.onload = () => setEditComprovantePreview(String(r.result || '')); r.readAsDataURL(f); } }} className="text-xs" />
+              <div className="text-[11px] text-slate-500">Comprovante de residência</div>
+            </div>
+          </div>
         </div>
       </Modal>
   </div>

@@ -35,11 +35,15 @@ export function AuthPage() {
   };
 
   const handleSignUpStart = () => {
-    setSignupOpen(true);
-    setSignupRole('');
-    setSignupNome('');
-    setSignupTelefone('');
-    setError(null);
+    try {
+      window.open('/cadastro', '_blank');
+    } catch {
+      setSignupOpen(true);
+      setSignupRole('');
+      setSignupNome('');
+      setSignupTelefone('');
+      setError(null);
+    }
   };
 
   const handleSignUpConfirm = async () => {
