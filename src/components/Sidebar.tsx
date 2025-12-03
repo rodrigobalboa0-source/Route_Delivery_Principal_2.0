@@ -226,7 +226,7 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
         </div>
       </div>
       <div className="p-4 border-t border-slate-800">
-        <div className="text-slate-400 text-xs text-center">v1.9.2</div>
+        <div className="text-slate-400 text-xs text-center">v1.9.8</div>
       </div>
     </aside>
   );
