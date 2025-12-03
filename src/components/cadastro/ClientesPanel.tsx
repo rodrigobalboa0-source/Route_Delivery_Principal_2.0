@@ -51,6 +51,9 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
   const [editEnderecos, setEditEnderecos] = useState<EnderecoEdit[]>([]);
   const [editEnderecoNovo, setEditEnderecoNovo] = useState<EnderecoEdit>({ cep: '', rua: '', numero: '', complemento: '', bairro: '', cidade: '', referencia_entrega: '' });
   const [editEnderecosRemovidos, setEditEnderecosRemovidos] = useState<string[]>([]);
+  const [editMembers, setEditMembers] = useState<Array<{ id: string; email: string }>>([]);
+  const [newMemberEmail, setNewMemberEmail] = useState('');
+  const [newMemberPassword, setNewMemberPassword] = useState('');
 
   const [form, setForm] = useState({
     nome_completo: '',
@@ -89,6 +92,9 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
     cidade: '',
     referencia_entrega: '',
   });
+  const [newMembers, setNewMembers] = useState<Array<{ email: string; password: string }>>([]);
+  const [newMemberEmailCreate, setNewMemberEmailCreate] = useState('');
+  const [newMemberPasswordCreate, setNewMemberPasswordCreate] = useState('');
 
   useEffect(() => {
     fetchClientes();
@@ -128,7 +134,7 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
           const uid = signUpData.user.id;
           void (supabase as unknown as { from: (t: string) => { upsert: (v: unknown) => Promise<unknown> } })
             .from('users')
-            .upsert({ id: uid, email: form.email, full_name: form.nome_completo, role: 'user' });
+            .upsert({ id: uid, email: form.email, full_name: form.nome_completo, role: 'cliente' });
         }
       }
     } catch (e) {
@@ -183,6 +189,17 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
         referencia_entrega: e.referencia_entrega || null,
       });
     }
+    for (const u of newMembers) {
+      try {
+        const { data: su, error: se } = await supabase.auth.signUp({ email: u.email, password: u.password });
+        if (!se) {
+          const uid = su?.user?.id || undefined;
+          await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown) => Promise<unknown> } })
+            .from('users')
+            .upsert({ id: uid, email: u.email, full_name: form.nome_completo, role: 'cliente', cliente_id: cid });
+        }
+      } catch (e) { void e; }
+    }
     try {
       await (supabase as unknown as { from: (t: string) => { update: (v: unknown) => { eq: (c: string, v: unknown) => Promise<unknown> } } })
         .from('clientes')
@@ -227,6 +244,7 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
     setFotoFile(null);
     setFotoPreview('');
     setEnderecos([]);
+    setNewMembers([]);
     await fetchClientes();
   };
 
@@ -322,6 +340,8 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
     setEditEnderecos(lista);
     setEditEnderecoNovo({ cep: '', rua: '', numero: '', complemento: '', bairro: '', cidade: '', referencia_entrega: '' });
     setEditEnderecosRemovidos([]);
+    const { data: membros } = await supabase.from('users').select('id,email').eq('cliente_id', c.id);
+    setEditMembers((membros || []).map((m: any) => ({ id: String(m.id), email: String(m.email || '') })));
   };
 
   const handleUpdate = async () => {
@@ -567,6 +587,48 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
       </div>
       )}
 
+      {showForm && (
+        <div className="bg-white border border-slate-200 rounded-lg p-4 mb-6 fade-slide-in shadow-sm">
+          <div className="text-sm font-medium text-slate-900 mb-2">Usuários adicionais do comércio</div>
+          {newMembers.length === 0 ? (
+            <div className="text-sm text-slate-600 mb-2">Nenhum usuário adicional</div>
+          ) : (
+            <div className="space-y-2 mb-3">
+              {newMembers.map((u, i) => (
+                <div key={`${u.email}-${i}`} className="flex items-center justify-between px-3 py-2 border border-slate-200 rounded">
+                  <div className="text-sm text-slate-700">{u.email}</div>
+                  <button onClick={() => setNewMembers((prev) => prev.filter((_, idx) => idx !== i))} className="text-xs text-red-700">Remover</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-slate-700">E-mail do usuário</label>
+              <input type="email" value={newMemberEmailCreate} onChange={(e) => setNewMemberEmailCreate(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded" />
+            </div>
+            <div>
+              <label className="text-xs text-slate-700">Senha</label>
+              <input type="password" value={newMemberPasswordCreate} onChange={(e) => setNewMemberPasswordCreate(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded" />
+            </div>
+          </div>
+          <div className="flex justify-end mt-2">
+            <button
+              onClick={() => {
+                const eml = (newMemberEmailCreate || '').trim().toLowerCase();
+                const pwd = (newMemberPasswordCreate || '').trim();
+                if (!eml || !pwd) { setError('Informe e-mail e senha do usuário'); return; }
+                setNewMembers((prev) => [...prev, { email: eml, password: pwd }]);
+                setNewMemberEmailCreate('');
+                setNewMemberPasswordCreate('');
+              }}
+              className="px-3 py-2 rounded bg-slate-200 text-slate-800 text-sm"
+            >Adicionar usuário</button>
+          </div>
+          <div className="text-[11px] text-slate-500 mt-2">Esses usuários serão criados após salvar o comércio</div>
+        </div>
+      )}
+
       {mode !== 'public' && (
       <div className="bg-white border border-slate-200 rounded-lg">
         <div className="px-4 py-2 border-b border-slate-200 text-sm text-slate-600">Lista de clientes</div>
@@ -746,6 +808,63 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
           >
             Adicionar endereço
           </button>
+        </div>
+        <div className="mt-4">
+          <div className="text-sm font-medium text-slate-900 mb-2">Usuários do comércio</div>
+          {editMembers.length === 0 ? (
+            <div className="text-sm text-slate-600 mb-2">Nenhum usuário vinculado</div>
+          ) : (
+            <div className="space-y-2 mb-3">
+              {editMembers.map((u) => (
+                <div key={u.id} className="flex items-center justify-between px-3 py-2 border border-slate-200 rounded">
+                  <div className="text-sm text-slate-700">{u.email}</div>
+                  <button
+                    onClick={async () => {
+                      await (supabase as unknown as { from: (t: string) => { delete: () => { eq: (c: string, v: unknown) => Promise<unknown> } } }).from('users').delete().eq('id', u.id);
+                      setEditMembers((prev) => prev.filter((x) => x.id !== u.id));
+                    }}
+                    className="text-xs text-red-700"
+                  >Remover</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-slate-700">E-mail do usuário</label>
+              <input type="email" value={newMemberEmail} onChange={(e) => setNewMemberEmail(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded" />
+            </div>
+            <div>
+              <label className="text-xs text-slate-700">Senha</label>
+              <input type="password" value={newMemberPassword} onChange={(e) => setNewMemberPassword(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded" />
+            </div>
+          </div>
+          <div className="flex justify-end mt-2">
+            <button
+              onClick={async () => {
+                if (!editing) return;
+                const eml = (newMemberEmail || '').trim().toLowerCase();
+                const pwd = (newMemberPassword || '').trim();
+                if (!eml || !pwd) { setError('Informe e-mail e senha do usuário'); return; }
+                setLoading(true);
+                try {
+                  const { data: su, error: se } = await supabase.auth.signUp({ email: eml, password: pwd });
+                  if (se) throw se;
+                  const uid = su?.user?.id || undefined;
+                  await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown) => Promise<unknown> } }).from('users').upsert({ id: uid, email: eml, full_name: editing.nome_completo, role: 'cliente', cliente_id: editing.id });
+                  setEditMembers((prev) => [...prev, { id: String(uid || eml), email: eml }]);
+                  setNewMemberEmail('');
+                  setNewMemberPassword('');
+                } catch (e: any) {
+                  const msg = e?.message || 'Falha ao criar usuário';
+                  setError(msg);
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              className="px-3 py-2 rounded bg-sky-600 hover:bg-sky-700 text-white text-sm"
+            >Adicionar usuário</button>
+          </div>
         </div>
       </Modal>
     </div>

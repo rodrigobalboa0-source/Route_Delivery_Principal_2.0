@@ -66,7 +66,7 @@ export function AuthPage() {
       }
       void (supabase as unknown as { from: (t: string) => { upsert: (v: unknown) => Promise<unknown> } })
         .from('users')
-        .upsert({ id: uid || undefined, email: eml, full_name: signupNome, role: 'user' });
+        .upsert({ id: uid || undefined, email: eml, full_name: signupNome, role: signupRole });
       setSignupOpen(false);
     } catch (e: unknown) {
       let msg = (e as { message?: string })?.message || 'Falha no cadastro';
