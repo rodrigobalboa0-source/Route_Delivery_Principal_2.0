@@ -189,16 +189,18 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
         referencia_entrega: e.referencia_entrega || null,
       });
     }
-    for (const u of newMembers) {
-      try {
-        const { data: su, error: se } = await supabase.auth.signUp({ email: u.email, password: u.password });
-        if (!se) {
-          const uid = su?.user?.id || undefined;
-          await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown) => Promise<unknown> } })
-            .from('users')
-            .upsert({ id: uid, email: u.email, full_name: form.nome_completo, role: 'cliente', cliente_id: cid });
-        }
-      } catch (e) { void e; }
+    if (mode !== 'public') {
+      for (const u of newMembers) {
+        try {
+          const { data: su, error: se } = await supabase.auth.signUp({ email: u.email, password: u.password });
+          if (!se) {
+            const uid = su?.user?.id || undefined;
+            await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown) => Promise<unknown> } })
+              .from('users')
+              .upsert({ id: uid, email: u.email, full_name: form.nome_completo, role: 'cliente', cliente_id: cid });
+          }
+        } catch (e) { void e; }
+      }
     }
     try {
       await (supabase as unknown as { from: (t: string) => { update: (v: unknown) => { eq: (c: string, v: unknown) => Promise<unknown> } } })
@@ -244,7 +246,7 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
     setFotoFile(null);
     setFotoPreview('');
     setEnderecos([]);
-    setNewMembers([]);
+    if (mode !== 'public') setNewMembers([]);
     await fetchClientes();
   };
 
@@ -587,7 +589,7 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
       </div>
       )}
 
-      {showForm && (
+      {mode !== 'public' && showForm && (
         <div className="bg-white border border-slate-200 rounded-lg p-4 mb-6 fade-slide-in shadow-sm">
           <div className="text-sm font-medium text-slate-900 mb-2">Usuários adicionais do comércio</div>
           {newMembers.length === 0 ? (
