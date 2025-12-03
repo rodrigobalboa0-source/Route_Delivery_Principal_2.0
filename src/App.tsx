@@ -18,6 +18,9 @@ import { MensagensEntregadoresPanel } from './components/mensagens/MensagensEntr
 import { MensagensClientesPanel } from './components/mensagens/MensagensClientesPanel';
 import { HistoricoMensagensPanel } from './components/mensagens/HistoricoMensagensPanel';
 import { NovaEntregaPanel } from './components/nova/NovaEntregaPanel';
+import { PedidosPanel } from './components/pedidos/PedidosPanel';
+import { TrainingOverlay } from './components/help/TrainingOverlay';
+import { SupportChatOverlay } from './components/help/SupportChatOverlay';
 import { ContasReceberPanel } from './components/financeiro/ContasReceberPanel';
 import { ContasPagarPanel } from './components/financeiro/ContasPagarPanel';
 import { EmissaoNotasPanel } from './components/financeiro/EmissaoNotasPanel';
@@ -35,6 +38,8 @@ function App() {
   const [userName, setUserName] = useState<string | undefined>(undefined);
   const [userRole, setUserRole] = useState<'operador' | 'cliente' | 'entregador'>('operador');
   const roleResolvedRef = useRef(false);
+  const [trainingOpen, setTrainingOpen] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
 
   const resolveRole = async (uid: string, emailRaw: string) => {
     if (roleResolvedRef.current) return;
@@ -198,11 +203,19 @@ function App() {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         userRole={userRole}
+        onStartTraining={() => setTrainingOpen(true)}
+        trainingActive={trainingOpen}
+        forceOpenGroups={trainingOpen ? {
+          cadastro: activeMenu.startsWith('cadastro'),
+          mensagens: activeMenu.startsWith('mensagens'),
+          financeiro: activeMenu.startsWith('financeiro'),
+        } : undefined}
+        onStartSupport={() => setSupportOpen(true)}
       />
       <main className={`flex-1 transition-all duration-200 ${sidebarOpen ? 'pl-56' : 'pl-0'}`}>
         <div className="h-[calc(100vh-56px)] overflow-y-auto overflow-x-hidden scrollbar-modern">
           {activeMenu === 'operations' && <OperationsDashboard />}
-          {/* Removido painel ao clicar em cadastro; apenas submenus visíveis */}
+          {}
           {activeMenu === 'cadastro_clientes' && <ClientesPanel />}
           {activeMenu === 'cadastro_contas' && <ContasPanel />}
           {activeMenu === 'cadastro_entregadores' && <EntregadoresPanel />}
@@ -217,6 +230,7 @@ function App() {
           {activeMenu === 'mensagens_clientes' && <MensagensClientesPanel />}
           {activeMenu === 'mensagens_historico' && <HistoricoMensagensPanel />}
           {activeMenu === 'nova_criar' && <NovaEntregaPanel />}
+          {activeMenu === 'pedidos' && <PedidosPanel />}
           {activeMenu === 'financeiro_contas_receber' && <ContasReceberPanel />}
           {activeMenu === 'financeiro_contas_pagar' && <ContasPagarPanel />}
           {activeMenu === 'financeiro_emissao_notas' && <EmissaoNotasPanel />}
@@ -228,6 +242,8 @@ function App() {
           {activeMenu === 'financeiro_revisao_agendamentos' && <RevisaoAgendamentosPanel />}
         </div>
       </main>
+      <TrainingOverlay open={trainingOpen} onClose={() => setTrainingOpen(false)} goToMenu={(m) => setActiveMenu(m)} />
+      <SupportChatOverlay open={supportOpen} onClose={() => setSupportOpen(false)} />
     </div>
   );
 }

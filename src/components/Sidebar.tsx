@@ -1,5 +1,5 @@
-import { Map, Users, Wallet, Truck, Layers, MessageSquare, PlusSquare } from 'lucide-react';
-import { useState } from 'react';
+import { Map, Users, Wallet, Truck, Layers, MessageSquare, PlusSquare, FileText, LifeBuoy, PlayCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 interface SidebarProps {
   activeMenu: string;
@@ -7,11 +7,16 @@ interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   userRole: 'operador' | 'cliente' | 'entregador';
+  onStartTraining?: () => void;
+  trainingActive?: boolean;
+  forceOpenGroups?: { cadastro?: boolean; mensagens?: boolean; financeiro?: boolean };
+  onStartSupport?: () => void;
 }
 
-export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole }: SidebarProps) {
+export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, onStartTraining, trainingActive, forceOpenGroups, onStartSupport }: SidebarProps) {
   const menuItems = [
     { id: 'operations', label: 'Menu de Operações', icon: Map },
+    { id: 'pedidos', label: 'Pedidos', icon: FileText },
     { id: 'cadastro', label: 'Cadastro', icon: Layers },
     { id: 'mensagens', label: 'Mensagens', icon: MessageSquare },
     { id: 'financeiro', label: 'Financeiro', icon: Wallet },
@@ -32,8 +37,15 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole }:
   const [cadastroOpen, setCadastroOpen] = useState(false);
   const [mensagensOpen, setMensagensOpen] = useState(false);
   const [financeiroOpen, setFinanceiroOpen] = useState(false);
+  useEffect(() => {
+    if (forceOpenGroups) {
+      if (typeof forceOpenGroups.cadastro !== 'undefined') setCadastroOpen(!!forceOpenGroups.cadastro);
+      if (typeof forceOpenGroups.mensagens !== 'undefined') setMensagensOpen(!!forceOpenGroups.mensagens);
+      if (typeof forceOpenGroups.financeiro !== 'undefined') setFinanceiroOpen(!!forceOpenGroups.financeiro);
+    }
+  }, [forceOpenGroups]);
   const visibleMenuItems = ((): { id: string; label: string; icon: any }[] => {
-    if (userRole === 'cliente') return menuItems.filter((m) => ['operations', 'mensagens'].includes(m.id));
+    if (userRole === 'cliente') return menuItems.filter((m) => ['operations', 'mensagens', 'pedidos'].includes(m.id));
     if (userRole === 'entregador') return menuItems.filter((m) => ['mensagens'].includes(m.id));
     return menuItems;
   })();
@@ -86,6 +98,7 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole }:
             return (
               <li key={item.id}>
                 <button
+                  data-menu-id={item.id}
                   onClick={() => {
                     if (item.id === 'cadastro') { setCadastroOpen((v) => !v); setMensagensOpen(false); setFinanceiroOpen(false); return; }
                     if (item.id === 'mensagens') { setMensagensOpen((v) => !v); setCadastroOpen(false); setFinanceiroOpen(false); return; }
@@ -104,6 +117,9 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole }:
                 >
                   <Icon size={20} />
                   <span className="font-medium">{item.label}</span>
+                  {trainingActive && isActive && (
+                    <span className="ml-auto w-0 h-0 border-y-6 border-y-transparent border-l-6 border-l-white" />
+                  )}
                 </button>
 
                 {item.id === 'cadastro' && cadastroOpen && (
@@ -114,6 +130,7 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole }:
                       return (
                         <li key={sub.id}>
                           <button
+                            data-menu-id={sub.id}
                             onClick={() => onMenuChange(sub.id)}
                             className={`w-full flex items-center justify-start gap-2 px-3 py-2 rounded-lg transition-all text-xs ml-2 pl-3 border-l border-slate-800 ${
                               active ? 'bg-sky-600/80 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
@@ -121,6 +138,9 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole }:
                           >
                             <SubIcon size={16} />
                             <span className="flex-1 truncate text-left">{sub.label}</span>
+                            {trainingActive && active && (
+                              <span className="ml-auto w-0 h-0 border-y-5 border-y-transparent border-l-5 border-l-white" />
+                            )}
                           </button>
                         </li>
                       );
@@ -140,6 +160,7 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole }:
                       return (
                         <li key={sub.id}>
                           <button
+                            data-menu-id={sub.id}
                             onClick={() => onMenuChange(sub.id)}
                             className={`w-full flex items-center justify-start gap-2 px-3 py-2 rounded-lg transition-all text-xs ml-2 pl-3 border-l border-slate-800 ${
                               active ? 'bg-sky-600/80 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
@@ -162,6 +183,7 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole }:
                       return (
                         <li key={sub.id}>
                           <button
+                            data-menu-id={sub.id}
                             onClick={() => onMenuChange(sub.id)}
                             className={`w-full flex items-center justify-start gap-2 px-3 py-2 rounded-lg transition-all text-xs ml-2 pl-3 border-l border-slate-800 ${
                               active ? 'bg-sky-600/80 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
@@ -182,8 +204,28 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole }:
           })}
         </ul>
       </nav>
-
-      <div className="p-4 border-t border-slate-700">
+      <div className="mt-auto p-4 border-t border-slate-800">
+        <div className="text-xs text-slate-300 mb-2">Ajuda</div>
+        <div className="grid grid-cols-1 gap-2">
+          <button
+            onClick={() => { if (onStartSupport) onStartSupport(); }}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs bg-slate-800 hover:bg-slate-700 text-white"
+          >
+            <LifeBuoy size={16} />
+            <span>Suporte</span>
+          </button>
+          <button
+            onClick={() => {
+              if (onStartTraining) onStartTraining();
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs bg-slate-800 hover:bg-slate-700 text-white"
+          >
+            <PlayCircle size={16} />
+            <span>Treinamento</span>
+          </button>
+        </div>
+      </div>
+      <div className="p-4 border-t border-slate-800">
         <div className="text-slate-400 text-xs text-center">v1.9.2</div>
       </div>
     </aside>

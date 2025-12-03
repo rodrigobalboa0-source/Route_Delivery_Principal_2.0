@@ -1,0 +1,140 @@
+import { useEffect, useState, useRef } from 'react';
+
+interface TrainingOverlayProps {
+  open: boolean;
+  onClose: () => void;
+  goToMenu: (menu: string) => void;
+}
+
+export function TrainingOverlay({ open, onClose, goToMenu }: TrainingOverlayProps) {
+  type Step = { id: string; title: string; desc: string; menu: string; submenu?: string; preview?: string[]; anchorId?: string };
+  const steps: Step[] = [
+    { id: 'operations', title: 'Menu de Operações', desc: 'Painel em tempo real para acompanhar entregadores e status.', menu: 'Menu de Operações' },
+    { id: 'pedidos', title: 'Pedidos', desc: 'Registre pedidos manualmente, atualize o status e consulte a lista.', menu: 'Pedidos' },
+    { id: 'cadastro_clientes', title: 'Cadastro • Comércio', desc: 'Cadastre e edite informações do comércio e endereços.', menu: 'Cadastro', submenu: 'Comércio', preview: ['Cadastrar comércio', 'Editar dados', 'Gerenciar endereços'] },
+    { id: 'cadastro_entregadores', title: 'Cadastro • Entregadores', desc: 'Inclua e edite entregadores para operações.', menu: 'Cadastro', submenu: 'Entregadores', preview: ['Cadastrar entregador', 'Editar perfil', 'Ativar/Inativar'] },
+    { id: 'cadastro_contas', title: 'Cadastro • Contas gerenciais', desc: 'Cadastre contas para organização financeira.', menu: 'Cadastro', submenu: 'Contas gerenciais', preview: ['Criar conta', 'Renomear conta', 'Arquivar conta'] },
+    { id: 'cadastro_grupos', title: 'Cadastro • Grupos operacionais', desc: 'Organize comércios e entregadores em grupos.', menu: 'Cadastro', submenu: 'Grupos operacionais', preview: ['Criar grupo', 'Adicionar membros', 'Editar regras'] },
+    { id: 'cadastro_modais', title: 'Cadastro • Modais', desc: 'Configure tipos de transporte utilizados.', menu: 'Cadastro', submenu: 'Modais', preview: ['Adicionar modal', 'Editar capacidade', 'Ativar/Inativar'] },
+    { id: 'cadastro_precificacao', title: 'Cadastro • Precificação padrão', desc: 'Defina a tabela de preços padrão.', menu: 'Cadastro', submenu: 'Precificação padrão', preview: ['Editar valores', 'Definir faixas', 'Salvar versão'] },
+    { id: 'cadastro_preco_espera', title: 'Cadastro • Preço por espera', desc: 'Ajuste valores de espera por tempo.', menu: 'Cadastro', submenu: 'Preço por espera', preview: ['Definir por minuto', 'Aplicar regra', 'Salvar'] },
+    { id: 'cadastro_preco_dinamico_demanda', title: 'Cadastro • Preço dinâmico (demanda)', desc: 'Configure variações de preço por demanda.', menu: 'Cadastro', submenu: 'Preço dinâmico (demanda)', preview: ['Criar regra', 'Ajustar limites', 'Ativar'] },
+    { id: 'cadastro_preco_dinamico_entregador', title: 'Cadastro • Preço dinâmico entregador', desc: 'Defina bônus e ajustes por entregador.', menu: 'Cadastro', submenu: 'Preço dinâmico entregador', preview: ['Criar regra por entregador', 'Editar valores', 'Ativar'] },
+    { id: 'cadastro_servicos_opcionais', title: 'Cadastro • Serviços opcionais', desc: 'Liste serviços adicionais oferecidos.', menu: 'Cadastro', submenu: 'Serviços opcionais', preview: ['Adicionar serviço', 'Definir preço', 'Ativar/Inativar'] },
+    { id: 'mensagens_clientes', title: 'Mensagens • Clientes', desc: 'Envie mensagens para clientes e veja o histórico.', menu: 'Mensagens', submenu: 'Clientes', preview: ['Enviar mensagem', 'Filtrar conversas', 'Ver histórico'] },
+    { id: 'mensagens_entregadores', title: 'Mensagens • Entregadores', desc: 'Comunique-se com entregadores e acompanhe conversas.', menu: 'Mensagens', submenu: 'Entregadores', preview: ['Enviar aviso', 'Ver últimas interações'] },
+    { id: 'financeiro_contas_receber', title: 'Financeiro • Contas a receber', desc: 'Acompanhe recebimentos e atualize pagamentos.', menu: 'Financeiro', submenu: 'Contas a receber', preview: ['Registrar recebimento', 'Filtrar por período'] },
+    { id: 'financeiro_contas_pagar', title: 'Financeiro • Contas a pagar', desc: 'Gerencie pagamentos pendentes e baixas.', menu: 'Financeiro', submenu: 'Contas a pagar', preview: ['Cadastrar conta', 'Baixar pagamento', 'Filtrar por vencimento'] },
+    { id: 'financeiro_emissao_notas', title: 'Financeiro • Emissão de notas', desc: 'Emita notas fiscais para seus clientes.', menu: 'Financeiro', submenu: 'Emissão de notas', preview: ['Gerar nota', 'Exportar PDF', 'Enviar por e-mail'] },
+    { id: 'financeiro_emissao_recibos', title: 'Financeiro • Emissão de recibos', desc: 'Crie recibos de pagamento rapidamente.', menu: 'Financeiro', submenu: 'Emissão de recibos', preview: ['Gerar recibo', 'Imprimir', 'Compartilhar'] },
+    { id: 'financeiro_credito_clientes', title: 'Financeiro • Créditos de clientes', desc: 'Controle créditos e ajustes dos clientes.', menu: 'Financeiro', submenu: 'Créditos de clientes', preview: ['Adicionar crédito', 'Usar crédito', 'Histórico de ajustes'] },
+    { id: 'financeiro_comissao_entregadores', title: 'Financeiro • Comissão de entregadores', desc: 'Calcule e revise comissões por entregador.', menu: 'Financeiro', submenu: 'Comissão de entregadores', preview: ['Aplicar percentuais', 'Revisar valores', 'Exportar'] },
+    { id: 'financeiro_acertos_entregadores', title: 'Financeiro • Acertos de entregadores', desc: 'Faça acertos e pagamentos aos entregadores.', menu: 'Financeiro', submenu: 'Acertos de entregadores', preview: ['Criar acerto', 'Registrar pagamento', 'Gerar recibo'] },
+    { id: 'financeiro_faturamento_mensal', title: 'Financeiro • Faturamento mensal', desc: 'Veja o resumo de faturamento por mês.', menu: 'Financeiro', submenu: 'Faturamento mensal', preview: ['Selecionar período', 'Ver gráficos', 'Exportar planilha'] },
+    { id: 'financeiro_revisao_agendamentos', title: 'Financeiro • Revisão de agendamentos', desc: 'Revise agendamentos e acertos rapidamente.', menu: 'Financeiro', submenu: 'Revisão de agendamentos', preview: ['Revisar agendamento', 'Exportar'] },
+    { id: 'nova_criar', title: 'Nova entrega', desc: 'Crie uma entrega e atribua um entregador.', menu: 'Nova entrega', anchorId: 'nova' },
+  ];
+  const [idx, setIdx] = useState(0);
+  const [boxTop, setBoxTop] = useState<number | undefined>(undefined);
+  const [arrowTop, setArrowTop] = useState<number | undefined>(undefined);
+  const [arrowLeft, setArrowLeft] = useState<number | undefined>(undefined);
+  const boxRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    goToMenu(steps[idx].id);
+    try {
+      const anchor = steps[idx].anchorId || steps[idx].id;
+      const el = document.querySelector(`[data-menu-id="${anchor}"]`);
+      const r = el ? (el as HTMLElement).getBoundingClientRect() : null;
+      const h = boxRef.current?.offsetHeight ?? 360;
+      const t = r ? Math.min(Math.max(80, r.top - 20), window.innerHeight - h - 24) : undefined;
+      setBoxTop(t);
+      if (r) {
+        setArrowTop(r.top + r.height / 2 - 8);
+        setArrowLeft(r.right + 4);
+      } else {
+        setArrowTop(undefined);
+        setArrowLeft(undefined);
+      }
+    } catch { setBoxTop(undefined); }
+  }, [open, idx]);
+
+  useEffect(() => {
+    if (!open) return;
+    const recalc = () => {
+      try {
+        const anchor = steps[idx].anchorId || steps[idx].id;
+        const el = document.querySelector(`[data-menu-id="${anchor}"]`);
+        const r = el ? (el as HTMLElement).getBoundingClientRect() : null;
+        const h = boxRef.current?.offsetHeight ?? 360;
+        const t = r ? Math.min(Math.max(80, r.top - 20), window.innerHeight - h - 24) : undefined;
+        setBoxTop(t);
+        if (r) {
+          setArrowTop(r.top + r.height / 2 - 8);
+          setArrowLeft(r.right + 4);
+        }
+      } catch {}
+    };
+    window.addEventListener('scroll', recalc, true);
+    window.addEventListener('resize', recalc);
+    const id = setInterval(recalc, 200);
+    return () => { window.removeEventListener('scroll', recalc, true); window.removeEventListener('resize', recalc); clearInterval(id); };
+  }, [open, idx]);
+
+  if (!open) return null;
+
+  const current = steps[idx];
+
+  return (
+    <div className="fixed inset-0 z-[1000] pointer-events-none">
+      <div className="absolute top-0 right-0 bottom-0 left-56 bg-black/70 backdrop-blur-sm" />
+      {typeof arrowTop !== 'undefined' && typeof arrowLeft !== 'undefined' && (
+        <span
+          className="absolute w-0 h-0 border-y-8 border-y-transparent border-l-8 border-l-white drop-shadow"
+          style={{ top: arrowTop, left: arrowLeft }}
+        />
+      )}
+      <div className="absolute right-6 pointer-events-auto" style={{ top: boxTop ?? undefined, left: 'calc(14rem + 24px)' }}>
+        <div ref={boxRef} className="relative max-w-xl w-[32rem] bg-white rounded-2xl shadow-xl border border-slate-200">
+          <div className="p-6">
+            <div className="text-xs text-slate-500">Passo {idx + 1} de {steps.length}</div>
+            <div className="text-2xl font-bold text-slate-900 mt-1">{current.title}</div>
+            <div className="text-slate-700 mt-2">{current.desc}</div>
+            <div className="mt-3 flex items-center gap-2">
+              <span className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-700">Menu: {current.menu}</span>
+              {current.submenu && (
+                <span className="px-2 py-1 text-xs rounded bg-slate-100 text-slate-700">Submenu: {current.submenu}</span>
+              )}
+            </div>
+            {current.preview && (
+              <div className="mt-3 border border-slate-200 rounded-lg p-3 bg-slate-50">
+                <div className="text-xs font-semibold text-slate-700 mb-1">O que você pode fazer aqui</div>
+                <ul className="text-sm text-slate-700 list-disc ml-5">
+                  {current.preview.map((p) => (<li key={p}>{p}</li>))}
+                </ul>
+              </div>
+            )}
+            <div className="text-slate-600 text-sm mt-3">
+              Use os botões abaixo para navegar. A área principal do sistema muda conforme o módulo para facilitar a apresentação.
+            </div>
+            <div className="flex items-center justify-between mt-6">
+              <button
+                onClick={() => { if (idx > 0) { const next = idx - 1; setIdx(next); goToMenu(steps[next].id); } }}
+                className="px-3 py-2 rounded bg-slate-200 text-slate-800 text-sm disabled:opacity-50"
+                disabled={idx === 0}
+              >Anterior</button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { const next = idx + 1; if (next < steps.length) { setIdx(next); goToMenu(steps[next].id); } else { onClose(); } }}
+                  className="px-3 py-2 rounded bg-sky-600 hover:bg-sky-700 text-white text-sm"
+                >{idx + 1 < steps.length ? 'Próximo' : 'Concluir'}</button>
+                <button onClick={onClose} className="px-3 py-2 rounded bg-slate-200 text-slate-800 text-sm">Fechar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
