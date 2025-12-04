@@ -132,6 +132,13 @@ export interface Database {
           observacoes: string | null
           foto_url: string | null
           foto_base64: string | null
+          cep: string | null
+          rua: string | null
+          numero: string | null
+          complemento: string | null
+          bairro: string | null
+          cidade: string | null
+          referencia_entrega: string | null
           created_at: string
           updated_at: string
         }
@@ -146,6 +153,13 @@ export interface Database {
           observacoes?: string | null
           foto_url?: string | null
           foto_base64?: string | null
+          cep?: string | null
+          rua?: string | null
+          numero?: string | null
+          complemento?: string | null
+          bairro?: string | null
+          cidade?: string | null
+          referencia_entrega?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -160,6 +174,13 @@ export interface Database {
           observacoes?: string | null
           foto_url?: string | null
           foto_base64?: string | null
+          cep?: string | null
+          rua?: string | null
+          numero?: string | null
+          complemento?: string | null
+          bairro?: string | null
+          cidade?: string | null
+          referencia_entrega?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -281,6 +302,12 @@ export interface Database {
           data_nascimento: string | null
           telefone: string | null
           email: string | null
+          cep: string | null
+          rua: string | null
+          numero: string | null
+          complemento: string | null
+          bairro: string | null
+          cidade: string | null
           veiculo_tipo: 'moto' | 'bike' | 'carro' | null
           veiculo_modelo: string | null
           veiculo_placa: string | null
@@ -306,6 +333,12 @@ export interface Database {
           data_nascimento?: string | null
           telefone?: string | null
           email?: string | null
+          cep?: string | null
+          rua?: string | null
+          numero?: string | null
+          complemento?: string | null
+          bairro?: string | null
+          cidade?: string | null
           veiculo_tipo?: 'moto' | 'bike' | 'carro' | null
           veiculo_modelo?: string | null
           veiculo_placa?: string | null
@@ -331,6 +364,12 @@ export interface Database {
           data_nascimento?: string | null
           telefone?: string | null
           email?: string | null
+          cep?: string | null
+          rua?: string | null
+          numero?: string | null
+          complemento?: string | null
+          bairro?: string | null
+          cidade?: string | null
           veiculo_tipo?: 'moto' | 'bike' | 'carro' | null
           veiculo_modelo?: string | null
           veiculo_placa?: string | null

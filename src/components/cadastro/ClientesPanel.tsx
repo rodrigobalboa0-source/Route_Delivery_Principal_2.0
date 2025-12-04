@@ -149,6 +149,13 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
       email: (form.email || '').trim() ? (form.email || '').trim().toLowerCase() : null,
       metodo_pagamento_preferido: form.metodo_pagamento_preferido || null,
       observacoes: form.observacoes || null,
+      cep: enderecoAtual.cep || null,
+      rua: enderecoAtual.rua || null,
+      numero: enderecoAtual.numero || null,
+      complemento: enderecoAtual.complemento || null,
+      bairro: enderecoAtual.bairro || null,
+      cidade: enderecoAtual.cidade || null,
+      referencia_entrega: enderecoAtual.referencia_entrega || null,
     });
     const r = res as unknown as { data?: { id?: string }; error?: { message?: string } };
     if (r.error?.message) {
@@ -177,7 +184,12 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
         reader.readAsDataURL(fotoFile);
       }
     }
-    for (const e of enderecos) {
+    const enderecosParaSalvar = (() => {
+      const hasAtual = Boolean((enderecoAtual.cep || '').trim() || (enderecoAtual.rua || '').trim() || (enderecoAtual.numero || '').trim() || (enderecoAtual.bairro || '').trim() || (enderecoAtual.cidade || '').trim() || (enderecoAtual.complemento || '').trim() || (enderecoAtual.referencia_entrega || '').trim());
+      if (hasAtual) return [...enderecos, { ...enderecoAtual }];
+      return enderecos;
+    })();
+    for (const e of enderecosParaSalvar) {
       await sbInsert('cliente_enderecos', {
         cliente_id: cid,
         cep: e.cep || null,
@@ -218,6 +230,13 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
           hub: form.hub || null,
           foto_url: form.foto_url || null,
           foto_base64: form.foto_base64 || null,
+          cep: enderecoAtual.cep || null,
+          rua: enderecoAtual.rua || null,
+          numero: enderecoAtual.numero || null,
+          complemento: enderecoAtual.complemento || null,
+          bairro: enderecoAtual.bairro || null,
+          cidade: enderecoAtual.cidade || null,
+          referencia_entrega: enderecoAtual.referencia_entrega || null,
         })
         .eq('id', cid);
     } catch (e) {
@@ -234,6 +253,15 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
         hub: form.hub,
         foto_url: form.foto_url,
         foto_base64: form.foto_base64,
+        endereco: {
+          cep: enderecoAtual.cep,
+          rua: enderecoAtual.rua,
+          numero: enderecoAtual.numero,
+          complemento: enderecoAtual.complemento,
+          bairro: enderecoAtual.bairro,
+          cidade: enderecoAtual.cidade,
+          referencia_entrega: enderecoAtual.referencia_entrega,
+        },
       };
       const mergedObs = JSON.stringify({ extras, observacoes: form.observacoes || '' });
       await (supabase as unknown as { from: (t: string) => { update: (v: unknown) => { eq: (c: string, v: unknown) => Promise<unknown> } } })
@@ -403,7 +431,10 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
           })
           .eq('id', e.id as string)
       );
-      const inserts = editEnderecos.filter((e) => !e.id).map((e) =>
+      const hasNovo = Boolean((editEnderecoNovo.cep || '').trim() || (editEnderecoNovo.rua || '').trim() || (editEnderecoNovo.numero || '').trim() || (editEnderecoNovo.bairro || '').trim() || (editEnderecoNovo.cidade || '').trim() || (editEnderecoNovo.complemento || '').trim() || (editEnderecoNovo.referencia_entrega || '').trim());
+      const baseInserts = editEnderecos.filter((e) => !e.id);
+      const allInserts = hasNovo ? [...baseInserts, editEnderecoNovo] : baseInserts;
+      const inserts = allInserts.map((e) =>
         sbInsert('cliente_enderecos', {
           cliente_id: editing.id as string,
           cep: e.cep ?? null,
