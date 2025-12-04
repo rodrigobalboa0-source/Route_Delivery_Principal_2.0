@@ -817,6 +817,31 @@ export interface Database {
           entregador_id: string | null
           opcionais: unknown | null
           observacoes: string | null
+          solicitar_comprovante: boolean | null
+          agendar_em: string | null
+          valor_manual: boolean | null
+          valor_entrega: number | null
+          tipo_cobranca: 'fatura' | 'avista' | 'pix' | 'cartao' | null
+          cobrar_destinatario: boolean | null
+          coleta_usa_endereco_cadastro: boolean | null
+          coleta_contato: string | null
+          coleta_telefone: string | null
+          coleta_cep: string | null
+          coleta_endereco_texto: string | null
+          coleta_complemento: string | null
+          coleta_observacoes: string | null
+          entrega_usa_endereco_cadastro: boolean | null
+          entrega_contato: string | null
+          entrega_telefone: string | null
+          entrega_codigo_pedido: string | null
+          entrega_centro_custo: string | null
+          entrega_solicitante: string | null
+          entrega_cep: string | null
+          entrega_endereco_texto: string | null
+          entrega_complemento: string | null
+          entrega_observacoes: string | null
+          retorno: boolean | null
+          pontos_adicionais: unknown | null
           status: 'criada' | 'atribuida' | 'em_rota' | 'entregue' | 'cancelada' | null
           created_at: string
           updated_at: string
@@ -831,6 +856,31 @@ export interface Database {
           entregador_id?: string | null
           opcionais?: unknown | null
           observacoes?: string | null
+          solicitar_comprovante?: boolean | null
+          agendar_em?: string | null
+          valor_manual?: boolean | null
+          valor_entrega?: number | null
+          tipo_cobranca?: 'fatura' | 'avista' | 'pix' | 'cartao' | null
+          cobrar_destinatario?: boolean | null
+          coleta_usa_endereco_cadastro?: boolean | null
+          coleta_contato?: string | null
+          coleta_telefone?: string | null
+          coleta_cep?: string | null
+          coleta_endereco_texto?: string | null
+          coleta_complemento?: string | null
+          coleta_observacoes?: string | null
+          entrega_usa_endereco_cadastro?: boolean | null
+          entrega_contato?: string | null
+          entrega_telefone?: string | null
+          entrega_codigo_pedido?: string | null
+          entrega_centro_custo?: string | null
+          entrega_solicitante?: string | null
+          entrega_cep?: string | null
+          entrega_endereco_texto?: string | null
+          entrega_complemento?: string | null
+          entrega_observacoes?: string | null
+          retorno?: boolean | null
+          pontos_adicionais?: unknown | null
           status?: 'criada' | 'atribuida' | 'em_rota' | 'entregue' | 'cancelada' | null
           created_at?: string
           updated_at?: string
@@ -845,6 +895,31 @@ export interface Database {
           entregador_id?: string | null
           opcionais?: unknown | null
           observacoes?: string | null
+          solicitar_comprovante?: boolean | null
+          agendar_em?: string | null
+          valor_manual?: boolean | null
+          valor_entrega?: number | null
+          tipo_cobranca?: 'fatura' | 'avista' | 'pix' | 'cartao' | null
+          cobrar_destinatario?: boolean | null
+          coleta_usa_endereco_cadastro?: boolean | null
+          coleta_contato?: string | null
+          coleta_telefone?: string | null
+          coleta_cep?: string | null
+          coleta_endereco_texto?: string | null
+          coleta_complemento?: string | null
+          coleta_observacoes?: string | null
+          entrega_usa_endereco_cadastro?: boolean | null
+          entrega_contato?: string | null
+          entrega_telefone?: string | null
+          entrega_codigo_pedido?: string | null
+          entrega_centro_custo?: string | null
+          entrega_solicitante?: string | null
+          entrega_cep?: string | null
+          entrega_endereco_texto?: string | null
+          entrega_complemento?: string | null
+          entrega_observacoes?: string | null
+          retorno?: boolean | null
+          pontos_adicionais?: unknown | null
           status?: 'criada' | 'atribuida' | 'em_rota' | 'entregue' | 'cancelada' | null
           created_at?: string
           updated_at?: string

@@ -6,6 +6,11 @@ type DeliveryPerson = Database['public']['Tables']['delivery_persons']['Row'];
 type GLMap = {
   on: (event: string, handler: (ev?: unknown) => void) => void;
   remove: () => void;
+  addSource: (id: string, source: unknown) => void;
+  addLayer: (layer: unknown) => void;
+  getSource: (id: string) => { setData: (data: unknown) => void } | undefined;
+  removeLayer: (id: string) => void;
+  removeSource: (id: string) => void;
 };
 
 type GLMarker = {
@@ -23,14 +28,17 @@ type GLPopup = {
 interface MapViewProps {
   deliveryPersons: DeliveryPerson[];
   center?: [number, number];
+  destination?: [number, number];
+  route?: Array<[number, number]>;
 }
 
-export function MapView({ deliveryPersons, center = [-23.5505, -46.6333] }: MapViewProps) {
+export function MapView({ deliveryPersons, center = [-23.5505, -46.6333], destination, route }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<GLMap | null>(null);
   const markers = useRef<Map<string, GLMarker>>(new Map());
   const [mapLoaded, setMapLoaded] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
+  const destMarker = useRef<GLMarker | null>(null);
 
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
@@ -168,6 +176,54 @@ export function MapView({ deliveryPersons, center = [-23.5505, -46.6333] }: MapV
       }
     });
   }, [deliveryPersons, mapLoaded]);
+
+  useEffect(() => {
+    if (!mapLoaded || !map.current) return;
+    if (!destination) {
+      destMarker.current?.remove();
+      destMarker.current = null;
+      return;
+    }
+    const lngLat: [number, number] = [destination[1], destination[0]];
+    const w = window as unknown as {
+      maplibregl: {
+        Popup: new (opts: unknown) => GLPopup;
+        Marker: new (el: HTMLElement) => GLMarker;
+      };
+    };
+    if (destMarker.current) {
+      destMarker.current.setLngLat(lngLat);
+    } else {
+      const el = document.createElement('div');
+      el.style.width = '28px';
+      el.style.height = '28px';
+      el.style.borderRadius = '50%';
+      el.style.backgroundColor = '#ef4444';
+      el.style.border = '3px solid white';
+      el.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
+      const popup = new w.maplibregl.Popup({ offset: 20 }).setHTML('<div style="padding:6px"><strong>Destino</strong></div>');
+      destMarker.current = new w.maplibregl.Marker(el).setLngLat(lngLat).setPopup(popup).addTo(map.current as GLMap);
+    }
+  }, [destination, mapLoaded]);
+
+  useEffect(() => {
+    if (!mapLoaded || !map.current) return;
+    const id = 'route-line';
+    if (!route || route.length < 2) {
+      try { map.current.removeLayer(id); } catch { void 0; }
+      try { map.current.removeSource(id); } catch { void 0; }
+      return;
+    }
+    const coords = route.map((p) => [p[1], p[0]]);
+    const data = { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } } as unknown;
+    const src = map.current.getSource(id);
+    if (src) {
+      src.setData(data);
+    } else {
+      map.current.addSource(id, { type: 'geojson', data });
+      map.current.addLayer({ id, type: 'line', source: id, paint: { 'line-color': '#0ea5e9', 'line-width': 4 } });
+    }
+  }, [route, mapLoaded]);
 
   return (
     <div className="relative w-full h-full">
