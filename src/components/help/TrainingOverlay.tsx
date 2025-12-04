@@ -10,7 +10,7 @@ export function TrainingOverlay({ open, onClose, goToMenu }: TrainingOverlayProp
   type Step = { id: string; title: string; desc: string; menu: string; submenu?: string; preview?: string[]; anchorId?: string };
   const steps: Step[] = [
     { id: 'operations', title: 'Menu de Operações', desc: 'Painel em tempo real para acompanhar entregadores e status.', menu: 'Menu de Operações' },
-    { id: 'pedidos', title: 'Pedidos', desc: 'Registre pedidos manualmente, atualize o status e consulte a lista.', menu: 'Pedidos' },
+    { id: 'pedidos', title: 'Pedidos • Acompanhamento', desc: 'Acompanhe pedidos e entregadores com filtros e mapa. Selecione um pedido e um entregador para ver a rota e o status.', menu: 'Pedidos', preview: ['Filtrar por status, origem, cliente e período', 'Selecionar pedido e entregador', 'Acompanhar rota e destino no mapa'] },
     { id: 'cadastro_clientes', title: 'Cadastro • Comércio', desc: 'Cadastre e edite informações do comércio e endereços.', menu: 'Cadastro', submenu: 'Comércio', preview: ['Cadastrar comércio', 'Editar dados', 'Gerenciar endereços'] },
     { id: 'cadastro_entregadores', title: 'Cadastro • Entregadores', desc: 'Inclua e edite entregadores para operações.', menu: 'Cadastro', submenu: 'Entregadores', preview: ['Cadastrar entregador', 'Editar perfil', 'Ativar/Inativar'] },
     { id: 'cadastro_contas', title: 'Cadastro • Contas gerenciais', desc: 'Cadastre contas para organização financeira.', menu: 'Cadastro', submenu: 'Contas gerenciais', preview: ['Criar conta', 'Renomear conta', 'Arquivar conta'] },
@@ -32,7 +32,7 @@ export function TrainingOverlay({ open, onClose, goToMenu }: TrainingOverlayProp
     { id: 'financeiro_acertos_entregadores', title: 'Financeiro • Acertos de entregadores', desc: 'Faça acertos e pagamentos aos entregadores.', menu: 'Financeiro', submenu: 'Acertos de entregadores', preview: ['Criar acerto', 'Registrar pagamento', 'Gerar recibo'] },
     { id: 'financeiro_faturamento_mensal', title: 'Financeiro • Faturamento mensal', desc: 'Veja o resumo de faturamento por mês.', menu: 'Financeiro', submenu: 'Faturamento mensal', preview: ['Selecionar período', 'Ver gráficos', 'Exportar planilha'] },
     { id: 'financeiro_revisao_agendamentos', title: 'Financeiro • Revisão de agendamentos', desc: 'Revise agendamentos e acertos rapidamente.', menu: 'Financeiro', submenu: 'Revisão de agendamentos', preview: ['Revisar agendamento', 'Exportar'] },
-    { id: 'nova_criar', title: 'Nova entrega', desc: 'Crie uma entrega e atribua um entregador.', menu: 'Nova entrega', anchorId: 'nova' },
+    { id: 'nova_criar', title: 'Nova entrega', desc: 'Cadastre coleta e entrega, agende, defina cobrança e comprovante. Adicione pontos/retorno e gere pedido com código.', menu: 'Nova entrega', anchorId: 'nova', preview: ['Selecionar cliente, modal e atribuição', 'Preencher coleta e entrega', 'Agendar, valor e tipo de cobrança', 'Adicionar pontos e retorno'] },
   ];
   const [idx, setIdx] = useState(0);
   const [boxTop, setBoxTop] = useState<number | undefined>(undefined);
