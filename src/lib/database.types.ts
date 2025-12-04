@@ -130,6 +130,8 @@ export interface Database {
           data_nascimento: string | null
           metodo_pagamento_preferido: string | null
           observacoes: string | null
+          foto_url: string | null
+          foto_base64: string | null
           created_at: string
           updated_at: string
         }
@@ -142,6 +144,8 @@ export interface Database {
           data_nascimento?: string | null
           metodo_pagamento_preferido?: string | null
           observacoes?: string | null
+          foto_url?: string | null
+          foto_base64?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -154,6 +158,8 @@ export interface Database {
           data_nascimento?: string | null
           metodo_pagamento_preferido?: string | null
           observacoes?: string | null
+          foto_url?: string | null
+          foto_base64?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -283,6 +289,12 @@ export interface Database {
           tipo_entrega: 'proprio' | 'terceirizado' | 'parceiro' | null
           taxa_entrega: number | null
           status: 'ativo' | 'inativo'
+          foto_url: string | null
+          foto_base64: string | null
+          cnh_foto_url: string | null
+          cnh_foto_base64: string | null
+          comprovante_residencia_url: string | null
+          comprovante_residencia_base64: string | null
           created_at: string
           updated_at: string
         }
@@ -302,6 +314,12 @@ export interface Database {
           tipo_entrega?: 'proprio' | 'terceirizado' | 'parceiro' | null
           taxa_entrega?: number | null
           status?: 'ativo' | 'inativo'
+          foto_url?: string | null
+          foto_base64?: string | null
+          cnh_foto_url?: string | null
+          cnh_foto_base64?: string | null
+          comprovante_residencia_url?: string | null
+          comprovante_residencia_base64?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -321,6 +339,12 @@ export interface Database {
           tipo_entrega?: 'proprio' | 'terceirizado' | 'parceiro' | null
           taxa_entrega?: number | null
           status?: 'ativo' | 'inativo'
+          foto_url?: string | null
+          foto_base64?: string | null
+          cnh_foto_url?: string | null
+          cnh_foto_base64?: string | null
+          comprovante_residencia_url?: string | null
+          comprovante_residencia_base64?: string | null
           created_at?: string
           updated_at?: string
         }
