@@ -1,4 +1,4 @@
-import { Map, Users, Wallet, Truck, Layers, MessageSquare, PlusSquare, FileText, LifeBuoy, PlayCircle } from 'lucide-react';
+import { Map, Users, Wallet, Truck, Layers, MessageSquare, PlusSquare, FileText, LifeBuoy, PlayCircle, BarChart3 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 interface SidebarProps {
@@ -21,6 +21,7 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
     { id: 'mensagens', label: 'Mensagens', icon: MessageSquare },
     { id: 'financeiro', label: 'Financeiro', icon: Wallet },
     { id: 'nova', label: 'Nova entrega', icon: PlusSquare },
+    { id: 'relatorios', label: 'Relatórios', icon: BarChart3 },
   ];
   const cadastroItems = [
     { id: 'cadastro_clientes', label: 'Comericio', icon: Users },
@@ -37,6 +38,7 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
   const [cadastroOpen, setCadastroOpen] = useState(false);
   const [mensagensOpen, setMensagensOpen] = useState(false);
   const [financeiroOpen, setFinanceiroOpen] = useState(false);
+  const [relatoriosOpen, setRelatoriosOpen] = useState(false);
   useEffect(() => {
     if (forceOpenGroups) {
       if (typeof forceOpenGroups.cadastro !== 'undefined') setCadastroOpen(!!forceOpenGroups.cadastro);
@@ -65,6 +67,21 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
     { id: 'financeiro_faturamento_mensal', label: 'Faturamento mensal', icon: Wallet },
     { id: 'financeiro_revisao_agendamentos', label: 'Revisão de agendamentos', icon: Wallet },
   ];
+
+  const relatoriosItems = [
+    { id: 'relatorios_clientes_analitico', label: 'Analítico de clientes', icon: BarChart3 },
+    { id: 'relatorios_entregadores_analitico', label: 'Analítico de entregadores', icon: BarChart3 },
+    { id: 'relatorios_roteirizacao', label: 'Roteirização de entregas', icon: BarChart3 },
+    { id: 'relatorios_operacao_analitico', label: 'Analítico da operação', icon: BarChart3 },
+    { id: 'relatorios_entregas', label: 'Relatório de entregas', icon: BarChart3 },
+    { id: 'relatorios_notas_fiscais', label: 'Notas fiscais emitidas', icon: BarChart3 },
+    { id: 'relatorios_recorrencia', label: 'Recorrência de entregas', icon: BarChart3 },
+    { id: 'relatorios_trajeto_entregadores', label: 'Trajeto dos entregadores', icon: BarChart3 },
+    { id: 'relatorios_entregadores_periodo', label: 'Entregadores por período', icon: BarChart3 },
+    { id: 'relatorios_diagnostico_entregadores', label: 'Diagnóstico de entregadores', icon: BarChart3 },
+    { id: 'relatorios_log_atividades', label: 'Alteração de status (Log)', icon: BarChart3 },
+    { id: 'relatorios_historico_vagas', label: 'Histórico de vagas', icon: BarChart3 },
+  ];
   
 
   return (
@@ -89,8 +106,10 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
               ? cadastroOpen || activeMenu.startsWith('cadastro')
               : item.id === 'mensagens'
                 ? mensagensOpen || activeMenu.startsWith('mensagens')
-                : item.id === 'financeiro'
+              : item.id === 'financeiro'
                   ? financeiroOpen || activeMenu.startsWith('financeiro')
+                : item.id === 'relatorios'
+                  ? relatoriosOpen || activeMenu.startsWith('relatorios')
                 : item.id === 'nova'
                   ? activeMenu.startsWith('nova')
                 : activeMenu === item.id;
@@ -100,13 +119,15 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
                 <button
                   data-menu-id={item.id}
                   onClick={() => {
-                    if (item.id === 'cadastro') { setCadastroOpen((v) => !v); setMensagensOpen(false); setFinanceiroOpen(false); return; }
-                    if (item.id === 'mensagens') { setMensagensOpen((v) => !v); setCadastroOpen(false); setFinanceiroOpen(false); return; }
-                    if (item.id === 'financeiro') { setFinanceiroOpen((v) => !v); setCadastroOpen(false); setMensagensOpen(false); return; }
+                    if (item.id === 'cadastro') { setCadastroOpen((v) => !v); setMensagensOpen(false); setFinanceiroOpen(false); setRelatoriosOpen(false); return; }
+                    if (item.id === 'mensagens') { setMensagensOpen((v) => !v); setCadastroOpen(false); setFinanceiroOpen(false); setRelatoriosOpen(false); return; }
+                    if (item.id === 'financeiro') { setFinanceiroOpen((v) => !v); setCadastroOpen(false); setMensagensOpen(false); setRelatoriosOpen(false); return; }
+                    if (item.id === 'relatorios') { setRelatoriosOpen((v) => !v); setCadastroOpen(false); setMensagensOpen(false); setFinanceiroOpen(false); return; }
                     if (item.id === 'nova') { setCadastroOpen(false); setMensagensOpen(false); setFinanceiroOpen(false); onMenuChange('nova_criar'); return; }
                     setCadastroOpen(false);
                     setMensagensOpen(false);
                     setFinanceiroOpen(false);
+                    setRelatoriosOpen(false);
                     onMenuChange(item.id);
                   }}
                   className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-all text-sm ${
@@ -178,6 +199,29 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
                 {item.id === 'financeiro' && financeiroOpen && (
                   <ul className="mt-1 space-y-1">
                     {financeiroItems.map((sub) => {
+                      const SubIcon = sub.icon;
+                      const active = activeMenu === sub.id;
+                      return (
+                        <li key={sub.id}>
+                          <button
+                            data-menu-id={sub.id}
+                            onClick={() => onMenuChange(sub.id)}
+                            className={`w-full flex items-center justify-start gap-2 px-3 py-2 rounded-lg transition-all text-xs ml-2 pl-3 border-l border-slate-800 ${
+                              active ? 'bg-sky-600/80 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                            }`}
+                          >
+                            <SubIcon size={16} />
+                            <span className="flex-1 truncate text-left">{sub.label}</span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+
+                {item.id === 'relatorios' && relatoriosOpen && (
+                  <ul className="mt-1 space-y-1">
+                    {relatoriosItems.map((sub) => {
                       const SubIcon = sub.icon;
                       const active = activeMenu === sub.id;
                       return (

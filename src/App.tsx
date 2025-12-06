@@ -30,6 +30,18 @@ import { ComissaoEntregadoresPanel } from './components/financeiro/ComissaoEntre
 import { AcertosEntregadoresPanel } from './components/financeiro/AcertosEntregadoresPanel';
 import { FaturamentoMensalPanel } from './components/financeiro/FaturamentoMensalPanel';
 import { RevisaoAgendamentosPanel } from './components/financeiro/RevisaoAgendamentosPanel';
+import { ClientesAnaliticoReport } from './components/relatorios/ClientesAnaliticoReport';
+import { EntregadoresAnaliticoReport } from './components/relatorios/EntregadoresAnaliticoReport';
+import { RoteirizacaoReport } from './components/relatorios/RoteirizacaoReport';
+import { OperacaoAnaliticoReport } from './components/relatorios/OperacaoAnaliticoReport';
+import { RelatorioEntregasReport } from './components/relatorios/RelatorioEntregasReport';
+import { NotasFiscaisReport } from './components/relatorios/NotasFiscaisReport';
+import { RecorrenciaReport } from './components/relatorios/RecorrenciaReport';
+import { TrajetoEntregadoresReport } from './components/relatorios/TrajetoEntregadoresReport';
+import { EntregadoresPeriodoReport } from './components/relatorios/EntregadoresPeriodoReport';
+import { DiagnosticoEntregadoresReport } from './components/relatorios/DiagnosticoEntregadoresReport';
+import { LogAtividadesReport } from './components/relatorios/LogAtividadesReport';
+import { HistoricoVagasReport } from './components/relatorios/HistoricoVagasReport';
 
 function App() {
   const [activeMenu, setActiveMenu] = useState('operations');
@@ -209,6 +221,7 @@ function App() {
           cadastro: activeMenu.startsWith('cadastro'),
           mensagens: activeMenu.startsWith('mensagens'),
           financeiro: activeMenu.startsWith('financeiro'),
+          
         } : undefined}
         onStartSupport={() => setSupportOpen(true)}
       />
@@ -240,6 +253,18 @@ function App() {
           {activeMenu === 'financeiro_acertos_entregadores' && <AcertosEntregadoresPanel />}
           {activeMenu === 'financeiro_faturamento_mensal' && <FaturamentoMensalPanel />}
           {activeMenu === 'financeiro_revisao_agendamentos' && <RevisaoAgendamentosPanel />}
+          {activeMenu === 'relatorios_clientes_analitico' && <ClientesAnaliticoReport />}
+          {activeMenu === 'relatorios_entregadores_analitico' && <EntregadoresAnaliticoReport />}
+          {activeMenu === 'relatorios_roteirizacao' && <RoteirizacaoReport />}
+          {activeMenu === 'relatorios_operacao_analitico' && <OperacaoAnaliticoReport />}
+          {activeMenu === 'relatorios_entregas' && <RelatorioEntregasReport />}
+          {activeMenu === 'relatorios_notas_fiscais' && <NotasFiscaisReport />}
+          {activeMenu === 'relatorios_recorrencia' && <RecorrenciaReport />}
+          {activeMenu === 'relatorios_trajeto_entregadores' && <TrajetoEntregadoresReport />}
+          {activeMenu === 'relatorios_entregadores_periodo' && <EntregadoresPeriodoReport />}
+          {activeMenu === 'relatorios_diagnostico_entregadores' && <DiagnosticoEntregadoresReport />}
+          {activeMenu === 'relatorios_log_atividades' && <LogAtividadesReport />}
+          {activeMenu === 'relatorios_historico_vagas' && <HistoricoVagasReport />}
         </div>
       </main>
       <TrainingOverlay open={trainingOpen} onClose={() => setTrainingOpen(false)} goToMenu={(m) => setActiveMenu(m)} />
