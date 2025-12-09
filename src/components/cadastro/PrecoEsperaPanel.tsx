@@ -47,7 +47,7 @@ export function PrecoEsperaPanel() {
 
   const openEdit = (m: Regra) => {
     setEditing(m);
-    setEditForm({ modal_tipo: m.modal_tipo, valor_por_minuto: m.valor_por_minuto != null ? String(m.valor_por_minuto) : '', ativa: Boolean(m.ativa) });
+    setEditForm({ modal_tipo: m.modal_tipo, valor_por_minuto: m.valor_por_minuto != null ? String(m.valor_por_minuto) : '', ativa: Boolean(m.ativo) });
   };
 
   const handleUpdate = async () => {
@@ -103,7 +103,7 @@ export function PrecoEsperaPanel() {
               <div key={m.id} className="flex items-center justify-between px-4 py-3">
                 <div>
                   <div className="font-medium text-slate-900">{m.modal_tipo}</div>
-                  <div className="text-sm text-slate-600">{[m.valor_por_minuto != null ? `min: ${m.valor_por_minuto}` : '', m.ativa ? 'ativa' : 'inativa'].filter(Boolean).join(' • ')}</div>
+                  <div className="text-sm text-slate-600">{[m.valor_por_minuto != null ? `min: ${m.valor_por_minuto}` : '', m.ativo ? 'ativo' : 'inativo'].filter(Boolean).join(' • ')}</div>
                 </div>
                 <div className="flex items-center gap-3">
                   <button onClick={() => openEdit(m)} className="text-sm text-sky-700">Editar</button>

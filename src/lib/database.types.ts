@@ -597,26 +597,151 @@ export interface Database {
         Row: {
           id: string
           modal_tipo: 'moto' | 'carro' | 'bike' | 'outro'
-          valor_por_minuto: number
-          ativa: boolean | null
+          tempo_gratis_minutos: number | null
+          valor_por_minuto: number | null
+          ativo: boolean | null
           created_at: string
           updated_at: string
         }
         Insert: {
           id?: string
           modal_tipo: 'moto' | 'carro' | 'bike' | 'outro'
-          valor_por_minuto: number
-          ativa?: boolean | null
+          tempo_gratis_minutos?: number | null
+          valor_por_minuto?: number | null
+          ativo?: boolean | null
           created_at?: string
           updated_at?: string
         }
         Update: {
           id?: string
           modal_tipo?: 'moto' | 'carro' | 'bike' | 'outro'
-          valor_por_minuto?: number
-          ativa?: boolean | null
+          tempo_gratis_minutos?: number | null
+          valor_por_minuto?: number | null
+          ativo?: boolean | null
           created_at?: string
           updated_at?: string
+        }
+      }
+      tabelas_comissoes: {
+          Row: {
+            id: string
+            nome: string
+            tipo_calculo: string | null
+            valor_por_ponto: number | null
+            tipo_retorno: string | null
+            valor_retorno: number | null
+            cliente_ids: string[] | null
+            created_at: string
+            updated_at: string
+          }
+          Insert: {
+            id?: string
+            nome: string
+            tipo_calculo?: string | null
+            valor_por_ponto?: number | null
+            tipo_retorno?: string | null
+            valor_retorno?: number | null
+            cliente_ids?: string[] | null
+            created_at?: string
+            updated_at?: string
+          }
+          Update: {
+            id?: string
+            nome?: string
+            tipo_calculo?: string | null
+            valor_por_ponto?: number | null
+            tipo_retorno?: string | null
+            valor_retorno?: number | null
+            cliente_ids?: string[] | null
+            created_at?: string
+            updated_at?: string
+          }
+        }
+        tabelas_comissoes_faixas: {
+          Row: {
+            id: string
+            tabela_id: string
+            km_ate: number
+            valor: number
+            created_at: string
+          }
+          Insert: {
+            id?: string
+            tabela_id: string
+            km_ate: number
+            valor: number
+            created_at?: string
+          }
+          Update: {
+            id?: string
+            tabela_id?: string
+            km_ate?: number
+            valor?: number
+            created_at?: string
+          }
+        }
+        tabelas_precos: {
+        Row: {
+          id: string
+          nome: string
+          tipo_calculo: string | null
+          km_adicional: number | null
+          tipo_retorno: string | null
+          valor_retorno: number | null
+          valor_por_ponto: number | null
+          valor_minimo: number | null
+          percentual_sobre_valor: number | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          nome: string
+          tipo_calculo?: string | null
+          km_adicional?: number | null
+          tipo_retorno?: string | null
+          valor_retorno?: number | null
+          valor_por_ponto?: number | null
+          valor_minimo?: number | null
+          percentual_sobre_valor?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          nome?: string
+          tipo_calculo?: string | null
+          km_adicional?: number | null
+          tipo_retorno?: string | null
+          valor_retorno?: number | null
+          valor_por_ponto?: number | null
+          valor_minimo?: number | null
+          percentual_sobre_valor?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      tabelas_precos_faixas: {
+        Row: {
+          id: string
+          tabela_id: string
+          km_ate: number
+          valor: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tabela_id: string
+          km_ate: number
+          valor: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          tabela_id?: string
+          km_ate?: number
+          valor?: number
+          created_at?: string
         }
       }
       preco_dinamico_demanda: {

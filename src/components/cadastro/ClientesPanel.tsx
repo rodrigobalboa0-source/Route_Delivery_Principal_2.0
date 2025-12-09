@@ -390,6 +390,24 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
         }
       } catch (e) { void e; }
     }
+
+    let primaryAddressUpdate = {};
+    const candidateAddress = editEnderecos.length > 0 ? editEnderecos[0] : (
+      (editEnderecoNovo.cep || editEnderecoNovo.rua) ? editEnderecoNovo : null
+    );
+
+    if (candidateAddress) {
+      primaryAddressUpdate = {
+        cep: candidateAddress.cep || null,
+        rua: candidateAddress.rua || null,
+        numero: candidateAddress.numero || null,
+        complemento: candidateAddress.complemento || null,
+        bairro: candidateAddress.bairro || null,
+        cidade: candidateAddress.cidade || null,
+        referencia_entrega: candidateAddress.referencia_entrega || null,
+      };
+    }
+
     const res = await (supabase as unknown as { from: (t: string) => { update: (v: unknown) => { eq: (c: string, v: unknown) => Promise<unknown> } } })
       .from('clientes')
       .update({
@@ -412,6 +430,7 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
         hub: editForm.hub || null,
         foto_url: editForm.foto_url || null,
         foto_base64: editForm.foto_base64 || null,
+        ...primaryAddressUpdate,
       })
       .eq('id', editing.id);
     const r = res as unknown as { error?: { message?: string } };
@@ -693,10 +712,11 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
         onClose={() => setEditing(null)}
         onConfirm={handleUpdate}
         confirmDisabled={loading}
+        maxWidth="max-w-4xl"
       >
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
           <div className="md:col-span-1 flex flex-col items-center">
-            <div className="w-24 h-24 rounded-full bg-slate-100 border border-slate-300 overflow-hidden mb-2">
+            <div className="w-32 h-32 rounded-full bg-slate-100 border border-slate-300 overflow-hidden mb-2">
               {editFotoPreview || editForm.foto_url || editForm.foto_base64 ? (
                 <img src={editFotoPreview || editForm.foto_url || editForm.foto_base64} alt="Foto" className="w-full h-full object-cover" />
               ) : (
@@ -715,7 +735,7 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
                   reader.readAsDataURL(f);
                 }
               }}
-              className="text-xs"
+              className="text-xs w-full mt-2"
             />
           </div>
           <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3">

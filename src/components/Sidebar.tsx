@@ -30,7 +30,9 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
     { id: 'cadastro_grupos', label: 'Grupos operacionais', icon: Layers },
     { id: 'cadastro_modais', label: 'Modais', icon: Truck },
     { id: 'cadastro_precificacao', label: 'Precificação padrão', icon: Wallet },
-    { id: 'cadastro_preco_espera', label: 'Preço por espera', icon: Wallet },
+    { id: 'cadastro_tabela_precos', label: 'Tabela de preço por KM', icon: Wallet },
+  { id: 'cadastro_tabela_comissoes', label: 'Tabela de comissões', icon: Wallet },
+  { id: 'cadastro_preco_espera', label: 'Preço por espera', icon: Wallet },
     { id: 'cadastro_preco_dinamico_demanda', label: 'Preço dinâmico (demanda)', icon: Wallet },
     { id: 'cadastro_preco_dinamico_entregador', label: 'Preço dinâmico entregador', icon: Wallet },
     { id: 'cadastro_servicos_opcionais', label: 'Serviços opcionais', icon: Layers },
@@ -270,7 +272,7 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
         </div>
       </div>
       <div className="p-4 border-t border-slate-800">
-        <div className="text-slate-400 text-xs text-center">v1.9.8</div>
+        <div className="text-slate-400 text-xs text-center">v1.9.9</div>
       </div>
     </aside>
   );

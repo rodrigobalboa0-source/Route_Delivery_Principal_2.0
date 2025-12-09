@@ -9,6 +9,8 @@ import { ContasPanel } from './components/cadastro/ContasPanel';
 import { EntregadoresPanel } from './components/cadastro/EntregadoresPanel';
 import { GruposPanel } from './components/cadastro/GruposPanel';
 import { ModaisPanel } from './components/cadastro/ModaisPanel';
+import { TabelasPrecosPanel } from './components/cadastro/TabelasPrecosPanel';
+import { TabelasComissoesPanel } from './components/cadastro/TabelasComissoesPanel';
 import { PrecificacaoPanel } from './components/cadastro/PrecificacaoPanel';
 import { PrecoEsperaPanel } from './components/cadastro/PrecoEsperaPanel';
 import { PrecoDinamicoDemandaPanel } from './components/cadastro/PrecoDinamicoDemandaPanel';
@@ -235,6 +237,8 @@ function App() {
           {activeMenu === 'cadastro_grupos' && <GruposPanel />}
           {activeMenu === 'cadastro_modais' && <ModaisPanel />}
           {activeMenu === 'cadastro_precificacao' && <PrecificacaoPanel />}
+          {activeMenu === 'cadastro_tabela_precos' && <TabelasPrecosPanel />}
+          {activeMenu === 'cadastro_tabela_comissoes' && <TabelasComissoesPanel />}
           {activeMenu === 'cadastro_preco_espera' && <PrecoEsperaPanel />}
           {activeMenu === 'cadastro_preco_dinamico_demanda' && <PrecoDinamicoDemandaPanel />}
           {activeMenu === 'cadastro_preco_dinamico_entregador' && <PrecoDinamicoEntregadorPanel />}

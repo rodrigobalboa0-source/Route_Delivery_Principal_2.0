@@ -61,9 +61,64 @@ export function NovaEntregaPanel() {
     else setEnderecos([]);
   }, [form.cliente_id]);
 
+  useEffect(() => {
+    if (form.cliente_id && (form.coleta_usa_endereco_cadastro || form.entrega_usa_endereco_cadastro)) {
+      const cliente = clientes.find((c) => c.id === form.cliente_id);
+      if (cliente) {
+        let { cep, rua, numero, complemento, bairro, cidade, referencia_entrega } = cliente;
+
+        
+        if ((!rua || !cidade) && enderecos.length > 0) {
+          const ultimo = enderecos[0];
+          
+          if (ultimo.cliente_id === form.cliente_id) {
+            cep = ultimo.cep;
+            rua = ultimo.rua;
+            numero = ultimo.numero;
+            complemento = ultimo.complemento;
+            bairro = ultimo.bairro;
+            cidade = ultimo.cidade;
+            referencia_entrega = ultimo.referencia_entrega;
+          }
+        }
+
+        const enderecoTexto = [rua, numero, bairro, cidade]
+          .filter(Boolean)
+          .join(', ');
+
+        setForm((prev) => {
+          let next = { ...prev };
+          if (prev.coleta_usa_endereco_cadastro) {
+            next = {
+              ...next,
+              coleta_cep: cep || '',
+              coleta_endereco_texto: enderecoTexto,
+              coleta_complemento: complemento || '',
+              coleta_contato: cliente.nome_completo,
+              coleta_telefone: cliente.telefone || '',
+              coleta_observacoes: referencia_entrega || '',
+            };
+          }
+          if (prev.entrega_usa_endereco_cadastro) {
+            next = {
+              ...next,
+              entrega_cep: cep || '',
+              entrega_endereco_texto: enderecoTexto,
+              entrega_complemento: complemento || '',
+              entrega_contato: cliente.nome_completo,
+              entrega_telefone: cliente.telefone || '',
+              entrega_observacoes: referencia_entrega || '',
+            };
+          }
+          return next;
+        });
+      }
+    }
+  }, [form.cliente_id, form.coleta_usa_endereco_cadastro, form.entrega_usa_endereco_cadastro, clientes, enderecos]);
+
   const fetchData = async () => {
     const [c, e, t, m] = await Promise.all([
-      supabase.from('clientes').select('id, nome_completo').order('nome_completo'),
+      supabase.from('clientes').select('*').order('nome_completo'),
       supabase.from('entregadores').select('id, nome_completo, status').order('nome_completo'),
       supabase.from('tipo_servicos').select('*').eq('ativo', true).order('nome'),
       supabase.from('modais').select('*').eq('ativo', true).order('tipo'),
