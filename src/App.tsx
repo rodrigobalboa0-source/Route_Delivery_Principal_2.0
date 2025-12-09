@@ -44,6 +44,13 @@ import { EntregadoresPeriodoReport } from './components/relatorios/EntregadoresP
 import { DiagnosticoEntregadoresReport } from './components/relatorios/DiagnosticoEntregadoresReport';
 import { LogAtividadesReport } from './components/relatorios/LogAtividadesReport';
 import { HistoricoVagasReport } from './components/relatorios/HistoricoVagasReport';
+import { ConfiguracoesComercioPanel } from './components/configuracoes/ConfiguracoesComercioPanel';
+import { CustomizacaoPanel } from './components/configuracoes/CustomizacaoPanel';
+import { DadosAcessoPanel } from './components/configuracoes/DadosAcessoPanel';
+import { ConfigFiscalPanel } from './components/configuracoes/ConfigFiscalPanel';
+import { IntegracoesExternasPanel } from './components/configuracoes/IntegracoesExternasPanel';
+import { IntegracoesOpenDeliveryPanel } from './components/configuracoes/IntegracoesOpenDeliveryPanel';
+import { ConfiguracoesOperacaoPanel } from './components/configuracoes/ConfiguracoesOperacaoPanel';
 
 function App() {
   const [activeMenu, setActiveMenu] = useState('operations');
@@ -269,6 +276,13 @@ function App() {
           {activeMenu === 'relatorios_diagnostico_entregadores' && <DiagnosticoEntregadoresReport />}
           {activeMenu === 'relatorios_log_atividades' && <LogAtividadesReport />}
           {activeMenu === 'relatorios_historico_vagas' && <HistoricoVagasReport />}
+          {activeMenu === 'config_comercio' && <ConfiguracoesComercioPanel />}
+          {activeMenu === 'config_customizacao' && <CustomizacaoPanel />}
+          {activeMenu === 'config_acesso' && <DadosAcessoPanel />}
+          {activeMenu === 'config_fiscal' && <ConfigFiscalPanel />}
+          {activeMenu === 'config_integracoes_externas' && <IntegracoesExternasPanel />}
+          {activeMenu === 'config_integracoes_open_delivery' && <IntegracoesOpenDeliveryPanel />}
+          {activeMenu === 'config_operacao' && <ConfiguracoesOperacaoPanel />}
         </div>
       </main>
       <TrainingOverlay open={trainingOpen} onClose={() => setTrainingOpen(false)} goToMenu={(m) => setActiveMenu(m)} />

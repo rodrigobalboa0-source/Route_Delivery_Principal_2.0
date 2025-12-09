@@ -1419,12 +1419,109 @@ export interface Database {
           updated_at?: string
         }
       }
+      configuracoes_comercio: {
+        Row: {
+          id: string
+          permitir_cadastro_entregador: boolean
+          exigir_aprovacao_entregador: boolean
+          limite_entregas_simultaneas: number
+          raio_busca_entregador: number
+          tempo_aceite_pedido: number
+          permissoes_padrao_cliente: string[] | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          permitir_cadastro_entregador?: boolean
+          exigir_aprovacao_entregador?: boolean
+          limite_entregas_simultaneas?: number
+          raio_busca_entregador?: number
+          tempo_aceite_pedido?: number
+          permissoes_padrao_cliente?: string[] | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          permitir_cadastro_entregador?: boolean
+          exigir_aprovacao_entregador?: boolean
+          limite_entregas_simultaneas?: number
+          raio_busca_entregador?: number
+          tempo_aceite_pedido?: number
+          permissoes_padrao_cliente?: string[] | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      customizacao_app: {
+        Row: {
+          id: string
+          nome_app: string | null
+          cor_primaria: string | null
+          cor_secundaria: string | null
+          logotipo_url: string | null
+          texto_boas_vindas: string | null
+          texto_rodape: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          nome_app?: string | null
+          cor_primaria?: string | null
+          cor_secundaria?: string | null
+          logotipo_url?: string | null
+          texto_boas_vindas?: string | null
+          texto_rodape?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          nome_app?: string | null
+          cor_primaria?: string | null
+          cor_secundaria?: string | null
+          logotipo_url?: string | null
+          texto_boas_vindas?: string | null
+          texto_rodape?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      usuarios_permissoes: {
+        Row: {
+          id: string
+          user_id: string
+          permissoes: string[] | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          permissoes?: string[] | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          permissoes?: string[] | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
       config_fiscal: {
         Row: {
           id: string
           user_id: string
           cert_pfx_base64: string | null
           cert_password: string | null
+          cfop_padrao: string | null
+          ncm_padrao: string | null
+          impostos_padrao: Json | null
+          ambiente: string | null
           created_at: string
           updated_at: string
         }
@@ -1433,6 +1530,10 @@ export interface Database {
           user_id: string
           cert_pfx_base64?: string | null
           cert_password?: string | null
+          cfop_padrao?: string | null
+          ncm_padrao?: string | null
+          impostos_padrao?: Json | null
+          ambiente?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1441,6 +1542,118 @@ export interface Database {
           user_id?: string
           cert_pfx_base64?: string | null
           cert_password?: string | null
+          cfop_padrao?: string | null
+          ncm_padrao?: string | null
+          impostos_padrao?: Json | null
+          ambiente?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      integracoes_externas: {
+        Row: {
+          id: string
+          tipo: string
+          nome: string
+          api_key: string | null
+          api_secret: string | null
+          webhook_url: string | null
+          ativo: boolean | null
+          config: Json | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          tipo: string
+          nome: string
+          api_key?: string | null
+          api_secret?: string | null
+          webhook_url?: string | null
+          ativo?: boolean | null
+          config?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          tipo?: string
+          nome?: string
+          api_key?: string | null
+          api_secret?: string | null
+          webhook_url?: string | null
+          ativo?: boolean | null
+          config?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      integracoes_open_delivery: {
+        Row: {
+          id: string
+          merchant_id: string | null
+          client_id: string | null
+          client_secret: string | null
+          polling_interval: number | null
+          ativo: boolean | null
+          status_mapping: Json | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          merchant_id?: string | null
+          client_id?: string | null
+          client_secret?: string | null
+          polling_interval?: number | null
+          ativo?: boolean | null
+          status_mapping?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          merchant_id?: string | null
+          client_id?: string | null
+          client_secret?: string | null
+          polling_interval?: number | null
+          ativo?: boolean | null
+          status_mapping?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      configuracoes_operacao: {
+        Row: {
+          id: string
+          horario_funcionamento: Json | null
+          taxa_servico: number | null
+          pedido_minimo: number | null
+          tempo_preparo_padrao: number | null
+          modo_automatico: boolean | null
+          regras_auto_cancelamento: Json | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          horario_funcionamento?: Json | null
+          taxa_servico?: number | null
+          pedido_minimo?: number | null
+          tempo_preparo_padrao?: number | null
+          modo_automatico?: boolean | null
+          regras_auto_cancelamento?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          horario_funcionamento?: Json | null
+          taxa_servico?: number | null
+          pedido_minimo?: number | null
+          tempo_preparo_padrao?: number | null
+          modo_automatico?: boolean | null
+          regras_auto_cancelamento?: Json | null
           created_at?: string
           updated_at?: string
         }
