@@ -1,5 +1,6 @@
 import { Map, Users, Wallet, Truck, Layers, MessageSquare, PlusSquare, FileText, LifeBuoy, PlayCircle, BarChart3 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { APP_VERSION } from '../config';
 
 interface SidebarProps {
   activeMenu: string;
@@ -272,7 +273,7 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
         </div>
       </div>
       <div className="p-4 border-t border-slate-800">
-        <div className="text-slate-400 text-xs text-center">v1.9.9</div>
+        <div className="text-slate-400 text-xs text-center">v{APP_VERSION}</div>
       </div>
     </aside>
   );

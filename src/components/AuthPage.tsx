@@ -78,8 +78,9 @@ export function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100">
-      <div className="w-full max-w-4xl bg-white rounded-2xl shadow border border-slate-200 overflow-hidden grid grid-cols-1 md:grid-cols-2">
+    <div className="h-screen overflow-y-auto bg-slate-100">
+      <div className="min-h-full flex items-center justify-center p-4">
+        <div className="w-full max-w-4xl bg-white rounded-2xl shadow border border-slate-200 overflow-hidden grid grid-cols-1 md:grid-cols-2">
         <div className="relative p-8 md:p-10 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white">
           <div className="absolute inset-0 bg-black/20" />
           <div className="flex items-center justify-center mb-6">
@@ -139,6 +140,7 @@ export function AuthPage() {
             </div>
           </div>
         </div>
+      </div>
       </div>
       {signupOpen && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
