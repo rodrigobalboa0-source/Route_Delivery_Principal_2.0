@@ -47,7 +47,7 @@ export function ConfiguracoesOperacaoPanel() {
       }
     } catch (err: any) {
       console.error('Erro ao carregar configurações:', err);
-      setError('Falha ao carregar configurações de operação');
+      setError(err.message || 'Falha ao carregar configurações de operação');
     } finally {
       setLoading(false);
     }

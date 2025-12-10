@@ -48,7 +48,7 @@ export function IntegracoesOpenDeliveryPanel() {
       }
     } catch (err: any) {
       console.error('Erro ao carregar configurações OD:', err);
-      setError('Falha ao carregar configurações Open Delivery');
+      setError(err.message || 'Falha ao carregar configurações Open Delivery');
     } finally {
       setLoading(false);
     }

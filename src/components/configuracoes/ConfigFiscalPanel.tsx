@@ -51,7 +51,7 @@ export function ConfigFiscalPanel() {
       }
     } catch (err: any) {
       console.error('Erro ao carregar configurações fiscais:', err);
-      setError('Falha ao carregar configurações fiscais');
+      setError(err.message || 'Falha ao carregar configurações fiscais');
     } finally {
       setLoading(false);
     }

@@ -65,7 +65,7 @@ export function DadosAcessoPanel() {
       setUsers(merged);
     } catch (err: any) {
       console.error('Erro ao carregar usuários:', err);
-      setError('Falha ao carregar lista de usuários');
+      setError(err.message || 'Falha ao carregar lista de usuários');
     } finally {
       setLoading(false);
     }

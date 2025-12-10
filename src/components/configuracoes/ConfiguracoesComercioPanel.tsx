@@ -29,7 +29,11 @@ export function ConfiguracoesComercioPanel() {
           
           const { data: newData, error: createError } = await supabase
             .from('configuracoes_comercio')
-            .insert({} as any)
+            .insert({
+              permitir_cadastro_entregador: true,
+              exigir_aprovacao_entregador: true,
+              limite_entregas_simultaneas: 1
+            } as any)
             .select()
             .single();
           
@@ -43,7 +47,7 @@ export function ConfiguracoesComercioPanel() {
       }
     } catch (err: any) {
       console.error('Erro ao carregar configurações:', err);
-      setError('Falha ao carregar configurações');
+      setError(err.message || 'Falha ao carregar configurações');
     } finally {
       setLoading(false);
     }

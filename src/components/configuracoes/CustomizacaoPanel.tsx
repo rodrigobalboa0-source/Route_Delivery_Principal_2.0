@@ -29,7 +29,13 @@ export function CustomizacaoPanel() {
           // No rows, create default
           const { data: newData, error: createError } = await (supabase
             .from('customizacao_app') as any)
-            .insert({})
+            .insert({
+              nome_app: 'RouteDelivery',
+              cor_primaria: '#0284c7',
+              cor_secundaria: '#0f172a',
+              texto_boas_vindas: 'Bem-vindo ao RouteDelivery',
+              texto_rodape: '© 2025 RouteDelivery. Todos os direitos reservados.'
+            })
             .select()
             .single();
           
@@ -43,7 +49,7 @@ export function CustomizacaoPanel() {
       }
     } catch (err: any) {
       console.error('Erro ao carregar customização:', err);
-      setError('Falha ao carregar customização');
+      setError(err.message || 'Falha ao carregar customização');
     } finally {
       setLoading(false);
     }

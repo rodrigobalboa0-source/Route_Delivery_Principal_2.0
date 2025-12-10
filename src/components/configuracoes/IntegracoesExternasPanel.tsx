@@ -9,6 +9,7 @@ type Integracao = Database['public']['Tables']['integracoes_externas']['Row'];
 export function IntegracoesExternasPanel() {
   const [integracoes, setIntegracoes] = useState<Integracao[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingIntegracao, setEditingIntegracao] = useState<Integracao | null>(null);
   const [formData, setFormData] = useState<Partial<Integracao>>({
@@ -24,6 +25,7 @@ export function IntegracoesExternasPanel() {
   const fetchIntegracoes = async () => {
     try {
       setLoading(true);
+      setError(null);
       const { data, error } = await supabase
         .from('integracoes_externas')
         .select('*')
@@ -31,8 +33,9 @@ export function IntegracoesExternasPanel() {
 
       if (error) throw error;
       setIntegracoes(data || []);
-    } catch (error) {
-      console.error('Erro ao buscar integrações:', error);
+    } catch (err: any) {
+      console.error('Erro ao buscar integrações:', err);
+      setError(err.message || 'Erro ao buscar integrações');
     } finally {
       setLoading(false);
     }
@@ -56,9 +59,9 @@ export function IntegracoesExternasPanel() {
       
       setIsModalOpen(false);
       fetchIntegracoes();
-    } catch (error) {
-      console.error('Erro ao salvar:', error);
-      alert('Erro ao salvar integração');
+    } catch (err: any) {
+      console.error('Erro ao salvar:', err);
+      alert(err.message || 'Erro ao salvar integração');
     }
   };
 
@@ -71,9 +74,9 @@ export function IntegracoesExternasPanel() {
         .eq('id', id);
       if (error) throw error;
       fetchIntegracoes();
-    } catch (error) {
-      console.error('Erro ao excluir:', error);
-      alert('Erro ao excluir integração');
+    } catch (err: any) {
+      console.error('Erro ao excluir:', err);
+      alert(err.message || 'Erro ao excluir integração');
     }
   };
 
@@ -99,16 +102,23 @@ export function IntegracoesExternasPanel() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Integrações Externas</h1>
-          <p className="text-slate-500">Gerencie integrações com sistemas externos (ERPs, Pagamentos, APIs).</p>
+          <p className="text-slate-500">Gerencie conexões com ERPs, Gateways de Pagamento e APIs.</p>
         </div>
         <button
           onClick={() => openModal()}
-          className="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700"
         >
-          <Plus size={20} />
+          <Plus size={18} />
           Nova Integração
         </button>
       </div>
+
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 text-red-700 rounded-lg flex items-center gap-2">
+          <AlertCircle size={20} />
+          {error}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {integracoes.map((int) => (
