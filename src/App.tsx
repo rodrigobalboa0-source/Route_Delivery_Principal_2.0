@@ -255,7 +255,7 @@ function App() {
           {activeMenu === 'mensagens_clientes' && <MensagensClientesPanel />}
           {activeMenu === 'mensagens_historico' && <HistoricoMensagensPanel />}
           {activeMenu === 'nova_criar' && <NovaEntregaPanel />}
-          {activeMenu === 'pedidos' && <PedidosPanel />}
+          {activeMenu === 'pedidos' && <PedidosPanel onNavigate={setActiveMenu} />}
           {activeMenu === 'financeiro_dashboard' && <FinanceiroDashboard />}
           {activeMenu === 'financeiro_contas_receber' && <ContasReceberPanel />}
           {activeMenu === 'financeiro_contas_pagar' && <ContasPagarPanel />}

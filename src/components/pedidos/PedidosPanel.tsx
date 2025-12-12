@@ -4,15 +4,19 @@ import { MapView } from '../MapView';
 import { Modal } from '../Modal';
 import type { Database } from '../../lib/database.types';
 import { format } from 'date-fns';
-import { Trash2 } from 'lucide-react';
+import { Trash2, User, CheckCircle, Truck, Plus, ArrowRight } from 'lucide-react';
 
 type Cliente = { id: string; nome_completo: string };
 type Pedido = Database['public']['Tables']['pedidos']['Row'];
 type Entrega = Database['public']['Tables']['nova_entrega']['Row'];
-type Entregador = { id: string; nome_completo: string };
+type Entregador = Database['public']['Tables']['entregadores']['Row'];
 type DeliveryPerson = Database['public']['Tables']['delivery_persons']['Row'];
 
-export function PedidosPanel() {
+interface PedidosPanelProps {
+  onNavigate?: (menu: string) => void;
+}
+
+export function PedidosPanel({ onNavigate }: PedidosPanelProps) {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [items, setItems] = useState<Pedido[]>([]);
   const [entregasMap, setEntregasMap] = useState<Record<string, Entrega>>({});
@@ -20,13 +24,14 @@ export function PedidosPanel() {
   const [loadingList, setLoadingList] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState({ status: 'todos', cliente_id: '', origem: 'todos', de: '', ate: '' });
-  const [activeDeliveriesByEntregador, setActiveDeliveriesByEntregador] = useState<Record<string, { lat: number; lon: number }>>({});
   const [availableEntregadores, setAvailableEntregadores] = useState<Entregador[]>([]);
-    
+  
+  // Modal states
   const [isAllocationModalOpen, setIsAllocationModalOpen] = useState(false);
   const [selectedPedidoForAllocation, setSelectedPedidoForAllocation] = useState<Pedido | null>(null);
   const [selectedEntregadorId, setSelectedEntregadorId] = useState('');
 
+  // Map states
   const [mapSelectedEntregadorId, setMapSelectedEntregadorId] = useState('');
   const [selectedDeliveryPerson, setSelectedDeliveryPerson] = useState<DeliveryPerson | null>(null);
 
@@ -45,6 +50,31 @@ export function PedidosPanel() {
     return c;
   }, [items]);
 
+  // Dashboard Stats
+  const onlineEntregadoresCount = availableEntregadores.filter(e => e.status === 'ativo').length;
+  
+  const allDelivered = useMemo(() => {
+    if (items.length === 0) return true;
+    return items.every(p => {
+        const entrega = entregasMap[p.id];
+        const status = entrega?.status || p.status;
+        return status === 'entregue' || status === 'cancelado' || status === 'cancelada';
+    });
+  }, [items, entregasMap]);
+
+  const allAssigned = useMemo(() => {
+    if (items.length === 0) return true;
+    const activeItems = items.filter(p => {
+        const status = p.status;
+        return status !== 'entregue' && status !== 'cancelado';
+    });
+    if (activeItems.length === 0) return true;
+    return activeItems.every(p => {
+        const entrega = entregasMap[p.id];
+        return !!entrega?.entregador_id;
+    });
+  }, [items, entregasMap]);
+
   const fetchClientes = async () => {
     const { data, error } = await supabase.from('clientes').select('id, nome_completo').order('nome_completo');
     if (error) setError(error.message);
@@ -52,7 +82,7 @@ export function PedidosPanel() {
   };
 
   const fetchEntregadoresList = async () => {
-    const { data } = await supabase.from('entregadores').select('id, nome_completo').eq('ativo', true).order('nome_completo');
+    const { data } = await supabase.from('entregadores').select('*').order('nome_completo');
     setAvailableEntregadores((data || []) as Entregador[]);
     
     const map: Record<string, Entregador> = {};
@@ -64,7 +94,6 @@ export function PedidosPanel() {
     if (pedidos.length === 0) { setEntregasMap({}); return; }
     
     const clienteIds = Array.from(new Set(pedidos.map(p => p.cliente_id).filter(Boolean)));
-    const numeros = pedidos.map(p => p.numero).filter(Boolean) as string[];
 
     let query = supabase.from('nova_entrega').select('*');
     
@@ -103,15 +132,6 @@ export function PedidosPanel() {
     });
 
     setEntregasMap(map);
-    
-    
-    const extraEntregadorIds = entregas.map(e => e.entregador_id).filter(Boolean) as string[];
-    if (extraEntregadorIds.length > 0) {
-      const { data: ents } = await supabase.from('entregadores').select('id, nome_completo').in('id', extraEntregadorIds);
-      const newMap: Record<string, Entregador> = {};
-      (ents || []).forEach((e: Entregador) => { newMap[e.id] = e; });
-      setEntregadores(prev => ({ ...prev, ...newMap }));
-    }
   };
 
   const fetchPedidos = async () => {
@@ -148,6 +168,22 @@ export function PedidosPanel() {
     setSelectedPedidoForAllocation(pedido);
     setSelectedEntregadorId(entrega?.entregador_id || '');
     setIsAllocationModalOpen(true);
+  };
+
+  const handleQuickAssign = () => {
+      // Find first unassigned active order
+      const unassigned = items.find(p => {
+          const status = p.status;
+          if (status === 'entregue' || status === 'cancelado') return false;
+          const entrega = entregasMap[p.id];
+          return !entrega?.entregador_id;
+      });
+
+      if (unassigned) {
+          handleOpenAllocation(unassigned);
+      } else {
+          alert('Não há pedidos pendentes de alocação.');
+      }
   };
 
   const handleSaveAllocation = async () => {
@@ -205,6 +241,61 @@ export function PedidosPanel() {
       <h2 className="text-lg font-semibold text-slate-900 mb-4">Pedidos • Acompanhamento</h2>
       {error && <div className="mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</div>}
       
+      {/* Map - Now at the top */}
+      <div className="bg-white border border-slate-200 rounded-lg p-4 mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-sm text-slate-700">Mapa da entrega e rota do entregador selecionado</div>
+        </div>
+        <div className="h-64 rounded-lg overflow-hidden border border-slate-200">
+          <MapView
+            deliveryPersons={selectedDeliveryPerson ? [selectedDeliveryPerson] : []}
+            center={selectedDeliveryPerson?.current_latitude && selectedDeliveryPerson?.current_longitude ? [selectedDeliveryPerson.current_latitude, selectedDeliveryPerson.current_longitude] : undefined}
+          />
+        </div>
+      </div>
+
+      {/* Info Bar & Actions */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+          {/* Status Cards */}
+          <div className="bg-white border border-slate-200 rounded-lg p-3 flex items-center gap-3">
+              <div className="bg-slate-100 p-2 rounded-lg"><User size={20} className="text-slate-600"/></div>
+              <div>
+                  <div className="text-sm font-semibold text-slate-900">{onlineEntregadoresCount} Entregador{onlineEntregadoresCount !== 1 && 'es'}</div>
+                  <div className="text-xs text-slate-500">Online</div>
+              </div>
+          </div>
+          <div className="bg-white border border-slate-200 rounded-lg p-3 flex items-center gap-3">
+              <div className="bg-slate-100 p-2 rounded-lg"><CheckCircle size={20} className="text-slate-600"/></div>
+              <div>
+                  <div className="text-sm font-semibold text-slate-900">{allDelivered ? 'Todas Finalizadas' : 'Em andamento'}</div>
+                  <div className="text-xs text-slate-500">Entregas</div>
+              </div>
+          </div>
+          <div className="bg-white border border-slate-200 rounded-lg p-3 flex items-center gap-3">
+              <div className="bg-slate-100 p-2 rounded-lg"><Truck size={20} className="text-slate-600"/></div>
+              <div>
+                  <div className="text-sm font-semibold text-slate-900">{allAssigned ? 'Todas Atribuídas' : 'Pendentes'}</div>
+                  <div className="text-xs text-slate-500">Alocação</div>
+              </div>
+          </div>
+
+          {/* Action Buttons */}
+          <button 
+            onClick={handleQuickAssign}
+            className="bg-orange-500 hover:bg-orange-600 text-white rounded-lg px-4 py-2 font-medium flex items-center justify-center gap-2 transition-colors"
+          >
+            <User size={18} />
+            Atribuir
+          </button>
+          <button 
+            onClick={() => onNavigate && onNavigate('nova_criar')}
+            className="bg-sky-500 hover:bg-sky-600 text-white rounded-lg px-4 py-2 font-medium flex items-center justify-center gap-2 transition-colors"
+          >
+            <Plus size={18} />
+            Nova Entrega
+          </button>
+      </div>
+      
       {/* Filters */}
       <div className="bg-white border border-slate-200 rounded-lg p-4 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
@@ -230,7 +321,7 @@ export function PedidosPanel() {
           <input type="date" value={filters.ate} onChange={(e) => setFilters({ ...filters, ate: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
         </div>
         
-        {/* Counters */}
+        {/* Counters - Keeping them inside filters box as per original code, but could be moved if needed. User just said filters below map. */}
         <div className="mt-4 grid grid-cols-2 md:grid-cols-6 gap-3">
           {Object.entries(statusCounters).map(([key, count]) => (
             <div key={key} className="bg-slate-50 border border-slate-200 rounded p-3 text-center">
@@ -238,19 +329,6 @@ export function PedidosPanel() {
               <div className="text-xl font-semibold text-slate-900">{count}</div>
             </div>
           ))}
-        </div>
-      </div>
-
-      {/* Map (Optional - User didn't ask to remove it, but focus is on table. Keeping it as it was) */}
-      <div className="bg-white border border-slate-200 rounded-lg p-4 mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <div className="text-sm text-slate-700">Mapa da entrega e rota do entregador selecionado</div>
-        </div>
-        <div className="h-64 rounded-lg overflow-hidden border border-slate-200">
-          <MapView
-            deliveryPersons={selectedDeliveryPerson ? [selectedDeliveryPerson] : []}
-            center={selectedDeliveryPerson?.current_latitude && selectedDeliveryPerson?.current_longitude ? [selectedDeliveryPerson.current_latitude, selectedDeliveryPerson.current_longitude] : undefined}
-          />
         </div>
       </div>
 
