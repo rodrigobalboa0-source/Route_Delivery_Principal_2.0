@@ -26,12 +26,12 @@ export function PedidosPanel({ onNavigate }: PedidosPanelProps) {
   const [filters, setFilters] = useState({ status: 'todos', cliente_id: '', origem: 'todos', de: '', ate: '' });
   const [availableEntregadores, setAvailableEntregadores] = useState<Entregador[]>([]);
   
-  // Modal states
+  
   const [isAllocationModalOpen, setIsAllocationModalOpen] = useState(false);
   const [selectedPedidoForAllocation, setSelectedPedidoForAllocation] = useState<Pedido | null>(null);
   const [selectedEntregadorId, setSelectedEntregadorId] = useState('');
 
-  // Map states
+  
   const [mapSelectedEntregadorId, setMapSelectedEntregadorId] = useState('');
   const [selectedDeliveryPerson, setSelectedDeliveryPerson] = useState<DeliveryPerson | null>(null);
 
@@ -50,7 +50,7 @@ export function PedidosPanel({ onNavigate }: PedidosPanelProps) {
     return c;
   }, [items]);
 
-  // Dashboard Stats
+  
   const onlineEntregadoresCount = availableEntregadores.filter(e => e.status === 'ativo').length;
   
   const allDelivered = useMemo(() => {
@@ -105,20 +105,20 @@ export function PedidosPanel({ onNavigate }: PedidosPanelProps) {
     
     pedidos.forEach(p => {
       
-      // 1. Try match by pedido_id (best match)
+      
       let match = entregas.find(e => e.pedido_id === p.id);
       
-      // 2. Try match by external code
+      
       if (!match && p.numero) {
         match = entregas.find(e => e.entrega_codigo_pedido === p.numero && e.cliente_id === p.cliente_id);
       }
       
-      // 3. Fallback: time proximity (within 1 hour)
+      
       if (!match) {
         const pTime = new Date(p.created_at).getTime();
         match = entregas.find(e => {
           if (e.cliente_id !== p.cliente_id) return false;
-          // Avoid matching if already matched to another pedido (simple check)
+          
           if (e.pedido_id && e.pedido_id !== p.id) return false;
           
           const eTime = new Date(e.created_at).getTime();
@@ -171,7 +171,7 @@ export function PedidosPanel({ onNavigate }: PedidosPanelProps) {
   };
 
   const handleQuickAssign = () => {
-      // Find first unassigned active order
+      
       const unassigned = items.find(p => {
           const status = p.status;
           if (status === 'entregue' || status === 'cancelado') return false;
