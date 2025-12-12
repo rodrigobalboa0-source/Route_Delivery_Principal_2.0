@@ -51,6 +51,7 @@ import { ConfigFiscalPanel } from './components/configuracoes/ConfigFiscalPanel'
 import { IntegracoesExternasPanel } from './components/configuracoes/IntegracoesExternasPanel';
 import { IntegracoesOpenDeliveryPanel } from './components/configuracoes/IntegracoesOpenDeliveryPanel';
 import { ConfiguracoesOperacaoPanel } from './components/configuracoes/ConfiguracoesOperacaoPanel';
+import { FinanceiroDashboard } from './components/FinanceiroDashboard';
 
 function App() {
   const [activeMenu, setActiveMenu] = useState('operations');
@@ -255,6 +256,7 @@ function App() {
           {activeMenu === 'mensagens_historico' && <HistoricoMensagensPanel />}
           {activeMenu === 'nova_criar' && <NovaEntregaPanel />}
           {activeMenu === 'pedidos' && <PedidosPanel />}
+          {activeMenu === 'financeiro_dashboard' && <FinanceiroDashboard />}
           {activeMenu === 'financeiro_contas_receber' && <ContasReceberPanel />}
           {activeMenu === 'financeiro_contas_pagar' && <ContasPagarPanel />}
           {activeMenu === 'financeiro_emissao_notas' && <EmissaoNotasPanel />}

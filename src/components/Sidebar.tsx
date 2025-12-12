@@ -1,4 +1,4 @@
-import { Map, Users, Wallet, Truck, Layers, MessageSquare, PlusSquare, FileText, LifeBuoy, PlayCircle, BarChart3, Settings } from 'lucide-react';
+import { Map, Users, Wallet, Truck, Layers, MessageSquare, PlusSquare, FileText, LifeBuoy, PlayCircle, BarChart3, Settings, LayoutDashboard } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { APP_VERSION } from '../config';
 
@@ -71,7 +71,9 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
     { id: 'mensagens_clientes', label: 'Clientes', icon: MessageSquare },
     { id: 'mensagens_historico', label: 'Histórico', icon: MessageSquare },
   ];
+
   const financeiroItems = [
+    { id: 'financeiro_dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'financeiro_contas_receber', label: 'Contas a receber', icon: Wallet },
     { id: 'financeiro_contas_pagar', label: 'Contas a pagar', icon: Wallet },
     { id: 'financeiro_emissao_notas', label: 'Emissão de notas', icon: Wallet },
@@ -138,7 +140,7 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
                   onClick={() => {
                     if (item.id === 'cadastro') { setCadastroOpen((v) => !v); setMensagensOpen(false); setFinanceiroOpen(false); setRelatoriosOpen(false); setConfiguracoesOpen(false); return; }
                     if (item.id === 'mensagens') { setMensagensOpen((v) => !v); setCadastroOpen(false); setFinanceiroOpen(false); setRelatoriosOpen(false); setConfiguracoesOpen(false); return; }
-                    if (item.id === 'financeiro') { setFinanceiroOpen((v) => !v); setCadastroOpen(false); setMensagensOpen(false); setRelatoriosOpen(false); setConfiguracoesOpen(false); return; }
+                    if (item.id === 'financeiro') { setFinanceiroOpen(true); setCadastroOpen(false); setMensagensOpen(false); setRelatoriosOpen(false); setConfiguracoesOpen(false); onMenuChange('financeiro_dashboard'); return; }
                     if (item.id === 'relatorios') { setRelatoriosOpen((v) => !v); setCadastroOpen(false); setMensagensOpen(false); setFinanceiroOpen(false); setConfiguracoesOpen(false); return; }
                     if (item.id === 'configuracoes') { setConfiguracoesOpen((v) => !v); setCadastroOpen(false); setMensagensOpen(false); setFinanceiroOpen(false); setRelatoriosOpen(false); return; }
                     if (item.id === 'nova') { setCadastroOpen(false); setMensagensOpen(false); setFinanceiroOpen(false); setRelatoriosOpen(false); setConfiguracoesOpen(false); onMenuChange('nova_criar'); return; }

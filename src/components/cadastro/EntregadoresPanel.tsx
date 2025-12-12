@@ -65,9 +65,11 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
   const [fotoFile, setFotoFile] = useState<File | null>(null);
   const [cnhFile, setCnhFile] = useState<File | null>(null);
   const [comprovanteFile, setComprovanteFile] = useState<File | null>(null);
+  const [motoDocFile, setMotoDocFile] = useState<File | null>(null);
   const [fotoPreview, setFotoPreview] = useState('');
   const [cnhPreview, setCnhPreview] = useState('');
   const [comprovantePreview, setComprovantePreview] = useState('');
+  const [motoDocPreview, setMotoDocPreview] = useState('');
   const [csvFileName, setCsvFileName] = useState('');
   const [csvRows, setCsvRows] = useState<CSVRow[]>([]);
   const [form, setForm] = useState({
@@ -98,13 +100,17 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
     cnh_foto_base64: '',
     comprovante_residencia_url: '',
     comprovante_residencia_base64: '',
+    documento_veiculo_url: '',
+    documento_veiculo_base64: '',
   });
   const [editFotoFile, setEditFotoFile] = useState<File | null>(null);
   const [editCnhFile, setEditCnhFile] = useState<File | null>(null);
   const [editComprovanteFile, setEditComprovanteFile] = useState<File | null>(null);
+  const [editMotoDocFile, setEditMotoDocFile] = useState<File | null>(null);
   const [editFotoPreview, setEditFotoPreview] = useState('');
   const [editCnhPreview, setEditCnhPreview] = useState('');
   const [editComprovantePreview, setEditComprovantePreview] = useState('');
+  const [editMotoDocPreview, setEditMotoDocPreview] = useState('');
 
   useEffect(() => {
     fetchEntregadores();
@@ -264,6 +270,24 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
           reader.readAsDataURL(comprovanteFile);
         }
       }
+      if (motoDocFile) {
+        try {
+          const name = `entregadores/${idNew}/motodoc-${Date.now()}-${(motoDocFile.name || 'motodoc').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
+          const up = await (supabase as unknown as { storage: { from: (b: string) => { upload: (p: string, f: File, o?: unknown) => Promise<{ data?: { path?: string }; error?: { message?: string } }>; getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').upload(name, motoDocFile, { upsert: true });
+          if (!up.error && up.data?.path) {
+            const url = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
+            form.documento_veiculo_url = url;
+          } else {
+            const reader = new FileReader();
+            reader.onload = () => { form.documento_veiculo_base64 = String(reader.result || ''); };
+            reader.readAsDataURL(motoDocFile);
+          }
+        } catch {
+          const reader = new FileReader();
+          reader.onload = () => { form.documento_veiculo_base64 = String(reader.result || ''); };
+          reader.readAsDataURL(motoDocFile);
+        }
+      }
       await (supabase as unknown as { from: (t: string) => { update: (v: unknown) => { eq: (c: string, v: unknown) => Promise<unknown> } } }).from('entregadores').update({
         foto_url: form.foto_url || null,
         foto_base64: form.foto_base64 || null,
@@ -271,15 +295,19 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
         cnh_foto_base64: form.cnh_foto_base64 || null,
         comprovante_residencia_url: form.comprovante_residencia_url || null,
         comprovante_residencia_base64: form.comprovante_residencia_base64 || null,
+        documento_veiculo_url: form.documento_veiculo_url || null,
+        documento_veiculo_base64: form.documento_veiculo_base64 || null,
       }).eq('id', idNew);
     }
-    setForm({ nome_completo: '', cpf: '', rg: '', data_nascimento: '', telefone: '', email: '', senha: '', veiculo_tipo: '', veiculo_modelo: '', veiculo_placa: '', veiculo_ano: '', cnh_valida: false, tipo_entrega: '', taxa_entrega: '', status: 'inativo', cep: '', rua: '', numero: '', complemento: '', bairro: '', cidade: '', foto_url: '', foto_base64: '', cnh_foto_url: '', cnh_foto_base64: '', comprovante_residencia_url: '', comprovante_residencia_base64: '' });
+    setForm({ nome_completo: '', cpf: '', rg: '', data_nascimento: '', telefone: '', email: '', senha: '', veiculo_tipo: '', veiculo_modelo: '', veiculo_placa: '', veiculo_ano: '', cnh_valida: false, tipo_entrega: '', taxa_entrega: '', status: 'inativo', cep: '', rua: '', numero: '', complemento: '', bairro: '', cidade: '', foto_url: '', foto_base64: '', cnh_foto_url: '', cnh_foto_base64: '', comprovante_residencia_url: '', comprovante_residencia_base64: '', documento_veiculo_url: '', documento_veiculo_base64: '' });
     setFotoFile(null);
     setCnhFile(null);
     setComprovanteFile(null);
+    setMotoDocFile(null);
     setFotoPreview('');
     setCnhPreview('');
     setComprovantePreview('');
+    setMotoDocPreview('');
     await fetchEntregadores();
   };
 
@@ -316,6 +344,10 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
 
   const openEdit = (c: Entregador) => {
     setEditing(c);
+    setEditFotoFile(null);
+    setEditCnhFile(null);
+    setEditComprovanteFile(null);
+    setEditMotoDocFile(null);
     setEditForm({
       nome_completo: c.nome_completo,
       cpf: c.cpf || '',
@@ -337,10 +369,19 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
       complemento: (c as any).complemento || '',
       bairro: (c as any).bairro || '',
       cidade: (c as any).cidade || '',
-    });
+      foto_url: (c as any).foto_url || '',
+      foto_base64: (c as any).foto_base64 || '',
+      cnh_foto_url: (c as any).cnh_foto_url || '',
+      cnh_foto_base64: (c as any).cnh_foto_base64 || '',
+      comprovante_residencia_url: (c as any).comprovante_residencia_url || '',
+      comprovante_residencia_base64: (c as any).comprovante_residencia_base64 || '',
+      documento_veiculo_url: (c as any).documento_veiculo_url || '',
+      documento_veiculo_base64: (c as any).documento_veiculo_base64 || '',
+    } as any);
     setEditFotoPreview((c as unknown as { foto_url?: string; foto_base64?: string }).foto_url || (c as unknown as { foto_base64?: string }).foto_base64 || '');
     setEditCnhPreview((c as unknown as { cnh_foto_url?: string; cnh_foto_base64?: string }).cnh_foto_url || (c as unknown as { cnh_foto_base64?: string }).cnh_foto_base64 || '');
     setEditComprovantePreview((c as unknown as { comprovante_residencia_url?: string; comprovante_residencia_base64?: string }).comprovante_residencia_url || (c as unknown as { comprovante_residencia_base64?: string }).comprovante_residencia_base64 || '');
+    setEditMotoDocPreview((c as unknown as { documento_veiculo_url?: string; documento_veiculo_base64?: string }).documento_veiculo_url || (c as unknown as { documento_veiculo_base64?: string }).documento_veiculo_base64 || '');
   };
 
   const handleUpdate = async () => {
@@ -378,6 +419,16 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
           }
         } catch (e) { void e; }
       }
+      if (editMotoDocFile) {
+        try {
+          const name = `entregadores/${editing.id}/motodoc-${Date.now()}-${(editMotoDocFile.name || 'motodoc').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
+          const up = await (supabase as unknown as { storage: { from: (b: string) => { upload: (p: string, f: File, o?: unknown) => Promise<{ data?: { path?: string }; error?: { message?: string } }>; getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').upload(name, editMotoDocFile, { upsert: true });
+          if (!up.error && up.data?.path) {
+            const url = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
+            setEditForm((prev) => ({ ...prev, documento_veiculo_url: url, documento_veiculo_base64: '' } as any));
+          }
+        } catch (e) { void e; }
+      }
     }
     const res = await (supabase as unknown as { from: (t: string) => { update: (v: unknown) => { eq: (c: string, v: unknown) => Promise<unknown> } } })
       .from('entregadores')
@@ -408,6 +459,8 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
         cnh_foto_base64: (editForm as any).cnh_foto_base64 || null,
         comprovante_residencia_url: (editForm as any).comprovante_residencia_url || null,
         comprovante_residencia_base64: (editForm as any).comprovante_residencia_base64 || null,
+        documento_veiculo_url: (editForm as any).documento_veiculo_url || null,
+        documento_veiculo_base64: (editForm as any).documento_veiculo_base64 || null,
       })
       .eq('id', editing.id);
     const r = res as unknown as { error?: { message?: string } };
@@ -498,6 +551,13 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
               <input id="upload_comp_pub" type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0] || null; setComprovanteFile(f); if (f) { const r = new FileReader(); r.onload = () => setComprovantePreview(String(r.result || '')); r.readAsDataURL(f); } else { setComprovantePreview(''); } }} className="hidden" />
               <div className="text-[11px] text-slate-500 mt-1">{comprovanteFile ? comprovanteFile.name : 'Nenhum arquivo escolhido'}</div>
               <div className="text-[11px] text-slate-500">Comprovante de residência</div>
+              <div className="w-24 h-24 rounded bg-slate-100 border border-slate-300 overflow-hidden">
+                {motoDocPreview ? <img src={motoDocPreview} alt="Doc Moto" className="w-full h-full object-cover" /> : <div className="w-full h-full" />}
+              </div>
+              <label htmlFor="upload_moto_pub" className="px-2 py-1 text-xs rounded border border-slate-300 bg-white hover:bg-slate-50 cursor-pointer mt-2">Escolher arquivo</label>
+              <input id="upload_moto_pub" type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0] || null; setMotoDocFile(f); if (f) { const r = new FileReader(); r.onload = () => setMotoDocPreview(String(r.result || '')); r.readAsDataURL(f); } else { setMotoDocPreview(''); } }} className="hidden" />
+              <div className="text-[11px] text-slate-500 mt-1">{motoDocFile ? motoDocFile.name : 'Nenhum arquivo escolhido'}</div>
+              <div className="text-[11px] text-slate-500">Documento da Moto</div>
             </div>
           </div>
         ) : (
@@ -566,6 +626,13 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
                 <input id="upload_comp_admin" type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0] || null; setComprovanteFile(f); if (f) { const r = new FileReader(); r.onload = () => setComprovantePreview(String(r.result || '')); r.readAsDataURL(f); } else { setComprovantePreview(''); } }} className="hidden" />
                 <div className="text-[11px] text-slate-500 mt-1">{comprovanteFile ? comprovanteFile.name : 'Nenhum arquivo escolhido'}</div>
                 <div className="text-[11px] text-slate-500">Comprovante de residência</div>
+                <div className="w-24 h-24 rounded bg-slate-100 border border-slate-300 overflow-hidden">
+                  {motoDocPreview ? <img src={motoDocPreview} alt="Doc Moto" className="w-full h-full object-cover" /> : <div className="w-full h-full" />}
+                </div>
+                <label htmlFor="upload_moto_admin" className="px-2 py-1 text-xs rounded border border-slate-300 bg-white hover:bg-slate-50 cursor-pointer mt-2">Escolher arquivo</label>
+                <input id="upload_moto_admin" type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0] || null; setMotoDocFile(f); if (f) { const r = new FileReader(); r.onload = () => setMotoDocPreview(String(r.result || '')); r.readAsDataURL(f); } else { setMotoDocPreview(''); } }} className="hidden" />
+                <div className="text-[11px] text-slate-500 mt-1">{motoDocFile ? motoDocFile.name : 'Nenhum arquivo escolhido'}</div>
+                <div className="text-[11px] text-slate-500">Documento da Moto</div>
               </div>
               </div>
             
@@ -728,7 +795,7 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
             <option value="ativo">Ativo</option>
             <option value="inativo">Inativo</option>
           </select>
-          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
             <div className="flex flex-col items-center">
               <div className="w-24 h-24 rounded bg-slate-100 border border-slate-300 overflow-hidden mb-2">
                 {editCnhPreview ? <img src={editCnhPreview} alt="CNH" className="w-full h-full object-cover" /> : <div className="w-full h-full" />}
@@ -742,6 +809,13 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
               </div>
               <input type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0] || null; setEditComprovanteFile(f); if (f) { const r = new FileReader(); r.onload = () => setEditComprovantePreview(String(r.result || '')); r.readAsDataURL(f); } }} className="text-xs" />
               <div className="text-[11px] text-slate-500">Comprovante de residência</div>
+            </div>
+            <div className="flex flex-col items-center">
+              <div className="w-24 h-24 rounded bg-slate-100 border border-slate-300 overflow-hidden mb-2">
+                {editMotoDocPreview ? <img src={editMotoDocPreview} alt="Doc Moto" className="w-full h-full object-cover" /> : <div className="w-full h-full" />}
+              </div>
+              <input type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0] || null; setEditMotoDocFile(f); if (f) { const r = new FileReader(); r.onload = () => setEditMotoDocPreview(String(r.result || '')); r.readAsDataURL(f); } }} className="text-xs" />
+              <div className="text-[11px] text-slate-500">Documento da Moto</div>
             </div>
           </div>
         </div>

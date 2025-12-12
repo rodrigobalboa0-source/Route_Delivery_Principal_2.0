@@ -9,6 +9,47 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      pedidos: {
+        Row: {
+          id: string
+          cliente_id: string
+          endereco_id: string | null
+          numero: string | null
+          item_descricao: string | null
+          endereco_texto: string | null
+          origem: 'manual' | 'online'
+          valor_total: number | null
+          status: 'criado' | 'confirmado' | 'em_preparo' | 'pronto' | 'cancelado' | 'entregue'
+          observacoes: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          cliente_id: string
+          endereco_id?: string | null
+          numero?: string | null
+          item_descricao?: string | null
+          endereco_texto?: string | null
+          origem?: 'manual' | 'online'
+          valor_total?: number | null
+          status?: 'criado' | 'confirmado' | 'em_preparo' | 'pronto' | 'cancelado' | 'entregue'
+          observacoes?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          cliente_id?: string
+          endereco_id?: string | null
+          numero?: string | null
+          item_descricao?: string | null
+          endereco_texto?: string | null
+          origem?: 'manual' | 'online'
+          valor_total?: number | null
+          status?: 'criado' | 'confirmado' | 'em_preparo' | 'pronto' | 'cancelado' | 'entregue'
+          observacoes?: string | null
+          created_at?: string
+        }
+      }
       delivery_persons: {
         Row: {
           id: string
@@ -322,6 +363,8 @@ export interface Database {
           cnh_foto_base64: string | null
           comprovante_residencia_url: string | null
           comprovante_residencia_base64: string | null
+          documento_veiculo_url: string | null
+          documento_veiculo_base64: string | null
           created_at: string
           updated_at: string
         }
@@ -353,6 +396,8 @@ export interface Database {
           cnh_foto_base64?: string | null
           comprovante_residencia_url?: string | null
           comprovante_residencia_base64?: string | null
+          documento_veiculo_url?: string | null
+          documento_veiculo_base64?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -997,6 +1042,7 @@ export interface Database {
       nova_entrega: {
         Row: {
           id: string
+          pedido_id: string | null
           cliente_id: string
           endereco_id: string
           tipo_servico_id: string | null
@@ -1036,6 +1082,7 @@ export interface Database {
         }
         Insert: {
           id?: string
+          pedido_id?: string | null
           cliente_id: string
           endereco_id: string
           tipo_servico_id?: string | null
@@ -1048,6 +1095,7 @@ export interface Database {
           agendar_em?: string | null
           valor_manual?: boolean | null
           valor_entrega?: number | null
+          valor_mercadoria?: number | null
           tipo_cobranca?: 'fatura' | 'avista' | 'pix' | 'cartao' | null
           cobrar_destinatario?: boolean | null
           coleta_usa_endereco_cadastro?: boolean | null
@@ -1075,6 +1123,7 @@ export interface Database {
         }
         Update: {
           id?: string
+          pedido_id?: string | null
           cliente_id?: string
           endereco_id?: string
           tipo_servico_id?: string | null
@@ -1087,6 +1136,7 @@ export interface Database {
           agendar_em?: string | null
           valor_manual?: boolean | null
           valor_entrega?: number | null
+          valor_mercadoria?: number | null
           tipo_cobranca?: 'fatura' | 'avista' | 'pix' | 'cartao' | null
           cobrar_destinatario?: boolean | null
           coleta_usa_endereco_cadastro?: boolean | null

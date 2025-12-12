@@ -7,6 +7,8 @@ type Endereco = Database['public']['Tables']['cliente_enderecos']['Row'];
 type Entregador = Database['public']['Tables']['entregadores']['Row'];
 type TipoServico = Database['public']['Tables']['tipo_servicos']['Row'];
 type ModalRow = Database['public']['Tables']['modais']['Row'];
+type TabelaPreco = Database['public']['Tables']['tabelas_precos']['Row'];
+type FaixaPreco = Database['public']['Tables']['tabelas_precos_faixas']['Row'];
 
 export function NovaEntregaPanel() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -14,8 +16,13 @@ export function NovaEntregaPanel() {
   const [entregadores, setEntregadores] = useState<Entregador[]>([]);
   const [tipos, setTipos] = useState<TipoServico[]>([]);
   const [modais, setModais] = useState<ModalRow[]>([]);
+  const [tabelasPrecos, setTabelasPrecos] = useState<TabelaPreco[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [distanciaKm, setDistanciaKm] = useState<string>('');
+  const [selectedTabelaId, setSelectedTabelaId] = useState<string>('');
+  const [valorDinamico, setValorDinamico] = useState(false);
 
   const [form, setForm] = useState({
     cliente_id: '',
@@ -116,17 +123,65 @@ export function NovaEntregaPanel() {
     }
   }, [form.cliente_id, form.coleta_usa_endereco_cadastro, form.entrega_usa_endereco_cadastro, clientes, enderecos]);
 
+  useEffect(() => {
+    calculatePrice();
+  }, [distanciaKm, selectedTabelaId]);
+
+  const calculatePrice = async () => {
+    if (!distanciaKm || !selectedTabelaId) return;
+
+    const km = parseFloat(distanciaKm.replace(',', '.'));
+    if (isNaN(km)) return;
+
+    const tabela = tabelasPrecos.find(t => t.id === selectedTabelaId);
+    if (!tabela) return;
+
+    const { data } = await supabase
+      .from('tabelas_precos_faixas')
+      .select('*')
+      .eq('tabela_id', selectedTabelaId)
+      .order('km_ate', { ascending: true });
+
+    const faixas = data as FaixaPreco[] | null;
+
+    if (!faixas || faixas.length === 0) return;
+
+    let price = 0;
+    const faixa = faixas.find(f => f.km_ate >= km);
+
+    if (faixa) {
+      price = faixa.valor;
+    } else {
+      // Exceeded max range
+      const lastFaixa = faixas[faixas.length - 1];
+      const extraKm = km - lastFaixa.km_ate;
+      price = lastFaixa.valor + (extraKm * (tabela.km_adicional || 0));
+    }
+
+    // Apply minimum value if set
+    if (tabela.valor_minimo && price < tabela.valor_minimo) {
+      price = tabela.valor_minimo;
+    }
+
+    setForm(prev => ({ ...prev, valor_entrega: price.toFixed(2), valor_manual: false }));
+    setValorDinamico(true);
+  };
+
   const fetchData = async () => {
-    const [c, e, t, m] = await Promise.all([
+    const [c, e, t, m, tp] = await Promise.all([
       supabase.from('clientes').select('*').order('nome_completo'),
       supabase.from('entregadores').select('id, nome_completo, status').order('nome_completo'),
       supabase.from('tipo_servicos').select('*').eq('ativo', true).order('nome'),
       supabase.from('modais').select('*').eq('ativo', true).order('tipo'),
+      supabase.from('tabelas_precos').select('*').order('nome'),
     ]);
     setClientes((c.data || []) as Cliente[]);
     setEntregadores((e.data || []) as Entregador[]);
     setTipos((t.data || []) as TipoServico[]);
     setModais((m.data || []) as ModalRow[]);
+    const tabelas = (tp.data || []) as TabelaPreco[];
+    setTabelasPrecos(tabelas);
+    if (tabelas.length > 0) setSelectedTabelaId(tabelas[0].id);
   };
 
   const fetchEnderecos = async (clienteId: string) => {
@@ -243,6 +298,21 @@ export function NovaEntregaPanel() {
               <option key={m.id} value={m.tipo}>{m.tipo}</option>
             ))}
           </select>
+          <div className="flex gap-2">
+             <input 
+               placeholder="Distância (KM)" 
+               value={distanciaKm} 
+               onChange={(e) => setDistanciaKm(e.target.value)} 
+               className="px-3 py-2 border border-slate-300 rounded w-full"
+               type="number"
+               step="0.1"
+             />
+             {tabelasPrecos.length > 1 && (
+                <select value={selectedTabelaId} onChange={(e) => setSelectedTabelaId(e.target.value)} className="px-3 py-2 border border-slate-300 rounded w-full">
+                    {tabelasPrecos.map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}
+                </select>
+             )}
+          </div>
           <div className="flex items-center gap-3">
             <label className="text-sm text-slate-700">Atribuição:</label>
             <select value={form.atribuicao_modo} onChange={(e) => setForm({ ...form, atribuicao_modo: e.target.value as 'manual' | 'automatica' })} className="px-3 py-2 border border-slate-300 rounded">
@@ -268,7 +338,20 @@ export function NovaEntregaPanel() {
               <label htmlFor="valor_manual" className="text-sm text-slate-700">Informar Valor Manualmente</label>
             </div>
             <div className="flex items-center gap-3">
-              <input placeholder="Valor desta entrega" value={form.valor_entrega} onChange={(e) => setForm({ ...form, valor_entrega: e.target.value })} className="px-3 py-2 border border-slate-300 rounded flex-1" disabled={!form.valor_manual} />
+              <div className="flex-1 relative">
+                <input 
+                  placeholder="Valor desta entrega" 
+                  value={form.valor_entrega} 
+                  onChange={(e) => setForm({ ...form, valor_entrega: e.target.value })} 
+                  className="px-3 py-2 border border-slate-300 rounded w-full" 
+                  disabled={!form.valor_manual} 
+                />
+                {valorDinamico && !form.valor_manual && (
+                  <div className="absolute top-full left-0 right-0 mt-1">
+                     <span className="bg-slate-900 text-white text-[10px] px-2 py-1 rounded w-full block text-center">Entrega com valor dinâmico</span>
+                  </div>
+                )}
+              </div>
               <select value={form.tipo_cobranca} onChange={(e) => setForm({ ...form, tipo_cobranca: e.target.value })} className="px-3 py-2 border border-slate-300 rounded">
                 <option value="fatura">Fatura</option>
                 <option value="avista">À vista</option>
