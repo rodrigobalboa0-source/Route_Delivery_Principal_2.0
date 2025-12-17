@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { ClientesPanel } from './cadastro/ClientesPanel';
 import { EntregadoresPanel } from './cadastro/EntregadoresPanel';
 
-export function Cadastro() {
+export function Cadastro({ onBack, darkMode = false }: { onBack?: () => void; darkMode?: boolean }) {
   const [tipo, setTipo] = useState<'cliente' | 'entregador' | ''>('');
   return (
-    <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+    <div className={`min-h-screen flex items-center justify-center ${darkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
       <div className="w-full max-w-5xl bg-white rounded-2xl shadow border border-slate-200 overflow-hidden">
         <div className="relative p-8 md:p-10 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white">
           <div className="absolute inset-0 bg-black/20" />
@@ -17,7 +17,11 @@ export function Cadastro() {
                 <div className="text-sm md:text-base text-slate-100">Selecione o tipo e preencha o cadastro completo</div>
               </div>
             </div>
-            <a href="/" className="text-sm md:text-base text-sky-200 hover:text-white">Voltar</a>
+            {onBack ? (
+              <button onClick={onBack} className="text-sm md:text-base text-sky-200 hover:text-white">Voltar</button>
+            ) : (
+              <a href="/" className="text-sm md:text-base text-sky-200 hover:text-white">Voltar</a>
+            )}
           </div>
           <div className="relative z-10 mt-5 flex gap-3">
             <button

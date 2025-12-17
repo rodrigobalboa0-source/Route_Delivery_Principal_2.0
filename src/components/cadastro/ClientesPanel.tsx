@@ -588,6 +588,7 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
               <input value={form.nome_fantasia} onChange={(e) => setForm({ ...form, nome_fantasia: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
             </div>
 
+            {mode !== 'public' && (
             <div className="md:col-span-2 mt-4 bg-sky-50 border border-sky-100 p-4 rounded-lg">
               <div className="mb-3 text-sm text-sky-800 font-medium">
                 Precificação por Modal
@@ -656,6 +657,7 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
                 })}
               </div>
             </div>
+            )}
             <div>
               <label className="text-xs text-slate-700">Cadastro via</label>
               <select value={form.cadastro_via} onChange={(e) => setForm({ ...form, cadastro_via: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded">
