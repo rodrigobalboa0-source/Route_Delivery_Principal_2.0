@@ -3,6 +3,16 @@ import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../lib/supabase';
 import { Modal } from '../Modal';
 import type { Database } from '../../lib/database.types';
 
+type TabelaPreco = Database['public']['Tables']['tabelas_precos']['Row'];
+type ModalRow = Database['public']['Tables']['modais']['Row'];
+
+interface PrecificacaoConfigItem {
+  modal: string;
+  preco_ponto: string;
+  tipo_precificacao: string;
+  tabela_id: string;
+}
+
 type Cliente = Database['public']['Tables']['clientes']['Row'];
 type EnderecoInsert = Database['public']['Tables']['cliente_enderecos']['Insert'];
 type EnderecoEdit = {
@@ -47,7 +57,10 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
     hub: '',
     foto_url: '',
     foto_base64: '',
+    precificacao_config: [] as PrecificacaoConfigItem[],
   });
+  const [tabelasPrecos, setTabelasPrecos] = useState<TabelaPreco[]>([]);
+  const [modais, setModais] = useState<ModalRow[]>([]);
   const [editEnderecos, setEditEnderecos] = useState<EnderecoEdit[]>([]);
   const [editEnderecoNovo, setEditEnderecoNovo] = useState<EnderecoEdit>({ cep: '', rua: '', numero: '', complemento: '', bairro: '', cidade: '', referencia_entrega: '' });
   const [editEnderecosRemovidos, setEditEnderecosRemovidos] = useState<string[]>([]);
@@ -76,6 +89,7 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
     hub: '',
     foto_url: '',
     foto_base64: '',
+    precificacao_config: [] as PrecificacaoConfigItem[],
   });
   const [fotoFile, setFotoFile] = useState<File | null>(null);
   const [fotoPreview, setFotoPreview] = useState<string>('');
@@ -98,7 +112,15 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
 
   useEffect(() => {
     fetchClientes();
+    fetchTabelasPrecos();
   }, []);
+
+  const fetchTabelasPrecos = async () => {
+    const { data } = await supabase.from('tabelas_precos').select('*').order('nome');
+    setTabelasPrecos(data || []);
+    const { data: m } = await supabase.from('modais').select('*').eq('ativo', true).order('tipo');
+    setModais(m || []);
+  };
 
   const fetchClientes = async () => {
     setLoading(true);
@@ -116,6 +138,29 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
 
   const removeEndereco = (idx: number) => {
     setEnderecos((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const updateCreateConfig = (modal: string, field: keyof PrecificacaoConfigItem, value: string) => {
+    setForm(prev => {
+      const existingIndex = prev.precificacao_config.findIndex(c => c.modal === modal);
+      let newConfig = [...prev.precificacao_config];
+      
+      const defaultConfig = {
+        modal,
+        preco_ponto: '0.00',
+        tipo_precificacao: 'Distância',
+        tabela_id: ''
+      };
+
+      if (existingIndex >= 0) {
+        newConfig[existingIndex] = { ...newConfig[existingIndex], [field]: value };
+      } else {
+        // If creating new, we need to ensure we start with default and then apply the change
+        newConfig.push({ ...defaultConfig, [field]: value });
+      }
+      
+      return { ...prev, precificacao_config: newConfig };
+    });
   };
 
   const handleSubmit = async () => {
@@ -270,7 +315,7 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
         .eq('id', cid);
       void e;
     }
-    setForm({ nome_completo: '', cpf: '', data_nascimento: '', telefone: '', email: '', senha: '', metodo_pagamento_preferido: '', observacoes: '', segmento: '', data_inicio: '', razao_social: '', nome_fantasia: '', cadastro_via: '', tipo_documento: 'cnpj', cnpj: '', lead_por: '', franquia: '', hub: '', foto_url: '', foto_base64: '' });
+    setForm({ nome_completo: '', cpf: '', data_nascimento: '', telefone: '', email: '', senha: '', metodo_pagamento_preferido: '', observacoes: '', segmento: '', data_inicio: '', razao_social: '', nome_fantasia: '', cadastro_via: '', tipo_documento: 'cnpj', cnpj: '', lead_por: '', franquia: '', hub: '', foto_url: '', foto_base64: '', precificacao_config: [] });
     setFotoFile(null);
     setFotoPreview('');
     setEnderecos([]);
@@ -311,6 +356,7 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
 
   const openEdit = async (c: Cliente) => {
     setEditing(c);
+    const pConfig = (c.precificacao_config as unknown as PrecificacaoConfigItem[]) || [];
     setEditForm({
       nome_completo: c.nome_completo,
       cpf: c.cpf || '',
@@ -331,6 +377,7 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
       hub: '',
       foto_url: '',
       foto_base64: '',
+      precificacao_config: pConfig,
     });
     try {
       const obs = String(c.observacoes || '');
@@ -430,6 +477,7 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
         hub: editForm.hub || null,
         foto_url: editForm.foto_url || null,
         foto_base64: editForm.foto_base64 || null,
+        precificacao_config: editForm.precificacao_config,
         ...primaryAddressUpdate,
       })
       .eq('id', editing.id);
@@ -538,6 +586,75 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
             <div className="md:col-span-2">
               <label className="text-xs text-slate-700">Nome Fantasia</label>
               <input value={form.nome_fantasia} onChange={(e) => setForm({ ...form, nome_fantasia: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
+            </div>
+
+            <div className="md:col-span-2 mt-4 bg-sky-50 border border-sky-100 p-4 rounded-lg">
+              <div className="mb-3 text-sm text-sky-800 font-medium">
+                Precificação por Modal
+              </div>
+              <div className="text-xs text-sky-700 mb-3">
+                Configure a tabela de preço específica para este cliente em cada modal.
+                O valor será calculado automaticamente na criação da entrega.
+              </div>
+              <div className="space-y-4">
+                {modais.map((m) => {
+                  const modal = m.tipo;
+                  const config = form.precificacao_config.find(c => c.modal === modal) || {
+                    modal,
+                    preco_ponto: '0.00',
+                    tipo_precificacao: 'Distância',
+                    tabela_id: ''
+                  };
+                  return (
+                    <div key={modal} className="grid grid-cols-1 md:grid-cols-4 gap-3 p-3 bg-white rounded border border-sky-100">
+                      <div>
+                        <label className="text-xs font-semibold text-slate-700 block mb-1">Veículos</label>
+                        <div className="w-full px-3 py-2 border border-slate-300 rounded bg-slate-100 text-slate-600 text-sm capitalize">
+                          {modal}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-slate-700 block mb-1">Preço por Ponto</label>
+                        <input 
+                          type="number"
+                          step="0.01"
+                          value={config.preco_ponto} 
+                          onChange={(e) => updateCreateConfig(modal, 'preco_ponto', e.target.value)} 
+                          className="w-full px-3 py-2 border border-slate-300 rounded text-sm" 
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-slate-700 block mb-1">Tipo de precificação</label>
+                        <select 
+                          value={config.tipo_precificacao} 
+                          onChange={(e) => updateCreateConfig(modal, 'tipo_precificacao', e.target.value)} 
+                          className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                        >
+                          <option value="Padrão">Padrão</option>
+                          <option value="Zona">Zona</option>
+                          <option value="Bairro">Bairro</option>
+                          <option value="Distância">Distância</option>
+                          <option value="Zerar">Zerar</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-slate-700 block mb-1">Tabela de precificação</label>
+                        <select 
+                          value={config.tabela_id} 
+                          onChange={(e) => updateCreateConfig(modal, 'tabela_id', e.target.value)} 
+                          className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                          disabled={config.tipo_precificacao !== 'Distância'}
+                        >
+                          <option value="">Selecione...</option>
+                          {tabelasPrecos.map(t => (
+                            <option key={t.id} value={t.id}>{t.nome}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
             <div>
               <label className="text-xs text-slate-700">Cadastro via</label>
@@ -813,6 +930,89 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
           </div>
           </div>
         </div>
+
+        {/* Precificação por Modal */}
+        <div className="mt-4 bg-sky-50 border border-sky-100 p-4 rounded-lg">
+          <div className="mb-3 text-sm text-sky-800">
+            Configure o tipo de precificação personalizada para o cliente. É necessário já ter a precificação cadastrada.
+          </div>
+          <div className="space-y-4">
+            {modais.map((m) => {
+              const modal = m.tipo;
+              const config = editForm.precificacao_config.find(c => c.modal === modal) || {
+                modal,
+                preco_ponto: '0.00',
+                tipo_precificacao: 'Distância',
+                tabela_id: ''
+              };
+
+              const updateConfig = (field: keyof PrecificacaoConfigItem, value: string) => {
+                setEditForm(prev => {
+                  const existingIndex = prev.precificacao_config.findIndex(c => c.modal === modal);
+                  let newConfig = [...prev.precificacao_config];
+                  
+                  if (existingIndex >= 0) {
+                    newConfig[existingIndex] = { ...newConfig[existingIndex], [field]: value };
+                  } else {
+                    newConfig.push({ ...config, [field]: value });
+                  }
+                  
+                  return { ...prev, precificacao_config: newConfig };
+                });
+              };
+
+              return (
+                <div key={modal} className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 block mb-1">Veículos</label>
+                    <div className="w-full px-3 py-2 border border-slate-300 rounded bg-slate-100 text-slate-600 text-sm capitalize">
+                      {modal}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 block mb-1">Preço por Ponto</label>
+                    <input 
+                      type="number"
+                      step="0.01"
+                      value={config.preco_ponto} 
+                      onChange={(e) => updateConfig('preco_ponto', e.target.value)} 
+                      className="w-full px-3 py-2 border border-slate-300 rounded text-sm" 
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 block mb-1">Tipo de precificação</label>
+                    <select 
+                      value={config.tipo_precificacao} 
+                      onChange={(e) => updateConfig('tipo_precificacao', e.target.value)} 
+                      className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                    >
+                      <option value="Padrão">Padrão</option>
+                      <option value="Zona">Zona</option>
+                      <option value="Bairro">Bairro</option>
+                      <option value="Distância">Distância</option>
+                      <option value="Zerar">Zerar</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 block mb-1">Tabela de precificação: {config.tipo_precificacao}</label>
+                    <select 
+                      value={config.tabela_id} 
+                      onChange={(e) => updateConfig('tabela_id', e.target.value)} 
+                      className="w-full px-3 py-2 border border-slate-300 rounded text-sm"
+                      disabled={config.tipo_precificacao !== 'Distância'}
+                    >
+                      <option value="">Selecione...</option>
+                      {tabelasPrecos.map(t => (
+                        <option key={t.id} value={t.id}>{t.nome}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
         <div className="mt-4">
           <div className="text-sm font-medium text-slate-900 mb-2">Endereços</div>
           {editEnderecos.length === 0 ? (

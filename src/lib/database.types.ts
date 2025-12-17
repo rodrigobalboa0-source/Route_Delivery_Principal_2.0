@@ -180,6 +180,7 @@ export interface Database {
           bairro: string | null
           cidade: string | null
           referencia_entrega: string | null
+          precificacao_config: Json | null
           created_at: string
           updated_at: string
         }
@@ -201,6 +202,7 @@ export interface Database {
           bairro?: string | null
           cidade?: string | null
           referencia_entrega?: string | null
+          precificacao_config?: Json | null
           created_at?: string
           updated_at?: string
         }
@@ -222,6 +224,7 @@ export interface Database {
           bairro?: string | null
           cidade?: string | null
           referencia_entrega?: string | null
+          precificacao_config?: Json | null
           created_at?: string
           updated_at?: string
         }
@@ -365,6 +368,8 @@ export interface Database {
           comprovante_residencia_base64: string | null
           documento_veiculo_url: string | null
           documento_veiculo_base64: string | null
+          restricao_clientes_modo: 'todos' | 'selecionados' | null
+          clientes_permitidos: Json | null
           created_at: string
           updated_at: string
         }
@@ -398,6 +403,8 @@ export interface Database {
           comprovante_residencia_base64?: string | null
           documento_veiculo_url?: string | null
           documento_veiculo_base64?: string | null
+          restricao_clientes_modo?: 'todos' | 'selecionados' | null
+          clientes_permitidos?: Json | null
           created_at?: string
           updated_at?: string
         }
@@ -429,6 +436,8 @@ export interface Database {
           cnh_foto_base64?: string | null
           comprovante_residencia_url?: string | null
           comprovante_residencia_base64?: string | null
+          restricao_clientes_modo?: 'todos' | 'selecionados' | null
+          clientes_permitidos?: Json | null
           created_at?: string
           updated_at?: string
         }

@@ -10,6 +10,13 @@ type ModalRow = Database['public']['Tables']['modais']['Row'];
 type TabelaPreco = Database['public']['Tables']['tabelas_precos']['Row'];
 type FaixaPreco = Database['public']['Tables']['tabelas_precos_faixas']['Row'];
 
+interface PrecificacaoConfigItem {
+  modal: string;
+  preco_ponto: string;
+  tipo_precificacao: string;
+  tabela_id: string;
+}
+
 export function NovaEntregaPanel() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [enderecos, setEnderecos] = useState<Endereco[]>([]);
@@ -23,6 +30,8 @@ export function NovaEntregaPanel() {
   const [distanciaKm, setDistanciaKm] = useState<string>('');
   const [selectedTabelaId, setSelectedTabelaId] = useState<string>('');
   const [valorDinamico, setValorDinamico] = useState(false);
+  const [pricingMode, setPricingMode] = useState<'Distância' | 'Fixo' | 'Padrão' | 'Zona' | 'Bairro' | 'Zerar'>('Distância');
+  const [pricePerPoint, setPricePerPoint] = useState<number>(0);
 
   const [form, setForm] = useState({
     cliente_id: '',
@@ -124,10 +133,54 @@ export function NovaEntregaPanel() {
   }, [form.cliente_id, form.coleta_usa_endereco_cadastro, form.entrega_usa_endereco_cadastro, clientes, enderecos]);
 
   useEffect(() => {
+    if (form.cliente_id && form.modal_tipo) {
+      const cliente = clientes.find(c => c.id === form.cliente_id);
+      if (cliente && cliente.precificacao_config) {
+        const configs = cliente.precificacao_config as unknown as PrecificacaoConfigItem[];
+        const config = configs.find(c => c.modal === form.modal_tipo);
+        if (config) {
+          setPricingMode(config.tipo_precificacao as any);
+          if (config.tipo_precificacao === 'Fixo') {
+            setPricePerPoint(Number(config.preco_ponto) || 0);
+          } else if (config.tipo_precificacao === 'Zerar') {
+             
+          } else {
+            
+            setPricePerPoint(0);
+            if (config.tabela_id) {
+              const exists = tabelasPrecos.find(t => t.id === config.tabela_id);
+              if (exists) setSelectedTabelaId(config.tabela_id);
+            }
+          }
+        } else {
+           setPricingMode('Distância');
+        }
+      }
+    }
+  }, [form.cliente_id, form.modal_tipo, clientes, tabelasPrecos]);
+
+  useEffect(() => {
     calculatePrice();
-  }, [distanciaKm, selectedTabelaId]);
+  }, [distanciaKm, selectedTabelaId, pricingMode, pricePerPoint, form.pontos, form.retorno]);
 
   const calculatePrice = async () => {
+    if (pricingMode === 'Zerar') {
+      setForm(prev => ({ ...prev, valor_entrega: '0.00', valor_manual: false }));
+      setValorDinamico(true);
+      return;
+    }
+
+    if (pricingMode === 'Fixo') {
+      const basePoints = 2; 
+      const extraPoints = form.pontos.length;
+      const returnPoint = form.retorno ? 1 : 0;
+      const totalPoints = basePoints + extraPoints + returnPoint;
+      const price = totalPoints * pricePerPoint;
+      setForm(prev => ({ ...prev, valor_entrega: price.toFixed(2), valor_manual: false }));
+      setValorDinamico(true);
+      return;
+    }
+
     if (!distanciaKm || !selectedTabelaId) return;
 
     const km = parseFloat(distanciaKm.replace(',', '.'));
@@ -152,13 +205,13 @@ export function NovaEntregaPanel() {
     if (faixa) {
       price = faixa.valor;
     } else {
-      // Exceeded max range
+      
       const lastFaixa = faixas[faixas.length - 1];
       const extraKm = km - lastFaixa.km_ate;
       price = lastFaixa.valor + (extraKm * (tabela.km_adicional || 0));
     }
 
-    // Apply minimum value if set
+    
     if (tabela.valor_minimo && price < tabela.valor_minimo) {
       price = tabela.valor_minimo;
     }

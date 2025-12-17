@@ -4,6 +4,7 @@ import { Modal } from '../Modal';
 import type { Database } from '../../lib/database.types';
 
 type Entregador = Database['public']['Tables']['entregadores']['Row'];
+type Cliente = Database['public']['Tables']['clientes']['Row'];
 type CSVRow = {
   nome_completo?: string
   cpf?: string
@@ -31,6 +32,7 @@ const sbInsert = (table: string, values: unknown) => (supabase as unknown as { f
 
 export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' }) {
   const [entregadores, setEntregadores] = useState<Entregador[]>([]);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Entregador | null>(null);
@@ -61,6 +63,8 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
     complemento: '',
     bairro: '',
     cidade: '',
+    restricao_clientes_modo: 'todos',
+    clientes_permitidos: [] as string[],
   });
   const [fotoFile, setFotoFile] = useState<File | null>(null);
   const [cnhFile, setCnhFile] = useState<File | null>(null);
@@ -102,6 +106,8 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
     comprovante_residencia_base64: '',
     documento_veiculo_url: '',
     documento_veiculo_base64: '',
+    restricao_clientes_modo: 'todos',
+    clientes_permitidos: [] as string[],
   });
   const [editFotoFile, setEditFotoFile] = useState<File | null>(null);
   const [editCnhFile, setEditCnhFile] = useState<File | null>(null);
@@ -114,7 +120,13 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
 
   useEffect(() => {
     fetchEntregadores();
+    fetchClientes();
   }, []);
+
+  const fetchClientes = async () => {
+    const { data } = await supabase.from('clientes').select('*').order('nome_completo');
+    setClientes((data || []) as Cliente[]);
+  };
 
   const fetchEntregadores = async () => {
     setLoading(true);
@@ -207,6 +219,8 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
       tipo_entrega: (form.tipo_entrega || null) as Entregador['tipo_entrega'],
       taxa_entrega: form.taxa_entrega ? Number(form.taxa_entrega) : null,
       status: form.status as Entregador['status'],
+      restricao_clientes_modo: form.restricao_clientes_modo as 'todos' | 'selecionados',
+      clientes_permitidos: form.clientes_permitidos,
     });
     const r = res as unknown as { data?: { id?: string }; error?: { message?: string } };
     if (r.error?.message) {
@@ -299,7 +313,7 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
         documento_veiculo_base64: form.documento_veiculo_base64 || null,
       }).eq('id', idNew);
     }
-    setForm({ nome_completo: '', cpf: '', rg: '', data_nascimento: '', telefone: '', email: '', senha: '', veiculo_tipo: '', veiculo_modelo: '', veiculo_placa: '', veiculo_ano: '', cnh_valida: false, tipo_entrega: '', taxa_entrega: '', status: 'inativo', cep: '', rua: '', numero: '', complemento: '', bairro: '', cidade: '', foto_url: '', foto_base64: '', cnh_foto_url: '', cnh_foto_base64: '', comprovante_residencia_url: '', comprovante_residencia_base64: '', documento_veiculo_url: '', documento_veiculo_base64: '' });
+    setForm({ nome_completo: '', cpf: '', rg: '', data_nascimento: '', telefone: '', email: '', senha: '', veiculo_tipo: '', veiculo_modelo: '', veiculo_placa: '', veiculo_ano: '', cnh_valida: false, tipo_entrega: '', taxa_entrega: '', status: 'inativo', cep: '', rua: '', numero: '', complemento: '', bairro: '', cidade: '', foto_url: '', foto_base64: '', cnh_foto_url: '', cnh_foto_base64: '', comprovante_residencia_url: '', comprovante_residencia_base64: '', documento_veiculo_url: '', documento_veiculo_base64: '', restricao_clientes_modo: 'todos', clientes_permitidos: [] });
     setFotoFile(null);
     setCnhFile(null);
     setComprovanteFile(null);
@@ -377,6 +391,8 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
       comprovante_residencia_base64: (c as any).comprovante_residencia_base64 || '',
       documento_veiculo_url: (c as any).documento_veiculo_url || '',
       documento_veiculo_base64: (c as any).documento_veiculo_base64 || '',
+      restricao_clientes_modo: (c as any).restricao_clientes_modo || 'todos',
+      clientes_permitidos: (c as any).clientes_permitidos ? (c as any).clientes_permitidos : [],
     } as any);
     setEditFotoPreview((c as unknown as { foto_url?: string; foto_base64?: string }).foto_url || (c as unknown as { foto_base64?: string }).foto_base64 || '');
     setEditCnhPreview((c as unknown as { cnh_foto_url?: string; cnh_foto_base64?: string }).cnh_foto_url || (c as unknown as { cnh_foto_base64?: string }).cnh_foto_base64 || '');
@@ -461,6 +477,8 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
         comprovante_residencia_base64: (editForm as any).comprovante_residencia_base64 || null,
         documento_veiculo_url: (editForm as any).documento_veiculo_url || null,
         documento_veiculo_base64: (editForm as any).documento_veiculo_base64 || null,
+        restricao_clientes_modo: (editForm as any).restricao_clientes_modo || 'todos',
+        clientes_permitidos: (editForm as any).clientes_permitidos || [],
       })
       .eq('id', editing.id);
     const r = res as unknown as { error?: { message?: string } };
@@ -610,6 +628,46 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
                   <option value="ativo">Ativo</option>
                   <option value="inativo">Inativo</option>
                 </select>
+                <div className="md:col-span-2 border border-slate-200 rounded p-3 mt-2 bg-slate-50">
+                  <label className="text-sm font-semibold text-slate-700 block mb-2">Permissão de Coleta</label>
+                  <div className="flex items-center gap-4 mb-3">
+                     <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                        <input type="radio" name="admin_restricao_clientes_modo" checked={form.restricao_clientes_modo === 'todos'} onChange={() => setForm({ ...form, restricao_clientes_modo: 'todos' })} className="text-sky-600 focus:ring-sky-500" />
+                        Todos os clientes
+                     </label>
+                     <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                        <input type="radio" name="admin_restricao_clientes_modo" checked={form.restricao_clientes_modo === 'selecionados'} onChange={() => setForm({ ...form, restricao_clientes_modo: 'selecionados' })} className="text-sky-600 focus:ring-sky-500" />
+                        Somente selecionados
+                     </label>
+                  </div>
+                  {form.restricao_clientes_modo === 'selecionados' && (
+                    <div className="max-h-60 overflow-y-auto border border-slate-300 rounded bg-white p-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {clientes.map(c => (
+                        <label key={c.id} className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer hover:bg-slate-50 p-1 rounded">
+                          <input 
+                            type="checkbox" 
+                            checked={(form.clientes_permitidos || []).includes(c.id)}
+                            onChange={(e) => {
+                               const checked = e.target.checked;
+                               setForm(prev => {
+                                 const current = prev.clientes_permitidos || [];
+                                 return {
+                                   ...prev,
+                                   clientes_permitidos: checked 
+                                     ? [...current, c.id]
+                                     : current.filter(id => id !== c.id)
+                                 };
+                               });
+                            }}
+                            className="rounded text-sky-600 focus:ring-sky-500"
+                          />
+                          <span className="truncate" title={c.nome_completo}>{c.nome_completo}</span>
+                        </label>
+                      ))}
+                      {clientes.length === 0 && <div className="text-slate-400 text-xs col-span-full">Nenhum cliente ativo encontrado.</div>}
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="md:w-48 flex flex-col items-center gap-3 mt-6 md:mt-0">
                 <div className="w-24 h-24 rounded bg-slate-100 border border-slate-300 overflow-hidden">
@@ -795,6 +853,46 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
             <option value="ativo">Ativo</option>
             <option value="inativo">Inativo</option>
           </select>
+          <div className="md:col-span-2 border border-slate-200 rounded p-3 mt-2 bg-slate-50">
+            <label className="text-sm font-semibold text-slate-700 block mb-2">Permissão de Coleta</label>
+            <div className="flex items-center gap-4 mb-3">
+               <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                  <input type="radio" name="edit_restricao_clientes_modo" checked={editForm.restricao_clientes_modo === 'todos'} onChange={() => setEditForm({ ...editForm, restricao_clientes_modo: 'todos' })} className="text-sky-600 focus:ring-sky-500" />
+                  Todos os clientes
+               </label>
+               <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                  <input type="radio" name="edit_restricao_clientes_modo" checked={editForm.restricao_clientes_modo === 'selecionados'} onChange={() => setEditForm({ ...editForm, restricao_clientes_modo: 'selecionados' })} className="text-sky-600 focus:ring-sky-500" />
+                  Somente selecionados
+               </label>
+            </div>
+            {editForm.restricao_clientes_modo === 'selecionados' && (
+              <div className="max-h-60 overflow-y-auto border border-slate-300 rounded bg-white p-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {clientes.map(c => (
+                  <label key={c.id} className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer hover:bg-slate-50 p-1 rounded">
+                    <input 
+                      type="checkbox" 
+                      checked={(editForm.clientes_permitidos || []).includes(c.id)}
+                      onChange={(e) => {
+                         const checked = e.target.checked;
+                         setEditForm(prev => {
+                           const current = prev.clientes_permitidos || [];
+                           return {
+                             ...prev,
+                             clientes_permitidos: checked 
+                               ? [...current, c.id]
+                               : current.filter(id => id !== c.id)
+                           };
+                         });
+                      }}
+                      className="rounded text-sky-600 focus:ring-sky-500"
+                    />
+                    <span className="truncate" title={c.nome_completo}>{c.nome_completo}</span>
+                  </label>
+                ))}
+                {clientes.length === 0 && <div className="text-slate-400 text-xs col-span-full">Nenhum cliente ativo encontrado.</div>}
+              </div>
+            )}
+          </div>
           <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
             <div className="flex flex-col items-center">
               <div className="w-24 h-24 rounded bg-slate-100 border border-slate-300 overflow-hidden mb-2">
