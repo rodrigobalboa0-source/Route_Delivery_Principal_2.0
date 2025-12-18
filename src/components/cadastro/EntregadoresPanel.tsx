@@ -54,6 +54,7 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
     veiculo_ano: '',
     cnh_valida: false,
     tipo_entrega: '',
+    taxa_entrega: '',
     status: 'inativo',
     cep: '',
     rua: '',
@@ -599,8 +600,6 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
                 <option value="terceirizado">Terceirizado</option>
                 <option value="parceiro">Parceiro</option>
               </select>
-              <input placeholder="Taxa de entrega" value={form.taxa_entrega} onChange={(e) => setForm({ ...form, taxa_entrega: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-              <input placeholder="Taxa de entrega" value={form.taxa_entrega} onChange={(e) => setForm({ ...form, taxa_entrega: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
             </div>
             <div className="md:w-48 flex flex-col items-center gap-3 mt-6 md:mt-0">
               <div className="w-24 h-24 rounded bg-slate-100 border border-slate-300 overflow-hidden">
@@ -896,6 +895,7 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
             <option value="terceirizado">Terceirizado</option>
             <option value="parceiro">Parceiro</option>
           </select>
+          <input placeholder="Taxa de entrega" value={editForm.taxa_entrega} onChange={(e) => setEditForm({ ...editForm, taxa_entrega: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
           <select value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })} className="px-3 py-2 border border-slate-300 rounded">
             <option value="ativo">Ativo</option>
             <option value="inativo">Inativo</option>
