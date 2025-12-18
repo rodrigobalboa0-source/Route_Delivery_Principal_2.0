@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { OperationsDashboard } from './components/OperationsDashboard';
 import { AuthPage } from './components/AuthPage';
+import { AccountUnderAnalysis } from './components/AccountUnderAnalysis';
 import { supabase } from './lib/supabase';
 import { TopBar } from './components/TopBar';
 import { ClientesPanel } from './components/cadastro/ClientesPanel';
@@ -63,36 +64,64 @@ function App() {
   const roleResolvedRef = useRef(false);
   const [trainingOpen, setTrainingOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
+  const [accountPending, setAccountPending] = useState(false);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setAuthenticated(false);
+    setUserName(undefined);
+    setUserRole('loading');
+    setActiveMenu('operations');
+    setAccountPending(false);
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i) || '';
+        if (k.startsWith('sb-') && k.includes('-auth-token')) {
+          localStorage.removeItem(k);
+        }
+      }
+    } catch (e) { void e; }
+    window.location.href = '/';
+  };
 
   const resolveRole = async (uid: string, emailRaw: string) => {
     setUserId(uid);
     if (roleResolvedRef.current) return;
     const email = (emailRaw || '').trim().toLowerCase();
+
+    
     const { data: uData } = await supabase.from('users').select('role, full_name, email').eq('id', uid).maybeSingle();
     const role = ((uData as { role?: string } | null)?.role || '').trim();
-    if (role === 'operador') {
+
+    if (role === 'admin' || role === 'operador') {
       setUserRole('operador');
       roleResolvedRef.current = true;
       try { localStorage.removeItem('cliente_context'); localStorage.removeItem('entregador_context'); } catch (e) { void e; }
       return;
     }
+
     if (role === 'cliente') {
       const { data: c } = await supabase.from('clientes').select('id, nome_completo').ilike('email', email).maybeSingle();
       if ((c as { id?: string } | null)?.id) {
         setUserRole('cliente');
         roleResolvedRef.current = true;
-      try {
-        const cid = ((c as { id?: string } | null)?.id) || '';
-        const cnome = ((c as { nome_completo?: string } | null)?.nome_completo) || '';
-        localStorage.setItem('cliente_context', JSON.stringify({ id: cid, nome: cnome }));
-      } catch (e) { void e; }
+        try {
+          const cid = ((c as { id?: string } | null)?.id) || '';
+          const cnome = ((c as { nome_completo?: string } | null)?.nome_completo) || '';
+          localStorage.setItem('cliente_context', JSON.stringify({ id: cid, nome: cnome }));
+        } catch (e) { void e; }
         return;
       }
     }
+
     if (role === 'entregador') {
-      const { data: eData } = await supabase.from('entregadores').select('id, nome_completo').ilike('email', email).maybeSingle();
+      const { data: eData } = await supabase.from('entregadores').select('id, nome_completo, status').ilike('email', email).maybeSingle();
       if ((eData as { id?: string } | null)?.id) {
+        const eStatus = (eData as { status?: string } | null)?.status;
+        setAccountPending(eStatus !== 'ativo');
+
         setUserRole('entregador');
+        setActiveMenu('pedidos');
         roleResolvedRef.current = true;
         try {
           const eid = ((eData as { id?: string } | null)?.id) || '';
@@ -102,15 +131,8 @@ function App() {
         return;
       }
     }
-    const { data: admin } = await supabase.from('contas_gerenciais').select('id').ilike('email_acesso', email).maybeSingle();
-    if ((admin as { id?: string } | null)?.id) {
-      const nome = userName || email;
-      await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown, o?: unknown) => Promise<unknown> } }).from('users').upsert({ id: uid, full_name: nome, email, role: 'operador' });
-      setUserRole('operador');
-      roleResolvedRef.current = true;
-      try { localStorage.removeItem('cliente_context'); localStorage.removeItem('entregador_context'); } catch (e) { void e; }
-      return;
-    }
+
+    // Fallbacks para quando o role não está definido ou não bate
     const { data: c2 } = await supabase.from('clientes').select('id, nome_completo').ilike('email', email).maybeSingle();
     if ((c2 as { id?: string } | null)?.id) {
       const nome = userName || email;
@@ -124,11 +146,16 @@ function App() {
       } catch (e) { void e; }
       return;
     }
-    const { data: e2 } = await supabase.from('entregadores').select('id, nome_completo').ilike('email', email).maybeSingle();
+
+    const { data: e2 } = await supabase.from('entregadores').select('id, nome_completo, status').ilike('email', email).maybeSingle();
     if ((e2 as { id?: string } | null)?.id) {
       const nome = userName || email;
+      const eStatus = (e2 as { status?: string } | null)?.status;
+      setAccountPending(eStatus !== 'ativo');
+
       await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown, o?: unknown) => Promise<unknown> } }).from('users').upsert({ id: uid, full_name: nome, email, role: 'entregador' });
       setUserRole('entregador');
+      setActiveMenu('pedidos');
       roleResolvedRef.current = true;
       try {
         const eid2 = ((e2 as { id?: string } | null)?.id) || '';
@@ -137,21 +164,14 @@ function App() {
       } catch (e) { void e; }
       return;
     }
-    const nomeFallback = userName || email;
-    const up = await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown, o?: { onConflict?: string }) => { select: (s: string) => { maybeSingle: () => Promise<{ data: unknown }> } } } }).from('entregadores').upsert({ nome_completo: nomeFallback, email, status: 'ativo' }, { onConflict: 'email' }).select('id, nome_completo').maybeSingle();
-    const created = (up.data || null) as { id?: string; nome_completo?: string } | null;
-    if (created?.id) {
-      await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown, o?: unknown) => Promise<unknown> } }).from('users').upsert({ id: uid, full_name: nomeFallback, email, role: 'entregador' });
-      setUserRole('entregador');
-      roleResolvedRef.current = true;
-      try { localStorage.setItem('entregador_context', JSON.stringify({ id: created.id, nome: created.nome_completo || '' })); } catch (e) { void e; }
-    } else {
-      // Falha de segurança corrigida: não dar acesso de operador por padrão
-      console.error('Falha ao determinar papel do usuário');
-      await supabase.auth.signOut();
-      setAuthenticated(false);
-      alert('Erro ao determinar permissões. Entre em contato com o suporte.');
-    }
+
+    // Se chegou até aqui, cria como entregador por padrão (segurança) ou avisa erro
+    console.warn('Falha ao identificar perfil. Atribuindo papel de entregador por segurança.');
+    setUserRole('entregador');
+    setActiveMenu('pedidos');
+    setAccountPending(true); // Bloqueia por segurança
+    roleResolvedRef.current = true;
+    try { localStorage.removeItem('entregador_context'); } catch (e) { void e; }
   };
 
   useEffect(() => {
@@ -207,26 +227,15 @@ function App() {
     );
   }
 
+  if (accountPending) {
+    return <AccountUnderAnalysis onBack={handleLogout} isLoginAttempt={true} />;
+  }
+
   return (
     <div className="flex flex-col h-screen bg-slate-100">
       <TopBar
         onMenuToggle={() => setSidebarOpen((v) => !v)}
-        onLogout={async () => {
-          await supabase.auth.signOut();
-          setAuthenticated(false);
-          setUserName(undefined);
-          setUserRole('loading');
-          setActiveMenu('operations');
-          try {
-            for (let i = 0; i < localStorage.length; i++) {
-              const k = localStorage.key(i) || '';
-              if (k.startsWith('sb-') && k.includes('-auth-token')) {
-                localStorage.removeItem(k);
-              }
-            }
-          } catch (e) { void e; }
-          window.location.href = '/';
-        }}
+        onLogout={handleLogout}
         activeMenu={activeMenu}
         userRole={userRole}
         userName={userName}

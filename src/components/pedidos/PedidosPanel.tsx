@@ -147,6 +147,11 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     if (userRole === 'entregador') {
       try {
         const ctx = localStorage.getItem('entregador_context');
+        if (!ctx) {
+          setItems([]);
+          setLoadingList(false);
+          return;
+        }
         if (ctx) {
           const { id: entId } = JSON.parse(ctx);
           const { data: deliveries } = await supabase.from('nova_entrega').select('pedido_id').eq('entregador_id', entId);
@@ -161,6 +166,9 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         }
       } catch (e) {
         console.error('Erro ao filtrar pedidos do entregador', e);
+        setItems([]);
+        setLoadingList(false);
+        return;
       }
     }
 
@@ -365,14 +373,14 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                 <th className="px-4 py-3">Entregador</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Logística</th>
-                <th className="px-4 py-3 text-right">Ações</th>
+                {userRole !== 'entregador' && <th className="px-4 py-3 text-right">Ações</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
               {loadingList ? (
-                <tr><td colSpan={6} className="px-4 py-3 text-center">Carregando...</td></tr>
+                <tr><td colSpan={userRole === 'entregador' ? 5 : 6} className="px-4 py-3 text-center">Carregando...</td></tr>
               ) : items.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-3 text-center">Nenhum pedido</td></tr>
+                <tr><td colSpan={userRole === 'entregador' ? 5 : 6} className="px-4 py-3 text-center">Nenhum pedido</td></tr>
               ) : (
                 items.map((p) => {
                   const cliente = clientes.find(c => c.id === p.cliente_id);
@@ -386,21 +394,29 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                       <td className="px-4 py-3">{cliente?.nome_completo || 'Desconhecido'}</td>
                       <td className="px-4 py-3">{entregadorName}</td>
                       <td className="px-4 py-3">
-                        <button 
-                          onClick={() => handleOpenAllocation(p)}
-                          className="px-3 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200 font-medium text-xs transition-colors"
-                        >
-                          {entrega?.entregador_id ? 'Re-alocar' : 'Alocar'}
-                        </button>
+                        {userRole !== 'entregador' ? (
+                          <button 
+                            onClick={() => handleOpenAllocation(p)}
+                            className="px-3 py-1 rounded bg-sky-100 text-sky-700 hover:bg-sky-200 font-medium text-xs transition-colors"
+                          >
+                            {entrega?.entregador_id ? 'Re-alocar' : 'Alocar'}
+                          </button>
+                        ) : (
+                          <span className="text-xs text-slate-500">
+                            {entrega?.entregador_id ? 'Atribuído' : 'Pendente'}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         {getStatusBadge(logisticaStatus)}
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <button onClick={() => handleDelete(p.id)} className="text-red-600 hover:text-red-800 p-1">
-                          <Trash2 size={16} />
-                        </button>
-                      </td>
+                      {userRole !== 'entregador' && (
+                        <td className="px-4 py-3 text-right">
+                          <button onClick={() => handleDelete(p.id)} className="text-red-600 hover:text-red-800 p-1">
+                            <Trash2 size={16} />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   );
                 })

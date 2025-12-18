@@ -167,6 +167,7 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
   const handleSubmit = async () => {
     setLoading(true);
     setError(null);
+    let authUserId: string | undefined;
     try {
       const shouldRegisterAuth = Boolean((form.email || '').trim()) && Boolean((form.senha || '').trim());
       if (shouldRegisterAuth) {
@@ -176,11 +177,13 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
         });
         if (signUpError) {
           setError(signUpError.message);
+          setLoading(false);
+          return;
         } else if (signUpData?.user?.id) {
-          const uid = signUpData.user.id;
+          authUserId = signUpData.user.id;
           await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown) => Promise<unknown> } })
             .from('users')
-            .upsert({ id: uid, email: form.email, full_name: form.nome_completo, role: 'cliente' });
+            .upsert({ id: authUserId, email: form.email, full_name: form.nome_completo, role: 'cliente' });
         }
       }
     } catch (e) {
@@ -188,6 +191,7 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
       if (msg) setError(msg);
     }
     const res = await sbInsert('clientes', {
+      ...(authUserId ? { id: authUserId } : {}),
       nome_completo: form.nome_completo,
       cpf: form.cpf || null,
       data_nascimento: form.data_nascimento || null,
@@ -211,7 +215,6 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
     }
     const cid = (r.data?.id || '') as string;
     
-    // Sync main user with cliente_id
     if ((form.email || '').trim()) {
       try {
         const { data: userData } = await supabase.from('users').select('id').eq('email', form.email).maybeSingle();
@@ -338,32 +341,135 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
   };
 
   const handleDelete = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este cliente? Isso apagará TODOS os dados vinculados.')) return;
+    setLoading(true);
     try {
-      const { data: row } = await supabase.from('clientes').select('email').eq('id', id).maybeSingle();
-      const email = ((row as { email?: string } | null)?.email || '').trim().toLowerCase();
-      await supabase.from('clientes').delete().eq('id', id);
-      if (email) {
-        await (supabase as unknown as { from: (t: string) => { delete: () => { ilike: (c: string, v: string) => Promise<unknown> } } })
-          .from('users')
-          .delete()
-          .ilike('email', email);
-        try {
-          await fetch(`${SUPABASE_URL}/functions/v1/delete-auth-user-by-email`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
-            body: JSON.stringify({ email }),
-          });
-        } catch (e) { void e; }
-        try {
-          const { data: session } = await supabase.auth.getSession();
-          const currentEmail = (session.session?.user?.email || '').trim().toLowerCase();
-          if (currentEmail && currentEmail === email) {
-            await supabase.auth.signOut();
-            try { localStorage.removeItem('cliente_context'); } catch (e) { void e; }
+      
+      const { data: client, error: fetchError } = await supabase.from('clientes').select('email').eq('id', id).maybeSingle();
+      if (fetchError) throw new Error('Erro ao buscar dados do cliente: ' + fetchError.message);
+      if (!client) throw new Error('Cliente não encontrado.');
+      
+      const email = (client.email || '').trim().toLowerCase();
+
+      
+      const criticalTables = ['creditos_clientes', 'contas_receber', 'pedidos', 'cliente_enderecos', 'users'];
+      
+      const deleteWithCheck = async (table: string, col: string = 'cliente_id') => {
+        const { error } = await (supabase as any).from(table).delete().eq(col, id);
+        if (error) {
+           console.error(`Erro ao limpar ${table}:`, error);
+           if (criticalTables.includes(table)) {
+               throw new Error(`Não foi possível remover dados de ${table}: ${error.message}`);
+           }
+        }
+      };
+
+      
+      await deleteWithCheck('configuracoes_comercio', 'id');
+      await deleteWithCheck('configuracoes_operacao', 'id');
+      await deleteWithCheck('integracoes_externas', 'id');
+      await deleteWithCheck('integracoes_open_delivery', 'id');
+
+      await deleteWithCheck('cliente_enderecos');
+      await deleteWithCheck('mensagens_clientes');
+      await deleteWithCheck('contas_receber');
+      await deleteWithCheck('creditos_clientes');
+      await deleteWithCheck('notas_fiscais');
+      await deleteWithCheck('recibos');
+      await deleteWithCheck('nova_entrega');
+      await deleteWithCheck('deliveries');
+      await deleteWithCheck('pedidos');
+
+      
+       try {
+         await supabase.from('conversas').delete().eq('tipo_alvo', 'cliente').eq('alvo_id', id);
+       } catch (e) { void e; }
+
+      
+      // 5. Tratamento especial para tabela users e usuário atual
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (currentUser) {
+          // Verifica dados do usuário atual na tabela users
+          const { data: currentUserData } = await supabase
+            .from('users')
+            .select('id, role, cliente_id')
+            .eq('id', currentUser.id)
+            .maybeSingle();
+
+          
+          if (currentUserData?.cliente_id === id) {
+              
+              if (['admin', 'operador', 'franquia'].includes(currentUserData.role || '')) {
+                  console.log('Desvinculando usuário administrativo do cliente antes da exclusão...');
+                  await supabase.from('users').update({ cliente_id: null }).eq('id', currentUser.id);
+              } else {
+                  
+                  
+              }
           }
-        } catch (e) { void e; }
+
+          // Deleta TODOS os usuários vinculados a este cliente
+          // Se o usuário atual for um admin/operador, ele já foi desvinculado acima, então não será deletado.
+          // Se o usuário atual for o próprio cliente se deletando, ele PRECISA ser deletado aqui, senão a FK trava.
+          const { error: userDelErr } = await (supabase as any)
+            .from('users')
+            .delete()
+            .eq('cliente_id', id);
+            
+          if (userDelErr) {
+             console.error('Erro ao limpar users:', userDelErr);
+             throw new Error('Erro ao remover usuários vinculados: ' + userDelErr.message);
+          }
+      } else {
+          
+           await deleteWithCheck('users');
       }
+
+      
+      const { error: delErr, count } = await supabase.from('clientes').delete({ count: 'exact' }).eq('id', id);
+      
+      if (delErr) throw delErr;
+      if (count === 0) {
+          throw new Error('O comando foi executado mas nenhum registro foi removido. Verifique permissões (RLS) ou se o registro já foi excluído.');
+      }
+
+      
+      if (email) {
+          
+          try {
+              await (supabase as any).from('users').delete().ilike('email', email);
+          } catch (e) { void e; }
+
+          
+          const { error: fnError } = await supabase.functions.invoke('delete-auth-user-by-email', {
+              body: { email }
+          });
+          
+          if (fnError) {
+              console.warn('Erro ao deletar Auth User (Edge Function):', fnError);
+              alert('Aviso: Cliente excluído do banco de dados, mas o login não pôde ser removido automaticamente (Erro na Edge Function). Contate o suporte.');
+          }
+          
+          
+          try {
+            const { data: session } = await supabase.auth.getSession();
+            const currentEmail = (session.session?.user?.email || '').trim().toLowerCase();
+            if (currentEmail && currentEmail === email) {
+                await supabase.auth.signOut();
+                try { localStorage.removeItem('cliente_context'); } catch (e) { void e; }
+                window.location.reload();
+                return;
+            }
+          } catch (e) { void e; }
+      }
+
+      alert('Cliente excluído com sucesso!');
+      
+    } catch (e: any) {
+      alert('Falha ao excluir: ' + (e.message || e));
+      console.error(e);
     } finally {
+      setLoading(false);
       await fetchClientes();
     }
   };
@@ -440,7 +546,6 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
     setLoading(true);
     setError(null);
 
-    // Password Update Logic
     if ((editForm as any).nova_senha) {
       try {
         const { error: pwdError } = await supabase.rpc('admin_update_password', {
@@ -456,7 +561,7 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
       }
     }
 
-    // Sync Users Table
+
     try {
        await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown) => Promise<unknown> } })
           .from('users')

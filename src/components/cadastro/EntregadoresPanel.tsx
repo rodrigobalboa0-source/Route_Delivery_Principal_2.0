@@ -91,7 +91,7 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
     veiculo_ano: '',
     cnh_valida: false,
     tipo_entrega: '',
-    status: 'inativo',
+    status: 'em_analise',
     cep: '',
     rua: '',
     numero: '',
@@ -177,6 +177,7 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
         return;
       }
     }
+    let authUserId: string | undefined;
     try {
       const shouldRegisterAuth = Boolean((form.email || '').trim()) && Boolean((form.senha || '').trim());
       if (shouldRegisterAuth) {
@@ -195,28 +196,16 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
           setLoading(false);
           return;
         }
-        // User creation in public.users is handled by Database Trigger (on_auth_user_created)
-        // We get the ID to link images if needed (though images use idNew from entregadores insert)
+        
         if (signUpData?.user?.id) {
-           // We could use this ID if we wanted to enforce same ID for entregadores table, 
-           // but currently entregadores table uses its own UUID or we might want to sync them?
-           // The current code below uses `sbInsert('entregadores'...)` which generates a new ID 
-           // unless we provide one.
+           authUserId = signUpData.user.id;
            
-           // CRITICAL FIX: We should probably use the Auth User ID as the Entregador ID 
-           // to make 1:1 relationship easier? 
-           // The current schema might have Entregador ID separate from Auth ID.
-           // Let's check the schema if possible, or just proceed with existing pattern.
-           // Existing pattern: 
-           //   const uid = signUpData.user.id;
-           //   ... upsert users ...
-           //   const res = await sbInsert('entregadores', ...);
-           //   const idNew = res.data.id;
-           
-           // If we want to link them, we should probably store auth_id in entregadores 
-           // or use auth_id as primary key.
-           // However, changing that now is risky.
-           // We will rely on email matching for now as done in `handleSignIn` in AuthPage.
+           await supabase.from('users').upsert({
+             id: authUserId,
+             email: form.email,
+             full_name: form.nome_completo,
+             role: 'entregador'
+           });
         }
       }
     } catch (e) {
@@ -224,6 +213,7 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
       if (msg) setError(msg);
     }
     const res = await sbInsert('entregadores', {
+      ...(authUserId ? { id: authUserId } : {}),
       nome_completo: form.nome_completo,
       cpf: form.cpf || null,
       rg: form.rg || null,
