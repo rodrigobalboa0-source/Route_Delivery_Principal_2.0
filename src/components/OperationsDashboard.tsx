@@ -71,6 +71,7 @@ export function OperationsDashboard() {
           supabase
             .from('entregadores')
             .select('id, nome_completo, email, telefone, status, created_at, updated_at')
+            .eq('status', 'ativo')
             .order('nome_completo'),
           8000
         ),

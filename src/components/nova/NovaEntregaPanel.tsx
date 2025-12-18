@@ -223,7 +223,7 @@ export function NovaEntregaPanel() {
   const fetchData = async () => {
     const [c, e, t, m, tp] = await Promise.all([
       supabase.from('clientes').select('*').order('nome_completo'),
-      supabase.from('entregadores').select('id, nome_completo, status').order('nome_completo'),
+      supabase.from('entregadores').select('id, nome_completo, status').eq('status', 'ativo').order('nome_completo'),
       supabase.from('tipo_servicos').select('*').eq('ativo', true).order('nome'),
       supabase.from('modais').select('*').eq('ativo', true).order('tipo'),
       supabase.from('tabelas_precos').select('*').order('nome'),

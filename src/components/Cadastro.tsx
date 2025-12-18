@@ -4,6 +4,7 @@ import { EntregadoresPanel } from './cadastro/EntregadoresPanel';
 
 export function Cadastro({ onBack, darkMode = false }: { onBack?: () => void; darkMode?: boolean }) {
   const [tipo, setTipo] = useState<'cliente' | 'entregador' | ''>('');
+  const isNative = window.Capacitor?.isNativePlatform();
   return (
     <div className={`min-h-screen flex items-center justify-center ${darkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
       <div className="w-full max-w-5xl bg-white rounded-2xl shadow border border-slate-200 overflow-hidden">
@@ -24,12 +25,14 @@ export function Cadastro({ onBack, darkMode = false }: { onBack?: () => void; da
             )}
           </div>
           <div className="relative z-10 mt-5 flex gap-3">
-            <button
-              onClick={() => setTipo('cliente')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tipo === 'cliente' ? 'bg-sky-600 text-white' : 'bg-white/10 border border-white/20 text-white hover:bg-white/20'}`}
-            >
-              Comércio
-            </button>
+            {!isNative && (
+              <button
+                onClick={() => setTipo('cliente')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tipo === 'cliente' ? 'bg-sky-600 text-white' : 'bg-white/10 border border-white/20 text-white hover:bg-white/20'}`}
+              >
+                Comércio
+              </button>
+            )}
             <button
               onClick={() => setTipo('entregador')}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tipo === 'entregador' ? 'bg-sky-600 text-white' : 'bg-white/10 border border-white/20 text-white hover:bg-white/20'}`}

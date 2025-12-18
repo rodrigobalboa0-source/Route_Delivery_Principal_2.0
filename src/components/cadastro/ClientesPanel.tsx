@@ -57,6 +57,7 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
     hub: '',
     foto_url: '',
     foto_base64: '',
+    nova_senha: '',
     precificacao_config: [] as PrecificacaoConfigItem[],
   });
   const [tabelasPrecos, setTabelasPrecos] = useState<TabelaPreco[]>([]);
@@ -177,7 +178,7 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
           setError(signUpError.message);
         } else if (signUpData?.user?.id) {
           const uid = signUpData.user.id;
-          void (supabase as unknown as { from: (t: string) => { upsert: (v: unknown) => Promise<unknown> } })
+          await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown) => Promise<unknown> } })
             .from('users')
             .upsert({ id: uid, email: form.email, full_name: form.nome_completo, role: 'cliente' });
         }
@@ -209,6 +210,19 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
       return;
     }
     const cid = (r.data?.id || '') as string;
+    
+    // Sync main user with cliente_id
+    if ((form.email || '').trim()) {
+      try {
+        const { data: userData } = await supabase.from('users').select('id').eq('email', form.email).maybeSingle();
+        if (userData?.id) {
+          await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown) => Promise<unknown> } })
+            .from('users')
+            .upsert({ id: userData.id, email: form.email, full_name: form.nome_completo, role: 'cliente', cliente_id: cid });
+        }
+      } catch (e) { void e; }
+    }
+
     if (fotoFile) {
       try {
         const fileName = `clientes/${cid}/foto-${Date.now()}-${(fotoFile.name || 'foto').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
@@ -425,6 +439,36 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
     if (!editing) return;
     setLoading(true);
     setError(null);
+
+    // Password Update Logic
+    if ((editForm as any).nova_senha) {
+      try {
+        const { error: pwdError } = await supabase.rpc('admin_update_password', {
+          target_user_id: editing.id,
+          new_password: (editForm as any).nova_senha
+        });
+        if (pwdError) {
+           console.error('Password update error:', pwdError);
+           setError('Erro ao atualizar senha. Verifique se a função admin_update_password existe.');
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    // Sync Users Table
+    try {
+       await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown) => Promise<unknown> } })
+          .from('users')
+          .upsert({ 
+             id: editing.id, 
+             email: editForm.email, 
+             full_name: editForm.nome_completo, 
+             role: 'cliente',
+             cliente_id: editing.id
+          });
+    } catch (e) { console.error('Users sync update error', e); }
+
     if (editFotoFile && editing?.id) {
       try {
         const fileName = `clientes/${editing.id}/foto-${Date.now()}-${(editFotoFile.name || 'foto').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
@@ -878,6 +922,10 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
           <div>
             <label className="text-xs text-slate-700">E-mail</label>
             <input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
+          </div>
+          <div>
+             <label className="text-xs text-slate-700">Nova Senha (opcional)</label>
+             <input type="password" placeholder="Nova Senha" value={(editForm as any).nova_senha || ''} onChange={(e) => setEditForm({ ...editForm, nova_senha: e.target.value } as any)} className="w-full px-3 py-2 border border-slate-300 rounded" />
           </div>
           <div>
             <label className="text-xs text-slate-700">Método de pagamento preferido</label>

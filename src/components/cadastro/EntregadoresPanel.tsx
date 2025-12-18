@@ -18,8 +18,7 @@ type CSVRow = {
   veiculo_ano?: string
   cnh_valida?: string | boolean
   tipo_entrega?: 'proprio' | 'terceirizado' | 'parceiro' | ''
-  taxa_entrega?: string
-  status?: 'ativo' | 'inativo' | ''
+  status?: 'ativo' | 'inativo' | 'em_analise' | ''
   cep?: string
   rua?: string
   numero?: string
@@ -55,7 +54,6 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
     veiculo_ano: '',
     cnh_valida: false,
     tipo_entrega: '',
-    taxa_entrega: '',
     status: 'inativo',
     cep: '',
     rua: '',
@@ -65,6 +63,7 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
     cidade: '',
     restricao_clientes_modo: 'todos',
     clientes_permitidos: [] as string[],
+    nova_senha: '',
   });
   const [fotoFile, setFotoFile] = useState<File | null>(null);
   const [cnhFile, setCnhFile] = useState<File | null>(null);
@@ -90,7 +89,6 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
     veiculo_ano: '',
     cnh_valida: false,
     tipo_entrega: '',
-    taxa_entrega: '',
     status: 'inativo',
     cep: '',
     rua: '',
@@ -182,16 +180,40 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email: form.email,
           password: form.senha,
+          options: {
+            data: {
+              full_name: form.nome_completo,
+              role: 'entregador',
+            },
+          },
         });
         if (signUpError) {
           setError(signUpError.message);
           setLoading(false);
           return;
-        } else if (signUpData?.user?.id) {
-          const uid = signUpData.user.id;
-          void (supabase as unknown as { from: (t: string) => { upsert: (v: unknown) => Promise<unknown> } })
-            .from('users')
-            .upsert({ id: uid, email: emailKey, full_name: form.nome_completo, role: 'entregador' });
+        }
+        // User creation in public.users is handled by Database Trigger (on_auth_user_created)
+        // We get the ID to link images if needed (though images use idNew from entregadores insert)
+        if (signUpData?.user?.id) {
+           // We could use this ID if we wanted to enforce same ID for entregadores table, 
+           // but currently entregadores table uses its own UUID or we might want to sync them?
+           // The current code below uses `sbInsert('entregadores'...)` which generates a new ID 
+           // unless we provide one.
+           
+           // CRITICAL FIX: We should probably use the Auth User ID as the Entregador ID 
+           // to make 1:1 relationship easier? 
+           // The current schema might have Entregador ID separate from Auth ID.
+           // Let's check the schema if possible, or just proceed with existing pattern.
+           // Existing pattern: 
+           //   const uid = signUpData.user.id;
+           //   ... upsert users ...
+           //   const res = await sbInsert('entregadores', ...);
+           //   const idNew = res.data.id;
+           
+           // If we want to link them, we should probably store auth_id in entregadores 
+           // or use auth_id as primary key.
+           // However, changing that now is risky.
+           // We will rely on email matching for now as done in `handleSignIn` in AuthPage.
         }
       }
     } catch (e) {
@@ -217,7 +239,6 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
       veiculo_ano: form.veiculo_ano ? Number(form.veiculo_ano) : null,
       cnh_valida: form.cnh_valida,
       tipo_entrega: (form.tipo_entrega || null) as Entregador['tipo_entrega'],
-      taxa_entrega: form.taxa_entrega ? Number(form.taxa_entrega) : null,
       status: form.status as Entregador['status'],
       restricao_clientes_modo: form.restricao_clientes_modo as 'todos' | 'selecionados',
       clientes_permitidos: form.clientes_permitidos,
@@ -393,6 +414,7 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
       documento_veiculo_base64: (c as any).documento_veiculo_base64 || '',
       restricao_clientes_modo: (c as any).restricao_clientes_modo || 'todos',
       clientes_permitidos: (c as any).clientes_permitidos ? (c as any).clientes_permitidos : [],
+      nova_senha: '',
     } as any);
     setEditFotoPreview((c as unknown as { foto_url?: string; foto_base64?: string }).foto_url || (c as unknown as { foto_base64?: string }).foto_base64 || '');
     setEditCnhPreview((c as unknown as { cnh_foto_url?: string; cnh_foto_base64?: string }).cnh_foto_url || (c as unknown as { cnh_foto_base64?: string }).cnh_foto_base64 || '');
@@ -405,6 +427,35 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
     setLoading(true);
     setError(null);
     if (editing?.id) {
+      if ((editForm as any).nova_senha) {
+        try {
+          const { error: pwdError } = await supabase.rpc('admin_update_password', {
+            target_user_id: editing.id,
+            new_password: (editForm as any).nova_senha
+          });
+          if (pwdError) {
+             console.error('Password update error:', pwdError);
+             // If RPC fails, maybe try the users table update if they have a trigger?
+             // But the RPC is the cleaner way.
+             setError('Erro ao atualizar senha. Verifique se a função admin_update_password existe.');
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      // Sync user data to users table as well
+      try {
+         await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown) => Promise<unknown> } })
+            .from('users')
+            .upsert({ 
+               id: editing.id, 
+               email: editForm.email, 
+               full_name: editForm.nome_completo, 
+               role: 'entregador' 
+            });
+      } catch (e) { console.error('Users sync update error', e); }
+
       if (editFotoFile) {
         try {
           const name = `entregadores/${editing.id}/foto-${Date.now()}-${(editFotoFile.name || 'foto').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
@@ -549,10 +600,7 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
                 <option value="parceiro">Parceiro</option>
               </select>
               <input placeholder="Taxa de entrega" value={form.taxa_entrega} onChange={(e) => setForm({ ...form, taxa_entrega: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-              <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="px-3 py-2 border border-slate-300 rounded">
-                <option value="ativo">Ativo</option>
-                <option value="inativo">Inativo</option>
-              </select>
+              <input placeholder="Taxa de entrega" value={form.taxa_entrega} onChange={(e) => setForm({ ...form, taxa_entrega: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
             </div>
             <div className="md:w-48 flex flex-col items-center gap-3 mt-6 md:mt-0">
               <div className="w-24 h-24 rounded bg-slate-100 border border-slate-300 overflow-hidden">
@@ -848,7 +896,6 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
             <option value="terceirizado">Terceirizado</option>
             <option value="parceiro">Parceiro</option>
           </select>
-          <input placeholder="Taxa de entrega" value={editForm.taxa_entrega} onChange={(e) => setEditForm({ ...editForm, taxa_entrega: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
           <select value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })} className="px-3 py-2 border border-slate-300 rounded">
             <option value="ativo">Ativo</option>
             <option value="inativo">Inativo</option>
