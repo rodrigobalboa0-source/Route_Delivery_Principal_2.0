@@ -942,6 +942,7 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
           <select value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })} className="px-3 py-2 border border-slate-300 rounded">
             <option value="ativo">Ativo</option>
             <option value="inativo">Inativo</option>
+            <option value="em_analise">Em Análise</option>
           </select>
           <div className="md:col-span-2 border border-slate-200 rounded p-3 mt-2 bg-slate-50">
             <label className="text-sm font-semibold text-slate-700 block mb-2">Permissão de Coleta</label>
