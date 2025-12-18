@@ -80,22 +80,8 @@ export function AuthPage() {
       });
       if (signInError) throw signInError;
 
-      if (data?.user?.email) {
-        const { data: entregador } = await supabase
-          .from('entregadores')
-          .select('status')
-          .ilike('email', data.user.email)
-          .maybeSingle();
-
-        if (entregador && (entregador.status === 'em_analise' || entregador.status === 'inativo')) {
-          await supabase.auth.signOut();
-          setAccountPending(true);
-          return;
-        }
-      }
-
       if (remember) {
-        // Implement remember me logic if needed
+        
       }
     } catch (e: any) {
       let msg = e.message || 'Falha no login';

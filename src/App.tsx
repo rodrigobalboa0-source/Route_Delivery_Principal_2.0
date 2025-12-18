@@ -132,7 +132,7 @@ function App() {
       }
     }
 
-    // Fallbacks para quando o role não está definido ou não bate
+    
     const { data: c2 } = await supabase.from('clientes').select('id, nome_completo').ilike('email', email).maybeSingle();
     if ((c2 as { id?: string } | null)?.id) {
       const nome = userName || email;
@@ -165,11 +165,11 @@ function App() {
       return;
     }
 
-    // Se chegou até aqui, cria como entregador por padrão (segurança) ou avisa erro
+    
     console.warn('Falha ao identificar perfil. Atribuindo papel de entregador por segurança.');
     setUserRole('entregador');
     setActiveMenu('pedidos');
-    setAccountPending(true); // Bloqueia por segurança
+    setAccountPending(true);
     roleResolvedRef.current = true;
     try { localStorage.removeItem('entregador_context'); } catch (e) { void e; }
   };

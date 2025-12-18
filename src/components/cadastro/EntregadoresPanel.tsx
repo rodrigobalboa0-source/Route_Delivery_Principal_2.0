@@ -435,8 +435,6 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
           });
           if (pwdError) {
              console.error('Password update error:', pwdError);
-             // If RPC fails, maybe try the users table update if they have a trigger?
-             // But the RPC is the cleaner way.
              setError('Erro ao atualizar senha. Verifique se a função admin_update_password existe.');
           }
         } catch (e) {
@@ -444,7 +442,7 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
         }
       }
 
-      // Sync user data to users table as well
+      
       try {
          await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown) => Promise<unknown> } })
             .from('users')
@@ -560,9 +558,7 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
         rua: data.logradouro || prev.rua,
         bairro: data.bairro || prev.bairro,
         cidade: data.localidade || prev.cidade,
-        // Estado is not in the form apparently, but I should check if I missed it.
-        // Looking at the form fields, I see 'cidade', 'bairro', 'rua', 'complemento', 'numero'.
-        // No 'estado' or 'uf' field in the read output.
+        
       }));
     }
   };
