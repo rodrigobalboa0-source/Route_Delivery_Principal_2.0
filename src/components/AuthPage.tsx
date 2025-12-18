@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Cadastro } from './Cadastro';
+import { AccountUnderAnalysis } from './AccountUnderAnalysis';
 
 export function AuthPage() {
   const [email, setEmail] = useState('');
@@ -14,6 +15,7 @@ export function AuthPage() {
   const [resetPasswordMode, setResetPasswordMode] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [resetMessage, setResetMessage] = useState('');
+  const [accountPending, setAccountPending] = useState(false);
 
   const isNative = window.Capacitor?.isNativePlatform();
 
@@ -87,7 +89,8 @@ export function AuthPage() {
 
         if (entregador && (entregador.status === 'em_analise' || entregador.status === 'inativo')) {
           await supabase.auth.signOut();
-          throw new Error('Seu acesso está em análise ou inativo. Aguarde aprovação.');
+          setAccountPending(true);
+          return;
         }
       }
 
@@ -111,6 +114,21 @@ export function AuthPage() {
       window.open('/#cadastro', '_blank');
     }
   };
+
+  if (accountPending) {
+    return (
+      <div className={`h-screen overflow-y-auto ${isNative ? 'bg-slate-900' : 'bg-slate-100'}`}>
+        <div className="min-h-full flex items-center justify-center p-4">
+          <div className="w-full max-w-lg bg-white rounded-2xl shadow border border-slate-200 p-8">
+            <AccountUnderAnalysis 
+              isLoginAttempt 
+              onBack={() => setAccountPending(false)} 
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`h-screen overflow-y-auto ${isNative ? 'bg-slate-900' : 'bg-slate-100'}`}>

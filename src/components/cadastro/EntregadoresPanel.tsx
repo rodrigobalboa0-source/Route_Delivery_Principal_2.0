@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../lib/supabase';
 import { Modal } from '../Modal';
+import { AccountUnderAnalysis } from '../AccountUnderAnalysis';
 import type { Database } from '../../lib/database.types';
 
 type Entregador = Database['public']['Tables']['entregadores']['Row'];
@@ -116,6 +117,7 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
   const [editCnhPreview, setEditCnhPreview] = useState('');
   const [editComprovantePreview, setEditComprovantePreview] = useState('');
   const [editMotoDocPreview, setEditMotoDocPreview] = useState('');
+  const [registrationSuccess, setRegistrationSuccess] = useState(false);
 
   useEffect(() => {
     fetchEntregadores();
@@ -335,6 +337,13 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
         documento_veiculo_base64: form.documento_veiculo_base64 || null,
       }).eq('id', idNew);
     }
+
+    if (mode === 'public') {
+      setRegistrationSuccess(true);
+      setLoading(false);
+      return;
+    }
+
     setForm({ nome_completo: '', cpf: '', rg: '', data_nascimento: '', telefone: '', email: '', senha: '', veiculo_tipo: '', veiculo_modelo: '', veiculo_placa: '', veiculo_ano: '', cnh_valida: false, tipo_entrega: '', taxa_entrega: '', status: 'inativo', cep: '', rua: '', numero: '', complemento: '', bairro: '', cidade: '', foto_url: '', foto_base64: '', cnh_foto_url: '', cnh_foto_base64: '', comprovante_residencia_url: '', comprovante_residencia_base64: '', documento_veiculo_url: '', documento_veiculo_base64: '', restricao_clientes_modo: 'todos', clientes_permitidos: [] });
     setFotoFile(null);
     setCnhFile(null);
@@ -540,6 +549,54 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
     await fetchEntregadores();
   };
 
+  const fetchAddressByCep = async (cep: string) => {
+    const cleanCep = cep.replace(/\D/g, '');
+    if (cleanCep.length !== 8) return null;
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+      const data = await res.json();
+      if (data.erro) return null;
+      return data;
+    } catch {
+      return null;
+    }
+  };
+
+  const handleCepBlur = async (cep: string) => {
+    const data = await fetchAddressByCep(cep);
+    if (data) {
+      setForm((prev) => ({
+        ...prev,
+        rua: data.logradouro || prev.rua,
+        bairro: data.bairro || prev.bairro,
+        cidade: data.localidade || prev.cidade,
+        // Estado is not in the form apparently, but I should check if I missed it.
+        // Looking at the form fields, I see 'cidade', 'bairro', 'rua', 'complemento', 'numero'.
+        // No 'estado' or 'uf' field in the read output.
+      }));
+    }
+  };
+
+  const handleEditCepBlur = async (cep: string) => {
+    const data = await fetchAddressByCep(cep);
+    if (data) {
+      setEditForm((prev) => ({
+        ...prev,
+        rua: data.logradouro || prev.rua,
+        bairro: data.bairro || prev.bairro,
+        cidade: data.localidade || prev.cidade,
+      }));
+    }
+  };
+
+  if (registrationSuccess) {
+    return (
+      <div className="p-6 bg-white rounded shadow">
+        <AccountUnderAnalysis onBack={() => window.location.reload()} />
+      </div>
+    );
+  }
+
   return (
     <div className="p-6">
       <style>{`
@@ -574,7 +631,7 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
               <input type="date" placeholder="Nascimento" value={form.data_nascimento} onChange={(e) => setForm({ ...form, data_nascimento: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
               <input placeholder="Telefone" value={form.telefone} onChange={(e) => setForm({ ...form, telefone: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
               <input type="email" placeholder="E-mail" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-              <input placeholder="CEP" value={form.cep} onChange={(e) => setForm({ ...form, cep: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+              <input placeholder="CEP" value={form.cep} onChange={(e) => setForm({ ...form, cep: e.target.value })} onBlur={(e) => handleCepBlur(e.target.value)} className="px-3 py-2 border border-slate-300 rounded" />
               <input placeholder="Rua" value={form.rua} onChange={(e) => setForm({ ...form, rua: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
               <input placeholder="Número" value={form.numero} onChange={(e) => setForm({ ...form, numero: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
               <input placeholder="Complemento" value={form.complemento} onChange={(e) => setForm({ ...form, complemento: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
@@ -870,7 +927,7 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
           <input type="date" placeholder="Nascimento" value={editForm.data_nascimento} onChange={(e) => setEditForm({ ...editForm, data_nascimento: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
           <input placeholder="Telefone" value={editForm.telefone} onChange={(e) => setEditForm({ ...editForm, telefone: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
           <input type="email" placeholder="E-mail" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-          <input placeholder="CEP" value={editForm.cep} onChange={(e) => setEditForm({ ...editForm, cep: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+          <input placeholder="CEP" value={editForm.cep} onChange={(e) => setEditForm({ ...editForm, cep: e.target.value })} onBlur={(e) => handleEditCepBlur(e.target.value)} className="px-3 py-2 border border-slate-300 rounded" />
           <input placeholder="Rua" value={editForm.rua} onChange={(e) => setEditForm({ ...editForm, rua: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
           <input placeholder="Número" value={editForm.numero} onChange={(e) => setEditForm({ ...editForm, numero: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
           <input placeholder="Complemento" value={editForm.complemento} onChange={(e) => setEditForm({ ...editForm, complemento: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />

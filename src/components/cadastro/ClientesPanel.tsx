@@ -565,6 +565,55 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
     await fetchClientes();
   };
 
+  const fetchAddressByCep = async (cep: string) => {
+    const cleanCep = cep.replace(/\D/g, '');
+    if (cleanCep.length !== 8) return null;
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+      const data = await res.json();
+      if (data.erro) return null;
+      return data;
+    } catch {
+      return null;
+    }
+  };
+
+  const handleCepBlur = async (cep: string) => {
+    const data = await fetchAddressByCep(cep);
+    if (data) {
+      setEnderecoAtual((prev) => ({
+        ...prev,
+        rua: data.logradouro || prev.rua,
+        bairro: data.bairro || prev.bairro,
+        cidade: data.localidade || prev.cidade,
+      }));
+    }
+  };
+
+  const handleEditNewCepBlur = async (cep: string) => {
+    const data = await fetchAddressByCep(cep);
+    if (data) {
+      setEditEnderecoNovo((prev) => ({
+        ...prev,
+        rua: data.logradouro || prev.rua,
+        bairro: data.bairro || prev.bairro,
+        cidade: data.localidade || prev.cidade,
+      }));
+    }
+  };
+
+  const handleEditExistingCepBlur = async (index: number, cep: string) => {
+    const data = await fetchAddressByCep(cep);
+    if (data) {
+      setEditEnderecos((prev) => prev.map((e, i) => i === index ? {
+        ...e,
+        rua: data.logradouro || e.rua,
+        bairro: data.bairro || e.bairro,
+        cidade: data.localidade || e.cidade,
+      } : e));
+    }
+  };
+
   return (
     <div className="p-6">
       <style>{`
@@ -774,7 +823,7 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
         </div>
         <div className="mt-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <input placeholder="CEP" value={enderecoAtual.cep || ''} onChange={(e) => setEnderecoAtual({ ...enderecoAtual, cep: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+            <input placeholder="CEP" value={enderecoAtual.cep || ''} onChange={(e) => setEnderecoAtual({ ...enderecoAtual, cep: e.target.value })} onBlur={(e) => handleCepBlur(e.target.value)} className="px-3 py-2 border border-slate-300 rounded" />
             <input placeholder="Rua" value={enderecoAtual.rua || ''} onChange={(e) => setEnderecoAtual({ ...enderecoAtual, rua: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
             <input placeholder="Número" value={enderecoAtual.numero || ''} onChange={(e) => setEnderecoAtual({ ...enderecoAtual, numero: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
             <input placeholder="Complemento" value={enderecoAtual.complemento || ''} onChange={(e) => setEnderecoAtual({ ...enderecoAtual, complemento: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
@@ -1071,7 +1120,7 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
             <div className="space-y-3">
               {editEnderecos.map((e, i) => (
                 <div key={e.id || `novo-${i}`} className="grid grid-cols-1 md:grid-cols-3 gap-3 border border-slate-200 rounded p-3">
-                  <input placeholder="CEP" value={e.cep || ''} onChange={(ev) => setEditEnderecos((prev) => prev.map((x, idx) => idx === i ? { ...x, cep: ev.target.value } : x))} className="px-3 py-2 border border-slate-300 rounded" />
+                  <input placeholder="CEP" value={e.cep || ''} onChange={(ev) => setEditEnderecos((prev) => prev.map((x, idx) => idx === i ? { ...x, cep: ev.target.value } : x))} onBlur={(ev) => handleEditExistingCepBlur(i, ev.target.value)} className="px-3 py-2 border border-slate-300 rounded" />
                   <input placeholder="Rua" value={e.rua || ''} onChange={(ev) => setEditEnderecos((prev) => prev.map((x, idx) => idx === i ? { ...x, rua: ev.target.value } : x))} className="px-3 py-2 border border-slate-300 rounded" />
                   <input placeholder="Número" value={e.numero || ''} onChange={(ev) => setEditEnderecos((prev) => prev.map((x, idx) => idx === i ? { ...x, numero: ev.target.value } : x))} className="px-3 py-2 border border-slate-300 rounded" />
                   <input placeholder="Complemento" value={e.complemento || ''} onChange={(ev) => setEditEnderecos((prev) => prev.map((x, idx) => idx === i ? { ...x, complemento: ev.target.value } : x))} className="px-3 py-2 border border-slate-300 rounded" />
@@ -1094,7 +1143,7 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
             </div>
           )}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
-            <input placeholder="CEP" value={editEnderecoNovo.cep || ''} onChange={(e) => setEditEnderecoNovo({ ...editEnderecoNovo, cep: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+            <input placeholder="CEP" value={editEnderecoNovo.cep || ''} onChange={(e) => setEditEnderecoNovo({ ...editEnderecoNovo, cep: e.target.value })} onBlur={(e) => handleEditNewCepBlur(e.target.value)} className="px-3 py-2 border border-slate-300 rounded" />
             <input placeholder="Rua" value={editEnderecoNovo.rua || ''} onChange={(e) => setEditEnderecoNovo({ ...editEnderecoNovo, rua: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
             <input placeholder="Número" value={editEnderecoNovo.numero || ''} onChange={(e) => setEditEnderecoNovo({ ...editEnderecoNovo, numero: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
             <input placeholder="Complemento" value={editEnderecoNovo.complemento || ''} onChange={(e) => setEditEnderecoNovo({ ...editEnderecoNovo, complemento: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
