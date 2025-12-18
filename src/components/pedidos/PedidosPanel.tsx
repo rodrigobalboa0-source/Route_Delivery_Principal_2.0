@@ -14,9 +14,11 @@ type DeliveryPerson = Database['public']['Tables']['delivery_persons']['Row'];
 
 interface PedidosPanelProps {
   onNavigate?: (menu: string) => void;
+  userRole?: 'operador' | 'cliente' | 'entregador' | 'loading';
+  userId?: string;
 }
 
-export function PedidosPanel({ onNavigate }: PedidosPanelProps) {
+export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps) {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [items, setItems] = useState<Pedido[]>([]);
   const [entregasMap, setEntregasMap] = useState<Record<string, Entrega>>({});
@@ -142,6 +144,26 @@ export function PedidosPanel({ onNavigate }: PedidosPanelProps) {
       .select('*')
       .order('created_at', { ascending: false });
     
+    if (userRole === 'entregador') {
+      try {
+        const ctx = localStorage.getItem('entregador_context');
+        if (ctx) {
+          const { id: entId } = JSON.parse(ctx);
+          const { data: deliveries } = await supabase.from('nova_entrega').select('pedido_id').eq('entregador_id', entId);
+          const pIds = deliveries?.map(d => d.pedido_id).filter(Boolean) as string[] || [];
+          
+          if (pIds.length === 0) {
+            setItems([]);
+            setLoadingList(false);
+            return;
+          }
+          q = q.in('id', pIds);
+        }
+      } catch (e) {
+        console.error('Erro ao filtrar pedidos do entregador', e);
+      }
+    }
+
     if (filters.status !== 'todos') q = q.eq('status', filters.status);
     if (filters.origem !== 'todos') q = q.eq('origem', filters.origem);
     if (filters.cliente_id) q = q.eq('cliente_id', filters.cliente_id);

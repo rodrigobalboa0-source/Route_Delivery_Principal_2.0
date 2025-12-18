@@ -58,12 +58,14 @@ function App() {
   const [authenticated, setAuthenticated] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userName, setUserName] = useState<string | undefined>(undefined);
-  const [userRole, setUserRole] = useState<'operador' | 'cliente' | 'entregador'>('operador');
+  const [userId, setUserId] = useState<string | undefined>(undefined);
+  const [userRole, setUserRole] = useState<'operador' | 'cliente' | 'entregador' | 'loading'>('loading');
   const roleResolvedRef = useRef(false);
   const [trainingOpen, setTrainingOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
 
   const resolveRole = async (uid: string, emailRaw: string) => {
+    setUserId(uid);
     if (roleResolvedRef.current) return;
     const email = (emailRaw || '').trim().toLowerCase();
     const { data: uData } = await supabase.from('users').select('role, full_name, email').eq('id', uid).maybeSingle();
@@ -144,9 +146,11 @@ function App() {
       roleResolvedRef.current = true;
       try { localStorage.setItem('entregador_context', JSON.stringify({ id: created.id, nome: created.nome_completo || '' })); } catch (e) { void e; }
     } else {
-      setUserRole('operador');
-      roleResolvedRef.current = true;
-      try { localStorage.removeItem('cliente_context'); localStorage.removeItem('entregador_context'); } catch (e) { void e; }
+      // Falha de segurança corrigida: não dar acesso de operador por padrão
+      console.error('Falha ao determinar papel do usuário');
+      await supabase.auth.signOut();
+      setAuthenticated(false);
+      alert('Erro ao determinar permissões. Entre em contato com o suporte.');
     }
   };
 
@@ -192,6 +196,17 @@ function App() {
     return <AuthPage />;
   }
 
+  if (userRole === 'loading') {
+    return (
+      <div className="flex items-center justify-center h-screen bg-slate-100 text-slate-600">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-8 h-8 border-4 border-sky-600 border-t-transparent rounded-full animate-spin" />
+          <p>Verificando permissões...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-screen bg-slate-100">
       <TopBar
@@ -200,7 +215,7 @@ function App() {
           await supabase.auth.signOut();
           setAuthenticated(false);
           setUserName(undefined);
-          setUserRole('operador');
+          setUserRole('loading');
           setActiveMenu('operations');
           try {
             for (let i = 0; i < localStorage.length; i++) {
@@ -255,7 +270,7 @@ function App() {
           {activeMenu === 'mensagens_clientes' && <MensagensClientesPanel />}
           {activeMenu === 'mensagens_historico' && <HistoricoMensagensPanel />}
           {activeMenu === 'nova_criar' && <NovaEntregaPanel />}
-          {activeMenu === 'pedidos' && <PedidosPanel onNavigate={setActiveMenu} />}
+          {activeMenu === 'pedidos' && <PedidosPanel onNavigate={setActiveMenu} userRole={userRole} userId={userId} />}
           {activeMenu === 'financeiro_dashboard' && <FinanceiroDashboard />}
           {activeMenu === 'financeiro_contas_receber' && <ContasReceberPanel />}
           {activeMenu === 'financeiro_contas_pagar' && <ContasPagarPanel />}

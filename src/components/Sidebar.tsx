@@ -63,7 +63,7 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
   }, [forceOpenGroups]);
   const visibleMenuItems = ((): { id: string; label: string; icon: any }[] => {
     if (userRole === 'cliente') return menuItems.filter((m) => ['operations', 'mensagens', 'pedidos'].includes(m.id));
-    if (userRole === 'entregador') return menuItems.filter((m) => ['mensagens'].includes(m.id));
+    if (userRole === 'entregador') return menuItems.filter((m) => ['mensagens', 'pedidos'].includes(m.id));
     return menuItems;
   })();
   const mensagensItems = [
