@@ -277,7 +277,7 @@ function App() {
           {activeMenu === 'cadastro_servicos_opcionais' && <ServicosOpcionaisPanel />}
           {activeMenu === 'mensagens_entregadores' && <MensagensEntregadoresPanel />}
           {activeMenu === 'mensagens_clientes' && <MensagensClientesPanel />}
-          {activeMenu === 'mensagens_historico' && <HistoricoMensagensPanel />}
+          {activeMenu === 'mensagens_historico' && <HistoricoMensagensPanel userRole={userRole} onNavigate={setActiveMenu} />}
           {activeMenu === 'nova_criar' && <NovaEntregaPanel />}
           {activeMenu === 'pedidos' && <PedidosPanel onNavigate={setActiveMenu} userRole={userRole} userId={userId} />}
           {activeMenu === 'financeiro_dashboard' && <FinanceiroDashboard />}

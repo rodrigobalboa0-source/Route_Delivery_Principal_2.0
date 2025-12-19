@@ -16,6 +16,7 @@ export function MensagensClientesPanel() {
   const [texto, setTexto] = useState('');
   const [clienteNome, setClienteNome] = useState<string>('');
   const [isClienteUser, setIsClienteUser] = useState(false);
+  const [entregadorId, setEntregadorId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchClientes();
@@ -23,6 +24,11 @@ export function MensagensClientesPanel() {
 
   useEffect(() => {
     try {
+      const eCtxRaw = localStorage.getItem('entregador_context');
+      if (eCtxRaw) {
+        const ctx = JSON.parse(eCtxRaw) as { id?: string };
+        if (ctx?.id) setEntregadorId(ctx.id);
+      }
       const ctxRaw = localStorage.getItem('cliente_context');
       if (ctxRaw) {
         const ctx = JSON.parse(ctxRaw) as { id?: string; nome?: string };
@@ -51,6 +57,26 @@ export function MensagensClientesPanel() {
 
   const ensureConversa = async (clienteId: string) => {
     if (!clienteId) throw new Error('Cliente inválido');
+    
+    if (entregadorId) {
+      const { data } = await supabase
+        .from('conversas')
+        .select('id')
+        .eq('cliente_id', clienteId)
+        .eq('entregador_id', entregadorId)
+        .maybeSingle();
+      if (data && (data as { id: string }).id) return (data as { id: string }).id;
+      
+      const created = await (supabase as unknown as { from: (t: string) => { insert: (v: unknown) => { select: (s: string) => { maybeSingle: () => Promise<{ data: unknown }> } } } })
+        .from('conversas')
+        .insert({ tipo_alvo: 'cliente', alvo_id: clienteId, cliente_id: clienteId, entregador_id: entregadorId })
+        .select('id')
+        .maybeSingle();
+      const createdId = (created.data as unknown as { id?: string } | null)?.id;
+      if (!createdId) throw new Error('Falha ao criar conversa');
+      return createdId;
+    }
+
     const { data } = await supabase
       .from('conversas')
       .select('id')

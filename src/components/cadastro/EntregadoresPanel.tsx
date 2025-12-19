@@ -913,6 +913,7 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
           <input type="date" placeholder="Nascimento" value={editForm.data_nascimento} onChange={(e) => setEditForm({ ...editForm, data_nascimento: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
           <input placeholder="Telefone" value={editForm.telefone} onChange={(e) => setEditForm({ ...editForm, telefone: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
           <input type="email" placeholder="E-mail" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+          <input type="password" placeholder="Nova Senha (opcional)" value={(editForm as any).nova_senha} onChange={(e) => setEditForm({ ...editForm, nova_senha: e.target.value } as any)} className="px-3 py-2 border border-slate-300 rounded" />
           <input placeholder="CEP" value={editForm.cep} onChange={(e) => setEditForm({ ...editForm, cep: e.target.value })} onBlur={(e) => handleEditCepBlur(e.target.value)} className="px-3 py-2 border border-slate-300 rounded" />
           <input placeholder="Rua" value={editForm.rua} onChange={(e) => setEditForm({ ...editForm, rua: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
           <input placeholder="Número" value={editForm.numero} onChange={(e) => setEditForm({ ...editForm, numero: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />

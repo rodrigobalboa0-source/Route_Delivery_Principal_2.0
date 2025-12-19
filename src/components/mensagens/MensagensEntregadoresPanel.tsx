@@ -16,6 +16,7 @@ export function MensagensEntregadoresPanel() {
   const [texto, setTexto] = useState('');
   const [isEntregadorUser, setIsEntregadorUser] = useState(false);
   const [entregadorNome, setEntregadorNome] = useState('');
+  const [clienteId, setClienteId] = useState<string | null>(null);
 
   const fetchEntregadores = useCallback(async () => {
     try {
@@ -45,6 +46,11 @@ export function MensagensEntregadoresPanel() {
 
   useEffect(() => {
     try {
+      const cCtxRaw = localStorage.getItem('cliente_context');
+      if (cCtxRaw) {
+        const ctx = JSON.parse(cCtxRaw) as { id?: string };
+        if (ctx?.id) setClienteId(ctx.id);
+      }
       const ctxRaw = localStorage.getItem('entregador_context');
       if (ctxRaw) {
         const ctx = JSON.parse(ctxRaw) as { id?: string; nome?: string };
@@ -76,6 +82,23 @@ export function MensagensEntregadoresPanel() {
   
 
   const ensureConversa = async (entregadorId: string) => {
+    if (clienteId) {
+      const { data } = await supabase
+        .from('conversas')
+        .select('id')
+        .eq('cliente_id', clienteId)
+        .eq('entregador_id', entregadorId)
+        .maybeSingle();
+      if (data && (data as { id: string }).id) return (data as { id: string }).id;
+      
+      const created = await (supabase as unknown as { from: (t: string) => { insert: (v: unknown) => { select: (s: string) => { single: () => Promise<{ data: unknown }> } } } })
+        .from('conversas')
+        .insert({ tipo_alvo: 'entregador', alvo_id: entregadorId, cliente_id: clienteId, entregador_id: entregadorId })
+        .select('id')
+        .single();
+      return (created.data as unknown as { id: string }).id;
+    }
+
     const { data } = await supabase
       .from('conversas')
       .select('id')
