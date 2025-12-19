@@ -311,7 +311,7 @@ function App() {
           {activeMenu === 'config_operacao' && <ConfiguracoesOperacaoPanel />}
         </div>
       </main>
-      <TrainingOverlay open={trainingOpen} onClose={() => setTrainingOpen(false)} goToMenu={(m) => setActiveMenu(m)} />
+      <TrainingOverlay open={trainingOpen} onClose={() => setTrainingOpen(false)} goToMenu={(m) => setActiveMenu(m)} userRole={userRole} />
       <SupportChatOverlay open={supportOpen} onClose={() => setSupportOpen(false)} />
     </div>
   );

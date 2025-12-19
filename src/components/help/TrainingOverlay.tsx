@@ -4,11 +4,12 @@ interface TrainingOverlayProps {
   open: boolean;
   onClose: () => void;
   goToMenu: (menu: string) => void;
+  userRole: 'operador' | 'cliente' | 'entregador' | 'loading';
 }
 
-export function TrainingOverlay({ open, onClose, goToMenu }: TrainingOverlayProps) {
+export function TrainingOverlay({ open, onClose, goToMenu, userRole }: TrainingOverlayProps) {
   type Step = { id: string; title: string; desc: string; menu: string; submenu?: string; preview?: string[]; anchorId?: string };
-  const steps: Step[] = [
+  const allSteps: Step[] = [
     { id: 'operations', title: 'Menu de Operações', desc: 'Painel em tempo real para acompanhar entregadores e status.', menu: 'Menu de Operações' },
     { id: 'pedidos', title: 'Pedidos • Acompanhamento', desc: 'Acompanhe pedidos e entregadores com filtros e mapa. Selecione um pedido e um entregador para ver a rota e o status.', menu: 'Pedidos', preview: ['Filtrar por status, origem, cliente e período', 'Selecionar pedido e entregador', 'Acompanhar rota e destino no mapa'] },
     { id: 'cadastro_clientes', title: 'Cadastro • Comércio', desc: 'Cadastre e edite informações do comércio e endereços.', menu: 'Cadastro', submenu: 'Comércio', preview: ['Cadastrar comércio', 'Editar dados', 'Gerenciar endereços'] },
@@ -36,7 +37,23 @@ export function TrainingOverlay({ open, onClose, goToMenu }: TrainingOverlayProp
     { id: 'financeiro_revisao_agendamentos', title: 'Financeiro • Revisão de agendamentos', desc: 'Revise agendamentos e acertos rapidamente.', menu: 'Financeiro', submenu: 'Revisão de agendamentos', preview: ['Revisar agendamento', 'Exportar'] },
     { id: 'nova_criar', title: 'Nova entrega', desc: 'Cadastre coleta e entrega, agende, defina cobrança e comprovante. Adicione pontos/retorno e gere pedido com código.', menu: 'Nova entrega', anchorId: 'nova', preview: ['Selecionar cliente, modal e atribuição', 'Usar endereço de cadastro para preenchimento automático', 'Preencher coleta e entrega', 'Agendar, valor e tipo de cobrança', 'Adicionar pontos e retorno'] },
   ];
+
+  const steps = allSteps.filter(step => {
+    if (userRole === 'cliente') {
+      return ['operations', 'pedidos', 'mensagens_entregadores'].includes(step.id);
+    }
+    if (userRole === 'entregador') {
+      return ['pedidos', 'mensagens_clientes'].includes(step.id);
+    }
+    return true;
+  });
+
   const [idx, setIdx] = useState(0);
+  
+  useEffect(() => {
+    if (open) setIdx(0);
+  }, [open]);
+
   const [boxTop, setBoxTop] = useState<number | undefined>(undefined);
   const [arrowTop, setArrowTop] = useState<number | undefined>(undefined);
   const [arrowLeft, setArrowLeft] = useState<number | undefined>(undefined);
