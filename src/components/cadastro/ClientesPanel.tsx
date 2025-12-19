@@ -408,9 +408,7 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
               }
           }
 
-          // Deleta TODOS os usuários vinculados a este cliente
-          // Se o usuário atual for um admin/operador, ele já foi desvinculado acima, então não será deletado.
-          // Se o usuário atual for o próprio cliente se deletando, ele PRECISA ser deletado aqui, senão a FK trava.
+          
           const { error: userDelErr } = await (supabase as any)
             .from('users')
             .delete()

@@ -193,10 +193,11 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
                 {item.id === 'mensagens' && mensagensOpen && (
                   <ul className="mt-1 space-y-1">
                     {(userRole === 'cliente'
-                      ? mensagensItems.filter((s) => ['mensagens_clientes', 'mensagens_historico'].includes(s.id))
-                      : userRole === 'entregador'
-                        ? mensagensItems.filter((s) => ['mensagens_entregadores', 'mensagens_historico'].includes(s.id))
-                        : mensagensItems).map((sub) => {
+              ? mensagensItems.filter((s) => ['mensagens_entregadores', 'mensagens_historico'].includes(s.id))
+              : userRole === 'entregador'
+                ? mensagensItems.filter((s) => ['mensagens_clientes', 'mensagens_historico'].includes(s.id))
+                : mensagensItems
+            ).map((sub) => {
                       const SubIcon = sub.icon;
                       const active = activeMenu === sub.id;
                       return (
