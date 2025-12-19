@@ -75,8 +75,8 @@ export function AuthPage() {
     setError(null);
     try {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+        email: email.trim().toLowerCase(),
+        password: password.trim(),
       });
       if (signInError) throw signInError;
 

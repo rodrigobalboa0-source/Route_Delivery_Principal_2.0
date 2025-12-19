@@ -179,11 +179,11 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
     }
     let authUserId: string | undefined;
     try {
-      const shouldRegisterAuth = Boolean((form.email || '').trim()) && Boolean((form.senha || '').trim());
+      const shouldRegisterAuth = Boolean(emailKey) && Boolean((form.senha || '').trim());
       if (shouldRegisterAuth) {
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email: form.email,
-          password: form.senha,
+          email: emailKey,
+          password: (form.senha || '').trim(),
           options: {
             data: {
               full_name: form.nome_completo,
@@ -202,7 +202,7 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
            
            await supabase.from('users').upsert({
              id: authUserId,
-             email: form.email,
+             email: emailKey,
              full_name: form.nome_completo,
              role: 'entregador'
            });
@@ -431,7 +431,7 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
         try {
           const { error: pwdError } = await supabase.rpc('admin_update_password', {
             target_user_id: editing.id,
-            new_password: (editForm as any).nova_senha
+            new_password: ((editForm as any).nova_senha || '').trim()
           });
           if (pwdError) {
              console.error('Password update error:', pwdError);
