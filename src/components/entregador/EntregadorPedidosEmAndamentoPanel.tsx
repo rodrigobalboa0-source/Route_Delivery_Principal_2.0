@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { MapPin, CheckCircle, Truck, AlertCircle, Phone, Navigation, Map as MapIcon } from 'lucide-react';
 import { MapView, MapDeliveryPerson } from '../MapView';
 import type { Database } from '../../lib/database.types';
+import { Geolocation } from '@capacitor/geolocation';
 
 type DeliveryPerson = Database['public']['Tables']['delivery_persons']['Row'];
 
@@ -39,27 +40,44 @@ export function EntregadorPedidosEmAndamentoPanel() {
       })
       .subscribe();
 
-    if ('geolocation' in navigator) {
-      const watchId = navigator.geolocation.watchPosition(
-        (position) => {
-          setUserLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          });
-        },
-        (error) => {
-          console.error('Erro ao obter localização:', error);
-        },
-        { enableHighAccuracy: true }
-      );
-      return () => {
-        navigator.geolocation.clearWatch(watchId);
-        subscription.unsubscribe();
-      };
-    }
+    let watchId: string | null = null;
+
+    const startWatching = async () => {
+      try {
+        const permission = await Geolocation.checkPermissions();
+        if (permission.location !== 'granted') {
+          const request = await Geolocation.requestPermissions();
+          if (request.location !== 'granted') {
+            return;
+          }
+        }
+
+        const position = await Geolocation.getCurrentPosition();
+        setUserLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        });
+
+        watchId = await Geolocation.watchPosition({ enableHighAccuracy: true }, (position, err) => {
+          if (position) {
+            setUserLocation({
+              lat: position.coords.latitude,
+              lng: position.coords.longitude
+            });
+          }
+        });
+      } catch (e) {
+        console.error('Erro geolocalização:', e);
+      }
+    };
+
+    startWatching();
 
     return () => {
       subscription.unsubscribe();
+      if (watchId) {
+        Geolocation.clearWatch({ id: watchId });
+      }
     };
   }, []);
 

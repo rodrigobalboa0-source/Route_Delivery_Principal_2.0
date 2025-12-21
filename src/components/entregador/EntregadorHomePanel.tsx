@@ -3,6 +3,7 @@ import { MapView, MapDeliveryPerson } from '../MapView';
 import { MapPin, Truck, Home } from 'lucide-react';
 import { Database } from '../../lib/database.types';
 import { supabase } from '../../lib/supabase';
+import { Geolocation } from '@capacitor/geolocation';
 
 type DeliveryPerson = Database['public']['Tables']['delivery_persons']['Row'];
 
@@ -27,27 +28,51 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
     };
     fetchPhoto();
 
-    if ('geolocation' in navigator) {
-      const watchId = navigator.geolocation.watchPosition(
-        (position) => {
-          setUserLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          });
-          setLoadingLocation(false);
-        },
-        (error) => {
-          console.error('Erro ao obter localização:', error);
-          setLoadingLocation(false);
-        },
-        { enableHighAccuracy: true }
-      );
-      return () => {
-        navigator.geolocation.clearWatch(watchId);
-      };
-    } else {
-      setLoadingLocation(false);
-    }
+    let watchId: string | null = null;
+
+    const startWatching = async () => {
+      try {
+        const permission = await Geolocation.checkPermissions();
+        if (permission.location !== 'granted') {
+          const request = await Geolocation.requestPermissions();
+          if (request.location !== 'granted') {
+            console.error('Permissão de localização negada');
+            setLoadingLocation(false);
+            return;
+          }
+        }
+
+        const position = await Geolocation.getCurrentPosition();
+        setUserLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        });
+        setLoadingLocation(false);
+
+        watchId = await Geolocation.watchPosition({ enableHighAccuracy: true }, (position, err) => {
+          if (position) {
+            setUserLocation({
+              lat: position.coords.latitude,
+              lng: position.coords.longitude
+            });
+          }
+          if (err) {
+            console.error('Erro ao observar localização:', err);
+          }
+        });
+      } catch (e) {
+        console.error('Erro ao iniciar geolocalização:', e);
+        setLoadingLocation(false);
+      }
+    };
+
+    startWatching();
+
+    return () => {
+      if (watchId) {
+        Geolocation.clearWatch({ id: watchId });
+      }
+    };
   }, []);
 
   const getFakeDeliveryPerson = (): MapDeliveryPerson | null => {
