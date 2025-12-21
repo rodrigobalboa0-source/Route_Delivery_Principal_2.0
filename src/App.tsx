@@ -54,6 +54,15 @@ import { IntegracoesOpenDeliveryPanel } from './components/configuracoes/Integra
 import { ConfiguracoesOperacaoPanel } from './components/configuracoes/ConfiguracoesOperacaoPanel';
 import { FinanceiroDashboard } from './components/FinanceiroDashboard';
 
+import { EntregadorExtratoPanel } from './components/entregador/EntregadorExtratoPanel';
+import { EntregadorMinhaContaPanel } from './components/entregador/EntregadorMinhaContaPanel';
+import { EntregadorRankingPanel } from './components/entregador/EntregadorRankingPanel';
+import { EntregadorHistoricoPanel } from './components/entregador/EntregadorHistoricoPanel';
+import { EntregadorNotificacoesPanel } from './components/entregador/EntregadorNotificacoesPanel';
+import { EntregadorEntregasDisponiveisPanel } from './components/entregador/EntregadorEntregasDisponiveisPanel';
+import { EntregadorPedidosEmAndamentoPanel } from './components/entregador/EntregadorPedidosEmAndamentoPanel';
+import { EntregadorHomePanel } from './components/entregador/EntregadorHomePanel';
+
 function App() {
   const [activeMenu, setActiveMenu] = useState('operations');
   const [authenticated, setAuthenticated] = useState(false);
@@ -89,7 +98,6 @@ function App() {
     if (roleResolvedRef.current) return;
     const email = (emailRaw || '').trim().toLowerCase();
 
-    
     const { data: uData } = await supabase.from('users').select('role, full_name, email').eq('id', uid).maybeSingle();
     const role = ((uData as { role?: string } | null)?.role || '').trim();
 
@@ -121,7 +129,7 @@ function App() {
         setAccountPending(eStatus !== 'ativo');
 
         setUserRole('entregador');
-        setActiveMenu('pedidos');
+        setActiveMenu('home_entregador');
         roleResolvedRef.current = true;
         try {
           const eid = ((eData as { id?: string } | null)?.id) || '';
@@ -132,7 +140,6 @@ function App() {
       }
     }
 
-    
     const { data: c2 } = await supabase.from('clientes').select('id, nome_completo').ilike('email', email).maybeSingle();
     if ((c2 as { id?: string } | null)?.id) {
       const nome = userName || email;
@@ -155,7 +162,7 @@ function App() {
 
       await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown, o?: unknown) => Promise<unknown> } }).from('users').upsert({ id: uid, full_name: nome, email, role: 'entregador' });
       setUserRole('entregador');
-      setActiveMenu('pedidos');
+      setActiveMenu('home_entregador'); 
       roleResolvedRef.current = true;
       try {
         const eid2 = ((e2 as { id?: string } | null)?.id) || '';
@@ -165,10 +172,9 @@ function App() {
       return;
     }
 
-    
     console.warn('Falha ao identificar perfil. Atribuindo papel de entregador por segurança.');
     setUserRole('entregador');
-    setActiveMenu('pedidos');
+    setActiveMenu('carteira_extrato');
     setAccountPending(true);
     roleResolvedRef.current = true;
     try { localStorage.removeItem('entregador_context'); } catch (e) { void e; }
@@ -255,14 +261,15 @@ function App() {
           cadastro: activeMenu.startsWith('cadastro'),
           mensagens: activeMenu.startsWith('mensagens'),
           financeiro: activeMenu.startsWith('financeiro'),
-          
+          carteira: activeMenu.startsWith('carteira'),
+          conta: activeMenu.startsWith('conta'),
         } : undefined}
         onStartSupport={() => setSupportOpen(true)}
       />
       <main className={`flex-1 transition-all duration-200 ${sidebarOpen ? 'pl-56' : 'pl-0'}`}>
         <div className="h-[calc(100vh-56px)] overflow-y-auto overflow-x-hidden scrollbar-modern">
           {activeMenu === 'operations' && <OperationsDashboard />}
-          {}
+          
           {activeMenu === 'cadastro_clientes' && <ClientesPanel />}
           {activeMenu === 'cadastro_contas' && <ContasPanel />}
           {activeMenu === 'cadastro_entregadores' && <EntregadoresPanel />}
@@ -309,6 +316,16 @@ function App() {
           {activeMenu === 'config_integracoes_externas' && <IntegracoesExternasPanel />}
           {activeMenu === 'config_integracoes_open_delivery' && <IntegracoesOpenDeliveryPanel />}
           {activeMenu === 'config_operacao' && <ConfiguracoesOperacaoPanel />}
+          
+          {/* Entregador specific routes */}
+          {activeMenu === 'home_entregador' && <EntregadorHomePanel onNavigate={setActiveMenu} />}
+          {activeMenu === 'entregas_disponiveis' && <EntregadorEntregasDisponiveisPanel />}
+          {activeMenu === 'entregas_andamento' && <EntregadorPedidosEmAndamentoPanel />}
+          {activeMenu === 'carteira_extrato' && <EntregadorExtratoPanel userId={userId} />}
+          {activeMenu === 'conta_minha_conta' && <EntregadorMinhaContaPanel />}
+          {activeMenu === 'conta_ranking' && <EntregadorRankingPanel />}
+          {activeMenu === 'conta_historico' && <EntregadorHistoricoPanel />}
+          {activeMenu === 'conta_notificacoes' && <EntregadorNotificacoesPanel />}
         </div>
       </main>
       <TrainingOverlay open={trainingOpen} onClose={() => setTrainingOpen(false)} goToMenu={(m) => setActiveMenu(m)} userRole={userRole} />

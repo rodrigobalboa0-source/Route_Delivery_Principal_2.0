@@ -1,15 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Filter, Users } from 'lucide-react';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase';
-import { MapView } from './MapView';
+import { MapView, MapDeliveryPerson } from './MapView';
 import { DeliveryPersonCard } from './DeliveryPersonCard';
 import type { Database } from '../lib/database.types';
 type Entregador = Database['public']['Tables']['entregadores']['Row'];
-type DeliveryPerson = Database['public']['Tables']['delivery_persons']['Row'];
 
 export function OperationsDashboard() {
-  const [deliveryPersons, setDeliveryPersons] = useState<DeliveryPerson[]>([]);
-  const [filteredPersons, setFilteredPersons] = useState<DeliveryPerson[]>([]);
+  const [deliveryPersons, setDeliveryPersons] = useState<MapDeliveryPerson[]>([]);
+  const [filteredPersons, setFilteredPersons] = useState<MapDeliveryPerson[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [onlineFilter, setOnlineFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
@@ -70,7 +69,7 @@ export function OperationsDashboard() {
         withTimeout(
           supabase
             .from('entregadores')
-            .select('id, nome_completo, email, telefone, status, created_at, updated_at')
+            .select('id, nome_completo, email, telefone, status, created_at, updated_at, foto_url')
             .eq('status', 'ativo')
             .order('nome_completo'),
           8000
@@ -100,9 +99,9 @@ export function OperationsDashboard() {
       );
 
       const now = Date.now();
-      const mapped: DeliveryPerson[] = entregadores.map((e) => {
+      const mapped: MapDeliveryPerson[] = entregadores.map((e) => {
         const baseStatus = e.status === 'ativo' ? 'disponivel' : 'inativo';
-        const status: DeliveryPerson['status'] = entregasAtivas.has(e.id) ? 'em_entrega' : baseStatus;
+        const status: MapDeliveryPerson['status'] = entregasAtivas.has(e.id) ? 'em_entrega' : baseStatus;
         const updatedAt = e.updated_at ? Date.parse(e.updated_at) : 0;
         const is_online = Boolean(updatedAt && now - updatedAt < 15 * 60 * 1000);
         return {
@@ -117,6 +116,7 @@ export function OperationsDashboard() {
           last_location_update: e.updated_at || null,
           created_at: e.created_at,
           updated_at: e.updated_at || e.created_at,
+          foto_url: e.foto_url
         };
       });
       setDeliveryPersons(mapped);
@@ -130,7 +130,7 @@ export function OperationsDashboard() {
         });
         if (r.ok) {
           const json = await r.json();
-          setDeliveryPersons(json as DeliveryPerson[]);
+          setDeliveryPersons(json as MapDeliveryPerson[]);
           setErrorMessage(null);
           msg = '';
         } else {

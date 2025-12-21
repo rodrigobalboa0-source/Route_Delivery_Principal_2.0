@@ -226,26 +226,34 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
       } catch (e) { void e; }
     }
 
+    let finalFotoUrl = form.foto_url;
+    let finalFotoBase64 = form.foto_base64;
+
     if (fotoFile) {
       try {
         const fileName = `clientes/${cid}/foto-${Date.now()}-${(fotoFile.name || 'foto').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
         const up = await (supabase as unknown as { storage: { from: (b: string) => { upload: (p: string, f: File, o?: unknown) => Promise<{ data?: { path?: string }; error?: { message?: string } }>; getPublicUrl: (p: string) => { data: { publicUrl: string } } } } })
           .storage.from('images')
           .upload(fileName, fotoFile, { upsert: true });
+        
         if (!up.error && up.data?.path) {
-          const publicUrl = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
-          setForm((prev) => ({ ...prev, foto_url: publicUrl }));
+          finalFotoUrl = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
         } else {
           const reader = new FileReader();
-          reader.onload = () => setForm((prev) => ({ ...prev, foto_base64: String(reader.result || '') }));
-          reader.readAsDataURL(fotoFile);
+          await new Promise((resolve) => {
+             reader.onload = () => { finalFotoBase64 = String(reader.result || ''); resolve(true); };
+             reader.readAsDataURL(fotoFile);
+          });
         }
       } catch {
         const reader = new FileReader();
-        reader.onload = () => setForm((prev) => ({ ...prev, foto_base64: String(reader.result || '') }));
-        reader.readAsDataURL(fotoFile);
+        await new Promise((resolve) => {
+             reader.onload = () => { finalFotoBase64 = String(reader.result || ''); resolve(true); };
+             reader.readAsDataURL(fotoFile);
+        });
       }
     }
+
     const enderecosParaSalvar = (() => {
       const hasAtual = Boolean((enderecoAtual.cep || '').trim() || (enderecoAtual.rua || '').trim() || (enderecoAtual.numero || '').trim() || (enderecoAtual.bairro || '').trim() || (enderecoAtual.cidade || '').trim() || (enderecoAtual.complemento || '').trim() || (enderecoAtual.referencia_entrega || '').trim());
       if (hasAtual) return [...enderecos, { ...enderecoAtual }];
@@ -290,8 +298,8 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
           lead_por: form.lead_por || null,
           franquia: form.franquia || null,
           hub: form.hub || null,
-          foto_url: form.foto_url || null,
-          foto_base64: form.foto_base64 || null,
+          foto_url: finalFotoUrl || null,
+          foto_base64: finalFotoBase64 || null,
           cep: enderecoAtual.cep || null,
           rua: enderecoAtual.rua || null,
           numero: enderecoAtual.numero || null,
@@ -572,6 +580,9 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
           });
     } catch (e) { console.error('Users sync update error', e); }
 
+    let finalEditFotoUrl = editForm.foto_url;
+    let finalEditFotoBase64 = editForm.foto_base64;
+
     if (editFotoFile && editing?.id) {
       try {
         const fileName = `clientes/${editing.id}/foto-${Date.now()}-${(editFotoFile.name || 'foto').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
@@ -579,10 +590,21 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
           .storage.from('images')
           .upload(fileName, editFotoFile, { upsert: true });
         if (!up2.error && up2.data?.path) {
-          const publicUrl2 = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up2.data.path).data.publicUrl;
-          setEditForm((prev) => ({ ...prev, foto_url: publicUrl2, foto_base64: '' }));
+          finalEditFotoUrl = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up2.data.path).data.publicUrl;
+        } else {
+            const reader = new FileReader();
+            await new Promise((resolve) => {
+                 reader.onload = () => { finalEditFotoBase64 = String(reader.result || ''); resolve(true); };
+                 reader.readAsDataURL(editFotoFile);
+            });
         }
-      } catch (e) { void e; }
+      } catch (e) {
+          const reader = new FileReader();
+          await new Promise((resolve) => {
+               reader.onload = () => { finalEditFotoBase64 = String(reader.result || ''); resolve(true); };
+               reader.readAsDataURL(editFotoFile);
+          });
+      }
     }
 
     let primaryAddressUpdate = {};
@@ -622,8 +644,8 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
         lead_por: editForm.lead_por || null,
         franquia: editForm.franquia || null,
         hub: editForm.hub || null,
-        foto_url: editForm.foto_url || null,
-        foto_base64: editForm.foto_base64 || null,
+        foto_url: finalEditFotoUrl || null,
+        foto_base64: finalEditFotoBase64 || null,
         precificacao_config: editForm.precificacao_config,
         ...primaryAddressUpdate,
       })

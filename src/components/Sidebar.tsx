@@ -1,4 +1,4 @@
-import { Map, Users, Wallet, Truck, Layers, MessageSquare, PlusSquare, FileText, LifeBuoy, PlayCircle, BarChart3, Settings, LayoutDashboard } from 'lucide-react';
+import { Map, Users, Wallet, Truck, Layers, MessageSquare, PlusSquare, FileText, LifeBuoy, PlayCircle, BarChart3, Settings, LayoutDashboard, Bell, Trophy, History, MapPin, Home } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { APP_VERSION } from '../config';
 
@@ -10,21 +10,34 @@ interface SidebarProps {
   userRole: 'operador' | 'cliente' | 'entregador';
   onStartTraining?: () => void;
   trainingActive?: boolean;
-  forceOpenGroups?: { cadastro?: boolean; mensagens?: boolean; financeiro?: boolean; configuracoes?: boolean };
+  forceOpenGroups?: { 
+    cadastro?: boolean; 
+    mensagens?: boolean; 
+    financeiro?: boolean; 
+    configuracoes?: boolean;
+    entregas?: boolean;
+    carteira?: boolean;
+    conta?: boolean;
+  };
   onStartSupport?: () => void;
 }
 
 export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, onStartTraining, trainingActive, forceOpenGroups, onStartSupport }: SidebarProps) {
   const menuItems = [
+    { id: 'home_entregador', label: 'Home', icon: Home },
     { id: 'operations', label: 'Menu de Operações', icon: Map },
     { id: 'pedidos', label: 'Pedidos', icon: FileText },
     { id: 'cadastro', label: 'Cadastro', icon: Layers },
+    { id: 'entregas', label: 'Entregas', icon: Truck },
     { id: 'mensagens', label: 'Mensagens', icon: MessageSquare },
     { id: 'financeiro', label: 'Financeiro', icon: Wallet },
     { id: 'nova', label: 'Nova entrega', icon: PlusSquare },
     { id: 'relatorios', label: 'Relatórios', icon: BarChart3 },
     { id: 'configuracoes', label: 'Configurações', icon: Settings },
+    { id: 'carteira', label: 'Carteira', icon: Wallet },
+    { id: 'conta', label: 'Conta', icon: Users },
   ];
+
   const cadastroItems = [
     { id: 'cadastro_clientes', label: 'Comericio', icon: Users },
     { id: 'cadastro_contas', label: 'Contas gerenciais', icon: Wallet },
@@ -39,6 +52,7 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
     { id: 'cadastro_preco_dinamico_entregador', label: 'Preço dinâmico entregador', icon: Wallet },
     { id: 'cadastro_servicos_opcionais', label: 'Serviços opcionais', icon: Layers },
   ];
+
   const configuracoesItems = [
     { id: 'config_comercio', label: 'Configurações de Comercio', icon: Layers },
     { id: 'config_customizacao', label: 'Customização', icon: Layers },
@@ -48,24 +62,7 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
     { id: 'config_integracoes_open_delivery', label: 'Integrações Open Delivery', icon: Layers },
     { id: 'config_operacao', label: 'Configurações de operação', icon: Settings },
   ];
-  const [cadastroOpen, setCadastroOpen] = useState(false);
-  const [mensagensOpen, setMensagensOpen] = useState(false);
-  const [financeiroOpen, setFinanceiroOpen] = useState(false);
-  const [relatoriosOpen, setRelatoriosOpen] = useState(false);
-  const [configuracoesOpen, setConfiguracoesOpen] = useState(false);
-  useEffect(() => {
-    if (forceOpenGroups) {
-      if (typeof forceOpenGroups.cadastro !== 'undefined') setCadastroOpen(!!forceOpenGroups.cadastro);
-      if (typeof forceOpenGroups.mensagens !== 'undefined') setMensagensOpen(!!forceOpenGroups.mensagens);
-      if (typeof forceOpenGroups.financeiro !== 'undefined') setFinanceiroOpen(!!forceOpenGroups.financeiro);
-      if (typeof forceOpenGroups.configuracoes !== 'undefined') setConfiguracoesOpen(!!forceOpenGroups.configuracoes);
-    }
-  }, [forceOpenGroups]);
-  const visibleMenuItems = ((): { id: string; label: string; icon: any }[] => {
-    if (userRole === 'cliente') return menuItems.filter((m) => ['operations', 'mensagens', 'pedidos'].includes(m.id));
-    if (userRole === 'entregador') return menuItems.filter((m) => ['mensagens', 'pedidos'].includes(m.id));
-    return menuItems;
-  })();
+
   const mensagensItems = [
     { id: 'mensagens_entregadores', label: 'Entregadores', icon: MessageSquare },
     { id: 'mensagens_clientes', label: 'Clientes', icon: MessageSquare },
@@ -99,7 +96,106 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
     { id: 'relatorios_log_atividades', label: 'Alteração de status (Log)', icon: BarChart3 },
     { id: 'relatorios_historico_vagas', label: 'Histórico de vagas', icon: BarChart3 },
   ];
-  
+
+  const entregasItems = [
+    { id: 'entregas_disponiveis', label: 'Disponíveis', icon: MapPin },
+    { id: 'entregas_andamento', label: 'Em andamento', icon: Truck },
+  ];
+
+  const carteiraItems = [
+    { id: 'carteira_extrato', label: 'Extrato', icon: FileText },
+  ];
+
+  const contaItems = [
+    { id: 'conta_minha_conta', label: 'Minha conta', icon: Users },
+    { id: 'conta_ranking', label: 'Ranking', icon: Trophy },
+    { id: 'conta_historico', label: 'Histórico', icon: History },
+    { id: 'conta_notificacoes', label: 'Notificações', icon: Bell },
+  ];
+
+  const [cadastroOpen, setCadastroOpen] = useState(false);
+  const [mensagensOpen, setMensagensOpen] = useState(false);
+  const [financeiroOpen, setFinanceiroOpen] = useState(false);
+  const [relatoriosOpen, setRelatoriosOpen] = useState(false);
+  const [configuracoesOpen, setConfiguracoesOpen] = useState(false);
+  const [entregasOpen, setEntregasOpen] = useState(false);
+  const [carteiraOpen, setCarteiraOpen] = useState(false);
+  const [contaOpen, setContaOpen] = useState(false);
+
+  useEffect(() => {
+    if (forceOpenGroups) {
+      if (typeof forceOpenGroups.cadastro !== 'undefined') setCadastroOpen(!!forceOpenGroups.cadastro);
+      if (typeof forceOpenGroups.mensagens !== 'undefined') setMensagensOpen(!!forceOpenGroups.mensagens);
+      if (typeof forceOpenGroups.financeiro !== 'undefined') setFinanceiroOpen(!!forceOpenGroups.financeiro);
+      if (typeof forceOpenGroups.configuracoes !== 'undefined') setConfiguracoesOpen(!!forceOpenGroups.configuracoes);
+      if (typeof forceOpenGroups.entregas !== 'undefined') setEntregasOpen(!!forceOpenGroups.entregas);
+      if (typeof forceOpenGroups.carteira !== 'undefined') setCarteiraOpen(!!forceOpenGroups.carteira);
+      if (typeof forceOpenGroups.conta !== 'undefined') setContaOpen(!!forceOpenGroups.conta);
+    }
+  }, [forceOpenGroups]);
+
+  const visibleMenuItems = ((): { id: string; label: string; icon: any }[] => {
+    if (userRole === 'cliente') return menuItems.filter((m) => ['operations', 'mensagens', 'pedidos'].includes(m.id));
+    if (userRole === 'entregador') return menuItems.filter((m) => ['home_entregador', 'entregas', 'mensagens', 'carteira', 'conta'].includes(m.id));
+
+    return menuItems.filter((m) => !['home_entregador', 'entregas', 'carteira', 'conta'].includes(m.id));
+  })();
+
+  const handleMenuClick = (id: string) => {
+
+    const closeAll = () => {
+        setCadastroOpen(false);
+        setMensagensOpen(false);
+        setFinanceiroOpen(false);
+        setRelatoriosOpen(false);
+        setConfiguracoesOpen(false);
+        setEntregasOpen(false);
+        setCarteiraOpen(false);
+        setContaOpen(false);
+    };
+
+    if (id === 'cadastro') { setCadastroOpen((v) => !v); setMensagensOpen(false); setFinanceiroOpen(false); setRelatoriosOpen(false); setConfiguracoesOpen(false); setEntregasOpen(false); setCarteiraOpen(false); setContaOpen(false); return; }
+    if (id === 'mensagens') { setMensagensOpen((v) => !v); setCadastroOpen(false); setFinanceiroOpen(false); setRelatoriosOpen(false); setConfiguracoesOpen(false); setEntregasOpen(false); setCarteiraOpen(false); setContaOpen(false); return; }
+    if (id === 'financeiro') { setFinanceiroOpen(true); setCadastroOpen(false); setMensagensOpen(false); setRelatoriosOpen(false); setConfiguracoesOpen(false); setEntregasOpen(false); setCarteiraOpen(false); setContaOpen(false); onMenuChange('financeiro_dashboard'); return; }
+    if (id === 'relatorios') { setRelatoriosOpen((v) => !v); setCadastroOpen(false); setMensagensOpen(false); setFinanceiroOpen(false); setConfiguracoesOpen(false); setEntregasOpen(false); setCarteiraOpen(false); setContaOpen(false); return; }
+    if (id === 'configuracoes') { setConfiguracoesOpen((v) => !v); setCadastroOpen(false); setMensagensOpen(false); setFinanceiroOpen(false); setRelatoriosOpen(false); setEntregasOpen(false); setCarteiraOpen(false); setContaOpen(false); return; }
+    if (id === 'entregas') { setEntregasOpen((v) => !v); setCadastroOpen(false); setMensagensOpen(false); setFinanceiroOpen(false); setRelatoriosOpen(false); setConfiguracoesOpen(false); setCarteiraOpen(false); setContaOpen(false); return; }
+    if (id === 'carteira') { setCarteiraOpen((v) => !v); setCadastroOpen(false); setMensagensOpen(false); setFinanceiroOpen(false); setRelatoriosOpen(false); setConfiguracoesOpen(false); setEntregasOpen(false); setContaOpen(false); return; }
+    if (id === 'conta') { setContaOpen((v) => !v); setCadastroOpen(false); setMensagensOpen(false); setFinanceiroOpen(false); setRelatoriosOpen(false); setConfiguracoesOpen(false); setEntregasOpen(false); setCarteiraOpen(false); return; }
+    
+    if (id === 'nova') { closeAll(); onMenuChange('nova_criar'); return; }
+    
+    closeAll();
+    onMenuChange(id);
+  };
+
+  const renderSubMenu = (items: typeof cadastroItems, parentId: string) => {
+    return (
+      <ul className="mt-1 space-y-1">
+        {items.map((sub) => {
+          const SubIcon = sub.icon;
+          const active = activeMenu === sub.id;
+          return (
+            <li key={sub.id}>
+              <button
+                data-menu-id={sub.id}
+                onClick={() => onMenuChange(sub.id)}
+                className={`w-full flex items-center justify-start gap-2 px-3 py-2 rounded-lg transition-all text-xs ml-2 pl-3 border-l border-slate-800 ${
+                  active ? 'bg-sky-600/80 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                }`}
+              >
+                <SubIcon size={16} />
+                <span className="flex-1 truncate text-left">{sub.label}</span>
+                {trainingActive && active && (
+                  <span className="ml-auto w-0 h-0 border-y-5 border-y-transparent border-l-5 border-l-white" />
+                )}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    );
+  };
 
   return (
     <aside
@@ -129,6 +225,10 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
                   ? relatoriosOpen || activeMenu.startsWith('relatorios')
                 : item.id === 'configuracoes'
                   ? configuracoesOpen || activeMenu.startsWith('config')
+                : item.id === 'carteira'
+                  ? carteiraOpen || activeMenu.startsWith('carteira')
+                : item.id === 'conta'
+                  ? contaOpen || activeMenu.startsWith('conta')
                 : item.id === 'nova'
                   ? activeMenu.startsWith('nova')
                 : activeMenu === item.id;
@@ -137,20 +237,7 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
               <li key={item.id}>
                 <button
                   data-menu-id={item.id}
-                  onClick={() => {
-                    if (item.id === 'cadastro') { setCadastroOpen((v) => !v); setMensagensOpen(false); setFinanceiroOpen(false); setRelatoriosOpen(false); setConfiguracoesOpen(false); return; }
-                    if (item.id === 'mensagens') { setMensagensOpen((v) => !v); setCadastroOpen(false); setFinanceiroOpen(false); setRelatoriosOpen(false); setConfiguracoesOpen(false); return; }
-                    if (item.id === 'financeiro') { setFinanceiroOpen(true); setCadastroOpen(false); setMensagensOpen(false); setRelatoriosOpen(false); setConfiguracoesOpen(false); onMenuChange('financeiro_dashboard'); return; }
-                    if (item.id === 'relatorios') { setRelatoriosOpen((v) => !v); setCadastroOpen(false); setMensagensOpen(false); setFinanceiroOpen(false); setConfiguracoesOpen(false); return; }
-                    if (item.id === 'configuracoes') { setConfiguracoesOpen((v) => !v); setCadastroOpen(false); setMensagensOpen(false); setFinanceiroOpen(false); setRelatoriosOpen(false); return; }
-                    if (item.id === 'nova') { setCadastroOpen(false); setMensagensOpen(false); setFinanceiroOpen(false); setRelatoriosOpen(false); setConfiguracoesOpen(false); onMenuChange('nova_criar'); return; }
-                    setCadastroOpen(false);
-                    setMensagensOpen(false);
-                    setFinanceiroOpen(false);
-                    setRelatoriosOpen(false);
-                    setConfiguracoesOpen(false);
-                    onMenuChange(item.id);
-                  }}
+                  onClick={() => handleMenuClick(item.id)}
                   className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-all text-sm ${
                     isActive
                       ? 'bg-sky-500 text-white shadow-lg'
@@ -164,40 +251,16 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
                   )}
                 </button>
 
-                {item.id === 'cadastro' && cadastroOpen && (
-                  <ul className="mt-1 space-y-1">
-                    {cadastroItems.map((sub) => {
-                      const SubIcon = sub.icon;
-                      const active = activeMenu === sub.id;
-                      return (
-                        <li key={sub.id}>
-                          <button
-                            data-menu-id={sub.id}
-                            onClick={() => onMenuChange(sub.id)}
-                            className={`w-full flex items-center justify-start gap-2 px-3 py-2 rounded-lg transition-all text-xs ml-2 pl-3 border-l border-slate-800 ${
-                              active ? 'bg-sky-600/80 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                            }`}
-                          >
-                            <SubIcon size={16} />
-                            <span className="flex-1 truncate text-left">{sub.label}</span>
-                            {trainingActive && active && (
-                              <span className="ml-auto w-0 h-0 border-y-5 border-y-transparent border-l-5 border-l-white" />
-                            )}
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-
+                {item.id === 'cadastro' && cadastroOpen && renderSubMenu(cadastroItems, 'cadastro')}
+                
                 {item.id === 'mensagens' && mensagensOpen && (
                   <ul className="mt-1 space-y-1">
                     {(userRole === 'cliente'
-              ? mensagensItems.filter((s) => ['mensagens_entregadores', 'mensagens_historico'].includes(s.id))
-              : userRole === 'entregador'
-                ? mensagensItems.filter((s) => ['mensagens_clientes', 'mensagens_historico'].includes(s.id))
-                : mensagensItems
-            ).map((sub) => {
+                      ? mensagensItems.filter((s) => ['mensagens_entregadores', 'mensagens_historico'].includes(s.id))
+                      : userRole === 'entregador'
+                        ? mensagensItems.filter((s) => ['mensagens_clientes', 'mensagens_historico'].includes(s.id))
+                        : mensagensItems
+                    ).map((sub) => {
                       const SubIcon = sub.icon;
                       const active = activeMenu === sub.id;
                       return (
@@ -218,75 +281,12 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
                   </ul>
                 )}
 
-                {item.id === 'financeiro' && financeiroOpen && (
-                  <ul className="mt-1 space-y-1">
-                    {financeiroItems.map((sub) => {
-                      const SubIcon = sub.icon;
-                      const active = activeMenu === sub.id;
-                      return (
-                        <li key={sub.id}>
-                          <button
-                            data-menu-id={sub.id}
-                            onClick={() => onMenuChange(sub.id)}
-                            className={`w-full flex items-center justify-start gap-2 px-3 py-2 rounded-lg transition-all text-xs ml-2 pl-3 border-l border-slate-800 ${
-                              active ? 'bg-sky-600/80 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                            }`}
-                          >
-                            <SubIcon size={16} />
-                            <span className="flex-1 truncate text-left">{sub.label}</span>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-
-                {item.id === 'relatorios' && relatoriosOpen && (
-                  <ul className="mt-1 space-y-1">
-                    {relatoriosItems.map((sub) => {
-                      const SubIcon = sub.icon;
-                      const active = activeMenu === sub.id;
-                      return (
-                        <li key={sub.id}>
-                          <button
-                            data-menu-id={sub.id}
-                            onClick={() => onMenuChange(sub.id)}
-                            className={`w-full flex items-center justify-start gap-2 px-3 py-2 rounded-lg transition-all text-xs ml-2 pl-3 border-l border-slate-800 ${
-                              active ? 'bg-sky-600/80 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                            }`}
-                          >
-                            <SubIcon size={16} />
-                            <span className="flex-1 truncate text-left">{sub.label}</span>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-
-                {item.id === 'configuracoes' && configuracoesOpen && (
-                  <ul className="mt-1 space-y-1">
-                    {configuracoesItems.map((sub) => {
-                      const SubIcon = sub.icon;
-                      const active = activeMenu === sub.id;
-                      return (
-                        <li key={sub.id}>
-                          <button
-                            data-menu-id={sub.id}
-                            onClick={() => onMenuChange(sub.id)}
-                            className={`w-full flex items-center justify-start gap-2 px-3 py-2 rounded-lg transition-all text-xs ml-2 pl-3 border-l border-slate-800 ${
-                              active ? 'bg-sky-600/80 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                            }`}
-                          >
-                            <SubIcon size={16} />
-                            <span className="flex-1 truncate text-left">{sub.label}</span>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-
+                {item.id === 'financeiro' && financeiroOpen && renderSubMenu(financeiroItems, 'financeiro')}
+                {item.id === 'relatorios' && relatoriosOpen && renderSubMenu(relatoriosItems, 'relatorios')}
+                {item.id === 'configuracoes' && configuracoesOpen && renderSubMenu(configuracoesItems, 'configuracoes')}
+                {item.id === 'entregas' && entregasOpen && renderSubMenu(entregasItems, 'entregas')}
+                {item.id === 'carteira' && carteiraOpen && renderSubMenu(carteiraItems, 'carteira')}
+                {item.id === 'conta' && contaOpen && renderSubMenu(contaItems, 'conta')}
                 
               </li>
             );

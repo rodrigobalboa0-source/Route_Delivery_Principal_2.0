@@ -3,6 +3,10 @@ import type { Database } from '../lib/database.types';
 
 type DeliveryPerson = Database['public']['Tables']['delivery_persons']['Row'];
 
+export interface MapDeliveryPerson extends DeliveryPerson {
+  foto_url?: string | null;
+}
+
 type GLMap = {
   on: (event: string, handler: (ev?: unknown) => void) => void;
   remove: () => void;
@@ -11,6 +15,7 @@ type GLMap = {
   getSource: (id: string) => { setData: (data: unknown) => void } | undefined;
   removeLayer: (id: string) => void;
   removeSource: (id: string) => void;
+  flyTo: (options: unknown) => void;
 };
 
 type GLMarker = {
@@ -26,7 +31,7 @@ type GLPopup = {
 };
 
 interface MapViewProps {
-  deliveryPersons: DeliveryPerson[];
+  deliveryPersons: MapDeliveryPerson[];
   center?: [number, number];
   destination?: [number, number];
   route?: Array<[number, number]>;
@@ -100,16 +105,30 @@ export function MapView({ deliveryPersons, center = [-23.5505, -46.6333], destin
         setMapLoaded(true);
       });
 
-      map.current.on('error', () => {
-        setMapError('Erro ao carregar o mapa.');
+      map.current.on('error', (e) => {
+        console.error('MapLibre error:', e);
+        
       });
+    };
+
+    script.onerror = () => {
+      setMapError('Erro ao carregar script do mapa.');
     };
 
     return () => {
       map.current?.remove();
       map.current = null;
     };
-  }, [center]);
+  }, []); 
+
+  useEffect(() => {
+    if (!map.current || !center) return;
+    map.current.flyTo({
+      center: [center[1], center[0]],
+      zoom: 12,
+      essential: true
+    });
+  }, [center[0], center[1]]);
 
   useEffect(() => {
     if (!mapLoaded || !map.current) return;
@@ -123,28 +142,57 @@ export function MapView({ deliveryPersons, center = [-23.5505, -46.6333], destin
 
       const existingMarker = markers.current.get(person.id);
 
+      const getMarkerColor = (p: MapDeliveryPerson) => {
+        if (!p.is_online) return '#6b7280';
+        if (p.status === 'disponivel') return '#0ea5e9';
+        if (p.status === 'em_entrega') return '#3b82f6';
+        return '#6b7280';
+      };
+
+      const getMarkerHtml = (p: MapDeliveryPerson) => {
+        const color = getMarkerColor(p);
+        const photoHtml = p.foto_url 
+          ? `<div style="position: absolute; bottom: 45px; left: 50%; transform: translateX(-50%); width: 48px; height: 48px; border-radius: 50%; overflow: hidden; border: 3px solid white; background: white; box-shadow: 0 4px 6px rgba(0,0,0,0.2); z-index: 20;">
+               <img src="${p.foto_url}" style="width: 100%; height: 100%; object-fit: cover;" />
+             </div>` 
+          : '';
+        
+        return `
+          <div style="position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; overflow: visible;">
+            ${photoHtml}
+            <svg viewBox="0 0 24 24" style="width: 56px; height: 56px; color: ${color}; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); transform: translateY(-4px);">
+               <path fill="currentColor" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+               <circle cx="12" cy="9" r="3.5" fill="white" fill-opacity="0.4" />
+            </svg>
+          </div>
+        `;
+      };
+
       if (existingMarker) {
         existingMarker.setLngLat([person.current_longitude, person.current_latitude]);
 
         const el = existingMarker.getElement();
         el.className = `marker ${person.status} ${person.is_online ? 'online' : 'offline'}`;
+        el.style.width = '48px';
+        el.style.height = '48px';
+        el.style.backgroundColor = 'transparent';
+        el.style.border = 'none';
+        el.style.borderRadius = '0';
+        el.style.backgroundImage = 'none';
+        el.style.boxShadow = 'none';
+        el.style.overflow = 'visible';
+        
+        el.innerHTML = getMarkerHtml(person);
       } else {
         const el = document.createElement('div');
         el.className = `marker ${person.status} ${person.is_online ? 'online' : 'offline'}`;
-        el.style.width = '32px';
-        el.style.height = '32px';
-        el.style.borderRadius = '50%';
-        el.style.border = '3px solid white';
-        el.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
+        el.style.width = '48px';
+        el.style.height = '48px';
         el.style.cursor = 'pointer';
-
-        if (person.status === 'disponivel') {
-          el.style.backgroundColor = '#0ea5e9';
-        } else if (person.status === 'em_entrega') {
-          el.style.backgroundColor = '#3b82f6';
-        } else {
-          el.style.backgroundColor = '#6b7280';
-        }
+        el.style.backgroundColor = 'transparent';
+        el.style.overflow = 'visible';
+        
+        el.innerHTML = getMarkerHtml(person);
 
         const w = window as unknown as {
           maplibregl: {

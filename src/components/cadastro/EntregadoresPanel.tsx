@@ -244,87 +244,112 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
     }
     const idNew = (r.data?.id || '') as string;
     if (idNew) {
+      let finalFotoUrl = '';
+      let finalFotoBase64 = '';
+      let finalCnhUrl = '';
+      let finalCnhBase64 = '';
+      let finalCompUrl = '';
+      let finalCompBase64 = '';
+      let finalMotoUrl = '';
+      let finalMotoBase64 = '';
+
       if (fotoFile) {
         try {
           const name = `entregadores/${idNew}/foto-${Date.now()}-${(fotoFile.name || 'foto').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
           const up = await (supabase as unknown as { storage: { from: (b: string) => { upload: (p: string, f: File, o?: unknown) => Promise<{ data?: { path?: string }; error?: { message?: string } }>; getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').upload(name, fotoFile, { upsert: true });
           if (!up.error && up.data?.path) {
-            const url = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
-            form.foto_url = url;
+            finalFotoUrl = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
           } else {
             const reader = new FileReader();
-            reader.onload = () => { form.foto_base64 = String(reader.result || ''); };
-            reader.readAsDataURL(fotoFile);
+            await new Promise((resolve) => {
+                reader.onload = () => { finalFotoBase64 = String(reader.result || ''); resolve(true); };
+                reader.readAsDataURL(fotoFile);
+            });
           }
         } catch {
-          const reader = new FileReader();
-          reader.onload = () => { form.foto_base64 = String(reader.result || ''); };
-          reader.readAsDataURL(fotoFile);
+            const reader = new FileReader();
+            await new Promise((resolve) => {
+                reader.onload = () => { finalFotoBase64 = String(reader.result || ''); resolve(true); };
+                reader.readAsDataURL(fotoFile);
+            });
         }
       }
+
       if (cnhFile) {
         try {
           const name = `entregadores/${idNew}/cnh-${Date.now()}-${(cnhFile.name || 'cnh').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
           const up = await (supabase as unknown as { storage: { from: (b: string) => { upload: (p: string, f: File, o?: unknown) => Promise<{ data?: { path?: string }; error?: { message?: string } }>; getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').upload(name, cnhFile, { upsert: true });
           if (!up.error && up.data?.path) {
-            const url = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
-            form.cnh_foto_url = url;
+            finalCnhUrl = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
           } else {
             const reader = new FileReader();
-            reader.onload = () => { form.cnh_foto_base64 = String(reader.result || ''); };
-            reader.readAsDataURL(cnhFile);
+            await new Promise((resolve) => {
+                reader.onload = () => { finalCnhBase64 = String(reader.result || ''); resolve(true); };
+                reader.readAsDataURL(cnhFile);
+            });
           }
         } catch {
-          const reader = new FileReader();
-          reader.onload = () => { form.cnh_foto_base64 = String(reader.result || ''); };
-          reader.readAsDataURL(cnhFile);
+            const reader = new FileReader();
+            await new Promise((resolve) => {
+                reader.onload = () => { finalCnhBase64 = String(reader.result || ''); resolve(true); };
+                reader.readAsDataURL(cnhFile);
+            });
         }
       }
+
       if (comprovanteFile) {
         try {
           const name = `entregadores/${idNew}/comprovante-${Date.now()}-${(comprovanteFile.name || 'comprovante').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
           const up = await (supabase as unknown as { storage: { from: (b: string) => { upload: (p: string, f: File, o?: unknown) => Promise<{ data?: { path?: string }; error?: { message?: string } }>; getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').upload(name, comprovanteFile, { upsert: true });
           if (!up.error && up.data?.path) {
-            const url = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
-            form.comprovante_residencia_url = url;
+            finalCompUrl = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
           } else {
             const reader = new FileReader();
-            reader.onload = () => { form.comprovante_residencia_base64 = String(reader.result || ''); };
-            reader.readAsDataURL(comprovanteFile);
+            await new Promise((resolve) => {
+                reader.onload = () => { finalCompBase64 = String(reader.result || ''); resolve(true); };
+                reader.readAsDataURL(comprovanteFile);
+            });
           }
         } catch {
-          const reader = new FileReader();
-          reader.onload = () => { form.comprovante_residencia_base64 = String(reader.result || ''); };
-          reader.readAsDataURL(comprovanteFile);
+            const reader = new FileReader();
+            await new Promise((resolve) => {
+                reader.onload = () => { finalCompBase64 = String(reader.result || ''); resolve(true); };
+                reader.readAsDataURL(comprovanteFile);
+            });
         }
       }
+
       if (motoDocFile) {
         try {
           const name = `entregadores/${idNew}/motodoc-${Date.now()}-${(motoDocFile.name || 'motodoc').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
           const up = await (supabase as unknown as { storage: { from: (b: string) => { upload: (p: string, f: File, o?: unknown) => Promise<{ data?: { path?: string }; error?: { message?: string } }>; getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').upload(name, motoDocFile, { upsert: true });
           if (!up.error && up.data?.path) {
-            const url = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
-            form.documento_veiculo_url = url;
+            finalMotoUrl = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
           } else {
             const reader = new FileReader();
-            reader.onload = () => { form.documento_veiculo_base64 = String(reader.result || ''); };
-            reader.readAsDataURL(motoDocFile);
+            await new Promise((resolve) => {
+                reader.onload = () => { finalMotoBase64 = String(reader.result || ''); resolve(true); };
+                reader.readAsDataURL(motoDocFile);
+            });
           }
         } catch {
-          const reader = new FileReader();
-          reader.onload = () => { form.documento_veiculo_base64 = String(reader.result || ''); };
-          reader.readAsDataURL(motoDocFile);
+            const reader = new FileReader();
+            await new Promise((resolve) => {
+                reader.onload = () => { finalMotoBase64 = String(reader.result || ''); resolve(true); };
+                reader.readAsDataURL(motoDocFile);
+            });
         }
       }
+
       await (supabase as unknown as { from: (t: string) => { update: (v: unknown) => { eq: (c: string, v: unknown) => Promise<unknown> } } }).from('entregadores').update({
-        foto_url: form.foto_url || null,
-        foto_base64: form.foto_base64 || null,
-        cnh_foto_url: form.cnh_foto_url || null,
-        cnh_foto_base64: form.cnh_foto_base64 || null,
-        comprovante_residencia_url: form.comprovante_residencia_url || null,
-        comprovante_residencia_base64: form.comprovante_residencia_base64 || null,
-        documento_veiculo_url: form.documento_veiculo_url || null,
-        documento_veiculo_base64: form.documento_veiculo_base64 || null,
+        foto_url: finalFotoUrl || null,
+        foto_base64: finalFotoBase64 || null,
+        cnh_foto_url: finalCnhUrl || null,
+        cnh_foto_base64: finalCnhBase64 || null,
+        comprovante_residencia_url: finalCompUrl || null,
+        comprovante_residencia_base64: finalCompBase64 || null,
+        documento_veiculo_url: finalMotoUrl || null,
+        documento_veiculo_base64: finalMotoBase64 || null,
       }).eq('id', idNew);
     }
 
@@ -426,6 +451,16 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
     if (!editing) return;
     setLoading(true);
     setError(null);
+
+    let finalFotoUrl = (editForm as any).foto_url;
+    let finalFotoBase64 = (editForm as any).foto_base64;
+    let finalCnhUrl = (editForm as any).cnh_foto_url;
+    let finalCnhBase64 = (editForm as any).cnh_foto_base64;
+    let finalCompUrl = (editForm as any).comprovante_residencia_url;
+    let finalCompBase64 = (editForm as any).comprovante_residencia_base64;
+    let finalMotoUrl = (editForm as any).documento_veiculo_url;
+    let finalMotoBase64 = (editForm as any).documento_veiculo_base64;
+
     if (editing?.id) {
       if ((editForm as any).nova_senha) {
         try {
@@ -459,40 +494,88 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
           const name = `entregadores/${editing.id}/foto-${Date.now()}-${(editFotoFile.name || 'foto').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
           const up = await (supabase as unknown as { storage: { from: (b: string) => { upload: (p: string, f: File, o?: unknown) => Promise<{ data?: { path?: string }; error?: { message?: string } }>; getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').upload(name, editFotoFile, { upsert: true });
           if (!up.error && up.data?.path) {
-            const url = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
-            setEditForm((prev) => ({ ...prev, foto_url: url, foto_base64: '' } as any));
+            finalFotoUrl = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
+            finalFotoBase64 = null;
+          } else {
+             const reader = new FileReader();
+             await new Promise((resolve) => {
+                 reader.onload = () => { finalFotoBase64 = String(reader.result || ''); resolve(true); };
+                 reader.readAsDataURL(editFotoFile);
+             });
           }
-        } catch (e) { void e; }
+        } catch (e) { 
+             const reader = new FileReader();
+             await new Promise((resolve) => {
+                 reader.onload = () => { finalFotoBase64 = String(reader.result || ''); resolve(true); };
+                 reader.readAsDataURL(editFotoFile);
+             });
+        }
       }
       if (editCnhFile) {
         try {
           const name = `entregadores/${editing.id}/cnh-${Date.now()}-${(editCnhFile.name || 'cnh').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
           const up = await (supabase as unknown as { storage: { from: (b: string) => { upload: (p: string, f: File, o?: unknown) => Promise<{ data?: { path?: string }; error?: { message?: string } }>; getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').upload(name, editCnhFile, { upsert: true });
           if (!up.error && up.data?.path) {
-            const url = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
-            setEditForm((prev) => ({ ...prev, cnh_foto_url: url, cnh_foto_base64: '' } as any));
+            finalCnhUrl = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
+            finalCnhBase64 = null;
+          } else {
+             const reader = new FileReader();
+             await new Promise((resolve) => {
+                 reader.onload = () => { finalCnhBase64 = String(reader.result || ''); resolve(true); };
+                 reader.readAsDataURL(editCnhFile);
+             });
           }
-        } catch (e) { void e; }
+        } catch (e) { 
+             const reader = new FileReader();
+             await new Promise((resolve) => {
+                 reader.onload = () => { finalCnhBase64 = String(reader.result || ''); resolve(true); };
+                 reader.readAsDataURL(editCnhFile);
+             });
+        }
       }
       if (editComprovanteFile) {
         try {
           const name = `entregadores/${editing.id}/comprovante-${Date.now()}-${(editComprovanteFile.name || 'comprovante').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
           const up = await (supabase as unknown as { storage: { from: (b: string) => { upload: (p: string, f: File, o?: unknown) => Promise<{ data?: { path?: string }; error?: { message?: string } }>; getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').upload(name, editComprovanteFile, { upsert: true });
           if (!up.error && up.data?.path) {
-            const url = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
-            setEditForm((prev) => ({ ...prev, comprovante_residencia_url: url, comprovante_residencia_base64: '' } as any));
+            finalCompUrl = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
+            finalCompBase64 = null;
+          } else {
+             const reader = new FileReader();
+             await new Promise((resolve) => {
+                 reader.onload = () => { finalCompBase64 = String(reader.result || ''); resolve(true); };
+                 reader.readAsDataURL(editComprovanteFile);
+             });
           }
-        } catch (e) { void e; }
+        } catch (e) { 
+             const reader = new FileReader();
+             await new Promise((resolve) => {
+                 reader.onload = () => { finalCompBase64 = String(reader.result || ''); resolve(true); };
+                 reader.readAsDataURL(editComprovanteFile);
+             });
+        }
       }
       if (editMotoDocFile) {
         try {
           const name = `entregadores/${editing.id}/motodoc-${Date.now()}-${(editMotoDocFile.name || 'motodoc').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
           const up = await (supabase as unknown as { storage: { from: (b: string) => { upload: (p: string, f: File, o?: unknown) => Promise<{ data?: { path?: string }; error?: { message?: string } }>; getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').upload(name, editMotoDocFile, { upsert: true });
           if (!up.error && up.data?.path) {
-            const url = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
-            setEditForm((prev) => ({ ...prev, documento_veiculo_url: url, documento_veiculo_base64: '' } as any));
+            finalMotoUrl = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
+            finalMotoBase64 = null;
+          } else {
+             const reader = new FileReader();
+             await new Promise((resolve) => {
+                 reader.onload = () => { finalMotoBase64 = String(reader.result || ''); resolve(true); };
+                 reader.readAsDataURL(editMotoDocFile);
+             });
           }
-        } catch (e) { void e; }
+        } catch (e) { 
+             const reader = new FileReader();
+             await new Promise((resolve) => {
+                 reader.onload = () => { finalMotoBase64 = String(reader.result || ''); resolve(true); };
+                 reader.readAsDataURL(editMotoDocFile);
+             });
+        }
       }
     }
     const res = await (supabase as unknown as { from: (t: string) => { update: (v: unknown) => { eq: (c: string, v: unknown) => Promise<unknown> } } })
@@ -518,14 +601,14 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
         tipo_entrega: (editForm.tipo_entrega || null) as Entregador['tipo_entrega'],
         taxa_entrega: editForm.taxa_entrega ? Number(editForm.taxa_entrega) : null,
         status: editForm.status as Entregador['status'],
-        foto_url: (editForm as any).foto_url || null,
-        foto_base64: (editForm as any).foto_base64 || null,
-        cnh_foto_url: (editForm as any).cnh_foto_url || null,
-        cnh_foto_base64: (editForm as any).cnh_foto_base64 || null,
-        comprovante_residencia_url: (editForm as any).comprovante_residencia_url || null,
-        comprovante_residencia_base64: (editForm as any).comprovante_residencia_base64 || null,
-        documento_veiculo_url: (editForm as any).documento_veiculo_url || null,
-        documento_veiculo_base64: (editForm as any).documento_veiculo_base64 || null,
+        foto_url: finalFotoUrl || null,
+        foto_base64: finalFotoBase64 || null,
+        cnh_foto_url: finalCnhUrl || null,
+        cnh_foto_base64: finalCnhBase64 || null,
+        comprovante_residencia_url: finalCompUrl || null,
+        comprovante_residencia_base64: finalCompBase64 || null,
+        documento_veiculo_url: finalMotoUrl || null,
+        documento_veiculo_base64: finalMotoBase64 || null,
         restricao_clientes_modo: (editForm as any).restricao_clientes_modo || 'todos',
         clientes_permitidos: (editForm as any).clientes_permitidos || [],
       })
