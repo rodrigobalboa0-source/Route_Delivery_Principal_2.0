@@ -53,6 +53,7 @@ import { IntegracoesExternasPanel } from './components/configuracoes/Integracoes
 import { IntegracoesOpenDeliveryPanel } from './components/configuracoes/IntegracoesOpenDeliveryPanel';
 import { ConfiguracoesOperacaoPanel } from './components/configuracoes/ConfiguracoesOperacaoPanel';
 import { FinanceiroDashboard } from './components/FinanceiroDashboard';
+import { NotificationManager } from './components/NotificationManager';
 
 import { EntregadorExtratoPanel } from './components/entregador/EntregadorExtratoPanel';
 import { EntregadorMinhaContaPanel } from './components/entregador/EntregadorMinhaContaPanel';
@@ -239,6 +240,7 @@ function App() {
 
   return (
     <div className="flex flex-col h-screen bg-slate-100">
+      <NotificationManager userId={userId || ''} userRole={userRole} />
       <TopBar
         onMenuToggle={() => setSidebarOpen((v) => !v)}
         onLogout={handleLogout}

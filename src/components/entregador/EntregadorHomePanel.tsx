@@ -44,13 +44,13 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
           return;
         }
 
-        // Tenta obter a posição inicial com timeout
+        
         let initialPositionLoaded = false;
         try {
           const position = await Geolocation.getCurrentPosition({
             enableHighAccuracy: true,
             timeout: 5000,
-            maximumAge: Infinity // Aceita posição em cache para ser mais rápido
+            maximumAge: Infinity
           });
           
           setUserLocation({
@@ -62,7 +62,6 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
           console.warn('Timeout ou erro ao obter posição inicial, aguardando watchPosition', e);
         }
         
-        // Se já carregou a posição inicial, remove o loading
         if (initialPositionLoaded) {
           setLoadingLocation(false);
         }
@@ -80,7 +79,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
           }
           if (err) {
             console.error('Erro ao observar localização:', err);
-            // Se der erro no watch e ainda estiver carregando, encerra o loading
+           
             setLoadingLocation((prev) => {
                 if (prev) return false;
                 return prev;
