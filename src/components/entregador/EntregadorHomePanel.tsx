@@ -113,13 +113,11 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
     };
   }, []);
 
-  // Effect to push location to DB
   useEffect(() => {
     const pushLocation = async () => {
       if (!entregadorId || !userLocation || !isOnline) return;
 
       const now = Date.now();
-      // Throttle updates to every 10 seconds
       if (now - lastLocationUpdateRef.current < 10000) return;
 
       try {
@@ -127,7 +125,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
           current_latitude: userLocation.lat,
           current_longitude: userLocation.lng,
           last_location_update: new Date().toISOString(),
-          is_online: true // Ensure it stays online
+          is_online: true 
         }).eq('id', entregadorId);
         
         lastLocationUpdateRef.current = now;
@@ -147,13 +145,11 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
     try {
       await supabase.from('entregadores').update({
         is_online: newState,
-        // If going offline, maybe clear location or just update status?
-        // We'll update the timestamp at least.
         last_location_update: new Date().toISOString()
       }).eq('id', entregadorId);
     } catch (e) {
       console.error('Erro ao atualizar status online:', e);
-      setIsOnline(!newState); // Revert on error
+      setIsOnline(!newState); 
     }
   };
 
@@ -176,19 +172,36 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto h-full flex flex-col">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold flex items-center gap-2 text-slate-800">
-          <Home className="w-6 h-6" />
-          Home
-        </h1>
-        
+    <div className="h-full w-full relative bg-slate-100">
+      {/* Map covering the full screen */}
+      <div className="absolute inset-0 z-0">
+         {loadingLocation ? (
+           <div className="absolute inset-0 flex items-center justify-center bg-slate-50">
+             <div className="text-slate-500 flex flex-col items-center gap-2">
+               <div className="w-6 h-6 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
+               <span>Obtendo localização...</span>
+             </div>
+           </div>
+         ) : userLocation ? (
+           <MapView 
+             deliveryPersons={getFakeDeliveryPerson() ? [getFakeDeliveryPerson()!] : []}
+             center={[userLocation.lat, userLocation.lng]}
+           />
+         ) : (
+           <div className="absolute inset-0 flex items-center justify-center bg-slate-50 text-slate-500 px-6 text-center">
+             Não foi possível obter sua localização. Verifique as permissões do navegador.
+           </div>
+         )}
+      </div>
+
+      {/* Floating Header Elements */}
+      <div className="absolute top-4 left-4 z-10">
         <button
           onClick={toggleOnline}
-          className={`flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition-all shadow-sm ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition-all shadow-md ${
             isOnline 
-              ? 'bg-green-100 text-green-700 border border-green-200 hover:bg-green-200' 
-              : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'
+              ? 'bg-green-500 text-white border-2 border-green-600 hover:bg-green-600' 
+              : 'bg-slate-700 text-white border-2 border-slate-800 hover:bg-slate-800'
           }`}
         >
           <Power size={18} />
@@ -196,58 +209,32 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
         </button>
       </div>
 
-      <div className="flex-1 flex flex-col gap-6">
-        {/* Map Section */}
-        <div className="bg-white p-1 rounded-lg shadow-md border border-slate-200 flex-1 min-h-[300px] relative overflow-hidden flex flex-col">
-          <div className="absolute top-2 left-2 z-10 bg-white/90 px-3 py-1 rounded-full text-xs font-medium text-slate-600 shadow-sm">
-            Sua localização atual
-          </div>
+      <div className="absolute top-4 right-4 z-10 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg px-4 py-2 min-w-[120px] flex flex-col items-center border border-slate-200">
+         <span className="text-xs text-slate-500 font-bold uppercase mb-0.5">Ganhos</span>
+         <span className="text-lg font-bold text-slate-800 leading-none">R$ 0,00</span>
+      </div>
 
-          <div className="absolute top-2 right-2 z-10 bg-white rounded-lg shadow-lg px-4 py-2 min-w-[120px] flex flex-col items-center border border-slate-100">
-             <span className="text-xs text-slate-500 font-bold uppercase mb-0.5">Ganhos</span>
-             <span className="text-lg font-bold text-slate-800 leading-none">R$ 0,00</span>
-          </div>
-          <div className="flex-1 rounded-lg overflow-hidden relative">
-             {loadingLocation ? (
-               <div className="absolute inset-0 flex items-center justify-center bg-slate-50">
-                 <div className="text-slate-500 flex flex-col items-center gap-2">
-                   <div className="w-6 h-6 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
-                   <span>Obtendo localização...</span>
-                 </div>
-               </div>
-             ) : userLocation ? (
-               <MapView 
-                 deliveryPersons={getFakeDeliveryPerson() ? [getFakeDeliveryPerson()!] : []}
-                 center={[userLocation.lat, userLocation.lng]}
-               />
-             ) : (
-               <div className="absolute inset-0 flex items-center justify-center bg-slate-50 text-slate-500 px-6 text-center">
-                 Não foi possível obter sua localização. Verifique as permissões do navegador.
-               </div>
-             )}
-          </div>
-        </div>
-
-        {/* Buttons Section */}
-        <div className="grid grid-cols-2 gap-4 h-32">
+      {/* Floating Bottom Buttons */}
+      <div className="absolute bottom-6 left-4 right-4 z-10">
+        <div className="grid grid-cols-2 gap-4">
           <button
             onClick={() => onNavigate('entregas_disponiveis')}
-            className="flex flex-col items-center justify-center gap-3 bg-white hover:bg-sky-50 border-2 border-sky-100 hover:border-sky-300 rounded-xl transition-all shadow-sm group"
+            className="flex flex-col items-center justify-center py-3 bg-white/95 backdrop-blur-sm hover:bg-sky-50 border-2 border-sky-100 hover:border-sky-300 rounded-xl transition-all shadow-lg group"
           >
-            <div className="w-12 h-12 rounded-full bg-sky-100 text-sky-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <MapPin size={24} />
+            <div className="w-8 h-8 rounded-full bg-sky-100 text-sky-600 flex items-center justify-center group-hover:scale-110 transition-transform mb-1">
+              <MapPin size={18} />
             </div>
-            <span className="font-semibold text-slate-700 text-lg">Entregas Disponíveis</span>
+            <span className="font-semibold text-slate-700 text-sm">Disponíveis</span>
           </button>
 
           <button
             onClick={() => onNavigate('entregas_andamento')}
-            className="flex flex-col items-center justify-center gap-3 bg-white hover:bg-emerald-50 border-2 border-emerald-100 hover:border-emerald-300 rounded-xl transition-all shadow-sm group"
+            className="flex flex-col items-center justify-center py-3 bg-white/95 backdrop-blur-sm hover:bg-emerald-50 border-2 border-emerald-100 hover:border-emerald-300 rounded-xl transition-all shadow-lg group"
           >
-            <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <Truck size={24} />
+            <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform mb-1">
+              <Truck size={18} />
             </div>
-            <span className="font-semibold text-slate-700 text-lg">Em Andamento</span>
+            <span className="font-semibold text-slate-700 text-sm">Em Andamento</span>
           </button>
         </div>
       </div>
