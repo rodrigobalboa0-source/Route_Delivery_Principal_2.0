@@ -12,12 +12,23 @@ interface EntregadorHomePanelProps {
 }
 
 export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
-  const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
-  const [loadingLocation, setLoadingLocation] = useState(true);
+  const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(() => {
+    try {
+      const saved = localStorage.getItem('last_known_location');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
+  const [loadingLocation, setLoadingLocation] = useState(!userLocation);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(false);
   const [entregadorId, setEntregadorId] = useState<string | null>(null);
   const lastLocationUpdateRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (userLocation) {
+      localStorage.setItem('last_known_location', JSON.stringify(userLocation));
+    }
+  }, [userLocation]);
 
   useEffect(() => {
     const fetchProfile = async () => {

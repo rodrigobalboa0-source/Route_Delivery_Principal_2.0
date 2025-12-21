@@ -23,6 +23,7 @@ type GLMarker = {
   getElement: () => HTMLElement;
   addTo: (map: GLMap) => GLMarker;
   setPopup: (popup: unknown) => GLMarker;
+  getPopup: () => GLPopup;
   remove: () => void;
 };
 
@@ -183,6 +184,17 @@ export function MapView({ deliveryPersons, center = [-23.5505, -46.6333], destin
         el.style.overflow = 'visible';
         
         el.innerHTML = getMarkerHtml(person);
+
+        const popup = existingMarker.getPopup();
+        if (popup) {
+          popup.setHTML(
+            `<div style="padding: 8px;">
+              <strong>${person.name}</strong><br/>
+              <span>Status: ${person.status}</span><br/>
+              <span>${person.is_online ? '🟢 Online' : '🔴 Offline'}</span>
+            </div>`
+          );
+        }
       } else {
         const el = document.createElement('div');
         el.className = `marker ${person.status} ${person.is_online ? 'online' : 'offline'}`;
