@@ -10,7 +10,6 @@ export function EntregadorEntregasDisponiveisPanel() {
   useEffect(() => {
     fetchEntregas();
     
-    // Subscribe to changes
     const subscription = supabase
       .channel('nova_entrega_disponiveis')
       .on('postgres_changes', { 
@@ -29,8 +28,7 @@ export function EntregadorEntregasDisponiveisPanel() {
 
   async function fetchEntregas() {
     try {
-      // Fetch deliveries that are 'criada' and have no entregador assigned
-      // RLS should filter this, but we add explicit filters for safety/clarity
+      
       const { data, error } = await supabase
         .from('nova_entrega')
         .select(`
@@ -59,7 +57,7 @@ export function EntregadorEntregasDisponiveisPanel() {
       if (error) throw error;
       
       if (data && data.success) {
-        // Remove from list immediately
+        
         setEntregas(prev => prev.filter(e => e.id !== id));
       } else {
         alert(data?.message || 'Erro ao aceitar entrega');

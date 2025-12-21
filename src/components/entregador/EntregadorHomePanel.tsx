@@ -32,32 +32,59 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
 
     const startWatching = async () => {
       try {
-        const permission = await Geolocation.checkPermissions();
-        if (permission.location !== 'granted') {
-          const request = await Geolocation.requestPermissions();
-          if (request.location !== 'granted') {
-            console.error('Permissão de localização negada');
-            setLoadingLocation(false);
-            return;
-          }
+        let permResult = await Geolocation.checkPermissions();
+        
+        if (permResult.location !== 'granted') {
+          permResult = await Geolocation.requestPermissions();
         }
 
-        const position = await Geolocation.getCurrentPosition();
-        setUserLocation({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude
-        });
-        setLoadingLocation(false);
+        if (permResult.location !== 'granted') {
+          console.error('Permissão de localização negada');
+          setLoadingLocation(false);
+          return;
+        }
 
-        watchId = await Geolocation.watchPosition({ enableHighAccuracy: true }, (position, err) => {
+        // Tenta obter a posição inicial com timeout
+        let initialPositionLoaded = false;
+        try {
+          const position = await Geolocation.getCurrentPosition({
+            enableHighAccuracy: true,
+            timeout: 5000,
+            maximumAge: Infinity // Aceita posição em cache para ser mais rápido
+          });
+          
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          });
+          initialPositionLoaded = true;
+        } catch (e) {
+          console.warn('Timeout ou erro ao obter posição inicial, aguardando watchPosition', e);
+        }
+        
+        // Se já carregou a posição inicial, remove o loading
+        if (initialPositionLoaded) {
+          setLoadingLocation(false);
+        }
+
+        watchId = await Geolocation.watchPosition({ 
+          enableHighAccuracy: true,
+          timeout: 10000 
+        }, (position, err) => {
           if (position) {
             setUserLocation({
               lat: position.coords.latitude,
               lng: position.coords.longitude
             });
+            setLoadingLocation(false);
           }
           if (err) {
             console.error('Erro ao observar localização:', err);
+            // Se der erro no watch e ainda estiver carregando, encerra o loading
+            setLoadingLocation((prev) => {
+                if (prev) return false;
+                return prev;
+            });
           }
         });
       } catch (e) {

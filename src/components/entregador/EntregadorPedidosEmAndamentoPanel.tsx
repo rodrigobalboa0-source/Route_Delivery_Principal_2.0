@@ -44,26 +44,44 @@ export function EntregadorPedidosEmAndamentoPanel() {
 
     const startWatching = async () => {
       try {
-        const permission = await Geolocation.checkPermissions();
-        if (permission.location !== 'granted') {
-          const request = await Geolocation.requestPermissions();
-          if (request.location !== 'granted') {
-            return;
-          }
+        let permResult = await Geolocation.checkPermissions();
+        
+        if (permResult.location !== 'granted') {
+          permResult = await Geolocation.requestPermissions();
         }
 
-        const position = await Geolocation.getCurrentPosition();
-        setUserLocation({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude
-        });
+        if (permResult.location !== 'granted') {
+          console.error('Permissão de localização negada');
+          return;
+        }
 
-        watchId = await Geolocation.watchPosition({ enableHighAccuracy: true }, (position, err) => {
+        try {
+          const position = await Geolocation.getCurrentPosition({
+            enableHighAccuracy: true,
+            timeout: 5000,
+            maximumAge: Infinity
+          });
+          
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          });
+        } catch (e) {
+          console.warn('Erro ao obter posição inicial, aguardando watchPosition', e);
+        }
+
+        watchId = await Geolocation.watchPosition({ 
+          enableHighAccuracy: true,
+          timeout: 10000 
+        }, (position, err) => {
           if (position) {
             setUserLocation({
               lat: position.coords.latitude,
               lng: position.coords.longitude
             });
+          }
+          if (err) {
+            console.error('Erro ao observar localização:', err);
           }
         });
       } catch (e) {
