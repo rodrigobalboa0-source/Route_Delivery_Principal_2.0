@@ -103,8 +103,6 @@ export function OperationsDashboard() {
         const ent = e as any;
         const baseStatus = e.status === 'ativo' ? 'disponivel' : 'inativo';
         const status: MapDeliveryPerson['status'] = entregasAtivas.has(e.id) ? 'em_entrega' : baseStatus;
-        
-        // Use database field is_online if available
         const is_online = ent.is_online === true;
         
         return {

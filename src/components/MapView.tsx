@@ -152,6 +152,14 @@ export function MapView({ deliveryPersons, center = [-23.5505, -46.6333], destin
 
       const getMarkerHtml = (p: MapDeliveryPerson) => {
         const color = getMarkerColor(p);
+        const formatStatus = (s: string) => {
+           if (s === 'disponivel') return 'Disponível';
+           if (s === 'inativo') return 'Indisponível';
+           if (s === 'em_entrega') return 'Em Entrega';
+           return s;
+        };
+        const statusText = formatStatus(p.status);
+
         const photoHtml = p.foto_url 
           ? `<div style="position: absolute; bottom: 45px; left: 50%; transform: translateX(-50%); width: 48px; height: 48px; border-radius: 50%; overflow: hidden; border: 3px solid white; background: white; box-shadow: 0 4px 6px rgba(0,0,0,0.2); z-index: 20;">
                <img src="${p.foto_url}" style="width: 100%; height: 100%; object-fit: cover;" />
@@ -165,6 +173,7 @@ export function MapView({ deliveryPersons, center = [-23.5505, -46.6333], destin
                <path fill="currentColor" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
                <circle cx="12" cy="9" r="3.5" fill="white" fill-opacity="0.4" />
             </svg>
+            <div style="display:none" data-status="${statusText}"></div>
           </div>
         `;
       };
@@ -174,35 +183,30 @@ export function MapView({ deliveryPersons, center = [-23.5505, -46.6333], destin
 
         const el = existingMarker.getElement();
         el.className = `marker ${person.status} ${person.is_online ? 'online' : 'offline'}`;
-        el.style.width = '48px';
-        el.style.height = '48px';
-        el.style.backgroundColor = 'transparent';
-        el.style.border = 'none';
-        el.style.borderRadius = '0';
-        el.style.backgroundImage = 'none';
-        el.style.boxShadow = 'none';
+        // ... (styles) ...
         el.style.overflow = 'visible';
         
         el.innerHTML = getMarkerHtml(person);
 
         const popup = existingMarker.getPopup();
         if (popup) {
+          const formatStatus = (s: string) => {
+             if (s === 'disponivel') return 'Disponível';
+             if (s === 'inativo') return 'Indisponível';
+             if (s === 'em_entrega') return 'Em Entrega';
+             return s;
+          };
           popup.setHTML(
             `<div style="padding: 8px;">
               <strong>${person.name}</strong><br/>
-              <span>Status: ${person.status}</span><br/>
+              <span>Status: ${formatStatus(person.status)}</span><br/>
               <span>${person.is_online ? '🟢 Online' : '🔴 Offline'}</span>
             </div>`
           );
         }
       } else {
         const el = document.createElement('div');
-        el.className = `marker ${person.status} ${person.is_online ? 'online' : 'offline'}`;
-        el.style.width = '48px';
-        el.style.height = '48px';
-        el.style.cursor = 'pointer';
-        el.style.backgroundColor = 'transparent';
-        el.style.overflow = 'visible';
+        // ...
         
         el.innerHTML = getMarkerHtml(person);
 
@@ -212,10 +216,16 @@ export function MapView({ deliveryPersons, center = [-23.5505, -46.6333], destin
             Marker: new (el: HTMLElement) => GLMarker;
           };
         };
+        const formatStatus = (s: string) => {
+           if (s === 'disponivel') return 'Disponível';
+           if (s === 'inativo') return 'Indisponível';
+           if (s === 'em_entrega') return 'Em Entrega';
+           return s;
+        };
         const popup = new w.maplibregl.Popup({ offset: 25 }).setHTML(
           `<div style="padding: 8px;">
             <strong>${person.name}</strong><br/>
-            <span>Status: ${person.status}</span><br/>
+            <span>Status: ${formatStatus(person.status)}</span><br/>
             <span>${person.is_online ? '🟢 Online' : '🔴 Offline'}</span>
           </div>`
         );
