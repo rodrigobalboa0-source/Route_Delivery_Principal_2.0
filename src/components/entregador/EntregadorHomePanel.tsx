@@ -150,6 +150,13 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
 
   const toggleOnline = async () => {
     if (!entregadorId) return;
+
+    if (!isOnline && !photoUrl) {
+      alert('Você precisa cadastrar uma foto de perfil antes de ficar online.');
+      onNavigate('conta_minha_conta');
+      return;
+    }
+
     const newState = !isOnline;
     setIsOnline(newState);
     
@@ -171,7 +178,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
       name: 'Você',
       email: '',
       phone: '',
-      status: 'disponivel',
+      status: isOnline ? 'disponivel' : 'inativo',
       is_online: isOnline,
       current_latitude: userLocation.lat,
       current_longitude: userLocation.lng,
