@@ -69,7 +69,7 @@ export function OperationsDashboard() {
         withTimeout(
           supabase
             .from('entregadores')
-            .select('id, nome_completo, email, telefone, status, created_at, updated_at, foto_url')
+            .select('id, nome_completo, email, telefone, status, created_at, updated_at, foto_url, is_online, current_latitude, current_longitude, last_location_update')
             .eq('status', 'ativo')
             .order('nome_completo'),
           8000
@@ -100,10 +100,13 @@ export function OperationsDashboard() {
 
       const now = Date.now();
       const mapped: MapDeliveryPerson[] = entregadores.map((e) => {
+        const ent = e as any;
         const baseStatus = e.status === 'ativo' ? 'disponivel' : 'inativo';
         const status: MapDeliveryPerson['status'] = entregasAtivas.has(e.id) ? 'em_entrega' : baseStatus;
-        const updatedAt = e.updated_at ? Date.parse(e.updated_at) : 0;
-        const is_online = Boolean(updatedAt && now - updatedAt < 15 * 60 * 1000);
+        
+        // Use database field is_online if available
+        const is_online = ent.is_online === true;
+        
         return {
           id: e.id,
           name: e.nome_completo,
@@ -111,9 +114,9 @@ export function OperationsDashboard() {
           phone: e.telefone || '',
           status,
           is_online,
-          current_latitude: null,
-          current_longitude: null,
-          last_location_update: e.updated_at || null,
+          current_latitude: ent.current_latitude || null,
+          current_longitude: ent.current_longitude || null,
+          last_location_update: ent.last_location_update || e.updated_at || null,
           created_at: e.created_at,
           updated_at: e.updated_at || e.created_at,
           foto_url: e.foto_url
