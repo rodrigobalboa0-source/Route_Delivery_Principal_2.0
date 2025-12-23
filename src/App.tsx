@@ -239,7 +239,7 @@ function App() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-slate-100">
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-slate-100">
       <NotificationManager userId={userId || ''} userRole={userRole} />
       <TopBar
         onMenuToggle={() => setSidebarOpen((v) => !v)}
@@ -268,8 +268,8 @@ function App() {
         } : undefined}
         onStartSupport={() => setSupportOpen(true)}
       />
-      <main className={`flex-1 transition-all duration-200 ${sidebarOpen ? 'pl-56' : 'pl-0'}`}>
-        <div className="h-[calc(100vh-56px)] overflow-y-auto overflow-x-hidden scrollbar-modern">
+      <main className={`flex-1 overflow-hidden relative transition-all duration-200 ${sidebarOpen ? 'pl-56' : 'pl-0'}`}>
+        <div className="h-full overflow-y-auto overflow-x-hidden scrollbar-modern pb-[env(safe-area-inset-bottom)]">
           {activeMenu === 'operations' && <OperationsDashboard />}
           
           {activeMenu === 'cadastro_clientes' && <ClientesPanel />}
