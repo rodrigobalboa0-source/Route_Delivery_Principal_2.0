@@ -64,12 +64,11 @@ export function NotificationManager({ userId, userRole }: NotificationManagerPro
               });
             }
 
-            if (eventType === 'UPDATE') {
-              if (
-                newRecord.entregador_id === userId &&
-                (oldRecord.entregador_id !== userId || oldRecord.status !== newRecord.status) &&
-                newRecord.status === 'atribuida'
-              ) {
+            if (
+              (eventType === 'INSERT' && newRecord.status === 'atribuida' && newRecord.entregador_id === userId) ||
+              (eventType === 'UPDATE' && newRecord.status === 'atribuida' && newRecord.entregador_id === userId && 
+               (oldRecord.entregador_id !== userId || oldRecord.status !== 'atribuida'))
+            ) {
                 await LocalNotifications.schedule({
                   notifications: [{
                     title: 'Entrega Atribuída! ✅',
@@ -85,7 +84,6 @@ export function NotificationManager({ userId, userRole }: NotificationManagerPro
                   }]
                 });
               }
-            }
           }
         )
         .subscribe();
