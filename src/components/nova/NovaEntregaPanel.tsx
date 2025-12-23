@@ -17,6 +17,59 @@ interface PrecificacaoConfigItem {
   tabela_id: string;
 }
 
+interface AddressSuggestion {
+  display_name: string;
+}
+
+function AddressAutocomplete({ value, onChange, placeholder, containerClassName }: { value: string, onChange: (val: string) => void, placeholder: string, containerClassName?: string }) {
+  const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (value.length > 4 && showSuggestions) {
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(value)}&addressdetails=1&limit=5&countrycodes=br`, {
+            headers: { 'User-Agent': 'RouteDeliveryApp/1.0' }
+          });
+          const data = await res.json();
+          setSuggestions(data || []);
+        } catch (e) {
+          console.error(e);
+        }
+      } else {
+        setSuggestions([]);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [value, showSuggestions]);
+
+  return (
+    <div className={`relative ${containerClassName || ''}`}>
+      <input
+        value={value}
+        onChange={(e) => { onChange(e.target.value); setShowSuggestions(true); }}
+        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+        placeholder={placeholder}
+        className="w-full px-3 py-2 border border-slate-300 rounded"
+      />
+      {showSuggestions && suggestions.length > 0 && (
+        <ul className="absolute z-50 w-full bg-white border border-slate-200 rounded-b shadow-lg max-h-60 overflow-auto mt-1">
+          {suggestions.map((s, i) => (
+            <li key={i} className="px-3 py-2 hover:bg-slate-50 cursor-pointer text-sm text-slate-700"
+                onMouseDown={() => {
+                  onChange(s.display_name);
+                  setShowSuggestions(false);
+                }}>
+              {s.display_name}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export function NovaEntregaPanel() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [enderecos, setEnderecos] = useState<Endereco[]>([]);
@@ -342,9 +395,41 @@ export function NovaEntregaPanel() {
     return ativos.length > 0 ? ativos[0].id : null;
   };
 
+  const handleCepBlur = async (cep: string, type: 'coleta' | 'entrega' | 'ponto', index?: number) => {
+    const cleanCep = cep.replace(/\D/g, '');
+    if (cleanCep.length !== 8) return;
+
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+      const data = await response.json();
+
+      if (data.erro) return;
+
+      const addressText = `${data.logradouro}, ${data.bairro}, ${data.localidade} - ${data.uf}`;
+
+      setForm((prev) => {
+        const next = { ...prev };
+        if (type === 'coleta') {
+          next.coleta_endereco_texto = addressText;
+        } else if (type === 'entrega') {
+          next.entrega_endereco_texto = addressText;
+        } else if (type === 'ponto' && typeof index === 'number') {
+           const pontos = [...next.pontos];
+           if (pontos[index]) {
+             pontos[index] = { ...pontos[index], endereco_texto: addressText };
+             next.pontos = pontos;
+           }
+        }
+        return next;
+      });
+    } catch (error) {
+      console.error("Error fetching CEP:", error);
+    }
+  };
+
   const handleSubmit = async () => {
-    if (!form.cliente_id || !form.modal_tipo) {
-      setError('Preencha cliente e modal');
+    if (!form.cliente_id) {
+      setError('Preencha o cliente');
       return;
     }
     setLoading(true);
@@ -355,8 +440,8 @@ export function NovaEntregaPanel() {
       .insert({
         cliente_id: form.cliente_id,
         endereco_id: form.endereco_id || null,
-        tipo_servico_id: form.tipo_servico_id || null,
-        modal_tipo: (form.modal_tipo || null) as ModalRow['tipo'],
+        tipo_servico_id: form.tipo_servico_id || (tipos.length > 0 ? tipos[0].id : null),
+        modal_tipo: (form.modal_tipo || (modais.length > 0 ? modais[0].tipo : 'moto')) as ModalRow['tipo'],
         atribuicao_modo: form.atribuicao_modo,
         entregador_id: entregadorEscolhido,
         solicitar_comprovante: form.solicitar_comprovante,
@@ -471,8 +556,13 @@ export function NovaEntregaPanel() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <input placeholder="Contato" value={form.coleta_contato} onChange={(e) => setForm({ ...form, coleta_contato: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
           <input placeholder="Telefone" value={form.coleta_telefone} onChange={(e) => setForm({ ...form, coleta_telefone: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-          <input placeholder="CEP" value={form.coleta_cep} onChange={(e) => setForm({ ...form, coleta_cep: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-          <input placeholder="Endereço completo" value={form.coleta_endereco_texto} onChange={(e) => setForm({ ...form, coleta_endereco_texto: e.target.value })} className="px-3 py-2 border border-slate-300 rounded md:col-span-2" />
+          <input placeholder="CEP" value={form.coleta_cep} onChange={(e) => setForm({ ...form, coleta_cep: e.target.value })} onBlur={(e) => handleCepBlur(e.target.value, 'coleta')} className="px-3 py-2 border border-slate-300 rounded" />
+          <AddressAutocomplete
+            placeholder="Endereço completo"
+            value={form.coleta_endereco_texto}
+            onChange={(val) => setForm({ ...form, coleta_endereco_texto: val })}
+            containerClassName="md:col-span-2"
+          />
           <input placeholder="Complemento" value={form.coleta_complemento} onChange={(e) => setForm({ ...form, coleta_complemento: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
           <input placeholder="Observações (Coleta)" value={form.coleta_observacoes} onChange={(e) => setForm({ ...form, coleta_observacoes: e.target.value })} className="px-3 py-2 border border-slate-300 rounded md:col-span-3" />
         </div>
@@ -490,8 +580,13 @@ export function NovaEntregaPanel() {
           <input placeholder="Código do pedido" value={form.entrega_codigo_pedido} onChange={(e) => setForm({ ...form, entrega_codigo_pedido: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
           <input placeholder="Centro de Custo" value={form.entrega_centro_custo} onChange={(e) => setForm({ ...form, entrega_centro_custo: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
           <input placeholder="Solicitante" value={form.entrega_solicitante} onChange={(e) => setForm({ ...form, entrega_solicitante: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-          <input placeholder="CEP" value={form.entrega_cep} onChange={(e) => setForm({ ...form, entrega_cep: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-          <input placeholder="Endereço completo" value={form.entrega_endereco_texto} onChange={(e) => setForm({ ...form, entrega_endereco_texto: e.target.value })} className="px-3 py-2 border border-slate-300 rounded md:col-span-2" />
+          <input placeholder="CEP" value={form.entrega_cep} onChange={(e) => setForm({ ...form, entrega_cep: e.target.value })} onBlur={(e) => handleCepBlur(e.target.value, 'entrega')} className="px-3 py-2 border border-slate-300 rounded" />
+          <AddressAutocomplete
+            placeholder="Endereço completo"
+            value={form.entrega_endereco_texto}
+            onChange={(val) => setForm({ ...form, entrega_endereco_texto: val })}
+            containerClassName="md:col-span-2"
+          />
           <input placeholder="Complemento" value={form.entrega_complemento} onChange={(e) => setForm({ ...form, entrega_complemento: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
           <input placeholder="Observações (Entrega)" value={form.entrega_observacoes} onChange={(e) => setForm({ ...form, entrega_observacoes: e.target.value })} className="px-3 py-2 border border-slate-300 rounded md:col-span-3" />
         </div>
@@ -516,8 +611,13 @@ export function NovaEntregaPanel() {
               <div key={idx} className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <input placeholder="Contato" value={p.contato} onChange={(e) => { const v = e.target.value; const arr = [...form.pontos]; arr[idx] = { ...arr[idx], contato: v }; setForm({ ...form, pontos: arr }); }} className="px-3 py-2 border border-slate-300 rounded" />
                 <input placeholder="Telefone" value={p.telefone} onChange={(e) => { const v = e.target.value; const arr = [...form.pontos]; arr[idx] = { ...arr[idx], telefone: v }; setForm({ ...form, pontos: arr }); }} className="px-3 py-2 border border-slate-300 rounded" />
-                <input placeholder="CEP" value={p.cep} onChange={(e) => { const v = e.target.value; const arr = [...form.pontos]; arr[idx] = { ...arr[idx], cep: v }; setForm({ ...form, pontos: arr }); }} className="px-3 py-2 border border-slate-300 rounded" />
-                <input placeholder="Endereço completo" value={p.endereco_texto} onChange={(e) => { const v = e.target.value; const arr = [...form.pontos]; arr[idx] = { ...arr[idx], endereco_texto: v }; setForm({ ...form, pontos: arr }); }} className="px-3 py-2 border border-slate-300 rounded md:col-span-2" />
+                <input placeholder="CEP" value={p.cep} onChange={(e) => { const v = e.target.value; const arr = [...form.pontos]; arr[idx] = { ...arr[idx], cep: v }; setForm({ ...form, pontos: arr }); }} onBlur={(e) => handleCepBlur(e.target.value, 'ponto', idx)} className="px-3 py-2 border border-slate-300 rounded" />
+                <AddressAutocomplete
+                  placeholder="Endereço completo"
+                  value={p.endereco_texto}
+                  onChange={(val) => { const arr = [...form.pontos]; arr[idx] = { ...arr[idx], endereco_texto: val }; setForm({ ...form, pontos: arr }); }}
+                  containerClassName="md:col-span-2"
+                />
                 <input placeholder="Complemento" value={p.complemento} onChange={(e) => { const v = e.target.value; const arr = [...form.pontos]; arr[idx] = { ...arr[idx], complemento: v }; setForm({ ...form, pontos: arr }); }} className="px-3 py-2 border border-slate-300 rounded" />
                 <input placeholder="Observações" value={p.observacoes} onChange={(e) => { const v = e.target.value; const arr = [...form.pontos]; arr[idx] = { ...arr[idx], observacoes: v }; setForm({ ...form, pontos: arr }); }} className="px-3 py-2 border border-slate-300 rounded md:col-span-3" />
                 <div className="md:col-span-3">

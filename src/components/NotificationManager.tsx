@@ -44,8 +44,8 @@ export function NotificationManager({ userId, userRole }: NotificationManagerPro
             const { eventType, new: newRecord, old: oldRecord } = payload;
 
             if (
-              (eventType === 'INSERT' && newRecord.status === 'disponivel') ||
-              (eventType === 'UPDATE' && newRecord.status === 'disponivel' && oldRecord.status !== 'disponivel')
+              (eventType === 'INSERT' && newRecord.status === 'criada' && !newRecord.entregador_id) ||
+              (eventType === 'UPDATE' && newRecord.status === 'criada' && !newRecord.entregador_id && (oldRecord.status !== 'criada' || oldRecord.entregador_id))
             ) {
               await LocalNotifications.schedule({
                 notifications: [{
