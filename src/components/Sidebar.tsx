@@ -199,7 +199,7 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
 
   return (
     <aside
-      className={`fixed top-0 left-0 h-screen w-56 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] bg-slate-900 text-white flex flex-col border-r border-slate-800 transition-transform duration-200 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
+      className={`fixed top-0 left-0 h-[100dvh] w-56 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] bg-slate-900 text-white flex flex-col border-r border-slate-800 transition-transform duration-200 z-50 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
       role="dialog"
       aria-modal="true"
     >

@@ -182,11 +182,24 @@ export function MapView({ deliveryPersons, center = [-23.5505, -46.6333], destin
         existingMarker.setLngLat([person.current_longitude, person.current_latitude]);
 
         const el = existingMarker.getElement();
-        el.className = `marker ${person.status} ${person.is_online ? 'online' : 'offline'}`;
-        // ... (styles) ...
-        el.style.overflow = 'visible';
         
-        el.innerHTML = getMarkerHtml(person);
+        const prevStatus = el.dataset.status;
+        const prevOnline = el.dataset.online;
+        const prevFoto = el.dataset.foto;
+        const currentStatus = person.status;
+        const currentOnline = String(person.is_online);
+        const currentFoto = person.foto_url || '';
+
+        if (prevStatus !== currentStatus || prevOnline !== currentOnline || prevFoto !== currentFoto) {
+          el.className = `marker ${person.status} ${person.is_online ? 'online' : 'offline'}`;
+          // ... (styles) ...
+          el.style.overflow = 'visible';
+          el.innerHTML = getMarkerHtml(person);
+          
+          el.dataset.status = currentStatus;
+          el.dataset.online = currentOnline;
+          el.dataset.foto = currentFoto;
+        }
 
         const popup = existingMarker.getPopup();
         if (popup) {
@@ -206,7 +219,11 @@ export function MapView({ deliveryPersons, center = [-23.5505, -46.6333], destin
         }
       } else {
         const el = document.createElement('div');
-        // ...
+        el.className = `marker ${person.status} ${person.is_online ? 'online' : 'offline'}`;
+        el.style.overflow = 'visible';
+        el.dataset.status = person.status;
+        el.dataset.online = String(person.is_online);
+        el.dataset.foto = person.foto_url || '';
         
         el.innerHTML = getMarkerHtml(person);
 

@@ -28,6 +28,7 @@ export function NovaEntregaPanel() {
   const [error, setError] = useState<string | null>(null);
 
   const [distanciaKm, setDistanciaKm] = useState<string>('');
+  const [calculatingDistance, setCalculatingDistance] = useState(false);
   const [selectedTabelaId, setSelectedTabelaId] = useState<string>('');
   const [valorDinamico, setValorDinamico] = useState(false);
   const [pricingMode, setPricingMode] = useState<'Distância' | 'Fixo' | 'Padrão' | 'Zona' | 'Bairro' | 'Zerar'>('Distância');
@@ -77,34 +78,35 @@ export function NovaEntregaPanel() {
     else setEnderecos([]);
   }, [form.cliente_id]);
 
-  useEffect(() => {
-    if (form.cliente_id && (form.coleta_usa_endereco_cadastro || form.entrega_usa_endereco_cadastro)) {
-      const cliente = clientes.find((c) => c.id === form.cliente_id);
-      if (cliente) {
-        let { cep, rua, numero, complemento, bairro, cidade, referencia_entrega } = cliente;
+  const handleUseRegistrationAddress = (type: 'coleta' | 'entrega', checked: boolean) => {
+    setForm((prev) => {
+      let next = { ...prev };
+      if (type === 'coleta') next.coleta_usa_endereco_cadastro = checked;
+      else next.entrega_usa_endereco_cadastro = checked;
 
-        
-        if ((!rua || !cidade) && enderecos.length > 0) {
-          const ultimo = enderecos[0];
-          
-          if (ultimo.cliente_id === form.cliente_id) {
-            cep = ultimo.cep;
-            rua = ultimo.rua;
-            numero = ultimo.numero;
-            complemento = ultimo.complemento;
-            bairro = ultimo.bairro;
-            cidade = ultimo.cidade;
-            referencia_entrega = ultimo.referencia_entrega;
+      if (checked && prev.cliente_id) {
+        const cliente = clientes.find((c) => c.id === prev.cliente_id);
+        if (cliente) {
+          let { cep, rua, numero, complemento, bairro, cidade, referencia_entrega } = cliente;
+
+          if ((!rua || !cidade) && enderecos.length > 0) {
+            const ultimo = enderecos[0];
+            if (ultimo.cliente_id === prev.cliente_id) {
+              cep = ultimo.cep;
+              rua = ultimo.rua;
+              numero = ultimo.numero;
+              complemento = ultimo.complemento;
+              bairro = ultimo.bairro;
+              cidade = ultimo.cidade;
+              referencia_entrega = ultimo.referencia_entrega;
+            }
           }
-        }
 
-        const enderecoTexto = [rua, numero, bairro, cidade]
-          .filter(Boolean)
-          .join(', ');
+          const enderecoTexto = [rua, numero, bairro, cidade]
+            .filter(Boolean)
+            .join(', ');
 
-        setForm((prev) => {
-          let next = { ...prev };
-          if (prev.coleta_usa_endereco_cadastro) {
+          if (type === 'coleta') {
             next = {
               ...next,
               coleta_cep: cep || '',
@@ -114,8 +116,7 @@ export function NovaEntregaPanel() {
               coleta_telefone: cliente.telefone || '',
               coleta_observacoes: referencia_entrega || '',
             };
-          }
-          if (prev.entrega_usa_endereco_cadastro) {
+          } else {
             next = {
               ...next,
               entrega_cep: cep || '',
@@ -126,11 +127,11 @@ export function NovaEntregaPanel() {
               entrega_observacoes: referencia_entrega || '',
             };
           }
-          return next;
-        });
+        }
       }
-    }
-  }, [form.cliente_id, form.coleta_usa_endereco_cadastro, form.entrega_usa_endereco_cadastro, clientes, enderecos]);
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (form.cliente_id && form.modal_tipo) {
@@ -159,6 +160,82 @@ export function NovaEntregaPanel() {
     }
   }, [form.cliente_id, form.modal_tipo, clientes, tabelasPrecos]);
 
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; 
+    const dLat = deg2rad(lat2 - lat1);
+    const dLon = deg2rad(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const d = R * c; 
+    return d;
+  };
+
+  const deg2rad = (deg: number) => {
+    return deg * (Math.PI / 180);
+  };
+
+  const getCoordsFromAddress = async (address: string) => {
+    
+    const match = address.match(/(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
+    if (match) {
+      return { lat: parseFloat(match[1]), lon: parseFloat(match[2]) };
+    }
+    
+    
+    if (address.length > 5) {
+      try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`, {
+          headers: {
+            'User-Agent': 'RouteDeliveryApp/1.0'
+          }
+        });
+        const data = await response.json();
+        if (data && data.length > 0) {
+          return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+        }
+      } catch (error) {
+        console.error("Geocoding error:", error);
+      }
+    }
+    return null;
+  };
+
+  useEffect(() => {
+    const updateDistance = async () => {
+      if (!form.coleta_endereco_texto || !form.entrega_endereco_texto) return;
+
+      setCalculatingDistance(true);
+      
+      const startCoords = await getCoordsFromAddress(form.coleta_endereco_texto);
+      const endCoords = await getCoordsFromAddress(form.entrega_endereco_texto);
+
+      if (startCoords && endCoords) {
+        let totalDist = calculateDistance(startCoords.lat, startCoords.lon, endCoords.lat, endCoords.lon);
+        
+        let currentCoords = endCoords;
+        for (const ponto of form.pontos) {
+          const pointCoords = await getCoordsFromAddress(ponto.endereco_texto || '');
+          if (pointCoords) {
+             totalDist += calculateDistance(currentCoords.lat, currentCoords.lon, pointCoords.lat, pointCoords.lon);
+             currentCoords = pointCoords;
+          }
+        }
+
+        setDistanciaKm(totalDist.toFixed(2));
+      }
+      setCalculatingDistance(false);
+    };
+
+    const timeoutId = setTimeout(() => {
+      updateDistance();
+    }, 1000);
+
+    return () => clearTimeout(timeoutId);
+  }, [form.coleta_endereco_texto, form.entrega_endereco_texto, form.pontos]);
+
   useEffect(() => {
     calculatePrice();
   }, [distanciaKm, selectedTabelaId, pricingMode, pricePerPoint, form.pontos, form.retorno]);
@@ -173,9 +250,15 @@ export function NovaEntregaPanel() {
     if (pricingMode === 'Fixo') {
       const basePoints = 2; 
       const extraPoints = form.pontos.length;
-      const returnPoint = form.retorno ? 1 : 0;
-      const totalPoints = basePoints + extraPoints + returnPoint;
-      const price = totalPoints * pricePerPoint;
+      const returnPoint = form.retorno ? 1 : 0; 
+      
+      const totalPoints = basePoints + extraPoints;
+      let price = totalPoints * pricePerPoint;
+      
+      if (form.retorno) {
+          price = price * 1.20;
+      }
+
       setForm(prev => ({ ...prev, valor_entrega: price.toFixed(2), valor_manual: false }));
       setValorDinamico(true);
       return;
@@ -216,6 +299,10 @@ export function NovaEntregaPanel() {
       price = tabela.valor_minimo;
     }
 
+    if (form.retorno) {
+        price = price * 1.20;
+    }
+
     setForm(prev => ({ ...prev, valor_entrega: price.toFixed(2), valor_manual: false }));
     setValorDinamico(true);
   };
@@ -230,11 +317,19 @@ export function NovaEntregaPanel() {
     ]);
     setClientes((c.data || []) as Cliente[]);
     setEntregadores((e.data || []) as Entregador[]);
-    setTipos((t.data || []) as TipoServico[]);
-    setModais((m.data || []) as ModalRow[]);
+    const tiposList = (t.data || []) as TipoServico[];
+    setTipos(tiposList);
+    const modaisList = (m.data || []) as ModalRow[];
+    setModais(modaisList);
     const tabelas = (tp.data || []) as TabelaPreco[];
     setTabelasPrecos(tabelas);
     if (tabelas.length > 0) setSelectedTabelaId(tabelas[0].id);
+
+    setForm(prev => ({
+      ...prev,
+      modal_tipo: modaisList.length > 0 ? modaisList[0].tipo : prev.modal_tipo,
+      tipo_servico_id: tiposList.length > 0 ? tiposList[0].id : prev.tipo_servico_id
+    }));
   };
 
   const fetchEnderecos = async (clienteId: string) => {
@@ -333,39 +428,7 @@ export function NovaEntregaPanel() {
               <option key={c.id} value={c.id}>{c.nome_completo || 'Cliente'}</option>
             ))}
           </select>
-          <select value={form.endereco_id} onChange={(e) => setForm({ ...form, endereco_id: e.target.value })} className="px-3 py-2 border border-slate-300 rounded">
-            <option value="">Endereço</option>
-            {enderecos.map((e) => (
-              <option key={e.id} value={e.id}>{[e.rua, e.numero, e.bairro].filter(Boolean).join(', ')}</option>
-            ))}
-          </select>
-          <select value={form.tipo_servico_id} onChange={(e) => setForm({ ...form, tipo_servico_id: e.target.value })} className="px-3 py-2 border border-slate-300 rounded">
-            <option value="">Tipo de serviço</option>
-            {tipos.map((t) => (
-              <option key={t.id} value={t.id}>{t.nome}</option>
-            ))}
-          </select>
-          <select value={form.modal_tipo} onChange={(e) => setForm({ ...form, modal_tipo: e.target.value })} className="px-3 py-2 border border-slate-300 rounded">
-            <option value="">Modal</option>
-            {modais.map((m) => (
-              <option key={m.id} value={m.tipo}>{m.tipo}</option>
-            ))}
-          </select>
-          <div className="flex gap-2">
-             <input 
-               placeholder="Distância (KM)" 
-               value={distanciaKm} 
-               onChange={(e) => setDistanciaKm(e.target.value)} 
-               className="px-3 py-2 border border-slate-300 rounded w-full"
-               type="number"
-               step="0.1"
-             />
-             {tabelasPrecos.length > 1 && (
-                <select value={selectedTabelaId} onChange={(e) => setSelectedTabelaId(e.target.value)} className="px-3 py-2 border border-slate-300 rounded w-full">
-                    {tabelasPrecos.map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}
-                </select>
-             )}
-          </div>
+          {/* Options removed as requested */}
           <div className="flex items-center gap-3">
             <label className="text-sm text-slate-700">Atribuição:</label>
             <select value={form.atribuicao_modo} onChange={(e) => setForm({ ...form, atribuicao_modo: e.target.value as 'manual' | 'automatica' })} className="px-3 py-2 border border-slate-300 rounded">
@@ -385,34 +448,7 @@ export function NovaEntregaPanel() {
             <input id="solicitar_comprovante" type="checkbox" checked={form.solicitar_comprovante} onChange={(e) => setForm({ ...form, solicitar_comprovante: e.target.checked })} />
             <label htmlFor="solicitar_comprovante" className="text-sm text-slate-700">Solicitar comprovante assinado na entrega</label>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:col-span-2">
-            <div className="flex items-center gap-2">
-              <input id="valor_manual" type="checkbox" checked={form.valor_manual} onChange={(e) => setForm({ ...form, valor_manual: e.target.checked })} />
-              <label htmlFor="valor_manual" className="text-sm text-slate-700">Informar Valor Manualmente</label>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex-1 relative">
-                <input 
-                  placeholder="Valor desta entrega" 
-                  value={form.valor_entrega} 
-                  onChange={(e) => setForm({ ...form, valor_entrega: e.target.value })} 
-                  className="px-3 py-2 border border-slate-300 rounded w-full" 
-                  disabled={!form.valor_manual} 
-                />
-                {valorDinamico && !form.valor_manual && (
-                  <div className="absolute top-full left-0 right-0 mt-1">
-                     <span className="bg-slate-900 text-white text-[10px] px-2 py-1 rounded w-full block text-center">Entrega com valor dinâmico</span>
-                  </div>
-                )}
-              </div>
-              <select value={form.tipo_cobranca} onChange={(e) => setForm({ ...form, tipo_cobranca: e.target.value })} className="px-3 py-2 border border-slate-300 rounded">
-                <option value="fatura">Fatura</option>
-                <option value="avista">À vista</option>
-                <option value="pix">PIX</option>
-                <option value="cartao">Cartão</option>
-              </select>
-            </div>
-          </div>
+          {/* Price Info Removed - Moved to Bottom */}
           <div className="flex items-center justify-between md:col-span-2">
             <div>
               <label className="text-sm text-slate-700">Agendar Entrega</label>
@@ -425,16 +461,11 @@ export function NovaEntregaPanel() {
           </div>
           <input placeholder="Observações" value={form.observacoes} onChange={(e) => setForm({ ...form, observacoes: e.target.value })} className="px-3 py-2 border border-slate-300 rounded md:col-span-2" />
         </div>
-        <div className="mt-4">
-          <button onClick={handleSubmit} disabled={loading} className="px-4 py-2 rounded bg-sky-600 hover:bg-sky-700 text-white text-sm disabled:opacity-50">
-            {loading ? 'Criando...' : 'Solicitar'}
-          </button>
-        </div>
       </div>
       <div className="mt-6 bg-white border border-slate-200 rounded-lg p-4">
         <div className="text-sm font-semibold text-slate-900 mb-3">Coleta</div>
         <div className="flex items-center gap-2 mb-3">
-          <input id="coleta_mesmo" type="checkbox" checked={form.coleta_usa_endereco_cadastro} onChange={(e) => setForm({ ...form, coleta_usa_endereco_cadastro: e.target.checked })} />
+          <input id="coleta_mesmo" type="checkbox" checked={form.coleta_usa_endereco_cadastro} onChange={(e) => handleUseRegistrationAddress('coleta', e.target.checked)} />
           <label htmlFor="coleta_mesmo" className="text-sm text-slate-700">Usar o mesmo endereço de cadastro</label>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -450,7 +481,7 @@ export function NovaEntregaPanel() {
       <div className="mt-6 bg-white border border-slate-200 rounded-lg p-4">
         <div className="text-sm font-semibold text-slate-900 mb-3">Entrega</div>
         <div className="flex items-center gap-2 mb-3">
-          <input id="entrega_mesmo" type="checkbox" checked={form.entrega_usa_endereco_cadastro} onChange={(e) => setForm({ ...form, entrega_usa_endereco_cadastro: e.target.checked })} />
+          <input id="entrega_mesmo" type="checkbox" checked={form.entrega_usa_endereco_cadastro} onChange={(e) => handleUseRegistrationAddress('entrega', e.target.checked)} />
           <label htmlFor="entrega_mesmo" className="text-sm text-slate-700">Usar o mesmo endereço de cadastro</label>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -496,6 +527,27 @@ export function NovaEntregaPanel() {
             ))}
           </div>
         )}
+      </div>
+
+      <div className="mt-6 bg-white border border-slate-200 rounded-lg p-4">
+        {(valorDinamico || calculatingDistance) && (
+           <div className="mb-4 p-4 bg-sky-50 border border-sky-100 rounded-lg flex flex-col md:flex-row justify-between items-center gap-4">
+             <div>
+                <span className="text-sm text-sky-700 font-medium block">Valor Total da Entrega</span>
+                {distanciaKm && <span className="text-xs text-sky-600">Distância estimada: {distanciaKm} km</span>}
+                {calculatingDistance && <span className="text-xs text-amber-600 block animate-pulse">Calculando rota e distância...</span>}
+             </div>
+             <div className="text-3xl font-bold text-sky-900">
+               {calculatingDistance ? '...' : `R$ ${form.valor_entrega}`}
+             </div>
+           </div>
+        )}
+
+        <div className="flex justify-end">
+          <button onClick={handleSubmit} disabled={loading} className="w-full md:w-auto px-6 py-3 rounded bg-sky-600 hover:bg-sky-700 text-white font-medium disabled:opacity-50 shadow-sm transition-colors">
+            {loading ? 'Processando...' : 'Solicitar Entrega'}
+          </button>
+        </div>
       </div>
     </div>
   );

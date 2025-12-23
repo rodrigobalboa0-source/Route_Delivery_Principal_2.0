@@ -15,7 +15,7 @@ export function TopBar({ onMenuToggle, onLogout, activeMenu, userRole, userName 
     return 'usuário';
   })();
   return (
-    <header className="w-full min-h-[3.5rem] h-auto pt-[env(safe-area-inset-top)] bg-slate-900 text-white flex items-center justify-between px-4 border-b border-slate-800">
+    <header className="w-full min-h-[3.5rem] h-auto pt-[env(safe-area-inset-top)] bg-slate-900 text-white flex items-center justify-between px-4 border-b border-slate-800 relative z-40">
       <div className="flex items-center gap-3">
         <button
           onClick={onMenuToggle}
