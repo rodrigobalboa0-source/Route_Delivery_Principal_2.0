@@ -1,11 +1,110 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { MapPin, Navigation, Package, DollarSign, Clock } from 'lucide-react';
+import { Geolocation } from '@capacitor/geolocation';
+
+function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371; // Radius of the earth in km
+  const dLat = deg2rad(lat2 - lat1);
+  const dLon = deg2rad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const d = R * c; // Distance in km
+  return d;
+}
+
+function deg2rad(deg: number) {
+  return deg * (Math.PI / 180);
+}
+
+async function getCoordsFromAddress(address: string): Promise<[number, number] | undefined> {
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&countrycodes=br`, {
+        headers: { 'User-Agent': 'RouteDeliveryApp/1.0' }
+      });
+      const data = await res.json();
+      if (data && data[0]) {
+        return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return undefined;
+}
 
 export function EntregadorEntregasDisponiveisPanel() {
   const [entregas, setEntregas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [currentLocation, setCurrentLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [distances, setDistances] = useState<Record<string, { toPickup: number, toDelivery: number }>>({});
+
+  useEffect(() => {
+    Geolocation.getCurrentPosition().then(pos => {
+        setCurrentLocation({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude
+        });
+    }).catch(err => console.error('Error getting location', err));
+  }, []);
+
+  useEffect(() => {
+      if (!currentLocation || entregas.length === 0) return;
+      
+      const calculate = async () => {
+          // We'll process one by one to avoid rate limits and state thrashing
+          const newDistances = { ...distances };
+          let changed = false;
+
+          for (const entrega of entregas) {
+              if (newDistances[entrega.id]) continue; // Already calculated
+
+              if (entrega.coleta_endereco_texto) {
+                  // Small delay to be nice to the API
+                  await new Promise(r => setTimeout(r, 500));
+                  
+                  const pickupCoords = await getCoordsFromAddress(entrega.coleta_endereco_texto);
+                  if (pickupCoords) {
+                      const distToPickup = getDistanceFromLatLonInKm(
+                          currentLocation.lat, currentLocation.lng,
+                          pickupCoords[0], pickupCoords[1]
+                      );
+                      
+                      let distPickupToDelivery = 0;
+                      if (entrega.entrega_endereco_texto) {
+                          const deliveryCoords = await getCoordsFromAddress(entrega.entrega_endereco_texto);
+                          if (deliveryCoords) {
+                               distPickupToDelivery = getDistanceFromLatLonInKm(
+                                  pickupCoords[0], pickupCoords[1],
+                                  deliveryCoords[0], deliveryCoords[1]
+                               );
+                          }
+                      }
+                      
+                      newDistances[entrega.id] = {
+                          toPickup: distToPickup,
+                          toDelivery: distPickupToDelivery
+                      };
+                      changed = true;
+                      
+                      // Update state incrementally so user sees progress
+                      setDistances(prev => ({
+                          ...prev,
+                          [entrega.id]: {
+                              toPickup: distToPickup,
+                              toDelivery: distPickupToDelivery
+                          }
+                      }));
+                  }
+              }
+          }
+      };
+      
+      calculate();
+  }, [entregas, currentLocation]);
 
   useEffect(() => {
     fetchEntregas();
@@ -129,6 +228,23 @@ export function EntregadorEntregasDisponiveisPanel() {
                    </div>
                 </div>
               </div>
+
+              {distances[entrega.id] && (
+                <div className="grid grid-cols-3 gap-2 mb-4 text-xs bg-gray-50 p-2 rounded border border-gray-100">
+                    <div className="text-center">
+                        <span className="block text-gray-400">Até Coleta</span>
+                        <span className="font-semibold text-gray-700">{distances[entrega.id].toPickup.toFixed(1)} km</span>
+                    </div>
+                    <div className="text-center border-l border-gray-200">
+                        <span className="block text-gray-400">Percurso</span>
+                        <span className="font-semibold text-gray-700">{distances[entrega.id].toDelivery.toFixed(1)} km</span>
+                    </div>
+                    <div className="text-center border-l border-gray-200">
+                        <span className="block text-gray-400">Total</span>
+                        <span className="font-bold text-sky-600">{(distances[entrega.id].toPickup + distances[entrega.id].toDelivery).toFixed(1)} km</span>
+                    </div>
+                </div>
+              )}
 
               <button
                 onClick={() => handleAceitar(entrega.id)}

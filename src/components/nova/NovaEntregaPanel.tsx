@@ -391,7 +391,7 @@ export function NovaEntregaPanel() {
   };
 
   const pickEntregadorAutomatico = (): string | null => {
-    const ativos = entregadores.filter((e) => e.status === 'disponivel');
+    const ativos = entregadores.filter((e) => e.status === 'ativo');
     return ativos.length > 0 ? ativos[0].id : null;
   };
 
@@ -435,9 +435,48 @@ export function NovaEntregaPanel() {
     setLoading(true);
     setError(null);
     const entregadorEscolhido = form.atribuicao_modo === 'automatica' ? pickEntregadorAutomatico() : (form.entregador_id || null);
-    const res = await (supabase as unknown as { from: (t: string) => { insert: (v: unknown) => Promise<unknown> } })
+
+    let pedidoId = null;
+    try {
+      const valorTotal = form.valor_entrega ? Number(form.valor_entrega.replace(',', '.')) : null;
+      console.log('Tentando criar pedido para cliente:', form.cliente_id, 'Valor:', valorTotal);
+
+      const { data: pData, error: pError } = await supabase
+        .from('pedidos')
+        .insert({
+          cliente_id: form.cliente_id,
+          endereco_id: form.endereco_id || null,
+          numero: form.entrega_codigo_pedido || null,
+          item_descricao: null,
+          endereco_texto: form.entrega_endereco_texto || null,
+          origem: 'manual',
+          valor_total: (valorTotal && !isNaN(valorTotal)) ? valorTotal : null,
+          status: 'criado',
+          observacoes: form.observacoes || null,
+        })
+        .select()
+        .single();
+      
+      if (pError) {
+        console.error("Erro ao criar pedido:", pError);
+        setError(`Erro ao criar pedido: ${pError.message}`);
+        setLoading(false);
+        return;
+      }
+      
+      console.log('Pedido criado com sucesso:', pData);
+      if (pData) pedidoId = pData.id;
+    } catch (err) {
+      console.error("Erro ao tentar criar pedido:", err);
+      setError("Erro inesperado ao criar pedido. Verifique o console.");
+      setLoading(false);
+      return;
+    }
+
+    const { error: insertError } = await supabase
       .from('nova_entrega')
       .insert({
+        pedido_id: pedidoId,
         cliente_id: form.cliente_id,
         endereco_id: form.endereco_id || null,
         tipo_servico_id: form.tipo_servico_id || (tipos.length > 0 ? tipos[0].id : null),
@@ -447,7 +486,7 @@ export function NovaEntregaPanel() {
         solicitar_comprovante: form.solicitar_comprovante,
         agendar_em: form.agendar_em ? new Date(form.agendar_em).toISOString() : null,
         valor_manual: form.valor_manual,
-        valor_entrega: form.valor_entrega ? Number(form.valor_entrega) : null,
+        valor_entrega: form.valor_entrega ? Number(form.valor_entrega.replace(',', '.')) : null,
         tipo_cobranca: form.tipo_cobranca as 'fatura' | 'avista' | 'pix' | 'cartao',
         cobrar_destinatario: form.cobrar_destinatario,
         coleta_usa_endereco_cadastro: form.coleta_usa_endereco_cadastro,
@@ -473,23 +512,9 @@ export function NovaEntregaPanel() {
         observacoes: form.observacoes || null,
         status: entregadorEscolhido ? 'atribuida' : 'criada',
       });
-    const r = res as unknown as { error?: { message?: string } };
-    if (r.error?.message) setError(r.error.message);
+
+    if (insertError?.message) setError(insertError.message);
     else {
-      if (form.entrega_codigo_pedido) {
-        await (supabase as unknown as { from: (t: string) => { insert: (v: unknown) => Promise<unknown> } }).from('pedidos').insert({
-          cliente_id: form.cliente_id,
-          endereco_id: form.endereco_id || null,
-          numero: form.entrega_codigo_pedido || null,
-          item_descricao: null,
-          endereco_texto: form.entrega_endereco_texto || null,
-          origem: 'manual',
-          itens: null,
-          valor_total: form.valor_entrega ? Number(form.valor_entrega) : null,
-          status: 'criado',
-          observacoes: form.observacoes || null,
-        });
-      }
       setForm({
         cliente_id: '', endereco_id: '', tipo_servico_id: '', modal_tipo: '', atribuicao_modo: 'automatica', entregador_id: '', observacoes: '',
         solicitar_comprovante: false, agendar_em: '', valor_manual: false, valor_entrega: '', tipo_cobranca: 'fatura', cobrar_destinatario: false,
