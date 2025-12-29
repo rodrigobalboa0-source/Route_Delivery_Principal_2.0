@@ -2,38 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { MapPin, Navigation, Package, DollarSign, Clock, AlertCircle } from 'lucide-react';
 import { Geolocation } from '@capacitor/geolocation';
-
-function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const R = 6371; 
-  const dLat = deg2rad(lat2 - lat1);
-  const dLon = deg2rad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const d = R * c; 
-  return d;
-}
-
-function deg2rad(deg: number) {
-  return deg * (Math.PI / 180);
-}
-
-async function getCoordsFromAddress(address: string): Promise<[number, number] | undefined> {
-    try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&countrycodes=br`, {
-        headers: { 'User-Agent': 'RouteDeliveryApp/1.0' }
-      });
-      const data = await res.json();
-      if (data && data[0]) {
-        return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    return undefined;
-}
+import { getDistanceFromLatLonInKm, getCoordsFromAddress } from '../../utils/geo';
 
 export function EntregadorEntregasDisponiveisPanel() {
   const [entregas, setEntregas] = useState<any[]>([]);
@@ -41,6 +10,7 @@ export function EntregadorEntregasDisponiveisPanel() {
   const [profileMissing, setProfileMissing] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [currentLocation, setCurrentLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [deliveryCoords, setDeliveryCoords] = useState<Record<string, { pickup?: [number, number], delivery?: [number, number] }>>({});
   const [distances, setDistances] = useState<Record<string, { toPickup: number, toDelivery: number }>>({});
 
   useEffect(() => {
@@ -52,60 +22,78 @@ export function EntregadorEntregasDisponiveisPanel() {
     }).catch(err => console.error('Error getting location', err));
   }, []);
 
+  // Fetch coordinates for deliveries
   useEffect(() => {
-      if (!currentLocation || entregas.length === 0) return;
-      
-      const calculate = async () => {
-          
-          const newDistances = { ...distances };
-          let changed = false;
+      const fetchCoords = async () => {
+          const newCoords: Record<string, { pickup?: [number, number], delivery?: [number, number] }> = {};
+          let hasNew = false;
 
           for (const entrega of entregas) {
-              if (newDistances[entrega.id]) continue; 
+              if (deliveryCoords[entrega.id]) continue; 
+
+              let pickup: [number, number] | undefined;
+              let delivery: [number, number] | undefined;
 
               if (entrega.coleta_endereco_texto) {
-                  
-                  await new Promise(r => setTimeout(r, 500));
-                  
-                  const pickupCoords = await getCoordsFromAddress(entrega.coleta_endereco_texto);
-                  if (pickupCoords) {
-                      const distToPickup = getDistanceFromLatLonInKm(
-                          currentLocation.lat, currentLocation.lng,
-                          pickupCoords[0], pickupCoords[1]
-                      );
-                      
-                      let distPickupToDelivery = 0;
-                      if (entrega.entrega_endereco_texto) {
-                          const deliveryCoords = await getCoordsFromAddress(entrega.entrega_endereco_texto);
-                          if (deliveryCoords) {
-                               distPickupToDelivery = getDistanceFromLatLonInKm(
-                                  pickupCoords[0], pickupCoords[1],
-                                  deliveryCoords[0], deliveryCoords[1]
-                               );
-                          }
-                      }
-                      
-                      newDistances[entrega.id] = {
-                          toPickup: distToPickup,
-                          toDelivery: distPickupToDelivery
-                      };
-                      changed = true;
-                      
-                      
-                      setDistances(prev => ({
-                          ...prev,
-                          [entrega.id]: {
-                              toPickup: distToPickup,
-                              toDelivery: distPickupToDelivery
-                          }
-                      }));
-                  }
+                  await new Promise(r => setTimeout(r, 1000)); // Rate limit
+                  pickup = await getCoordsFromAddress(entrega.coleta_endereco_texto);
+              }
+              
+              if (entrega.entrega_endereco_texto) {
+                  await new Promise(r => setTimeout(r, 1000)); // Rate limit
+                  delivery = await getCoordsFromAddress(entrega.entrega_endereco_texto);
+              }
+              
+              if (pickup || delivery) {
+                  newCoords[entrega.id] = { pickup, delivery };
+                  hasNew = true;
+                  // Update state incrementally to show results faster
+                  setDeliveryCoords(prev => ({ ...prev, [entrega.id]: { pickup, delivery } }));
               }
           }
       };
       
-      calculate();
-  }, [entregas, currentLocation]);
+      if (entregas.length > 0) {
+          fetchCoords();
+      }
+  }, [entregas]);
+
+  // Calculate distances when location or coords change
+  useEffect(() => {
+      if (!currentLocation) return;
+      
+      const newDistances: Record<string, { toPickup: number, toDelivery: number }> = {};
+      
+      Object.keys(deliveryCoords).forEach(id => {
+          const coords = deliveryCoords[id];
+          let distToPickup = 0;
+          let distPickupToDelivery = 0;
+
+          if (coords.pickup) {
+              distToPickup = getDistanceFromLatLonInKm(
+                  currentLocation.lat, currentLocation.lng,
+                  coords.pickup[0], coords.pickup[1]
+              );
+              
+              if (coords.delivery) {
+                   distPickupToDelivery = getDistanceFromLatLonInKm(
+                      coords.pickup[0], coords.pickup[1],
+                      coords.delivery[0], coords.delivery[1]
+                   );
+              }
+          } else if (coords.delivery) {
+              // Fallback if no pickup coords: distance from user to delivery (not ideal but better than 0)
+              // Or keep it 0 as "Unknown"
+          }
+
+          newDistances[id] = {
+              toPickup: distToPickup,
+              toDelivery: distPickupToDelivery
+          };
+      });
+      
+      setDistances(newDistances);
+  }, [currentLocation, deliveryCoords]);
 
   useEffect(() => {
     fetchEntregas();

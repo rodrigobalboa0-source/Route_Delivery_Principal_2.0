@@ -4,6 +4,7 @@ import { MapPin, CheckCircle, Truck, AlertCircle, Phone, Navigation, Map as MapI
 import { MapView, MapDeliveryPerson } from '../MapView';
 import type { Database } from '../../lib/database.types';
 import { Geolocation } from '@capacitor/geolocation';
+import { getDistanceFromLatLonInKm, getCoordsFromAddress } from '../../utils/geo';
 
 type DeliveryPerson = Database['public']['Tables']['delivery_persons']['Row'];
 
@@ -15,6 +16,79 @@ export function EntregadorPedidosEmAndamentoPanel() {
   const [mapVisibleId, setMapVisibleId] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  
+  const [deliveryCoords, setDeliveryCoords] = useState<Record<string, { pickup?: [number, number], delivery?: [number, number] }>>({});
+  const [distances, setDistances] = useState<Record<string, { userToPickup: number, pickupToDelivery: number, userToDelivery: number }>>({});
+
+  useEffect(() => {
+    const fetchCoords = async () => {
+      const newCoords: Record<string, { pickup?: [number, number], delivery?: [number, number] }> = {};
+      
+      for (const entrega of entregas) {
+        if (deliveryCoords[entrega.id]) continue; 
+
+        let pickup: [number, number] | undefined;
+        let delivery: [number, number] | undefined;
+
+        if (entrega.coleta_endereco_texto) {
+            await new Promise(r => setTimeout(r, 1000)); // Rate limit
+            pickup = await getCoordsFromAddress(entrega.coleta_endereco_texto);
+        }
+        if (entrega.entrega_endereco_texto) {
+            await new Promise(r => setTimeout(r, 1000)); // Rate limit
+            delivery = await getCoordsFromAddress(entrega.entrega_endereco_texto);
+        }
+        
+        if (pickup || delivery) {
+            newCoords[entrega.id] = { pickup, delivery };
+            // Update incrementally
+            setDeliveryCoords(prev => ({ ...prev, [entrega.id]: { pickup, delivery } }));
+        }
+      }
+    };
+    
+    if (entregas.length > 0) {
+        fetchCoords();
+    }
+  }, [entregas]);
+
+  useEffect(() => {
+    if (!userLocation) return;
+
+    const newDistances: Record<string, { userToPickup: number, pickupToDelivery: number, userToDelivery: number }> = {};
+    
+    Object.keys(deliveryCoords).forEach(id => {
+        const coords = deliveryCoords[id];
+        let userToPickup = 0;
+        let pickupToDelivery = 0;
+        let userToDelivery = 0;
+
+        if (coords.pickup) {
+            userToPickup = getDistanceFromLatLonInKm(
+                userLocation.lat, userLocation.lng,
+                coords.pickup[0], coords.pickup[1]
+            );
+            
+            if (coords.delivery) {
+                 pickupToDelivery = getDistanceFromLatLonInKm(
+                    coords.pickup[0], coords.pickup[1],
+                    coords.delivery[0], coords.delivery[1]
+                 );
+            }
+        }
+        
+        if (coords.delivery) {
+             userToDelivery = getDistanceFromLatLonInKm(
+                userLocation.lat, userLocation.lng,
+                coords.delivery[0], coords.delivery[1]
+             );
+        }
+
+        newDistances[id] = { userToPickup, pickupToDelivery, userToDelivery };
+    });
+
+    setDistances(newDistances);
+  }, [userLocation, deliveryCoords]);
 
   useEffect(() => {
     fetchEntregas();
@@ -196,15 +270,6 @@ export function EntregadorPedidosEmAndamentoPanel() {
     }
   }
 
-  const getDestinationCoords = (address: string): [number, number] | undefined => {
-    if (!address) return undefined;
-    const match = address.match(/(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
-    if (match) {
-      return [parseFloat(match[1]), parseFloat(match[2])];
-    }
-    return undefined;
-  };
-
   const getFakeDeliveryPerson = (): MapDeliveryPerson | null => {
     if (!userLocation) return null;
     return {
@@ -251,8 +316,10 @@ export function EntregadorPedidosEmAndamentoPanel() {
       ) : (
         <div className="space-y-6">
           {entregas.map((entrega) => {
-            const destCoords = getDestinationCoords(entrega.entrega_endereco_texto || '') || 
-                               getDestinationCoords(entrega.coleta_endereco_texto || ''); // Fallback to coleta if delivery has no coords
+            const coords = deliveryCoords[entrega.id];
+            const destCoords = (entrega.status === 'atribuida' || entrega.status === 'criada') 
+                                ? coords?.pickup 
+                                : coords?.delivery;
             
             return (
             <div key={entrega.id} className="bg-white rounded-lg shadow-lg border-l-4 border-sky-500 overflow-hidden">
@@ -301,6 +368,35 @@ export function EntregadorPedidosEmAndamentoPanel() {
                     <AlertCircle size={16} className="shrink-0 mt-0.5" />
                     <p>{entrega.observacoes}</p>
                   </div>
+                )}
+
+                {/* Distances */}
+                {distances[entrega.id] && (
+                    <div className="grid grid-cols-3 gap-2 text-xs bg-gray-50 p-2 rounded border border-gray-100">
+                        {entrega.status === 'em_rota' ? (
+                           <>
+                             <div className="text-center col-span-3">
+                                <span className="block text-gray-400">Distância até Entrega</span>
+                                <span className="font-bold text-sky-600 text-lg">{distances[entrega.id].userToDelivery.toFixed(1)} km</span>
+                             </div>
+                           </>
+                        ) : (
+                           <>
+                            <div className="text-center">
+                                <span className="block text-gray-400">Até Coleta</span>
+                                <span className="font-semibold text-gray-700">{distances[entrega.id].userToPickup.toFixed(1)} km</span>
+                            </div>
+                            <div className="text-center border-l border-gray-200">
+                                <span className="block text-gray-400">Entrega</span>
+                                <span className="font-semibold text-gray-700">{distances[entrega.id].pickupToDelivery.toFixed(1)} km</span>
+                            </div>
+                            <div className="text-center border-l border-gray-200">
+                                <span className="block text-gray-400">Total</span>
+                                <span className="font-bold text-sky-600">{(distances[entrega.id].userToPickup + distances[entrega.id].pickupToDelivery).toFixed(1)} km</span>
+                            </div>
+                           </>
+                        )}
+                    </div>
                 )}
 
                 {/* Map Toggle */}

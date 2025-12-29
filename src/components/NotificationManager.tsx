@@ -33,8 +33,7 @@ export function NotificationManager({ userId, userRole }: NotificationManagerPro
         vibration: true,
       });
 
-      // Configuração de Push Notifications (Firebase) - DESATIVADO TEMPORARIAMENTE PARA EVITAR CRASH
-      /* 
+      // Configuração de Push Notifications (Firebase)
       if (Capacitor.isNativePlatform()) {
         try {
           const pushPermStatus = await PushNotifications.checkPermissions();
@@ -47,9 +46,25 @@ export function NotificationManager({ userId, userRole }: NotificationManagerPro
             await PushNotifications.register();
           }
 
-          PushNotifications.addListener('registration', token => {
+          PushNotifications.removeAllListeners();
+
+          PushNotifications.addListener('registration', async (token) => {
             console.log('Push Registration Token:', token.value);
-            // TODO: Salvar token no perfil do entregador no Supabase para envio via Edge Function
+            // Salvar token no perfil do entregador no Supabase
+            try {
+              const { data: { user } } = await supabase.auth.getUser();
+              if (user?.email) {
+                const { error } = await supabase
+                  .from('entregadores')
+                  .update({ fcm_token: token.value })
+                  .eq('email', user.email);
+                
+                if (error) console.error('Erro ao atualizar token FCM:', error);
+                else console.log('Token FCM salvo com sucesso');
+              }
+            } catch (err) {
+              console.error('Erro ao salvar token FCM:', err);
+            }
           });
 
           PushNotifications.addListener('registrationError', error => {
@@ -58,18 +73,15 @@ export function NotificationManager({ userId, userRole }: NotificationManagerPro
 
           PushNotifications.addListener('pushNotificationReceived', notification => {
             console.log('Push Received:', notification);
-            // Se o app estiver aberto, podemos mostrar um toast ou deixar a notificação nativa aparecer
           });
 
           PushNotifications.addListener('pushNotificationActionPerformed', notification => {
             console.log('Push Action:', notification);
-            // Navegar para a tela de pedidos
           });
         } catch (e) {
           console.error('Erro ao configurar Push Notifications:', e);
         }
       }
-      */
 
       channel = supabase
         .channel('notificacoes_entregas')
