@@ -77,6 +77,7 @@ export function NovaEntregaPanel() {
   const [tipos, setTipos] = useState<TipoServico[]>([]);
   const [modais, setModais] = useState<ModalRow[]>([]);
   const [tabelasPrecos, setTabelasPrecos] = useState<TabelaPreco[]>([]);
+  const [blacklist, setBlacklist] = useState<Array<{ cliente_id: string, entregador_id: string }>>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -361,12 +362,13 @@ export function NovaEntregaPanel() {
   };
 
   const fetchData = async () => {
-    const [c, e, t, m, tp] = await Promise.all([
+    const [c, e, t, m, tp, b] = await Promise.all([
       supabase.from('clientes').select('*').order('nome_completo'),
       supabase.from('entregadores').select('id, nome_completo, status, is_online').neq('status', 'inativo').order('nome_completo'),
       supabase.from('tipo_servicos').select('*').eq('ativo', true).order('nome'),
       supabase.from('modais').select('*').eq('ativo', true).order('tipo'),
       supabase.from('tabelas_precos').select('*').order('nome'),
+      supabase.from('entregador_bloqueios_clientes').select('cliente_id, entregador_id')
     ]);
     setClientes((c.data || []) as Cliente[]);
     setEntregadores((e.data || []) as Entregador[]);
@@ -376,6 +378,7 @@ export function NovaEntregaPanel() {
     setModais(modaisList);
     const tabelas = (tp.data || []) as TabelaPreco[];
     setTabelasPrecos(tabelas);
+    setBlacklist((b.data || []) as Array<{ cliente_id: string, entregador_id: string }>);
     if (tabelas.length > 0) setSelectedTabelaId(tabelas[0].id);
 
     setForm(prev => ({
@@ -437,12 +440,29 @@ export function NovaEntregaPanel() {
     // Lógica de atribuição automática: Seleciona um entregador aleatório online se estiver em modo automático
     let entregadorEscolhido = form.atribuicao_modo === 'manual' ? (form.entregador_id || null) : null;
     
+    // Check blacklist for manual assignment
+    if (form.atribuicao_modo === 'manual' && entregadorEscolhido) {
+        const isBlocked = blacklist.some(b => b.cliente_id === form.cliente_id && b.entregador_id === entregadorEscolhido);
+        if (isBlocked) {
+            setError('O entregador selecionado está na blacklist deste cliente.');
+            setLoading(false);
+            return;
+        }
+    }
+
     if (form.atribuicao_modo === 'automatica') {
-      const disponiveis = entregadores.filter(e => e.status === 'ativo' && e.is_online);
+      // Filter active, online, and NOT blacklisted drivers
+      const disponiveis = entregadores.filter(e => {
+          const isBlocked = blacklist.some(b => b.cliente_id === form.cliente_id && b.entregador_id === e.id);
+          return e.status === 'ativo' && e.is_online && !isBlocked;
+      });
+
       if (disponiveis.length > 0) {
         const randomIndex = Math.floor(Math.random() * disponiveis.length);
         entregadorEscolhido = disponiveis[randomIndex].id;
         console.log(`Atribuição Automática: ${disponiveis[randomIndex].nome_completo} selecionado`);
+      } else {
+          console.log('Nenhum entregador disponível (online e permitido) para atribuição automática.');
       }
     }
 

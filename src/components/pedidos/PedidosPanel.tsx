@@ -486,6 +486,31 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     }
   };
 
+  const handleBlacklist = async (pedido: Pedido) => {
+      const entrega = entregasMap[pedido.id];
+      if (!entrega || !entrega.entregador_id) return;
+
+      if (!confirm('Deseja colocar este entregador na blacklist deste comércio? Ele não receberá mais pedidos desta loja.')) return;
+
+      const motivo = prompt('Motivo do bloqueio (opcional):');
+
+      try {
+          const { error } = await supabase.from('entregador_bloqueios_clientes').insert({
+              entregador_id: entrega.entregador_id,
+              cliente_id: pedido.cliente_id,
+              motivo: motivo || null
+          });
+
+          if (error) throw error;
+
+          alert('Entregador adicionado à blacklist com sucesso.');
+          setOpenMenuId(null);
+      } catch (e: any) {
+          console.error('Erro ao adicionar à blacklist:', e);
+          alert('Erro ao realizar operação: ' + e.message);
+      }
+  };
+
   const handleSetReady = async (p: Pedido) => { 
     if (!confirm('Marcar pedido como Pronto?')) return;
     const { error } = await supabase.from('pedidos').update({ status: 'pronto' }).eq('id', p.id);
@@ -1146,6 +1171,9 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                         <button onClick={() => handleClone(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2"><Copy size={16}/> Clonar</button>
                         {isAdmin && entregasMap[p.id]?.status === 'atribuida' && (
                              <button onClick={() => handleReprocurar(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2 border-t border-slate-100 mt-1"><RefreshCw size={16}/> Reprocurar</button>
+                        )}
+                        {isAdmin && entregasMap[p.id]?.entregador_id && (
+                             <button onClick={() => handleBlacklist(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-red-600 flex items-center gap-2 border-t border-slate-100 mt-1"><User size={16}/> Blacklist Entregador</button>
                         )}
                         {userRole !== 'entregador' && (
                              <button onClick={() => handleDelete(p.id)} className="px-4 py-2 hover:bg-red-50 text-sm text-red-600 flex items-center gap-2 border-t border-slate-100 mt-1"><Trash2 size={16}/> Cancelar</button>
