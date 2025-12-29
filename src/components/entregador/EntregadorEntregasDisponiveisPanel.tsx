@@ -192,7 +192,17 @@ export function EntregadorEntregasDisponiveisPanel() {
         Entregas Disponíveis
       </h1>
       
-      {loading ? (
+      {profileMissing ? (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
+          <div>
+            <h3 className="font-semibold text-amber-800">Perfil Incompleto</h3>
+            <p className="text-sm text-amber-700 mt-1">
+              Seu cadastro de entregador não foi encontrado ou está incompleto. Entre em contato com o suporte.
+            </p>
+          </div>
+        </div>
+      ) : loading ? (
         <div className="text-center py-8">Carregando...</div>
       ) : entregas.length === 0 ? (
         <div className="bg-white p-8 rounded-lg shadow-sm text-center text-gray-500 border border-gray-100">

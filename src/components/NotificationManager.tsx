@@ -33,7 +33,8 @@ export function NotificationManager({ userId, userRole }: NotificationManagerPro
         vibration: true,
       });
 
-      // Configuração de Push Notifications (Firebase)
+      // Configuração de Push Notifications (Firebase) - DESATIVADO TEMPORARIAMENTE PARA EVITAR CRASH
+      /* 
       if (Capacitor.isNativePlatform()) {
         try {
           const pushPermStatus = await PushNotifications.checkPermissions();
@@ -68,6 +69,7 @@ export function NotificationManager({ userId, userRole }: NotificationManagerPro
           console.error('Erro ao configurar Push Notifications:', e);
         }
       }
+      */
 
       channel = supabase
         .channel('notificacoes_entregas')

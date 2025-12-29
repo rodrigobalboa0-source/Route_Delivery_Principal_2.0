@@ -10,6 +10,7 @@ type DeliveryPerson = Database['public']['Tables']['delivery_persons']['Row'];
 export function EntregadorPedidosEmAndamentoPanel() {
   const [entregas, setEntregas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [profileMissing, setProfileMissing] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [mapVisibleId, setMapVisibleId] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
@@ -119,13 +120,17 @@ export function EntregadorPedidosEmAndamentoPanel() {
         .eq('email', user.email)
         .single();
 
-      if (!entregador) return;
+      if (!entregador) {
+        setProfileMissing(true);
+        setLoading(false);
+        return;
+      }
 
       const { data, error } = await supabase
         .from('nova_entrega')
         .select(`
           *,
-          clientes:cliente_id (nome_completo, telefone, celular)
+          clientes:cliente_id (nome_completo, telefone)
         `)
         .eq('entregador_id', entregador.id)
         .in('status', ['atribuida', 'em_rota', 'criada'])
@@ -263,8 +268,8 @@ export function EntregadorPedidosEmAndamentoPanel() {
                    </div>
                    <div className="text-right">
                      <p className="text-sm font-medium text-gray-600">{entrega.clientes?.nome_completo}</p>
-                     {(entrega.clientes?.telefone || entrega.clientes?.celular) && (
-                       <a href={`tel:${entrega.clientes?.celular || entrega.clientes?.telefone}`} className="inline-flex items-center gap-1 text-xs text-sky-600 mt-1 hover:underline">
+                     {(entrega.clientes?.telefone) && (
+                       <a href={`tel:${entrega.clientes?.telefone}`} className="inline-flex items-center gap-1 text-xs text-sky-600 mt-1 hover:underline">
                          <Phone size={12} />
                          Ligar para cliente
                        </a>
