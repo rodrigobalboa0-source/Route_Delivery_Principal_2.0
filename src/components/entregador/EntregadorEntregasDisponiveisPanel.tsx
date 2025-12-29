@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { MapPin, Navigation, Package, DollarSign, Clock } from 'lucide-react';
+import { MapPin, Navigation, Package, DollarSign, Clock, AlertCircle } from 'lucide-react';
 import { Geolocation } from '@capacitor/geolocation';
 
 function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -38,6 +38,7 @@ async function getCoordsFromAddress(address: string): Promise<[number, number] |
 export function EntregadorEntregasDisponiveisPanel() {
   const [entregas, setEntregas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [profileMissing, setProfileMissing] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [currentLocation, setCurrentLocation] = useState<{lat: number, lng: number} | null>(null);
   const [distances, setDistances] = useState<Record<string, { toPickup: number, toDelivery: number }>>({});
@@ -128,6 +129,21 @@ export function EntregadorEntregasDisponiveisPanel() {
   async function fetchEntregas() {
     try {
       
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: entregador } = await supabase
+        .from('entregadores')
+        .select('id')
+        .eq('email', user.email)
+        .single();
+
+      if (!entregador) {
+        setProfileMissing(true);
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('nova_entrega')
         .select(`

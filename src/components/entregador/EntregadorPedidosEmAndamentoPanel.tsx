@@ -227,6 +227,17 @@ export function EntregadorPedidosEmAndamentoPanel() {
       
       {loading ? (
         <div className="text-center py-8">Carregando...</div>
+      ) : profileMissing ? (
+        <div className="bg-red-50 p-6 rounded-lg border border-red-200 text-center">
+            <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-3" />
+            <h3 className="text-lg font-bold text-red-800 mb-2">Perfil de Entregador Não Encontrado</h3>
+            <p className="text-red-600 mb-4">
+                Seu usuário não está vinculado a nenhum perfil de entregador.
+            </p>
+            <p className="text-sm text-red-500">
+                Entre em contato com o administrador para realizar seu cadastro.
+            </p>
+        </div>
       ) : entregas.length === 0 ? (
         <div className="bg-white p-8 rounded-lg shadow-sm text-center text-gray-500 border border-gray-100">
           <Truck className="w-12 h-12 mx-auto mb-3 text-gray-300" />

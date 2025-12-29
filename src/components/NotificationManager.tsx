@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 import { LocalNotifications } from '@capacitor/local-notifications';
+import { PushNotifications } from '@capacitor/push-notifications';
+import { Capacitor } from '@capacitor/core';
 import { supabase } from '../lib/supabase';
 
 interface NotificationManagerProps {
@@ -14,7 +16,7 @@ export function NotificationManager({ userId, userRole }: NotificationManagerPro
     let channel: any = null;
 
     const setupNotifications = async () => {
-      
+      // Configuração de Notificações Locais
       const permStatus = await LocalNotifications.checkPermissions();
       if (permStatus.display !== 'granted') {
         const request = await LocalNotifications.requestPermissions();
@@ -30,6 +32,42 @@ export function NotificationManager({ userId, userRole }: NotificationManagerPro
         sound: 'default.wav', 
         vibration: true,
       });
+
+      // Configuração de Push Notifications (Firebase)
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const pushPermStatus = await PushNotifications.checkPermissions();
+          if (pushPermStatus.receive !== 'granted') {
+            const request = await PushNotifications.requestPermissions();
+            if (request.receive === 'granted') {
+              await PushNotifications.register();
+            }
+          } else {
+            await PushNotifications.register();
+          }
+
+          PushNotifications.addListener('registration', token => {
+            console.log('Push Registration Token:', token.value);
+            // TODO: Salvar token no perfil do entregador no Supabase para envio via Edge Function
+          });
+
+          PushNotifications.addListener('registrationError', error => {
+            console.error('Error on registration:', error);
+          });
+
+          PushNotifications.addListener('pushNotificationReceived', notification => {
+            console.log('Push Received:', notification);
+            // Se o app estiver aberto, podemos mostrar um toast ou deixar a notificação nativa aparecer
+          });
+
+          PushNotifications.addListener('pushNotificationActionPerformed', notification => {
+            console.log('Push Action:', notification);
+            // Navegar para a tela de pedidos
+          });
+        } catch (e) {
+          console.error('Erro ao configurar Push Notifications:', e);
+        }
+      }
 
       channel = supabase
         .channel('notificacoes_entregas')
@@ -65,9 +103,9 @@ export function NotificationManager({ userId, userRole }: NotificationManagerPro
             }
 
             if (
-              (eventType === 'INSERT' && newRecord.status === 'atribuida' && newRecord.entregador_id === userId) ||
-              (eventType === 'UPDATE' && newRecord.status === 'atribuida' && newRecord.entregador_id === userId && 
-               (oldRecord.entregador_id !== userId || oldRecord.status !== 'atribuida'))
+              (eventType === 'INSERT' && (newRecord.status === 'atribuida' || newRecord.status === 'criada') && newRecord.entregador_id === userId) ||
+              (eventType === 'UPDATE' && (newRecord.status === 'atribuida' || newRecord.status === 'criada') && newRecord.entregador_id === userId && 
+               (oldRecord.entregador_id !== userId || (oldRecord.status !== 'atribuida' && oldRecord.status !== 'criada')))
             ) {
                 await LocalNotifications.schedule({
                   notifications: [{

@@ -434,7 +434,8 @@ export function NovaEntregaPanel() {
     }
     setLoading(true);
     setError(null);
-    const entregadorEscolhido = form.atribuicao_modo === 'automatica' ? pickEntregadorAutomatico() : (form.entregador_id || null);
+    // Modo automatico agora significa "Disponível para todos" (sem entregador definido inicialmente)
+    const entregadorEscolhido = form.atribuicao_modo === 'automatica' ? null : (form.entregador_id || null);
 
     let pedidoId = null;
     try {
