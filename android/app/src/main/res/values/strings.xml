@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">Route Delivery</string>
     <string name="title_activity_main">Route Delivery</string>
-    <string name="package_name">com.routedelivery.app</string>
-    <string name="custom_url_scheme">com.routedelivery.app</string>
+    <string name="package_name">route.delivery</string>
+    <string name="custom_url_scheme">route.delivery</string>
 </resources>

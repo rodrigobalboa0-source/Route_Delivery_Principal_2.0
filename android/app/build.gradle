@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "com.routedelivery.app"
+    namespace = "route.delivery"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.routedelivery.app"
+        applicationId "route.delivery"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

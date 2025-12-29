@@ -363,7 +363,7 @@ export function NovaEntregaPanel() {
   const fetchData = async () => {
     const [c, e, t, m, tp] = await Promise.all([
       supabase.from('clientes').select('*').order('nome_completo'),
-      supabase.from('entregadores').select('id, nome_completo, status').neq('status', 'inativo').order('nome_completo'),
+      supabase.from('entregadores').select('id, nome_completo, status, is_online').neq('status', 'inativo').order('nome_completo'),
       supabase.from('tipo_servicos').select('*').eq('ativo', true).order('nome'),
       supabase.from('modais').select('*').eq('ativo', true).order('tipo'),
       supabase.from('tabelas_precos').select('*').order('nome'),
@@ -434,8 +434,17 @@ export function NovaEntregaPanel() {
     }
     setLoading(true);
     setError(null);
-    // Modo automatico agora significa "Disponível para todos" (sem entregador definido inicialmente)
-    const entregadorEscolhido = form.atribuicao_modo === 'automatica' ? null : (form.entregador_id || null);
+    // Lógica de atribuição automática: Seleciona um entregador aleatório online se estiver em modo automático
+    let entregadorEscolhido = form.atribuicao_modo === 'manual' ? (form.entregador_id || null) : null;
+    
+    if (form.atribuicao_modo === 'automatica') {
+      const disponiveis = entregadores.filter(e => e.status === 'ativo' && e.is_online);
+      if (disponiveis.length > 0) {
+        const randomIndex = Math.floor(Math.random() * disponiveis.length);
+        entregadorEscolhido = disponiveis[randomIndex].id;
+        console.log(`Atribuição Automática: ${disponiveis[randomIndex].nome_completo} selecionado`);
+      }
+    }
 
     let pedidoId = null;
     try {
