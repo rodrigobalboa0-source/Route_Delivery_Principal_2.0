@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { MapPin, CheckCircle, Truck, AlertCircle, Phone, Navigation, Map as MapIcon } from 'lucide-react';
+import { MapPin, CheckCircle, Truck, AlertCircle, Phone, Navigation, Map as MapIcon, XCircle } from 'lucide-react';
 import { MapView, MapDeliveryPerson } from '../MapView';
 import type { Database } from '../../lib/database.types';
 import { Geolocation } from '@capacitor/geolocation';
@@ -128,7 +128,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
           clientes:cliente_id (nome_completo, telefone, celular)
         `)
         .eq('entregador_id', entregador.id)
-        .in('status', ['atribuida', 'em_rota'])
+        .in('status', ['atribuida', 'em_rota', 'criada'])
         .order('created_at', { ascending: true });
 
       if (error) throw error;
@@ -160,6 +160,32 @@ export function EntregadorPedidosEmAndamentoPanel() {
     } catch (error: any) {
       console.error('Erro ao atualizar status:', error);
       alert('Erro ao atualizar status: ' + error.message);
+    } finally {
+      setUpdatingId(null);
+    }
+  }
+
+  async function handleRejeitar(id: string) {
+    if (!confirm('Deseja realmente rejeitar esta entrega?')) return;
+    setUpdatingId(id);
+    try {
+      const { error } = await supabase
+        .from('nova_entrega')
+        .update({ 
+          entregador_id: null, 
+          status: 'criada',
+          atribuicao_modo: 'automatica',
+          updated_at: new Date().toISOString() 
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+      
+      setEntregas(prev => prev.filter(e => e.id !== id));
+      // alert('Entrega rejeitada com sucesso');
+    } catch (error: any) {
+      console.error('Erro ao rejeitar:', error);
+      alert('Erro ao rejeitar: ' + error.message);
     } finally {
       setUpdatingId(null);
     }
@@ -218,9 +244,9 @@ export function EntregadorPedidosEmAndamentoPanel() {
                  <div className="flex justify-between items-start">
                    <div>
                      <span className={`inline-block px-2 py-1 rounded text-xs font-bold uppercase mb-2 ${
-                       entrega.status === 'atribuida' ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700'
+                       entrega.status === 'atribuida' || entrega.status === 'criada' ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700'
                      }`}>
-                       {entrega.status === 'atribuida' ? 'Aguardando Coleta' : 'Em Rota'}
+                       {entrega.status === 'atribuida' || entrega.status === 'criada' ? 'Aguardando Coleta' : 'Em Rota'}
                      </span>
                      <h3 className="font-bold text-gray-800">#{entrega.entrega_codigo_pedido || String(entrega.id).slice(0, 8)}</h3>
                    </div>
@@ -293,7 +319,16 @@ export function EntregadorPedidosEmAndamentoPanel() {
               </div>
 
               <div className="p-5 bg-gray-50 flex gap-3">
-                {entrega.status === 'atribuida' && (
+                {(entrega.status === 'atribuida' || entrega.status === 'criada') && (
+                  <>
+                  <button
+                    onClick={() => handleRejeitar(entrega.id)}
+                    disabled={updatingId === entrega.id}
+                    className="bg-red-100 hover:bg-red-200 text-red-700 font-bold px-4 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                    title="Rejeitar Entrega"
+                  >
+                     <XCircle size={24} />
+                  </button>
                   <button
                     onClick={() => updateStatus(entrega.id, 'em_rota')}
                     disabled={updatingId === entrega.id}
@@ -306,6 +341,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
                       </>
                     )}
                   </button>
+                  </>
                 )}
                 
                 {entrega.status === 'em_rota' && (

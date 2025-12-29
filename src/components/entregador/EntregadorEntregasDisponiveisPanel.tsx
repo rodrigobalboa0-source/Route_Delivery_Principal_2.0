@@ -4,7 +4,7 @@ import { MapPin, Navigation, Package, DollarSign, Clock } from 'lucide-react';
 import { Geolocation } from '@capacitor/geolocation';
 
 function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const R = 6371; // Radius of the earth in km
+  const R = 6371; 
   const dLat = deg2rad(lat2 - lat1);
   const dLon = deg2rad(lon2 - lon1);
   const a =
@@ -12,7 +12,7 @@ function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon
     Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
     Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const d = R * c; // Distance in km
+  const d = R * c; 
   return d;
 }
 
@@ -55,15 +55,15 @@ export function EntregadorEntregasDisponiveisPanel() {
       if (!currentLocation || entregas.length === 0) return;
       
       const calculate = async () => {
-          // We'll process one by one to avoid rate limits and state thrashing
+          
           const newDistances = { ...distances };
           let changed = false;
 
           for (const entrega of entregas) {
-              if (newDistances[entrega.id]) continue; // Already calculated
+              if (newDistances[entrega.id]) continue; 
 
               if (entrega.coleta_endereco_texto) {
-                  // Small delay to be nice to the API
+                  
                   await new Promise(r => setTimeout(r, 500));
                   
                   const pickupCoords = await getCoordsFromAddress(entrega.coleta_endereco_texto);
@@ -90,7 +90,7 @@ export function EntregadorEntregasDisponiveisPanel() {
                       };
                       changed = true;
                       
-                      // Update state incrementally so user sees progress
+                      
                       setDistances(prev => ({
                           ...prev,
                           [entrega.id]: {

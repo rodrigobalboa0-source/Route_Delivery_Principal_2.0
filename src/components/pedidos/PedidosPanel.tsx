@@ -4,7 +4,7 @@ import { MapView, MapDeliveryPerson } from '../MapView';
 import { Modal } from '../Modal';
 import type { Database } from '../../lib/database.types';
 import { format } from 'date-fns';
-import { Trash2, User, CheckCircle, Truck, Plus, ArrowRight, MapPin, Settings, Edit, FileText, CheckSquare, Link, Clock, Copy, MoreVertical, X } from 'lucide-react';
+import { Trash2, User, CheckCircle, Truck, Plus, ArrowRight, MapPin, Settings, Edit, FileText, CheckSquare, Link, Clock, Copy, MoreVertical, X, RefreshCw } from 'lucide-react';
 
 type Cliente = { 
   id: string; 
@@ -366,6 +366,15 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [isAllocationModalOpen, setIsAllocationModalOpen] = useState(false);
   const [selectedPedidoForAllocation, setSelectedPedidoForAllocation] = useState<Pedido | null>(null);
   const [selectedEntregadorId, setSelectedEntregadorId] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    if (userId) {
+      supabase.from('users').select('role').eq('id', userId).single().then(({ data }) => {
+        setIsAdmin(data?.role === 'admin');
+      });
+    }
+  }, [userId]);
 
   // Map State
   const [mapSelectedEntregadorId, setMapSelectedEntregadorId] = useState('');
@@ -448,6 +457,33 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     setSelectedPedido(p);
     setIsHistoryModalOpen(true);
     setOpenMenuId(null);
+  };
+
+  const handleReprocurar = async (pedido: Pedido) => {
+    const entrega = entregasMap[pedido.id];
+    if (!entrega || !entrega.id) return;
+
+    if (!confirm('Deseja realmente colocar este pedido para reprocura? O entregador atual será removido.')) return;
+
+    try {
+        const { error } = await supabase
+            .from('nova_entrega')
+            .update({
+                entregador_id: null,
+                status: 'criada',
+                atribuicao_modo: 'automatica',
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', entrega.id);
+
+        if (error) throw error;
+        
+        fetchPedidos();
+        setOpenMenuId(null);
+    } catch (e) {
+        console.error('Erro ao reprocurar:', e);
+        alert('Erro ao realizar operação');
+    }
   };
 
   const handleSetReady = async (p: Pedido) => { 
@@ -919,7 +955,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                 Atribuir
              </button>
              <button 
-                onClick={() => onNavigate?.('nova-entrega')} 
+                onClick={() => onNavigate?.('nova_criar')} 
                 className="flex-1 bg-sky-500 hover:bg-sky-600 text-white font-medium rounded-lg flex items-center justify-center gap-2 shadow-sm"
              >
                 <Plus size={20} />
@@ -1108,6 +1144,9 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                         <button onClick={() => handleCopyLink(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2"><Link size={16}/> Copiar link de rastreio</button>
                         <button onClick={() => handleHistory(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2"><Clock size={16}/> Histórico de Alterações</button>
                         <button onClick={() => handleClone(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2"><Copy size={16}/> Clonar</button>
+                        {isAdmin && entregasMap[p.id]?.status === 'atribuida' && (
+                             <button onClick={() => handleReprocurar(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2 border-t border-slate-100 mt-1"><RefreshCw size={16}/> Reprocurar</button>
+                        )}
                         {userRole !== 'entregador' && (
                              <button onClick={() => handleDelete(p.id)} className="px-4 py-2 hover:bg-red-50 text-sm text-red-600 flex items-center gap-2 border-t border-slate-100 mt-1"><Trash2 size={16}/> Excluir</button>
                         )}
