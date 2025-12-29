@@ -7,7 +7,38 @@ export function EntregadorNotificacoesPanel() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchNotificacoes();
+    let channel: any = null;
+
+    const setupRealtime = async () => {
+      // Get current user for filtering
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      fetchNotificacoes();
+
+      channel = supabase
+        .channel('entregador_notificacoes_panel')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'entregador_notificacoes',
+            filter: `entregador_id=eq.${user.id}`
+          },
+          (payload) => {
+            console.log('Nova notificação recebida:', payload);
+            setNotificacoes(prev => [payload.new, ...prev]);
+          }
+        )
+        .subscribe();
+    };
+
+    setupRealtime();
+
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+    };
   }, []);
 
   async function fetchNotificacoes() {

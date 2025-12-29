@@ -126,6 +126,32 @@ export function NotificationManager({ userId, userRole }: NotificationManagerPro
               }
           }
         )
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'entregador_notificacoes',
+            filter: `entregador_id=eq.${userId}`
+          },
+          async (payload) => {
+            const newRecord = payload.new;
+            await LocalNotifications.schedule({
+              notifications: [{
+                title: newRecord.titulo || 'Nova Notificação',
+                body: newRecord.mensagem || 'Você tem uma nova mensagem.',
+                id: new Date().getTime(),
+                schedule: { at: new Date(Date.now() + 100) },
+                sound: 'default',
+                channelId: 'entregas',
+                extra: {
+                  type: 'sistema',
+                  notificacaoId: newRecord.id
+                }
+              }]
+            });
+          }
+        )
         .subscribe();
     };
 
