@@ -437,10 +437,11 @@ export function NovaEntregaPanel() {
     }
     setLoading(true);
     setError(null);
-    // Lógica de atribuição automática: Seleciona um entregador aleatório online se estiver em modo automático
+   
+    
     let entregadorEscolhido = form.atribuicao_modo === 'manual' ? (form.entregador_id || null) : null;
     
-    // Check blacklist for manual assignment
+    
     if (form.atribuicao_modo === 'manual' && entregadorEscolhido) {
         const isBlocked = blacklist.some(b => b.cliente_id === form.cliente_id && b.entregador_id === entregadorEscolhido);
         if (isBlocked) {
@@ -448,22 +449,6 @@ export function NovaEntregaPanel() {
             setLoading(false);
             return;
         }
-    }
-
-    if (form.atribuicao_modo === 'automatica') {
-      // Filter active, online, and NOT blacklisted drivers
-      const disponiveis = entregadores.filter(e => {
-          const isBlocked = blacklist.some(b => b.cliente_id === form.cliente_id && b.entregador_id === e.id);
-          return e.status === 'ativo' && e.is_online && !isBlocked;
-      });
-
-      if (disponiveis.length > 0) {
-        const randomIndex = Math.floor(Math.random() * disponiveis.length);
-        entregadorEscolhido = disponiveis[randomIndex].id;
-        console.log(`Atribuição Automática: ${disponiveis[randomIndex].nome_completo} selecionado`);
-      } else {
-          console.log('Nenhum entregador disponível (online e permitido) para atribuição automática.');
-      }
     }
 
     let pedidoId = null;

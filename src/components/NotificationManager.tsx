@@ -16,7 +16,7 @@ export function NotificationManager({ userId, userRole }: NotificationManagerPro
     let channel: any = null;
 
     const setupNotifications = async () => {
-      // Configuração de Notificações Locais
+      
       const permStatus = await LocalNotifications.checkPermissions();
       if (permStatus.display !== 'granted') {
         const request = await LocalNotifications.requestPermissions();
@@ -33,7 +33,6 @@ export function NotificationManager({ userId, userRole }: NotificationManagerPro
         vibration: true,
       });
 
-      // Configuração de Push Notifications (Firebase)
       if (Capacitor.isNativePlatform()) {
         try {
           const pushPermStatus = await PushNotifications.checkPermissions();
@@ -50,7 +49,7 @@ export function NotificationManager({ userId, userRole }: NotificationManagerPro
 
           PushNotifications.addListener('registration', async (token) => {
             console.log('Push Registration Token:', token.value);
-            // Salvar token no perfil do entregador no Supabase
+            
             try {
               const { data: { user } } = await supabase.auth.getUser();
               if (user?.email) {
