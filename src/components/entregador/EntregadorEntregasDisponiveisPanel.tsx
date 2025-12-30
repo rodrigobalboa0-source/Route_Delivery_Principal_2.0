@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
-import { MapPin, Navigation, Package, DollarSign, Clock, AlertCircle } from 'lucide-react';
+import { MapPin, Navigation, Package, DollarSign, Clock, AlertCircle, XCircle } from 'lucide-react';
 import { Geolocation } from '@capacitor/geolocation';
 import { getDistanceFromLatLonInKm, getCoordsFromAddress } from '../../utils/geo';
 
@@ -12,6 +12,34 @@ export function EntregadorEntregasDisponiveisPanel() {
   const [currentLocation, setCurrentLocation] = useState<{lat: number, lng: number} | null>(null);
   const [deliveryCoords, setDeliveryCoords] = useState<Record<string, { pickup?: [number, number], delivery?: [number, number] }>>({});
   const [distances, setDistances] = useState<Record<string, { toPickup: number, toDelivery: number }>>({});
+  const [hiddenIds, setHiddenIds] = useState<string[]>([]);
+  const lastCountRef = useRef(0);
+
+  const playNotificationSound = () => {
+    try {
+      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContext) return;
+      
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, ctx.currentTime); // A5
+      osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.5);
+      
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+      
+      osc.start();
+      osc.stop(ctx.currentTime + 0.5);
+    } catch (e) {
+      console.error('Erro ao tocar som:', e);
+    }
+  };
 
   useEffect(() => {
     Geolocation.getCurrentPosition().then(pos => {
@@ -139,12 +167,20 @@ export function EntregadorEntregasDisponiveisPanel() {
           clientes:cliente_id (nome_completo),
           tipo_servicos:tipo_servico_id (nome)
         `)
-        .eq('status', 'criada')
-        .is('entregador_id', null)
+        .or(`and(status.eq.criada,entregador_id.is.null),and(status.eq.atribuida,entregador_id.eq.${entregador.id})`)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setEntregas(data || []);
+      
+      const newEntregas = data || [];
+      setEntregas(newEntregas);
+      
+      // Play sound if new items arrived
+      if (newEntregas.length > lastCountRef.current) {
+          playNotificationSound();
+      }
+      lastCountRef.current = newEntregas.length;
+
     } catch (error) {
       console.error('Erro ao buscar entregas disponíveis:', error);
     } finally {
@@ -173,6 +209,32 @@ export function EntregadorEntregasDisponiveisPanel() {
     }
   }
 
+  async function handleRecusar(id: string, assignedToMe: boolean) {
+    if (!confirm('Deseja realmente recusar esta entrega?')) return;
+    setProcessingId(id);
+    
+    try {
+        if (assignedToMe) {
+            const { error } = await supabase.from('nova_entrega').update({
+                entregador_id: null,
+                status: 'criada',
+                atribuicao_modo: 'automatica',
+                updated_at: new Date().toISOString()
+            }).eq('id', id);
+
+            if (error) throw error;
+            setEntregas(prev => prev.filter(e => e.id !== id));
+        } else {
+            setHiddenIds(prev => [...prev, id]);
+        }
+    } catch (e: any) {
+        console.error('Erro ao recusar:', e);
+        alert('Erro ao recusar entrega: ' + e.message);
+    } finally {
+        setProcessingId(null);
+    }
+  }
+
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold mb-6 flex items-center gap-2">
@@ -192,19 +254,21 @@ export function EntregadorEntregasDisponiveisPanel() {
         </div>
       ) : loading ? (
         <div className="text-center py-8">Carregando...</div>
-      ) : entregas.length === 0 ? (
+      ) : entregas.filter(e => !hiddenIds.includes(e.id)).length === 0 ? (
         <div className="bg-white p-8 rounded-lg shadow-sm text-center text-gray-500 border border-gray-100">
           <Package className="w-12 h-12 mx-auto mb-3 text-gray-300" />
           <p>Nenhuma entrega disponível no momento.</p>
         </div>
       ) : (
         <div className="space-y-4">
-          {entregas.map((entrega) => (
-            <div key={entrega.id} className="bg-white p-5 rounded-lg shadow-sm border border-gray-100 hover:border-sky-200 transition-colors">
+          {entregas.filter(e => !hiddenIds.includes(e.id)).map((entrega) => {
+             const assignedToMe = entrega.status === 'atribuida'; // Since we only fetch attributed if it's ours
+             return (
+            <div key={entrega.id} className={`bg-white p-5 rounded-lg shadow-sm border border-gray-100 hover:border-sky-200 transition-colors ${assignedToMe ? 'ring-2 ring-sky-500 ring-offset-2' : ''}`}>
               <div className="flex justify-between items-start mb-4">
                  <div>
-                   <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-sky-100 text-sky-800">
-                     {entrega.tipo_servicos?.nome || 'Entrega'}
+                   <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${assignedToMe ? 'bg-sky-500 text-white' : 'bg-sky-100 text-sky-800'}`}>
+                     {assignedToMe ? 'Atribuída a Você' : (entrega.tipo_servicos?.nome || 'Entrega')}
                    </span>
                    <h3 className="font-semibold text-lg mt-1">
                      {entrega.clientes?.nome_completo || 'Cliente'}
@@ -260,22 +324,33 @@ export function EntregadorEntregasDisponiveisPanel() {
                 </div>
               )}
 
-              <button
-                onClick={() => handleAceitar(entrega.id)}
-                disabled={processingId === entrega.id}
-                className="w-full bg-sky-600 hover:bg-sky-700 text-white font-medium py-3 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {processingId === entrega.id ? (
-                  <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <Navigation size={18} />
-                    Aceitar Corrida
-                  </>
-                )}
-              </button>
+              <div className="flex gap-3">
+                <button
+                    onClick={() => handleRecusar(entrega.id, assignedToMe)}
+                    disabled={processingId === entrega.id}
+                    className="bg-red-100 hover:bg-red-200 text-red-700 font-bold px-4 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                    title="Recusar"
+                >
+                    <XCircle size={24} />
+                </button>
+                <button
+                    onClick={() => handleAceitar(entrega.id)}
+                    disabled={processingId === entrega.id}
+                    className="flex-1 bg-sky-600 hover:bg-sky-700 text-white font-medium py-3 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    {processingId === entrega.id ? (
+                    <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                    <>
+                        <Navigation size={18} />
+                        Aceitar Corrida
+                    </>
+                    )}
+                </button>
+              </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
