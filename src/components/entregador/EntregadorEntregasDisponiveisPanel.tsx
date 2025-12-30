@@ -50,7 +50,7 @@ export function EntregadorEntregasDisponiveisPanel() {
     }).catch(err => console.error('Error getting location', err));
   }, []);
 
-  // Fetch coordinates for deliveries
+  
   useEffect(() => {
       const fetchCoords = async () => {
           const newCoords: Record<string, { pickup?: [number, number], delivery?: [number, number] }> = {};
@@ -75,7 +75,7 @@ export function EntregadorEntregasDisponiveisPanel() {
               if (pickup || delivery) {
                   newCoords[entrega.id] = { pickup, delivery };
                   hasNew = true;
-                  // Update state incrementally to show results faster
+                  
                   setDeliveryCoords(prev => ({ ...prev, [entrega.id]: { pickup, delivery } }));
               }
           }
@@ -86,7 +86,7 @@ export function EntregadorEntregasDisponiveisPanel() {
       }
   }, [entregas]);
 
-  // Calculate distances when location or coords change
+  
   useEffect(() => {
       if (!currentLocation) return;
       
@@ -110,8 +110,7 @@ export function EntregadorEntregasDisponiveisPanel() {
                    );
               }
           } else if (coords.delivery) {
-              // Fallback if no pickup coords: distance from user to delivery (not ideal but better than 0)
-              // Or keep it 0 as "Unknown"
+              
           }
 
           newDistances[id] = {
@@ -175,7 +174,7 @@ export function EntregadorEntregasDisponiveisPanel() {
       const newEntregas = data || [];
       setEntregas(newEntregas);
       
-      // Play sound if new items arrived
+      
       if (newEntregas.length > lastCountRef.current) {
           playNotificationSound();
       }
@@ -218,7 +217,7 @@ export function EntregadorEntregasDisponiveisPanel() {
             const { error } = await supabase.from('nova_entrega').update({
                 entregador_id: null,
                 status: 'criada',
-                atribuicao_modo: 'automatica',
+                atribuicao_modo: 'manual',
                 updated_at: new Date().toISOString()
             }).eq('id', id);
 

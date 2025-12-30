@@ -552,8 +552,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                endereco_id: entrega.endereco_id,
                tipo_servico_id: entrega.tipo_servico_id,
                modal_tipo: entrega.modal_tipo,
-               atribuicao_modo: entrega.atribuicao_modo,
-               entregador_id: null, // Reset entregador
+               atribuicao_modo: 'manual',
+               entregador_id: null, 
                solicitar_comprovante: entrega.solicitar_comprovante,
                valor_manual: entrega.valor_manual,
                valor_entrega: entrega.valor_entrega,

@@ -93,7 +93,7 @@ export function NovaEntregaPanel() {
     endereco_id: '',
     tipo_servico_id: '',
     modal_tipo: '',
-    atribuicao_modo: 'automatica' as 'manual' | 'automatica',
+    atribuicao_modo: 'manual' as 'manual' | 'automatica',
     entregador_id: '',
     observacoes: '',
     solicitar_comprovante: false,
@@ -531,7 +531,7 @@ export function NovaEntregaPanel() {
     if (insertError?.message) setError(insertError.message);
     else {
       setForm({
-        cliente_id: '', endereco_id: '', tipo_servico_id: '', modal_tipo: '', atribuicao_modo: 'automatica', entregador_id: '', observacoes: '',
+        cliente_id: '', endereco_id: '', tipo_servico_id: '', modal_tipo: '', atribuicao_modo: 'manual', entregador_id: '', observacoes: '',
         solicitar_comprovante: false, agendar_em: '', valor_manual: false, valor_entrega: '', tipo_cobranca: 'fatura', cobrar_destinatario: false,
         coleta_usa_endereco_cadastro: false, coleta_contato: '', coleta_telefone: '', coleta_cep: '', coleta_endereco_texto: '', coleta_complemento: '', coleta_observacoes: '',
         entrega_usa_endereco_cadastro: false, entrega_contato: '', entrega_telefone: '', entrega_codigo_pedido: '', entrega_centro_custo: '', entrega_solicitante: '', entrega_cep: '', entrega_endereco_texto: '', entrega_complemento: '', entrega_observacoes: '',
@@ -553,22 +553,12 @@ export function NovaEntregaPanel() {
               <option key={c.id} value={c.id}>{c.nome_completo || 'Cliente'}</option>
             ))}
           </select>
-          {/* Options removed as requested */}
-          <div className="flex items-center gap-3">
-            <label className="text-sm text-slate-700">Atribuição:</label>
-            <select value={form.atribuicao_modo} onChange={(e) => setForm({ ...form, atribuicao_modo: e.target.value as 'manual' | 'automatica' })} className="px-3 py-2 border border-slate-300 rounded">
-              <option value="automatica">Automática</option>
-              <option value="manual">Manual</option>
-            </select>
-          </div>
-          {form.atribuicao_modo === 'manual' && (
-            <select value={form.entregador_id} onChange={(e) => setForm({ ...form, entregador_id: e.target.value })} className="px-3 py-2 border border-slate-300 rounded">
-              <option value="">Entregador</option>
-              {entregadores.map((d) => (
-                <option key={d.id} value={d.id}>{d.nome_completo}</option>
-              ))}
-            </select>
-          )}
+          <select value={form.entregador_id} onChange={(e) => setForm({ ...form, entregador_id: e.target.value })} className="px-3 py-2 border border-slate-300 rounded">
+            <option value="">Selecione um Entregador (Opcional)</option>
+            {entregadores.map((d) => (
+              <option key={d.id} value={d.id}>{d.nome_completo}</option>
+            ))}
+          </select>
           <div className="flex items-center gap-2">
             <input id="solicitar_comprovante" type="checkbox" checked={form.solicitar_comprovante} onChange={(e) => setForm({ ...form, solicitar_comprovante: e.target.checked })} />
             <label htmlFor="solicitar_comprovante" className="text-sm text-slate-700">Solicitar comprovante assinado na entrega</label>

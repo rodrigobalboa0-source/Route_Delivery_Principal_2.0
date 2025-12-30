@@ -253,7 +253,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
         .update({ 
           entregador_id: null, 
           status: 'criada',
-          atribuicao_modo: 'automatica',
+          atribuicao_modo: 'manual',
           updated_at: new Date().toISOString() 
         })
         .eq('id', id);
@@ -261,7 +261,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
       if (error) throw error;
       
       setEntregas(prev => prev.filter(e => e.id !== id));
-      // alert('Entrega rejeitada com sucesso');
+      
     } catch (error: any) {
       console.error('Erro ao rejeitar:', error);
       alert('Erro ao rejeitar: ' + error.message);
