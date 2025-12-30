@@ -323,19 +323,11 @@ export function EntregadorEntregasDisponiveisPanel() {
                 </div>
               )}
 
-              <div className="flex gap-3">
-                <button
-                    onClick={() => handleRecusar(entrega.id, assignedToMe)}
-                    disabled={processingId === entrega.id}
-                    className="bg-red-100 hover:bg-red-200 text-red-700 font-bold px-4 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
-                    title="Recusar"
-                >
-                    <XCircle size={24} />
-                </button>
+              <div className="flex flex-col gap-3">
                 <button
                     onClick={() => handleAceitar(entrega.id)}
                     disabled={processingId === entrega.id}
-                    className="flex-1 bg-sky-600 hover:bg-sky-700 text-white font-medium py-3 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full bg-sky-600 hover:bg-sky-700 text-white font-medium py-3 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {processingId === entrega.id ? (
                     <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -345,6 +337,15 @@ export function EntregadorEntregasDisponiveisPanel() {
                         Aceitar Corrida
                     </>
                     )}
+                </button>
+
+                <button
+                    onClick={() => handleRecusar(entrega.id, assignedToMe)}
+                    disabled={processingId === entrega.id}
+                    className="w-full bg-red-100 hover:bg-red-200 text-red-700 font-medium py-3 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                >
+                    <XCircle size={18} />
+                    Recusar entrega
                 </button>
               </div>
             </div>
