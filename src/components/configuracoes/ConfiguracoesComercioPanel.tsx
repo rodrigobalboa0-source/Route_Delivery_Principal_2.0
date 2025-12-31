@@ -22,12 +22,12 @@ export function ConfiguracoesComercioPanel() {
       const { data, error } = await supabase
         .from('configuracoes_comercio')
         .select('*')
-        .single();
+        .maybeSingle(); 
 
-      if (error) {
-        if (error.code === 'PGRST116') {
-          
-          const { data: newData, error: createError } = await supabase
+      if (!data) {
+        if (!error) {
+             
+            const { data: newData, error: createError } = await supabase
             .from('configuracoes_comercio')
             .insert({
               permitir_cadastro_entregador: true,
@@ -39,9 +39,14 @@ export function ConfiguracoesComercioPanel() {
           
           if (createError) throw createError;
           setConfig(newData);
+          return;
         } else {
-          throw error;
+             throw error;
         }
+      }
+
+      if (error) {
+        throw error;
       } else {
         setConfig(data);
       }
