@@ -22,10 +22,10 @@ export function CustomizacaoPanel() {
       const { data, error } = await supabase
         .from('customizacao_app')
         .select('*')
-        .single();
+        .maybeSingle();
 
-      if (error) {
-        if (error.code === 'PGRST116') {
+      if (!data) {
+        if (!error) {
           // No rows, create default
           const { data: newData, error: createError } = await (supabase
             .from('customizacao_app') as any)
@@ -41,9 +41,14 @@ export function CustomizacaoPanel() {
           
           if (createError) throw createError;
           setConfig(newData);
+          return;
         } else {
-          throw error;
+           throw error;
         }
+      }
+
+      if (error) {
+        throw error;
       } else {
         setConfig(data);
       }
