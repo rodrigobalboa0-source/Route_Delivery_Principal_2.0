@@ -22,11 +22,12 @@ export function ConfiguracoesComercioPanel() {
       const { data, error } = await supabase
         .from('configuracoes_comercio')
         .select('*')
-        .maybeSingle(); 
+        .limit(1); 
 
-      if (!data) {
-        if (!error) {
-             
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+            
             const { data: newData, error: createError } = await supabase
             .from('configuracoes_comercio')
             .insert({
@@ -35,21 +36,15 @@ export function ConfiguracoesComercioPanel() {
               limite_entregas_simultaneas: 1
             } as any)
             .select()
+            .limit(1)
             .single();
           
           if (createError) throw createError;
           setConfig(newData);
           return;
-        } else {
-             throw error;
-        }
       }
 
-      if (error) {
-        throw error;
-      } else {
-        setConfig(data);
-      }
+      setConfig(data[0]);
     } catch (err: any) {
       console.error('Erro ao carregar configurações:', err);
       setError(err.message || 'Falha ao carregar configurações');

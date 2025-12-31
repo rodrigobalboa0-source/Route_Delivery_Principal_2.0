@@ -22,10 +22,11 @@ export function CustomizacaoPanel() {
       const { data, error } = await supabase
         .from('customizacao_app')
         .select('*')
-        .maybeSingle();
+        .limit(1);
 
-      if (!data) {
-        if (!error) {
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
           // No rows, create default
           const { data: newData, error: createError } = await (supabase
             .from('customizacao_app') as any)
@@ -37,21 +38,15 @@ export function CustomizacaoPanel() {
               texto_rodape: '© 2025 RouteDelivery. Todos os direitos reservados.'
             })
             .select()
+            .limit(1)
             .single();
           
           if (createError) throw createError;
           setConfig(newData);
           return;
-        } else {
-           throw error;
-        }
       }
 
-      if (error) {
-        throw error;
-      } else {
-        setConfig(data);
-      }
+      setConfig(data[0]);
     } catch (err: any) {
       console.error('Erro ao carregar customização:', err);
       setError(err.message || 'Falha ao carregar customização');
