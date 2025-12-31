@@ -2,7 +2,9 @@ import { useEffect } from 'react';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { Capacitor } from '@capacitor/core';
+import { Geolocation } from '@capacitor/geolocation';
 import { supabase } from '../lib/supabase';
+import { getCoordsFromAddress, getDistanceFromLatLonInKm } from '../utils/geo';
 
 interface NotificationManagerProps {
   userId: string;
@@ -16,6 +18,16 @@ export function NotificationManager({ userId, userRole }: NotificationManagerPro
     let channel: any = null;
 
     const setupNotifications = async () => {
+      // Fetch radius config
+      let radiusKm = 10; // default
+      try {
+        const { data: config } = await supabase.from('configuracoes_comercio').select('raio_busca_entregador').single();
+        if (config?.raio_busca_entregador) {
+          radiusKm = config.raio_busca_entregador;
+        }
+      } catch (e) {
+        console.error('Erro ao buscar config raio:', e);
+      }
       
       const permStatus = await LocalNotifications.checkPermissions();
       if (permStatus.display !== 'granted') {
@@ -98,6 +110,32 @@ export function NotificationManager({ userId, userRole }: NotificationManagerPro
               (eventType === 'INSERT' && newRecord.status === 'criada' && !newRecord.entregador_id) ||
               (eventType === 'UPDATE' && newRecord.status === 'criada' && !newRecord.entregador_id && (oldRecord.status !== 'criada' || oldRecord.entregador_id))
             ) {
+              // Verificar raio
+              try {
+                if (newRecord.coleta_endereco_texto) {
+                   const pickupCoords = await getCoordsFromAddress(newRecord.coleta_endereco_texto);
+                   if (pickupCoords) {
+                      const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: false, timeout: 5000 });
+                      if (pos) {
+                          const dist = getDistanceFromLatLonInKm(
+                              pos.coords.latitude, pos.coords.longitude,
+                              pickupCoords[0], pickupCoords[1]
+                          );
+                          if (dist > radiusKm) {
+                              console.log(`Ignorando notificação: Distância ${dist.toFixed(1)}km > Raio ${radiusKm}km`);
+                              return;
+                          }
+                      }
+                   }
+                }
+              } catch (e) {
+                console.error('Erro ao verificar raio para notificação:', e);
+              }
+
+              if (onNavigate) {
+                  onNavigate('entregas_disponiveis');
+              }
+
               await LocalNotifications.schedule({
                 notifications: [{
                   title: 'Nova Entrega Disponível! 🛵',

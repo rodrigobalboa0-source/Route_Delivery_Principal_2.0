@@ -240,7 +240,7 @@ function App() {
 
   return (
     <div className="flex flex-col h-[100dvh] w-screen overflow-hidden bg-slate-100">
-      <NotificationManager userId={userId || ''} userRole={userRole} />
+      <NotificationManager userId={userId || ''} userRole={userRole} onNavigate={(menu) => setActiveMenu(menu)} />
       <TopBar
         onMenuToggle={() => setSidebarOpen((v) => !v)}
         onLogout={handleLogout}

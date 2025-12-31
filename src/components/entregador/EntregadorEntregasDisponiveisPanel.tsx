@@ -209,7 +209,6 @@ export function EntregadorEntregasDisponiveisPanel() {
   }
 
   async function handleRecusar(id: string, assignedToMe: boolean) {
-    if (!confirm('Deseja realmente recusar esta entrega?')) return;
     setProcessingId(id);
     
     try {
