@@ -451,6 +451,11 @@ export function NovaEntregaPanel() {
         }
     }
 
+    
+    const kmValue = distanciaKm ? parseFloat(distanciaKm.replace(',', '.')) : 0;
+    const driverValueStr = calculateDriverCommission(kmValue, form.retorno, form.pontos.length);
+    const driverValue = parseFloat(driverValueStr);
+
     let pedidoId = null;
     try {
       const valorTotal = form.valor_entrega ? Number(form.valor_entrega.replace(',', '.')) : null;
@@ -502,6 +507,7 @@ export function NovaEntregaPanel() {
         agendar_em: form.agendar_em ? new Date(form.agendar_em).toISOString() : null,
         valor_manual: form.valor_manual,
         valor_entrega: form.valor_entrega ? Number(form.valor_entrega.replace(',', '.')) : null,
+        valor_entregador: driverValue,
         tipo_cobranca: form.tipo_cobranca as 'fatura' | 'avista' | 'pix' | 'cartao',
         cobrar_destinatario: form.cobrar_destinatario,
         coleta_usa_endereco_cadastro: form.coleta_usa_endereco_cadastro,

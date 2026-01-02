@@ -275,7 +275,7 @@ export function EntregadorEntregasDisponiveisPanel() {
                  <div className="text-right">
                    <div className="flex items-center gap-1 text-green-600 font-bold text-lg">
                      <DollarSign size={18} />
-                     {Number(entrega.valor_entrega || 0).toFixed(2)}
+                     {Number(entrega.valor_entregador ?? entrega.valor_entrega ?? 0).toFixed(2)}
                    </div>
                    <div className="flex items-center gap-1 text-xs text-gray-400 mt-1 justify-end">
                      <Clock size={12} />

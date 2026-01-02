@@ -34,17 +34,18 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
       
       const entregadorId = entregadorData.id;
 
-      // Fetch commissions/payments
+      
       const { data, error } = await supabase
-        .from('comissoes_entregadores') 
+        .from('nova_entrega') 
         .select('*')
         .eq('entregador_id', entregadorId)
+        .eq('status', 'entregue')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       setExtrato(data || []);
       
-      const total = (data || []).reduce((acc, curr) => acc + (curr.valor || 0), 0);
+      const total = (data || []).reduce((acc, curr) => acc + (curr.valor_entregador || curr.valor_entrega || 0), 0);
       setSaldo(total);
 
     } catch (error) {

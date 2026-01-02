@@ -519,6 +519,26 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     setOpenMenuId(null); 
   };
 
+  const handleFinalizePedido = async (p: Pedido) => {
+    if (!confirm('Finalizar pedido e marcar como Entregue?')) return;
+    
+    
+    const { error: errorPedido } = await supabase.from('pedidos').update({ status: 'entregue' }).eq('id', p.id);
+    if (errorPedido) {
+        alert('Erro ao atualizar status do pedido: ' + errorPedido.message);
+        return;
+    }
+
+    
+    const { error: errorEntrega } = await supabase.from('nova_entrega').update({ status: 'entregue' }).eq('pedido_id', p.id);
+    if (errorEntrega) {
+        console.error('Erro ao atualizar entrega:', errorEntrega);
+    }
+
+    fetchPedidos();
+    setOpenMenuId(null);
+  };
+
   const handleCopyLink = (p: Pedido) => { 
     navigator.clipboard.writeText(`${window.location.origin}/rastreio/${p.id}`);
     alert('Link de rastreio copiado!'); 
@@ -528,7 +548,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const handleClone = async (p: Pedido) => { 
     if (!confirm('Deseja clonar este pedido?')) return;
     try {
-        // Clone Pedido
+        
         const { data: newPedido, error: pError } = await supabase.from('pedidos').insert({
             cliente_id: p.cliente_id,
             endereco_id: p.endereco_id,
@@ -543,7 +563,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
         if (pError || !newPedido) throw pError;
 
-        // Clone Nova Entrega
+        
         const entrega = entregasMap[p.id];
         if (entrega) {
            await supabase.from('nova_entrega').insert({
@@ -601,10 +621,10 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   };
 
   const handleViewMap = async (pedido: Pedido) => {
-    // Scroll to map
+    
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
-    // Reset
+    
     setOriginCoords(undefined);
     setDestinationCoords(undefined);
     setOriginTitle('');
@@ -614,12 +634,12 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
     const entrega = entregasMap[pedido.id];
 
-    // 1. Entregador
+    
     if (entrega?.entregador_id) {
       setMapSelectedEntregadorId(entrega.entregador_id);
     }
 
-    // 2. Origem (Prioritize Coleta)
+    
     if (entrega?.coleta_endereco_texto) {
       setOriginTitle(entrega.coleta_contato || 'Coleta');
       const coords = await getCoordsFromAddress(entrega.coleta_endereco_texto);
@@ -627,7 +647,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         setOriginCoords(coords);
       }
     } else {
-        // Fallback to client address
+        
         const cliente = clientes.find(c => c.id === pedido.cliente_id);
         if (cliente) {
              const address = [cliente.rua, cliente.numero, cliente.bairro, cliente.cidade].filter(Boolean).join(', ');
@@ -641,7 +661,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         }
     }
 
-    // 3. Destino
+    
     if (entrega?.entrega_endereco_texto) {
       setDestinationTitle(entrega.entrega_contato || 'Entrega');
       const coords = await getCoordsFromAddress(entrega.entrega_endereco_texto);
@@ -665,7 +685,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     fetchClientes();
     fetchEntregadoresList();
 
-    // Subscribe to realtime changes for entregadores location
+    
     const channel = supabase
       .channel('entregadores-location')
       .on(

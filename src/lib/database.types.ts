@@ -1064,6 +1064,7 @@ export interface Database {
           agendar_em: string | null
           valor_manual: boolean | null
           valor_entrega: number | null
+          valor_entregador: number | null
           tipo_cobranca: 'fatura' | 'avista' | 'pix' | 'cartao' | null
           cobrar_destinatario: boolean | null
           coleta_usa_endereco_cadastro: boolean | null
@@ -1104,6 +1105,7 @@ export interface Database {
           agendar_em?: string | null
           valor_manual?: boolean | null
           valor_entrega?: number | null
+          valor_entregador?: number | null
           valor_mercadoria?: number | null
           tipo_cobranca?: 'fatura' | 'avista' | 'pix' | 'cartao' | null
           cobrar_destinatario?: boolean | null
@@ -1145,6 +1147,7 @@ export interface Database {
           agendar_em?: string | null
           valor_manual?: boolean | null
           valor_entrega?: number | null
+          valor_entregador?: number | null
           valor_mercadoria?: number | null
           tipo_cobranca?: 'fatura' | 'avista' | 'pix' | 'cartao' | null
           cobrar_destinatario?: boolean | null

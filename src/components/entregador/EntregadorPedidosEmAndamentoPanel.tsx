@@ -334,6 +334,10 @@ export function EntregadorPedidosEmAndamentoPanel() {
                      <h3 className="font-bold text-gray-800">#{entrega.entrega_codigo_pedido || String(entrega.id).slice(0, 8)}</h3>
                    </div>
                    <div className="text-right">
+                     <div className="flex items-center gap-1 text-green-600 font-bold text-lg justify-end mb-1">
+                       <DollarSign size={18} />
+                       {Number(entrega.valor_entregador ?? entrega.valor_entrega ?? 0).toFixed(2)}
+                     </div>
                      <p className="text-sm font-medium text-gray-600">{entrega.clientes?.nome_completo}</p>
                      {(entrega.clientes?.telefone) && (
                        <a href={`tel:${entrega.clientes?.telefone}`} className="inline-flex items-center gap-1 text-xs text-sky-600 mt-1 hover:underline">

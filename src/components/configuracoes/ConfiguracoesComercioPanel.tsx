@@ -19,10 +19,11 @@ export function ConfiguracoesComercioPanel() {
   const fetchConfig = async () => {
     try {
       setLoading(true);
+      
       const { data, error } = await supabase
         .from('configuracoes_comercio')
         .select('*')
-        .limit(1); 
+        .order('updated_at', { ascending: false }); 
 
       if (error) throw error;
 
@@ -36,7 +37,6 @@ export function ConfiguracoesComercioPanel() {
               limite_entregas_simultaneas: 1
             } as any)
             .select()
-            .limit(1)
             .single();
           
           if (createError) throw createError;
@@ -44,7 +44,25 @@ export function ConfiguracoesComercioPanel() {
           return;
       }
 
-      setConfig(data[0]);
+      
+      if (data.length > 1) {
+          const [keep, ...duplicates] = data;
+          console.log(`Found ${duplicates.length} duplicate configurations. Cleaning up...`);
+          
+          const { error: deleteError } = await supabase
+              .from('configuracoes_comercio')
+              .delete()
+              .in('id', duplicates.map(d => d.id));
+              
+          if (deleteError) {
+              console.error('Error deleting duplicates:', deleteError);
+          }
+          
+          setConfig(keep);
+      } else {
+          setConfig(data[0]);
+      }
+
     } catch (err: any) {
       console.error('Erro ao carregar configurações:', err);
       setError(err.message || 'Falha ao carregar configurações');

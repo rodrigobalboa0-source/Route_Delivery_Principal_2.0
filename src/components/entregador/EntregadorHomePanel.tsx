@@ -227,10 +227,13 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
         </button>
       </div>
 
-      <div className="absolute top-4 right-4 z-10 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg px-4 py-2 min-w-[120px] flex flex-col items-center border border-slate-200">
+      <button
+        onClick={() => onNavigate('carteira')}
+        className="absolute top-4 right-4 z-10 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg px-4 py-2 min-w-[120px] flex flex-col items-center border border-slate-200 hover:bg-slate-50 transition-colors"
+      >
          <span className="text-xs text-slate-500 font-bold uppercase mb-0.5">Ganhos</span>
-         <span className="text-lg font-bold text-slate-800 leading-none">R$ 0,00</span>
-      </div>
+         <span className="text-lg font-bold text-slate-800 leading-none">R$ {ganhos.toFixed(2)}</span>
+      </button>
 
       {/* Floating Bottom Buttons */}
       <div className="absolute bottom-6 left-4 right-4 z-10">
