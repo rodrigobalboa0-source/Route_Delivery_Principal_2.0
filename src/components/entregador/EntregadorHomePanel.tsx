@@ -22,6 +22,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(false);
   const [entregadorId, setEntregadorId] = useState<string | null>(null);
+  const [ganhos, setGanhos] = useState(0);
   const lastLocationUpdateRef = useRef<number>(0);
 
   useEffect(() => {
@@ -45,6 +46,18 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
              setEntregadorId(data.id);
              setPhotoUrl(data.foto_url);
              setIsOnline(data.is_online || false);
+             
+             // Fetch earnings (ganhos)
+             const { data: entregasData } = await supabase
+              .from('nova_entrega')
+              .select('*')
+              .eq('entregador_id', data.id)
+              .eq('status', 'entregue');
+              
+             if (entregasData) {
+               const total = entregasData.reduce((acc, curr) => acc + (curr.valor_entregador || curr.valor_entrega || 0), 0);
+               setGanhos(total);
+             }
            }
         }
       } catch (e) { console.error(e); }
@@ -228,7 +241,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
       </div>
 
       <button
-        onClick={() => onNavigate('carteira')}
+        onClick={() => onNavigate('carteira_extrato')}
         className="absolute top-4 right-4 z-10 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg px-4 py-2 min-w-[120px] flex flex-col items-center border border-slate-200 hover:bg-slate-50 transition-colors"
       >
          <span className="text-xs text-slate-500 font-bold uppercase mb-0.5">Ganhos</span>
