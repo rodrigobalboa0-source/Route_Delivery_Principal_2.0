@@ -46,7 +46,7 @@ function AddressAutocomplete({ value, onChange, placeholder, containerClassName 
              userNumber = endMatch[2];
           }
 
-          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5&countrycodes=br`, {
+          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5&countrycodes=br&viewbox=-47.25,-22.70,-46.80,-23.10&bounded=1`, {
             headers: { 'User-Agent': 'RouteDeliveryApp/1.0' }
           });
           const data = await res.json();
