@@ -430,6 +430,18 @@ export function NovaEntregaPanel() {
     }
   };
 
+  const calculateDriverCommission = (km: number, hasReturn: boolean, pointsCount: number): string => {
+     
+      
+      if (form.valor_entrega) {
+          const totalValue = parseFloat(form.valor_entrega.replace(',', '.'));
+          if (!isNaN(totalValue)) {
+              return (totalValue * 0.75).toFixed(2); 
+          }
+      }
+      return '0.00';
+  };
+
   const handleSubmit = async () => {
     if (!form.cliente_id) {
       setError('Preencha o cliente');

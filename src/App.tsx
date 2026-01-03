@@ -182,40 +182,34 @@ function App() {
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setAuthenticated(Boolean(data.session));
-      const uid = data.session?.user?.id;
-      if (uid) {
-        supabase
-          .from('users')
-          .select('full_name')
-          .eq('id', uid)
-          .single()
-          .then(({ data }) => {
-            setUserName((data as { full_name: string | null } | null)?.full_name || undefined);
-          });
-        const email = (data.session?.user?.email || '').trim().toLowerCase();
-        if (email) resolveRole(uid, email);
+    
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setAuthenticated(true);
+        resolveRole(session.user.id, session.user.email || '');
+      } else {
+        setAuthenticated(false);
+        setUserRole('loading');
       }
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setAuthenticated(Boolean(session));
-      const uid = session?.user?.id;
-      if (uid) {
-        supabase
-          .from('users')
-          .select('full_name')
-          .eq('id', uid)
-          .single()
-          .then(({ data }) => {
-            setUserName((data as { full_name: string | null } | null)?.full_name || undefined);
-          });
-        const email = (session?.user?.email || '').trim().toLowerCase();
-        if (email) resolveRole(uid, email);
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        setAuthenticated(true);
+        resolveRole(session.user.id, session.user.email || '');
+      } else if (event === 'SIGNED_OUT') {
+        setAuthenticated(false);
+        setUserName(undefined);
+        setUserRole('loading');
+        setAccountPending(false);
+      } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+        
+        setAuthenticated(true);
       }
     });
+
     return () => {
-      sub.subscription.unsubscribe();
+      subscription.unsubscribe();
     };
   }, []);
 
