@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { MapPin, CheckCircle, Truck, AlertCircle, Phone, Navigation, Map as MapIcon, XCircle } from 'lucide-react';
+import { MapPin, CheckCircle, Truck, AlertCircle, Phone, Navigation, Map as MapIcon, XCircle, DollarSign } from 'lucide-react';
 import { MapView, MapDeliveryPerson } from '../MapView';
 import type { Database } from '../../lib/database.types';
 import { Geolocation } from '@capacitor/geolocation';

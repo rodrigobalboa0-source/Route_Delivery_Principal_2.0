@@ -49,7 +49,21 @@ function AddressAutocomplete({ value, onChange, placeholder, containerClassName 
           const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5&countrycodes=br&viewbox=-47.25,-22.70,-46.80,-23.10&bounded=1`, {
             headers: { 'User-Agent': 'RouteDeliveryApp/1.0' }
           });
-          const data = await res.json();
+          let data = await res.json();
+
+          const userSpecifiedCampinas = value.toLowerCase().includes('campinas');
+          if (userSpecifiedCampinas && data && data.length > 0) {
+             const filtered = data.filter((item: any) => {
+                 const addr = item.address || {};
+                 const city = addr.city || addr.town || addr.municipality || addr.village || '';
+                 const displayName = item.display_name || '';
+                 return (city && city.toLowerCase().includes('campinas')) || displayName.toLowerCase().includes('campinas');
+             });
+             
+             if (filtered.length > 0) {
+                 data = filtered;
+             }
+          }
           
           const formatted = (data || []).map((item: any) => {
              const addr = item.address || {};
