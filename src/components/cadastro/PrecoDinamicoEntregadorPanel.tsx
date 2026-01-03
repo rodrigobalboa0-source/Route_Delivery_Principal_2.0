@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { Modal } from '../Modal';
 import type { Database } from '../../lib/database.types';
 
-type Regra = Database['public']['Tables']['preco_dinamico_entregador']['Row'];
+type Regra = Database['public']['Tables']['preco_dinamico_entregador']['Row'] & { criterio?: string | null };
 type Entregador = Database['public']['Tables']['entregadores']['Row'];
 
 export function PrecoDinamicoEntregadorPanel() {
@@ -11,9 +11,9 @@ export function PrecoDinamicoEntregadorPanel() {
   const [entregadores, setEntregadores] = useState<Entregador[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({ entregador_id: '', multiplicador: '', ativa: true, observacao: '' });
+  const [form, setForm] = useState({ entregador_id: '', multiplicador: '', tipo: 'MULTIPLICADOR', ativa: true, observacao: '' });
   const [editing, setEditing] = useState<Regra | null>(null);
-  const [editForm, setEditForm] = useState({ entregador_id: '', multiplicador: '', ativa: true, observacao: '' });
+  const [editForm, setEditForm] = useState({ entregador_id: '', multiplicador: '', tipo: 'MULTIPLICADOR', ativa: true, observacao: '' });
 
   useEffect(() => {
     fetchEntregadores();
@@ -39,13 +39,14 @@ export function PrecoDinamicoEntregadorPanel() {
     setError(null);
     const res = await (supabase as unknown as { from: (t: string) => { insert: (v: unknown) => Promise<unknown> } }).from('preco_dinamico_entregador').insert({
       entregador_id: form.entregador_id,
-      multiplicador: form.multiplicador ? Number(form.multiplicador) : null,
+      multiplicador: form.multiplicador ? Number(form.multiplicador.replace(',', '.')) : null,
+      criterio: form.tipo,
       ativa: form.ativa,
       observacao: form.observacao || null,
     });
     const r = res as unknown as { error?: { message?: string } };
     if (r.error?.message) setError(r.error.message);
-    setForm({ entregador_id: '', multiplicador: '', ativa: true, observacao: '' });
+    setForm({ entregador_id: '', multiplicador: '', tipo: 'MULTIPLICADOR', ativa: true, observacao: '' });
     await fetchAll();
   };
 
@@ -73,6 +74,7 @@ export function PrecoDinamicoEntregadorPanel() {
     setEditForm({
       entregador_id: m.entregador_id,
       multiplicador: m.multiplicador != null ? String(m.multiplicador) : '',
+      tipo: m.criterio || 'MULTIPLICADOR',
       ativa: Boolean(m.ativa),
       observacao: m.observacao || '',
     });
@@ -86,7 +88,8 @@ export function PrecoDinamicoEntregadorPanel() {
       .from('preco_dinamico_entregador')
       .update({
         entregador_id: editForm.entregador_id,
-        multiplicador: editForm.multiplicador ? Number(editForm.multiplicador) : null,
+        multiplicador: editForm.multiplicador ? Number(editForm.multiplicador.replace(',', '.')) : null,
+        criterio: editForm.tipo,
         ativa: editForm.ativa,
         observacao: editForm.observacao || null,
       })
@@ -110,9 +113,26 @@ export function PrecoDinamicoEntregadorPanel() {
               <option key={e.id} value={e.id}>{e.nome_completo}</option>
             ))}
           </select>
-          <input placeholder="Multiplicador" value={form.multiplicador} onChange={(e) => setForm({ ...form, multiplicador: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-          <input placeholder="Observação" value={form.observacao} onChange={(e) => setForm({ ...form, observacao: e.target.value })} className="px-3 py-2 border border-slate-300 rounded md:col-span-2" />
-          <div className="flex items-center gap-2">
+          
+          <select 
+            value={form.tipo} 
+            onChange={(e) => setForm({ ...form, tipo: e.target.value })} 
+            className="px-3 py-2 border border-slate-300 rounded bg-white"
+          >
+            <option value="MULTIPLICADOR">Multiplicador (x)</option>
+            <option value="TAXA_FIXA">Valor Fixo (+ R$)</option>
+          </select>
+
+          <input 
+            placeholder={form.tipo === 'MULTIPLICADOR' ? "Multiplicador (ex: 1.5)" : "Valor (ex: 5.00)"} 
+            value={form.multiplicador} 
+            onChange={(e) => setForm({ ...form, multiplicador: e.target.value })} 
+            className="px-3 py-2 border border-slate-300 rounded" 
+          />
+          
+          <input placeholder="Observação" value={form.observacao} onChange={(e) => setForm({ ...form, observacao: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+          
+          <div className="flex items-center gap-2 md:col-span-2">
             <input id="ativa" type="checkbox" checked={form.ativa} onChange={(e) => setForm({ ...form, ativa: e.target.checked })} />
             <label htmlFor="ativa" className="text-sm text-slate-700">Ativa</label>
           </div>
@@ -134,15 +154,24 @@ export function PrecoDinamicoEntregadorPanel() {
           <div className="divide-y">
             {items.map((m) => {
               const ent = entregadores.find(e => e.id === m.entregador_id);
+              const isFixed = m.criterio === 'TAXA_FIXA';
+              const displayValue = isFixed 
+                ? `+ R$ ${Number(m.multiplicador).toFixed(2)}` 
+                : `x ${m.multiplicador}`;
+
               return (
                 <div key={m.id} className="flex items-center justify-between px-4 py-3">
                   <div>
                     <div className="font-medium text-slate-900">{ent ? ent.nome_completo : m.entregador_id}</div>
-                    <div className="text-sm text-slate-600">{[
-                      m.multiplicador != null ? `x${m.multiplicador}` : '',
-                      m.observacao || '',
-                      m.ativa ? 'ativa' : 'inativa',
-                    ].filter(Boolean).join(' • ')}</div>
+                    <div className="text-sm text-slate-600 flex gap-2 items-center mt-1">
+                      <span className={`px-2 py-0.5 rounded text-xs font-semibold ${isFixed ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
+                        {displayValue}
+                      </span>
+                      {m.observacao && <span className="text-slate-500">• {m.observacao}</span>}
+                      <span className={`text-xs ${m.ativa ? 'text-green-600' : 'text-slate-400'}`}>
+                        • {m.ativa ? 'Ativa' : 'Inativa'}
+                      </span>
+                    </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <button onClick={() => toggleActive(m)} className={`text-sm ${m.ativa ? 'text-amber-600' : 'text-green-600'}`}>
@@ -165,9 +194,26 @@ export function PrecoDinamicoEntregadorPanel() {
               <option key={e.id} value={e.id}>{e.nome_completo}</option>
             ))}
           </select>
-          <input placeholder="Multiplicador" value={editForm.multiplicador} onChange={(e) => setEditForm({ ...editForm, multiplicador: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-          <input placeholder="Observação" value={editForm.observacao} onChange={(e) => setEditForm({ ...editForm, observacao: e.target.value })} className="px-3 py-2 border border-slate-300 rounded md:col-span-2" />
-          <div className="flex items-center gap-2">
+          
+          <select 
+            value={editForm.tipo} 
+            onChange={(e) => setEditForm({ ...editForm, tipo: e.target.value })} 
+            className="px-3 py-2 border border-slate-300 rounded bg-white"
+          >
+            <option value="MULTIPLICADOR">Multiplicador (x)</option>
+            <option value="TAXA_FIXA">Valor Fixo (+ R$)</option>
+          </select>
+
+          <input 
+            placeholder={editForm.tipo === 'MULTIPLICADOR' ? "Multiplicador (ex: 1.5)" : "Valor (ex: 5.00)"} 
+            value={editForm.multiplicador} 
+            onChange={(e) => setEditForm({ ...editForm, multiplicador: e.target.value })} 
+            className="px-3 py-2 border border-slate-300 rounded" 
+          />
+          
+          <input placeholder="Observação" value={editForm.observacao} onChange={(e) => setEditForm({ ...editForm, observacao: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+          
+          <div className="flex items-center gap-2 md:col-span-2">
             <input id="ativa_edit_entregador" type="checkbox" checked={editForm.ativa} onChange={(e) => setEditForm({ ...editForm, ativa: e.target.checked })} />
             <label htmlFor="ativa_edit_entregador" className="text-sm text-slate-700">Ativa</label>
           </div>

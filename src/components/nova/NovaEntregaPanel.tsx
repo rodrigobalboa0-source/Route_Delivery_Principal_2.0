@@ -10,7 +10,7 @@ type ModalRow = Database['public']['Tables']['modais']['Row'];
 type TabelaPreco = Database['public']['Tables']['tabelas_precos']['Row'];
   type FaixaPreco = Database['public']['Tables']['tabelas_precos_faixas']['Row'];
   type DynamicRule = Database['public']['Tables']['preco_dinamico_demanda']['Row'];
-  type DynamicDriverRule = Database['public']['Tables']['preco_dinamico_entregador']['Row'];
+  type DynamicDriverRule = Database['public']['Tables']['preco_dinamico_entregador']['Row'] & { criterio?: string };
   
   interface PrecificacaoConfigItem {
   modal: string;
@@ -469,7 +469,11 @@ export function NovaEntregaPanel() {
                  const rules = dynamicDriverRules.filter(r => r.entregador_id === entregadorId && r.ativa);
                  rules.forEach(r => {
                    if (r.multiplicador) {
-                     commission *= r.multiplicador;
+                     if (r.criterio === 'TAXA_FIXA') {
+                       commission += r.multiplicador;
+                     } else {
+                       commission *= r.multiplicador;
+                     }
                    }
                  });
               }
