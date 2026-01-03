@@ -21,11 +21,10 @@ window.onerror = function(message, source, lineno, colno, error) {
 
 window.onunhandledrejection = function(event) {
   console.error('Unhandled Rejection:', event.reason);
-  // Ignore specific auth errors that might be transient or handled by the auth provider
+  
   if (event.reason?.message?.includes('Invalid Refresh Token')) {
     console.warn('Refresh token invalid, redirecting to login if needed');
-    // Optionally redirect to login or clear session
-    // window.location.href = '/login'; 
+    
     return;
   }
 };

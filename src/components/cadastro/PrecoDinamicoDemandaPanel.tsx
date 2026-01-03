@@ -45,6 +45,20 @@ export function PrecoDinamicoDemandaPanel() {
     await fetchAll();
   };
 
+  const toggleActive = async (m: Regra) => {
+    setLoading(true);
+    const { error } = await supabase
+      .from('preco_dinamico_demanda')
+      .update({ ativa: !m.ativa })
+      .eq('id', m.id);
+    
+    if (error) {
+      setError(error.message);
+    }
+    setLoading(false);
+    await fetchAll();
+  };
+
   const handleDelete = async (id: string) => {
     await supabase.from('preco_dinamico_demanda').delete().eq('id', id);
     await fetchAll();
@@ -165,6 +179,9 @@ export function PrecoDinamicoDemandaPanel() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
+                    <button onClick={() => toggleActive(m)} className={`text-sm ${m.ativa ? 'text-amber-600' : 'text-green-600'}`}>
+                      {m.ativa ? 'Desativar' : 'Ativar'}
+                    </button>
                     <button onClick={() => openEdit(m)} className="text-sm text-sky-700">Editar</button>
                     <button onClick={() => handleDelete(m.id)} className="text-sm text-red-700">Excluir</button>
                   </div>
