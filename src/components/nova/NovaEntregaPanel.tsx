@@ -31,11 +31,52 @@ function AddressAutocomplete({ value, onChange, placeholder, containerClassName 
     const timer = setTimeout(async () => {
       if (value.length > 4 && showSuggestions) {
         try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(value)}&addressdetails=1&limit=5&countrycodes=br`, {
+         
+          let query = value;
+          let userNumber = '';
+          
+          const startMatch = value.match(/^(\d+)[,\s]+(.+)$/);
+          const endMatch = value.match(/^(.+)[,\s]+(\d+)$/);
+
+          if (startMatch) {
+             userNumber = startMatch[1];
+             
+             query = `${startMatch[2]}, ${startMatch[1]}`;
+          } else if (endMatch) {
+             userNumber = endMatch[2];
+          }
+
+          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5&countrycodes=br`, {
             headers: { 'User-Agent': 'RouteDeliveryApp/1.0' }
           });
           const data = await res.json();
-          setSuggestions(data || []);
+          
+          const formatted = (data || []).map((item: any) => {
+             const addr = item.address || {};
+             const road = addr.road || addr.pedestrian || addr.street || item.name || '';
+             
+             const number = addr.house_number || userNumber || '';
+             const district = addr.suburb || addr.neighbourhood || addr.city_district || '';
+             const city = addr.city || addr.town || addr.municipality || addr.village || '';
+             const state = addr.state || '';
+
+             
+             if (!road) return { display_name: item.display_name };
+
+             const parts = [
+               road,
+               number ? `, ${number}` : '',
+               district ? ` - ${district}` : '',
+               city ? ` - ${city}` : '',
+               state ? ` - ${state}` : ''
+             ].join('');
+             
+             
+             const clean = parts.replace(/, ,/g, ',').replace(/\s+/g, ' ').replace(/ ,/g, ',').trim();
+             return { display_name: clean };
+          });
+
+          setSuggestions(formatted);
         } catch (e) {
           console.error(e);
         }
@@ -246,7 +287,7 @@ export function NovaEntregaPanel() {
     
     if (address.length > 5) {
       try {
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`, {
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&viewbox=-47.25,-22.70,-46.80,-23.10`, {
           headers: {
             'User-Agent': 'RouteDeliveryApp/1.0'
           }
