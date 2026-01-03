@@ -49,6 +49,20 @@ export function PrecoDinamicoEntregadorPanel() {
     await fetchAll();
   };
 
+  const toggleActive = async (m: Regra) => {
+    setLoading(true);
+    const { error } = await supabase
+      .from('preco_dinamico_entregador')
+      .update({ ativa: !m.ativa })
+      .eq('id', m.id);
+    
+    if (error) {
+      setError(error.message);
+    }
+    setLoading(false);
+    await fetchAll();
+  };
+
   const handleDelete = async (id: string) => {
     await supabase.from('preco_dinamico_entregador').delete().eq('id', id);
     await fetchAll();
@@ -118,22 +132,28 @@ export function PrecoDinamicoEntregadorPanel() {
           <div className="p-4 text-slate-600">Nenhuma regra cadastrada</div>
         ) : (
           <div className="divide-y">
-            {items.map((m) => (
-              <div key={m.id} className="flex items-center justify-between px-4 py-3">
-                <div>
-                  <div className="font-medium text-slate-900">{m.entregador_id}</div>
-                  <div className="text-sm text-slate-600">{[
-                    m.multiplicador != null ? `x${m.multiplicador}` : '',
-                    m.observacao || '',
-                    m.ativa ? 'ativa' : 'inativa',
-                  ].filter(Boolean).join(' • ')}</div>
+            {items.map((m) => {
+              const ent = entregadores.find(e => e.id === m.entregador_id);
+              return (
+                <div key={m.id} className="flex items-center justify-between px-4 py-3">
+                  <div>
+                    <div className="font-medium text-slate-900">{ent ? ent.nome_completo : m.entregador_id}</div>
+                    <div className="text-sm text-slate-600">{[
+                      m.multiplicador != null ? `x${m.multiplicador}` : '',
+                      m.observacao || '',
+                      m.ativa ? 'ativa' : 'inativa',
+                    ].filter(Boolean).join(' • ')}</div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => toggleActive(m)} className={`text-sm ${m.ativa ? 'text-amber-600' : 'text-green-600'}`}>
+                      {m.ativa ? 'Desativar' : 'Ativar'}
+                    </button>
+                    <button onClick={() => openEdit(m)} className="text-sm text-sky-700">Editar</button>
+                    <button onClick={() => handleDelete(m.id)} className="text-sm text-red-700">Excluir</button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <button onClick={() => openEdit(m)} className="text-sm text-sky-700">Editar</button>
-                  <button onClick={() => handleDelete(m.id)} className="text-sm text-red-700">Excluir</button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

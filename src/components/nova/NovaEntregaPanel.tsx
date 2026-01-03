@@ -10,6 +10,7 @@ type ModalRow = Database['public']['Tables']['modais']['Row'];
 type TabelaPreco = Database['public']['Tables']['tabelas_precos']['Row'];
   type FaixaPreco = Database['public']['Tables']['tabelas_precos_faixas']['Row'];
   type DynamicRule = Database['public']['Tables']['preco_dinamico_demanda']['Row'];
+  type DynamicDriverRule = Database['public']['Tables']['preco_dinamico_entregador']['Row'];
   
   interface PrecificacaoConfigItem {
   modal: string;
@@ -90,6 +91,7 @@ export function NovaEntregaPanel() {
   const [pricePerPoint, setPricePerPoint] = useState<number>(0);
   const [dynamicRules, setDynamicRules] = useState<DynamicRule[]>([]);
   const [activeDynamicRules, setActiveDynamicRules] = useState<{ name: string; value: number }[]>([]);
+  const [dynamicDriverRules, setDynamicDriverRules] = useState<DynamicDriverRule[]>([]);
 
   const [form, setForm] = useState({
     cliente_id: '',
@@ -383,14 +385,15 @@ export function NovaEntregaPanel() {
   };
 
   const fetchData = async () => {
-    const [c, e, t, m, tp, b, dyn] = await Promise.all([
+    const [c, e, t, m, tp, b, dyn, dynDriver] = await Promise.all([
       supabase.from('clientes').select('*').order('nome_completo'),
       supabase.from('entregadores').select('id, nome_completo, status, is_online').neq('status', 'inativo').order('nome_completo'),
       supabase.from('tipo_servicos').select('*').eq('ativo', true).order('nome'),
       supabase.from('modais').select('*').eq('ativo', true).order('tipo'),
       supabase.from('tabelas_precos').select('*').order('nome'),
       supabase.from('entregador_bloqueios_clientes').select('cliente_id, entregador_id'),
-       supabase.from('preco_dinamico_demanda').select('*').eq('ativa', true).order('nome')
+       supabase.from('preco_dinamico_demanda').select('*').eq('ativa', true).order('nome'),
+       supabase.from('preco_dinamico_entregador').select('*').eq('ativa', true)
      ]);
      setClientes((c.data || []) as Cliente[]);
     setEntregadores((e.data || []) as Entregador[]);
@@ -402,6 +405,7 @@ export function NovaEntregaPanel() {
     setTabelasPrecos(tabelas);
     setBlacklist((b.data || []) as Array<{ cliente_id: string, entregador_id: string }>);
     setDynamicRules((dyn.data || []) as DynamicRule[]);
+    setDynamicDriverRules((dynDriver.data || []) as DynamicDriverRule[]);
     if (tabelas.length > 0) setSelectedTabelaId(tabelas[0].id);
 
     setForm(prev => ({
@@ -453,13 +457,24 @@ export function NovaEntregaPanel() {
     }
   };
 
-  const calculateDriverCommission = (km: number, hasReturn: boolean, pointsCount: number): string => {
+  const calculateDriverCommission = (km: number, hasReturn: boolean, pointsCount: number, entregadorId?: string | null): string => {
      
       
       if (form.valor_entrega) {
           const totalValue = parseFloat(form.valor_entrega.replace(',', '.'));
           if (!isNaN(totalValue)) {
-              return (totalValue * 0.75).toFixed(2); 
+              let commission = totalValue * 0.75;
+              
+              if (entregadorId) {
+                 const rules = dynamicDriverRules.filter(r => r.entregador_id === entregadorId && r.ativa);
+                 rules.forEach(r => {
+                   if (r.multiplicador) {
+                     commission *= r.multiplicador;
+                   }
+                 });
+              }
+              
+              return commission.toFixed(2); 
           }
       }
       return '0.00';
@@ -488,7 +503,7 @@ export function NovaEntregaPanel() {
 
     
     const kmValue = distanciaKm ? parseFloat(distanciaKm.replace(',', '.')) : 0;
-    const driverValueStr = calculateDriverCommission(kmValue, form.retorno, form.pontos.length);
+    const driverValueStr = calculateDriverCommission(kmValue, form.retorno, form.pontos.length, entregadorEscolhido);
     const driverValue = parseFloat(driverValueStr);
 
     let pedidoId = null;
