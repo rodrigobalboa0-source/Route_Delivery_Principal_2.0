@@ -8,9 +8,10 @@ type Entregador = Database['public']['Tables']['entregadores']['Row'];
 type TipoServico = Database['public']['Tables']['tipo_servicos']['Row'];
 type ModalRow = Database['public']['Tables']['modais']['Row'];
 type TabelaPreco = Database['public']['Tables']['tabelas_precos']['Row'];
-type FaixaPreco = Database['public']['Tables']['tabelas_precos_faixas']['Row'];
-
-interface PrecificacaoConfigItem {
+  type FaixaPreco = Database['public']['Tables']['tabelas_precos_faixas']['Row'];
+  type DynamicRule = Database['public']['Tables']['preco_dinamico_demanda']['Row'];
+  
+  interface PrecificacaoConfigItem {
   modal: string;
   preco_ponto: string;
   tipo_precificacao: string;
@@ -87,6 +88,8 @@ export function NovaEntregaPanel() {
   const [valorDinamico, setValorDinamico] = useState(false);
   const [pricingMode, setPricingMode] = useState<'Distância' | 'Fixo' | 'Padrão' | 'Zona' | 'Bairro' | 'Zerar'>('Distância');
   const [pricePerPoint, setPricePerPoint] = useState<number>(0);
+  const [dynamicRules, setDynamicRules] = useState<DynamicRule[]>([]);
+  const [activeDynamicRules, setActiveDynamicRules] = useState<{ name: string; value: number }[]>([]);
 
   const [form, setForm] = useState({
     cliente_id: '',
@@ -292,85 +295,104 @@ export function NovaEntregaPanel() {
 
   useEffect(() => {
     calculatePrice();
-  }, [distanciaKm, selectedTabelaId, pricingMode, pricePerPoint, form.pontos, form.retorno]);
+  }, [distanciaKm, selectedTabelaId, pricingMode, pricePerPoint, form.pontos, form.retorno, dynamicRules]);
 
   const calculatePrice = async () => {
+    let price = 0;
+    let shouldCalculate = false;
+
     if (pricingMode === 'Zerar') {
       setForm(prev => ({ ...prev, valor_entrega: '0.00', valor_manual: false }));
       setValorDinamico(true);
+      setActiveDynamicRules([]);
       return;
     }
 
     if (pricingMode === 'Fixo') {
       const basePoints = 2; 
       const extraPoints = form.pontos.length;
-      const returnPoint = form.retorno ? 1 : 0; 
-      
       const totalPoints = basePoints + extraPoints;
-      let price = totalPoints * pricePerPoint;
-      
-      if (form.retorno) {
-          price = price * 1.20;
-      }
-
-      setForm(prev => ({ ...prev, valor_entrega: price.toFixed(2), valor_manual: false }));
-      setValorDinamico(true);
-      return;
-    }
-
-    if (!distanciaKm || !selectedTabelaId) return;
-
-    const km = parseFloat(distanciaKm.replace(',', '.'));
-    if (isNaN(km)) return;
-
-    const tabela = tabelasPrecos.find(t => t.id === selectedTabelaId);
-    if (!tabela) return;
-
-    const { data } = await supabase
-      .from('tabelas_precos_faixas')
-      .select('*')
-      .eq('tabela_id', selectedTabelaId)
-      .order('km_ate', { ascending: true });
-
-    const faixas = data as FaixaPreco[] | null;
-
-    if (!faixas || faixas.length === 0) return;
-
-    let price = 0;
-    const faixa = faixas.find(f => f.km_ate >= km);
-
-    if (faixa) {
-      price = faixa.valor;
+      price = totalPoints * pricePerPoint;
+      shouldCalculate = true;
     } else {
+      if (!distanciaKm || !selectedTabelaId) return;
+
+      const km = parseFloat(distanciaKm.replace(',', '.'));
+      if (isNaN(km)) return;
+  
+      const tabela = tabelasPrecos.find(t => t.id === selectedTabelaId);
+      if (!tabela) return;
+  
+      const { data } = await supabase
+        .from('tabelas_precos_faixas')
+        .select('*')
+        .eq('tabela_id', selectedTabelaId)
+        .order('km_ate', { ascending: true });
+  
+      const faixas = data as FaixaPreco[] | null;
+  
+      if (!faixas || faixas.length === 0) return;
+  
+      const faixa = faixas.find(f => f.km_ate >= km);
+  
+      if (faixa) {
+        price = faixa.valor;
+      } else {
+        
+        const lastFaixa = faixas[faixas.length - 1];
+        const extraKm = km - lastFaixa.km_ate;
+        price = lastFaixa.valor + (extraKm * (tabela.km_adicional || 0));
+      }
+  
       
-      const lastFaixa = faixas[faixas.length - 1];
-      const extraKm = km - lastFaixa.km_ate;
-      price = lastFaixa.valor + (extraKm * (tabela.km_adicional || 0));
+      if (tabela.valor_minimo && price < tabela.valor_minimo) {
+        price = tabela.valor_minimo;
+      }
+      shouldCalculate = true;
     }
 
-    
-    if (tabela.valor_minimo && price < tabela.valor_minimo) {
-      price = tabela.valor_minimo;
-    }
+    if (!shouldCalculate) return;
 
     if (form.retorno) {
         price = price * 1.20;
     }
+
+    // Apply Dynamic Rules
+    const activeRules: { name: string; value: number }[] = [];
+    dynamicRules.forEach(rule => {
+      if (!rule.ativa) return;
+      
+      let addedValue = 0;
+      if (rule.criterio === 'MULTIPLICADOR' && rule.multiplicador) {
+         const increase = price * (rule.multiplicador - 1);
+         addedValue = increase;
+         price *= rule.multiplicador;
+      } else if (rule.criterio === 'TAXA_FIXA' && rule.multiplicador) {
+         addedValue = rule.multiplicador;
+         price += rule.multiplicador;
+      }
+
+      if (addedValue > 0) {
+        activeRules.push({ name: rule.nome || 'Regra Dinâmica', value: addedValue });
+      }
+    });
+    setActiveDynamicRules(activeRules);
 
     setForm(prev => ({ ...prev, valor_entrega: price.toFixed(2), valor_manual: false }));
     setValorDinamico(true);
   };
 
   const fetchData = async () => {
-    const [c, e, t, m, tp, b] = await Promise.all([
+    const [c, e, t, m, tp, b, dyn] = await Promise.all([
       supabase.from('clientes').select('*').order('nome_completo'),
       supabase.from('entregadores').select('id, nome_completo, status, is_online').neq('status', 'inativo').order('nome_completo'),
       supabase.from('tipo_servicos').select('*').eq('ativo', true).order('nome'),
       supabase.from('modais').select('*').eq('ativo', true).order('tipo'),
       supabase.from('tabelas_precos').select('*').order('nome'),
-      supabase.from('entregador_bloqueios_clientes').select('cliente_id, entregador_id')
-    ]);
-    setClientes((c.data || []) as Cliente[]);
+      supabase.from('entregador_bloqueios_clientes').select('cliente_id, entregador_id'),
+       supabase.from('preco_dinamico_demanda').select('*').eq('ativa', true).order('nome')
+     ]);
+     setClientes((c.data || []) as Cliente[]);
     setEntregadores((e.data || []) as Entregador[]);
     const tiposList = (t.data || []) as TipoServico[];
     setTipos(tiposList);
@@ -379,6 +401,7 @@ export function NovaEntregaPanel() {
     const tabelas = (tp.data || []) as TabelaPreco[];
     setTabelasPrecos(tabelas);
     setBlacklist((b.data || []) as Array<{ cliente_id: string, entregador_id: string }>);
+    setDynamicRules((dyn.data || []) as DynamicRule[]);
     if (tabelas.length > 0) setSelectedTabelaId(tabelas[0].id);
 
     setForm(prev => ({
@@ -683,6 +706,15 @@ export function NovaEntregaPanel() {
              <div>
                 <span className="text-sm text-sky-700 font-medium block">Valor Total da Entrega</span>
                 {distanciaKm && <span className="text-xs text-sky-600">Distância estimada: {distanciaKm} km</span>}
+                {activeDynamicRules.length > 0 && (
+                  <div className="mt-1">
+                    {activeDynamicRules.map((rule, idx) => (
+                      <span key={idx} className="block text-xs text-amber-600 font-medium">
+                        {rule.name}: +R$ {rule.value.toFixed(2)}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 {calculatingDistance && <span className="text-xs text-amber-600 block animate-pulse">Calculando rota e distância...</span>}
              </div>
              <div className="text-3xl font-bold text-sky-900">
