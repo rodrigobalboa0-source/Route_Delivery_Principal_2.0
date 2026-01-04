@@ -138,6 +138,7 @@ export function NovaEntregaPanel() {
   const [tabelasPrecos, setTabelasPrecos] = useState<TabelaPreco[]>([]);
   const [tabelasComissoes, setTabelasComissoes] = useState<TabelaComissao[]>([]);
   const [faixasComissoes, setFaixasComissoes] = useState<FaixaComissao[]>([]);
+  const [comissaoTableFound, setComissaoTableFound] = useState<string | null>(null);
   const [blacklist, setBlacklist] = useState<Array<{ cliente_id: string, entregador_id: string }>>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -200,12 +201,25 @@ export function NovaEntregaPanel() {
     const loadComissaoRules = async () => {
         if (!form.cliente_id || tabelasComissoes.length === 0) {
             setFaixasComissoes([]);
+            setComissaoTableFound(null);
             return;
         }
         
         console.log('Searching commission table for client:', form.cliente_id);
         const table = tabelasComissoes.find(t => {
-            const ids = t.cliente_ids;
+            let ids = t.cliente_ids;
+            
+            // Robust parsing for ids
+            if (typeof ids === 'string') {
+                try {
+                    // Try to parse if it's a JSON string
+                    const parsed = JSON.parse(ids);
+                    if (Array.isArray(parsed)) ids = parsed;
+                } catch (e) {
+                    console.warn('Failed to parse cliente_ids:', ids);
+                }
+            }
+
             if (Array.isArray(ids)) {
                 return (ids as any[]).includes(form.cliente_id);
             }
@@ -214,6 +228,7 @@ export function NovaEntregaPanel() {
         console.log('Commission table found:', table);
         
         if (table) {
+            setComissaoTableFound(table.nome);
             const { data } = await supabase
                 .from('tabelas_comissoes_faixas')
                 .select('*')
@@ -221,6 +236,7 @@ export function NovaEntregaPanel() {
                 .order('km_ate', { ascending: true });
             setFaixasComissoes((data || []) as FaixaComissao[]);
         } else {
+            setComissaoTableFound(null);
             setFaixasComissoes([]);
         }
     };
@@ -771,6 +787,26 @@ export function NovaEntregaPanel() {
               <label htmlFor="cobrar_destinatario" className="text-sm text-slate-700">Cobrar destinatário</label>
             </div>
           </div>
+          
+          <div className="md:col-span-2 bg-slate-50 p-3 rounded border border-slate-200 mt-2">
+            <div className="flex justify-between items-center">
+               <span className="text-sm font-medium text-slate-600">Comissão Entregador:</span>
+               <div className="text-right">
+                  <div className="font-bold text-slate-800">
+                    R$ {calculateDriverCommission(
+                        distanciaKm ? parseFloat(distanciaKm.replace(',', '.')) : 0, 
+                        form.retorno, 
+                        form.pontos.length, 
+                        form.entregador_id
+                    )}
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    {comissaoTableFound ? `Tabela: ${comissaoTableFound}` : 'Padrão (75%)'}
+                  </div>
+               </div>
+            </div>
+          </div>
+
           <input placeholder="Observações" value={form.observacoes} onChange={(e) => setForm({ ...form, observacoes: e.target.value })} className="px-3 py-2 border border-slate-300 rounded md:col-span-2" />
         </div>
       </div>
