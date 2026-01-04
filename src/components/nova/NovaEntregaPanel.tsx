@@ -139,6 +139,7 @@ export function NovaEntregaPanel() {
   const [tabelasComissoes, setTabelasComissoes] = useState<TabelaComissao[]>([]);
   const [faixasComissoes, setFaixasComissoes] = useState<FaixaComissao[]>([]);
   const [comissaoTableFound, setComissaoTableFound] = useState<string | null>(null);
+  const [selectedComissaoTable, setSelectedComissaoTable] = useState<TabelaComissao | null>(null);
   const [blacklist, setBlacklist] = useState<Array<{ cliente_id: string, entregador_id: string }>>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -212,7 +213,6 @@ export function NovaEntregaPanel() {
             // Robust parsing for ids
             if (typeof ids === 'string') {
                 try {
-                    // Try to parse if it's a JSON string
                     const parsed = JSON.parse(ids);
                     if (Array.isArray(parsed)) ids = parsed;
                 } catch (e) {
@@ -221,14 +221,27 @@ export function NovaEntregaPanel() {
             }
 
             if (Array.isArray(ids)) {
-                return (ids as any[]).includes(form.cliente_id);
+                // Robust comparison: check for string equality, case-insensitive, trimmed
+                const targetId = String(form.cliente_id).trim().toLowerCase();
+                const match = (ids as any[]).some(id => String(id).trim().toLowerCase() === targetId);
+                
+                // Detailed logging for debugging
+                if (match) {
+                    console.log('Match found in table:', t.nome);
+                } else {
+                    // Only log mismatches if we are debugging specific tables to avoid spam
+                    // console.log(`No match in table ${t.nome}. Target: ${targetId}, IDs:`, ids);
+                }
+                
+                return match;
             }
             return false;
         });
-        console.log('Commission table found:', table);
+        console.log('Commission table found:', table ? table.nome : 'None');
         
         if (table) {
             setComissaoTableFound(table.nome);
+            setSelectedComissaoTable(table);
             const { data } = await supabase
                 .from('tabelas_comissoes_faixas')
                 .select('*')
@@ -237,6 +250,7 @@ export function NovaEntregaPanel() {
             setFaixasComissoes((data || []) as FaixaComissao[]);
         } else {
             setComissaoTableFound(null);
+            setSelectedComissaoTable(null);
             setFaixasComissoes([]);
         }
     };
@@ -579,13 +593,7 @@ export function NovaEntregaPanel() {
              val = last ? last.valor : 0;
          }
 
-         const table = tabelasComissoes.find(t => {
-            const ids = t.cliente_ids;
-            if (Array.isArray(ids)) {
-                return (ids as any[]).includes(form.cliente_id);
-            }
-            return false;
-         });
+         const table = selectedComissaoTable;
          
          if (table) {
              if (table.valor_por_ponto && pointsCount > 0) {
