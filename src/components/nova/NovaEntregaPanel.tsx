@@ -203,9 +203,15 @@ export function NovaEntregaPanel() {
             return;
         }
         
-        const table = tabelasComissoes.find(t => 
-            t.cliente_ids && Array.isArray(t.cliente_ids) && t.cliente_ids.includes(form.cliente_id)
-        );
+        console.log('Searching commission table for client:', form.cliente_id);
+        const table = tabelasComissoes.find(t => {
+            const ids = t.cliente_ids;
+            if (Array.isArray(ids)) {
+                return (ids as any[]).includes(form.cliente_id);
+            }
+            return false;
+        });
+        console.log('Commission table found:', table);
         
         if (table) {
             const { data } = await supabase
@@ -557,9 +563,13 @@ export function NovaEntregaPanel() {
              val = last ? last.valor : 0;
          }
 
-         const table = tabelasComissoes.find(t => 
-            t.cliente_ids && Array.isArray(t.cliente_ids) && t.cliente_ids.includes(form.cliente_id)
-         );
+         const table = tabelasComissoes.find(t => {
+            const ids = t.cliente_ids;
+            if (Array.isArray(ids)) {
+                return (ids as any[]).includes(form.cliente_id);
+            }
+            return false;
+         });
          
          if (table) {
              if (table.valor_por_ponto && pointsCount > 0) {
@@ -712,6 +722,7 @@ export function NovaEntregaPanel() {
         opcionais: null,
         observacoes: form.observacoes || null,
         status: entregadorEscolhido ? 'atribuida' : 'criada',
+        distancia_km: kmValue > 0 ? kmValue : null,
       });
 
     if (insertError?.message) setError(insertError.message);
@@ -861,6 +872,11 @@ export function NovaEntregaPanel() {
                   </div>
                 )}
                 {calculatingDistance && <span className="text-xs text-amber-600 block animate-pulse">Calculando rota e distância...</span>}
+                {faixasComissoes.length > 0 ? (
+                    <span className="text-xs text-green-600 block mt-1">✓ Tabela de comissão ativa</span>
+                ) : (
+                    form.cliente_id && <span className="text-xs text-orange-600 block mt-1">⚠ Sem tabela de comissão (usando padrão 75%)</span>
+                )}
              </div>
              <div className="text-3xl font-bold text-sky-900">
                {calculatingDistance ? '...' : `R$ ${form.valor_entrega}`}
