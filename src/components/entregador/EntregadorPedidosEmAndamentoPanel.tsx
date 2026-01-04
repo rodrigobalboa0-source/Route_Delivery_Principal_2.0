@@ -176,7 +176,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
 
   useEffect(() => {
     if (entregas.length > 0 && !mapVisibleId) {
-      const emRota = entregas.find(e => e.status === 'em_rota');
+      const emRota = entregas.find(e => ['em_rota', 'chegou_coleta', 'chegou_entrega'].includes(e.status));
       if (emRota) {
         setMapVisibleId(emRota.id);
       }
@@ -207,7 +207,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
           clientes:cliente_id (nome_completo, telefone)
         `)
         .eq('entregador_id', entregador.id)
-        .in('status', ['atribuida', 'em_rota', 'criada'])
+        .in('status', ['atribuida', 'chegou_coleta', 'em_rota', 'chegou_entrega', 'criada'])
         .order('created_at', { ascending: true });
 
       if (error) throw error;
@@ -317,19 +317,33 @@ export function EntregadorPedidosEmAndamentoPanel() {
         <div className="space-y-6">
           {entregas.map((entrega) => {
             const coords = deliveryCoords[entrega.id];
-            const destCoords = (entrega.status === 'atribuida' || entrega.status === 'criada') 
-                                ? coords?.pickup 
-                                : coords?.delivery;
+            // Fases de Coleta: criada, atribuida, chegou_coleta
+            // Nota: Se 'chegou_coleta', o próximo passo é sair para entrega, então talvez já queira ver o destino?
+            // Mas o usuário pode querer ver o mapa da loja enquanto está lá. Vamos manter pickup até sair ('em_rota').
+            const isPickupPhase = ['criada', 'atribuida', 'chegou_coleta'].includes(entrega.status);
+            const destCoords = isPickupPhase ? coords?.pickup : coords?.delivery;
+            
+            let statusLabel = 'Aguardando Coleta';
+            let statusColor = 'bg-yellow-100 text-yellow-700';
+
+            if (entrega.status === 'chegou_coleta') {
+                statusLabel = 'Na Loja';
+                statusColor = 'bg-orange-100 text-orange-700';
+            } else if (entrega.status === 'em_rota') {
+                statusLabel = 'Em Rota';
+                statusColor = 'bg-blue-100 text-blue-700';
+            } else if (entrega.status === 'chegou_entrega') {
+                statusLabel = 'No Cliente';
+                statusColor = 'bg-purple-100 text-purple-700';
+            }
             
             return (
             <div key={entrega.id} className="bg-white rounded-lg shadow-lg border-l-4 border-sky-500 overflow-hidden">
               <div className="p-5 border-b border-gray-100 bg-sky-50/50">
                  <div className="flex justify-between items-start">
                    <div>
-                     <span className={`inline-block px-2 py-1 rounded text-xs font-bold uppercase mb-2 ${
-                       entrega.status === 'atribuida' || entrega.status === 'criada' ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700'
-                     }`}>
-                       {entrega.status === 'atribuida' || entrega.status === 'criada' ? 'Aguardando Coleta' : 'Em Rota'}
+                     <span className={`inline-block px-2 py-1 rounded text-xs font-bold uppercase mb-2 ${statusColor}`}>
+                       {statusLabel}
                      </span>
                      <h3 className="font-bold text-gray-800">#{entrega.entrega_codigo_pedido || String(entrega.id).slice(0, 8)}</h3>
                    </div>
@@ -377,7 +391,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
                 {/* Distances */}
                 {distances[entrega.id] && (
                     <div className="grid grid-cols-3 gap-2 text-xs bg-gray-50 p-2 rounded border border-gray-100">
-                        {entrega.status === 'em_rota' ? (
+                        {['em_rota', 'chegou_coleta', 'chegou_entrega'].includes(entrega.status) ? (
                            <>
                              <div className="text-center col-span-3">
                                 <span className="block text-gray-400">Distância até Entrega</span>
@@ -434,9 +448,9 @@ export function EntregadorPedidosEmAndamentoPanel() {
                 )}
               </div>
 
-              <div className="p-5 bg-gray-50 flex gap-3">
-                {(entrega.status === 'atribuida' || entrega.status === 'criada') && (
-                  <>
+              <div className="p-5 bg-gray-50 flex gap-3 flex-wrap">
+                {/* REJEITAR - Somente se ainda não coletou */}
+                {(entrega.status === 'criada' || entrega.status === 'atribuida') && (
                   <button
                     onClick={() => handleRejeitar(entrega.id)}
                     disabled={updatingId === entrega.id}
@@ -445,22 +459,74 @@ export function EntregadorPedidosEmAndamentoPanel() {
                   >
                      <XCircle size={24} />
                   </button>
+                )}
+
+                {/* ACEITAR (Se criada) */}
+                {entrega.status === 'criada' && (
                   <button
-                    onClick={() => updateStatus(entrega.id, 'em_rota')}
+                    onClick={() => updateStatus(entrega.id, 'atribuida')}
+                    disabled={updatingId === entrega.id}
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                  >
+                    {updatingId === entrega.id ? 'Atualizando...' : (
+                      <>
+                        <CheckCircle size={18} />
+                        Aceitar Entrega
+                      </>
+                    )}
+                  </button>
+                )}
+
+                {/* CHEGUEI NA LOJA (Se atribuida) */}
+                {entrega.status === 'atribuida' && (
+                  <button
+                    onClick={() => updateStatus(entrega.id, 'chegou_coleta')}
                     disabled={updatingId === entrega.id}
                     className="flex-1 bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
                   >
                     {updatingId === entrega.id ? 'Atualizando...' : (
                       <>
-                        <Navigation size={18} />
-                        Iniciei a Rota / Coletei
+                        <MapPin size={18} />
+                        Cheguei na Loja
                       </>
                     )}
                   </button>
-                  </>
                 )}
-                
+
+                {/* SAIR PARA ENTREGA (Se chegou_coleta) */}
+                {entrega.status === 'chegou_coleta' && (
+                  <button
+                    onClick={() => updateStatus(entrega.id, 'em_rota')}
+                    disabled={updatingId === entrega.id}
+                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                  >
+                    {updatingId === entrega.id ? 'Atualizando...' : (
+                      <>
+                        <Navigation size={18} />
+                        Sair para Entrega
+                      </>
+                    )}
+                  </button>
+                )}
+
+                {/* CHEGUEI NO CLIENTE (Se em_rota) */}
                 {entrega.status === 'em_rota' && (
+                  <button
+                    onClick={() => updateStatus(entrega.id, 'chegou_entrega')}
+                    disabled={updatingId === entrega.id}
+                    className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                  >
+                    {updatingId === entrega.id ? 'Atualizando...' : (
+                      <>
+                        <MapPin size={18} />
+                        Cheguei no Cliente
+                      </>
+                    )}
+                  </button>
+                )}
+
+                {/* FINALIZAR (Se chegou_entrega) */}
+                {entrega.status === 'chegou_entrega' && (
                   <button
                     onClick={() => updateStatus(entrega.id, 'entregue')}
                     disabled={updatingId === entrega.id}

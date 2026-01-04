@@ -440,12 +440,13 @@ export function NovaEntregaPanel() {
   };
 
   const fetchData = async () => {
-    const [c, e, t, m, tp, b, dyn, dynDriver] = await Promise.all([
+    const [c, e, t, m, tp, tc, b, dyn, dynDriver] = await Promise.all([
       supabase.from('clientes').select('*').order('nome_completo'),
       supabase.from('entregadores').select('id, nome_completo, status, is_online').neq('status', 'inativo').order('nome_completo'),
       supabase.from('tipo_servicos').select('*').eq('ativo', true).order('nome'),
       supabase.from('modais').select('*').eq('ativo', true).order('tipo'),
       supabase.from('tabelas_precos').select('*').order('nome'),
+      supabase.from('tabelas_comissoes').select('*').order('nome'),
       supabase.from('entregador_bloqueios_clientes').select('cliente_id, entregador_id'),
        supabase.from('preco_dinamico_demanda').select('*').eq('ativa', true).order('nome'),
        supabase.from('preco_dinamico_entregador').select('*').eq('ativa', true)
@@ -458,6 +459,7 @@ export function NovaEntregaPanel() {
     setModais(modaisList);
     const tabelas = (tp.data || []) as TabelaPreco[];
     setTabelasPrecos(tabelas);
+    setTabelasComissoes((tc.data || []) as TabelaComissao[]);
     setBlacklist((b.data || []) as Array<{ cliente_id: string, entregador_id: string }>);
     setDynamicRules((dyn.data || []) as DynamicRule[]);
     setDynamicDriverRules((dynDriver.data || []) as DynamicDriverRule[]);

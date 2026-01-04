@@ -91,9 +91,9 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
                  <tr key={item.id} className="hover:bg-gray-50">
                    <td className="p-4">{new Date(item.created_at).toLocaleDateString()}</td>
                    <td className="p-4">{item.descricao || 'Comissão'}</td>
-                   <td className={`p-4 text-right font-medium ${item.valor >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                     {item.valor >= 0 ? '+' : ''} R$ {Number(item.valor).toFixed(2)}
-                   </td>
+                   <td className={`p-4 text-right font-medium ${(item.valor_entregador || item.valor_entrega || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {(item.valor_entregador || item.valor_entrega || 0) >= 0 ? '+' : ''} R$ {Number(item.valor_entregador || item.valor_entrega || 0).toFixed(2)}
+                  </td>
                  </tr>
                ))}
              </tbody>
