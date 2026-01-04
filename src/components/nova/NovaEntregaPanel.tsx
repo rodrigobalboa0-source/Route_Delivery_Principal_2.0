@@ -9,6 +9,8 @@ type TipoServico = Database['public']['Tables']['tipo_servicos']['Row'];
 type ModalRow = Database['public']['Tables']['modais']['Row'];
 type TabelaPreco = Database['public']['Tables']['tabelas_precos']['Row'];
   type FaixaPreco = Database['public']['Tables']['tabelas_precos_faixas']['Row'];
+  type TabelaComissao = Database['public']['Tables']['tabelas_comissoes']['Row'];
+  type FaixaComissao = Database['public']['Tables']['tabelas_comissoes_faixas']['Row'];
   type DynamicRule = Database['public']['Tables']['preco_dinamico_demanda']['Row'];
   type DynamicDriverRule = Database['public']['Tables']['preco_dinamico_entregador']['Row'] & { criterio?: string };
   
@@ -134,6 +136,8 @@ export function NovaEntregaPanel() {
   const [tipos, setTipos] = useState<TipoServico[]>([]);
   const [modais, setModais] = useState<ModalRow[]>([]);
   const [tabelasPrecos, setTabelasPrecos] = useState<TabelaPreco[]>([]);
+  const [tabelasComissoes, setTabelasComissoes] = useState<TabelaComissao[]>([]);
+  const [faixasComissoes, setFaixasComissoes] = useState<FaixaComissao[]>([]);
   const [blacklist, setBlacklist] = useState<Array<{ cliente_id: string, entregador_id: string }>>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -191,6 +195,31 @@ export function NovaEntregaPanel() {
     if (form.cliente_id) fetchEnderecos(form.cliente_id);
     else setEnderecos([]);
   }, [form.cliente_id]);
+
+  useEffect(() => {
+    const loadComissaoRules = async () => {
+        if (!form.cliente_id || tabelasComissoes.length === 0) {
+            setFaixasComissoes([]);
+            return;
+        }
+        
+        const table = tabelasComissoes.find(t => 
+            t.cliente_ids && Array.isArray(t.cliente_ids) && t.cliente_ids.includes(form.cliente_id)
+        );
+        
+        if (table) {
+            const { data } = await supabase
+                .from('tabelas_comissoes_faixas')
+                .select('*')
+                .eq('tabela_id', table.id)
+                .order('km_ate', { ascending: true });
+            setFaixasComissoes((data || []) as FaixaComissao[]);
+        } else {
+            setFaixasComissoes([]);
+        }
+    };
+    loadComissaoRules();
+  }, [form.cliente_id, tabelasComissoes]);
 
   const handleUseRegistrationAddress = (type: 'coleta' | 'entrega', checked: boolean) => {
     setForm((prev) => {
@@ -515,7 +544,47 @@ export function NovaEntregaPanel() {
   };
 
   const calculateDriverCommission = (km: number, hasReturn: boolean, pointsCount: number, entregadorId?: string | null): string => {
-     
+      
+      // 1. Priority: Table Commission
+      if (faixasComissoes.length > 0) {
+         let val = 0;
+         const faixa = faixasComissoes.find(f => f.km_ate >= km);
+         
+         if (faixa) {
+             val = faixa.valor;
+         } else {
+             const last = faixasComissoes[faixasComissoes.length - 1];
+             val = last ? last.valor : 0;
+         }
+
+         const table = tabelasComissoes.find(t => 
+            t.cliente_ids && Array.isArray(t.cliente_ids) && t.cliente_ids.includes(form.cliente_id)
+         );
+         
+         if (table) {
+             if (table.valor_por_ponto && pointsCount > 0) {
+                 val += (table.valor_por_ponto * pointsCount);
+             }
+             if (hasReturn && table.valor_retorno) {
+                 val += table.valor_retorno;
+             }
+         }
+         
+         // Apply dynamic driver rules
+         if (entregadorId) {
+             const rules = dynamicDriverRules.filter(r => r.entregador_id === entregadorId && r.ativa);
+             rules.forEach(r => {
+               if (r.multiplicador) {
+                 if (r.criterio === 'TAXA_FIXA') {
+                   val += r.multiplicador;
+                 } else {
+                   val *= r.multiplicador;
+                 }
+               }
+             });
+         }
+         return val.toFixed(2);
+      }
       
       if (form.valor_entrega) {
           const totalValue = parseFloat(form.valor_entrega.replace(',', '.'));
