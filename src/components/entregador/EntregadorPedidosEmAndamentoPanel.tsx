@@ -222,9 +222,25 @@ export function EntregadorPedidosEmAndamentoPanel() {
   async function updateStatus(id: string, newStatus: string) {
     setUpdatingId(id);
     try {
+      const currentEntrega = entregas.find(e => e.id === id);
+      const opcionais = currentEntrega?.opcionais || {};
+      const timeline = opcionais.timeline || {};
+      const now = new Date().toISOString();
+
+      if (newStatus === 'chegou_coleta') timeline.chegou_coleta = now;
+      if (newStatus === 'em_rota') timeline.coletado = now;
+      if (newStatus === 'chegou_entrega') timeline.chegou_entrega = now;
+      if (newStatus === 'entregue') timeline.finalizado = now;
+
+      const newOpcionais = { ...opcionais, timeline };
+
       const { error } = await supabase
         .from('nova_entrega')
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .update({ 
+            status: newStatus, 
+            updated_at: now,
+            opcionais: newOpcionais
+        })
         .eq('id', id);
 
       if (error) throw error;
@@ -233,7 +249,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
         setEntregas(prev => prev.filter(e => e.id !== id));
       } else {
         
-        setEntregas(prev => prev.map(e => e.id === id ? { ...e, status: newStatus } : e));
+        setEntregas(prev => prev.map(e => e.id === id ? { ...e, status: newStatus, opcionais: newOpcionais } : e));
       }
 
     } catch (error: any) {

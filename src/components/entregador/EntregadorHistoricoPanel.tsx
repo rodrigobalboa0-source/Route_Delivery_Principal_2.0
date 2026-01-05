@@ -116,6 +116,40 @@ export function EntregadorHistoricoPanel() {
                     )}
                   </div>
                 )}
+
+                {/* Timeline do Pedido */}
+                {entrega.opcionais?.timeline && (
+                  <div className="border-t border-gray-100 pt-3 mt-2 bg-slate-50 p-2 rounded">
+                    <p className="text-xs font-bold text-gray-500 uppercase mb-2">Linha do Tempo</p>
+                    <div className="space-y-1">
+                        {entrega.opcionais.timeline.chegou_coleta && (
+                            <div className="flex justify-between text-xs">
+                                <span className="text-slate-500">Chegou na Coleta:</span>
+                                <span className="font-medium text-slate-700">{new Date(entrega.opcionais.timeline.chegou_coleta).toLocaleString()}</span>
+                            </div>
+                        )}
+                        {entrega.opcionais.timeline.coletado && (
+                            <div className="flex justify-between text-xs">
+                                <span className="text-slate-500">Coletado (Saiu):</span>
+                                <span className="font-medium text-slate-700">{new Date(entrega.opcionais.timeline.coletado).toLocaleString()}</span>
+                            </div>
+                        )}
+                        {entrega.opcionais.timeline.chegou_entrega && (
+                            <div className="flex justify-between text-xs">
+                                <span className="text-slate-500">Chegou no Cliente:</span>
+                                <span className="font-medium text-slate-700">{new Date(entrega.opcionais.timeline.chegou_entrega).toLocaleString()}</span>
+                            </div>
+                        )}
+                        {entrega.opcionais.timeline.finalizado && (
+                            <div className="flex justify-between text-xs">
+                                <span className="text-slate-500">Entregue:</span>
+                                <span className="font-medium text-slate-700">{new Date(entrega.opcionais.timeline.finalizado).toLocaleString()}</span>
+                            </div>
+                        )}
+                    </div>
+                  </div>
+                )}
+
               </div>
               <div className="mt-4 pt-4 border-t border-gray-100 flex justify-between items-center">
                  <span className="text-sm text-gray-500">Valor da entrega</span>
