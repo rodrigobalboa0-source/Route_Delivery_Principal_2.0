@@ -796,24 +796,7 @@ export function NovaEntregaPanel() {
             </div>
           </div>
           
-          <div className="md:col-span-2 bg-slate-50 p-3 rounded border border-slate-200 mt-2">
-            <div className="flex justify-between items-center">
-               <span className="text-sm font-medium text-slate-600">Comissão Entregador:</span>
-               <div className="text-right">
-                  <div className="font-bold text-slate-800">
-                    R$ {calculateDriverCommission(
-                        distanciaKm ? parseFloat(distanciaKm.replace(',', '.')) : 0, 
-                        form.retorno, 
-                        form.pontos.length, 
-                        form.entregador_id
-                    )}
-                  </div>
-                  <div className="text-xs text-slate-500">
-                    {comissaoTableFound ? `Tabela: ${comissaoTableFound}` : 'Padrão (75%)'}
-                  </div>
-               </div>
-            </div>
-          </div>
+
 
           <input placeholder="Observações" value={form.observacoes} onChange={(e) => setForm({ ...form, observacoes: e.target.value })} className="px-3 py-2 border border-slate-300 rounded md:col-span-2" />
         </div>
@@ -916,11 +899,7 @@ export function NovaEntregaPanel() {
                   </div>
                 )}
                 {calculatingDistance && <span className="text-xs text-amber-600 block animate-pulse">Calculando rota e distância...</span>}
-                {faixasComissoes.length > 0 ? (
-                    <span className="text-xs text-green-600 block mt-1">✓ Tabela de comissão ativa</span>
-                ) : (
-                    form.cliente_id && <span className="text-xs text-orange-600 block mt-1">⚠ Sem tabela de comissão (usando padrão 75%)</span>
-                )}
+
              </div>
              <div className="text-3xl font-bold text-sky-900">
                {calculatingDistance ? '...' : `R$ ${form.valor_entrega}`}

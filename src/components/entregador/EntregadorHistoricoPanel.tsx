@@ -62,21 +62,60 @@ export function EntregadorHistoricoPanel() {
                  </span>
                  <span className="text-xs text-gray-400">{new Date(entrega.created_at).toLocaleDateString()}</span>
               </div>
-              <div className="space-y-2">
-                <div className="flex items-start gap-2">
-                   <MapPin className="w-4 h-4 text-gray-400 mt-1" />
-                   <div>
-                     <p className="text-sm font-medium text-gray-800">Origem</p>
-                     <p className="text-sm text-gray-600">{entrega.endereco_coleta}</p>
-                   </div>
+              <div className="space-y-4">
+                <div className="bg-gray-50 p-3 rounded-md">
+                  <div className="flex items-start gap-2 mb-2">
+                     <MapPin className="w-4 h-4 text-green-600 mt-1 shrink-0" />
+                     <div>
+                       <p className="text-sm font-bold text-gray-800">Origem / Coleta</p>
+                       <p className="text-sm text-gray-600">{entrega.coleta_endereco_texto || entrega.endereco_coleta || 'Endereço não informado'}</p>
+                       {(entrega.coleta_contato || entrega.coleta_telefone) && (
+                         <p className="text-xs text-gray-500 mt-1">
+                           {entrega.coleta_contato} {entrega.coleta_telefone ? `- ${entrega.coleta_telefone}` : ''}
+                         </p>
+                       )}
+                       {entrega.coleta_observacoes && (
+                         <p className="text-xs text-orange-600 mt-1 bg-orange-50 p-1 rounded">Obs: {entrega.coleta_observacoes}</p>
+                       )}
+                     </div>
+                  </div>
                 </div>
-                <div className="flex items-start gap-2">
-                   <MapPin className="w-4 h-4 text-gray-400 mt-1" />
-                   <div>
-                     <p className="text-sm font-medium text-gray-800">Destino</p>
-                     <p className="text-sm text-gray-600">{entrega.endereco_entrega}</p>
-                   </div>
+
+                <div className="bg-gray-50 p-3 rounded-md">
+                  <div className="flex items-start gap-2 mb-2">
+                     <MapPin className="w-4 h-4 text-red-600 mt-1 shrink-0" />
+                     <div>
+                       <p className="text-sm font-bold text-gray-800">Destino / Entrega</p>
+                       <p className="text-sm text-gray-600">{entrega.entrega_endereco_texto || entrega.endereco_entrega || 'Endereço não informado'}</p>
+                       {(entrega.entrega_contato || entrega.entrega_telefone) && (
+                         <p className="text-xs text-gray-500 mt-1">
+                           {entrega.entrega_contato} {entrega.entrega_telefone ? `- ${entrega.entrega_telefone}` : ''}
+                         </p>
+                       )}
+                       {entrega.entrega_observacoes && (
+                         <p className="text-xs text-orange-600 mt-1 bg-orange-50 p-1 rounded">Obs: {entrega.entrega_observacoes}</p>
+                       )}
+                     </div>
+                  </div>
                 </div>
+
+                {/* Informações Adicionais do Pedido */}
+                {(entrega.item_descricao || entrega.observacoes || entrega.entrega_codigo_pedido) && (
+                  <div className="border-t border-gray-100 pt-3 mt-2">
+                    <p className="text-xs font-bold text-gray-500 uppercase mb-2">Detalhes do Pedido</p>
+                    {entrega.entrega_codigo_pedido && (
+                      <p className="text-sm text-gray-700 mb-1"><span className="font-medium">Pedido:</span> {entrega.entrega_codigo_pedido}</p>
+                    )}
+                    {entrega.item_descricao && (
+                      <p className="text-sm text-gray-700 mb-1"><span className="font-medium">Item:</span> {entrega.item_descricao}</p>
+                    )}
+                    {entrega.observacoes && (
+                      <div className="text-sm text-gray-600 bg-yellow-50 p-2 rounded border border-yellow-100 mt-2">
+                        <span className="font-medium text-yellow-800">Observações Gerais:</span> {entrega.observacoes}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="mt-4 pt-4 border-t border-gray-100 flex justify-between items-center">
                  <span className="text-sm text-gray-500">Valor da entrega</span>

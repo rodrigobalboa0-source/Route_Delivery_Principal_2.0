@@ -1085,6 +1085,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                 <th className="px-4 py-3">Cliente</th>
                 <th className="px-4 py-3">Coleta</th>
                 <th className="px-4 py-3">Entrega</th>
+                <th className="px-4 py-3">Taxa</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Entregador</th>
                 <th className="px-4 py-3">Ações</th>
@@ -1092,9 +1093,9 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loadingList ? (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">Carregando pedidos...</td></tr>
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-500">Carregando pedidos...</td></tr>
               ) : items.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">Nenhum pedido encontrado.</td></tr>
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-500">Nenhum pedido encontrado.</td></tr>
               ) : (
                 items.map(p => {
                     const cliente = clientes.find(c => c.id === p.cliente_id);
@@ -1116,6 +1117,9 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                             </td>
                             <td className="px-4 py-3 max-w-[200px] truncate" title={getEntregaAddress(p)}>
                                 {getEntregaAddress(p)}
+                            </td>
+                            <td className="px-4 py-3 font-medium text-slate-700">
+                                {entrega?.valor_entrega ? `R$ ${entrega.valor_entrega.toFixed(2)}` : '-'}
                             </td>
                             <td className="px-4 py-3">
                                 {getStatusBadge(entrega?.status || p.status)}
