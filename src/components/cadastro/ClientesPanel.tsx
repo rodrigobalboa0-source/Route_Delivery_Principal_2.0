@@ -156,7 +156,7 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
       if (existingIndex >= 0) {
         newConfig[existingIndex] = { ...newConfig[existingIndex], [field]: value };
       } else {
-        // If creating new, we need to ensure we start with default and then apply the change
+        
         newConfig.push({ ...defaultConfig, [field]: value });
       }
       
@@ -190,6 +190,19 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
       const msg = (e as { message?: string })?.message;
       if (msg) setError(msg);
     }
+
+    const hasEnderecoAtual = Boolean((enderecoAtual.cep || '').trim() || (enderecoAtual.rua || '').trim() || (enderecoAtual.numero || '').trim());
+
+    if (hasEnderecoAtual) {
+      if (!enderecoAtual.cep || !enderecoAtual.rua || !enderecoAtual.numero || !enderecoAtual.bairro || !enderecoAtual.cidade) {
+        setError('Para cadastrar o endereço, preencha obrigatoriamente: CEP, Rua, Número, Bairro e Cidade.');
+        setLoading(false);
+        return;
+      }
+    }
+
+    const primaryAddress = hasEnderecoAtual ? enderecoAtual : (enderecos.length > 0 ? enderecos[0] : {});
+
     const res = await sbInsert('clientes', {
       ...(authUserId ? { id: authUserId } : {}),
       nome_completo: form.nome_completo,
@@ -199,13 +212,13 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
       email: (form.email || '').trim() ? (form.email || '').trim().toLowerCase() : null,
       metodo_pagamento_preferido: form.metodo_pagamento_preferido || null,
       observacoes: form.observacoes || null,
-      cep: enderecoAtual.cep || null,
-      rua: enderecoAtual.rua || null,
-      numero: enderecoAtual.numero || null,
-      complemento: enderecoAtual.complemento || null,
-      bairro: enderecoAtual.bairro || null,
-      cidade: enderecoAtual.cidade || null,
-      referencia_entrega: enderecoAtual.referencia_entrega || null,
+      cep: primaryAddress.cep || null,
+      rua: primaryAddress.rua || null,
+      numero: primaryAddress.numero || null,
+      complemento: primaryAddress.complemento || null,
+      bairro: primaryAddress.bairro || null,
+      cidade: primaryAddress.cidade || null,
+      referencia_entrega: primaryAddress.referencia_entrega || null,
     });
     const r = res as unknown as { data?: { id?: string }; error?: { message?: string } };
     if (r.error?.message) {
@@ -214,6 +227,12 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
       return;
     }
     const cid = (r.data?.id || '') as string;
+    
+    if (!cid) {
+      setError('Erro ao salvar o comércio: ID não retornado. Tente novamente.');
+      setLoading(false);
+      return;
+    }
     
     if ((form.email || '').trim()) {
       try {
@@ -255,10 +274,11 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
     }
 
     const enderecosParaSalvar = (() => {
-      const hasAtual = Boolean((enderecoAtual.cep || '').trim() || (enderecoAtual.rua || '').trim() || (enderecoAtual.numero || '').trim() || (enderecoAtual.bairro || '').trim() || (enderecoAtual.cidade || '').trim() || (enderecoAtual.complemento || '').trim() || (enderecoAtual.referencia_entrega || '').trim());
-      if (hasAtual) return [...enderecos, { ...enderecoAtual }];
+      
+      if (hasEnderecoAtual) return [...enderecos, { ...enderecoAtual }];
       return enderecos;
     })();
+
     for (const e of enderecosParaSalvar) {
       await sbInsert('cliente_enderecos', {
         cliente_id: cid,
@@ -285,7 +305,7 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
       }
     }
     try {
-      await (supabase as unknown as { from: (t: string) => { update: (v: unknown) => { eq: (c: string, v: unknown) => Promise<unknown> } } })
+      const { error: updateError } = await supabase
         .from('clientes')
         .update({
           segmento: form.segmento || null,
@@ -300,16 +320,12 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
           hub: form.hub || null,
           foto_url: finalFotoUrl || null,
           foto_base64: finalFotoBase64 || null,
-          cep: enderecoAtual.cep || null,
-          rua: enderecoAtual.rua || null,
-          numero: enderecoAtual.numero || null,
-          complemento: enderecoAtual.complemento || null,
-          bairro: enderecoAtual.bairro || null,
-          cidade: enderecoAtual.cidade || null,
-          referencia_entrega: enderecoAtual.referencia_entrega || null,
         })
         .eq('id', cid);
-    } catch (e) {
+        
+      if (updateError) throw updateError;
+    } catch (e: any) {
+      console.error('Erro ao atualizar dados complementares do cliente:', e);
       const extras = {
         segmento: form.segmento,
         data_inicio: form.data_inicio,
@@ -324,13 +340,13 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
         foto_url: form.foto_url,
         foto_base64: form.foto_base64,
         endereco: {
-          cep: enderecoAtual.cep,
-          rua: enderecoAtual.rua,
-          numero: enderecoAtual.numero,
-          complemento: enderecoAtual.complemento,
-          bairro: enderecoAtual.bairro,
-          cidade: enderecoAtual.cidade,
-          referencia_entrega: enderecoAtual.referencia_entrega,
+          cep: primaryAddress.cep,
+          rua: primaryAddress.rua,
+          numero: primaryAddress.numero,
+          complemento: primaryAddress.complemento,
+          bairro: primaryAddress.bairro,
+          cidade: primaryAddress.cidade,
+          referencia_entrega: primaryAddress.referencia_entrega,
         },
       };
       const mergedObs = JSON.stringify({ extras, observacoes: form.observacoes || '' });
@@ -394,10 +410,10 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
        } catch (e) { void e; }
 
       
-      // 5. Tratamento especial para tabela users e usuário atual
+      
       const { data: { user: currentUser } } = await supabase.auth.getUser();
       if (currentUser) {
-          // Verifica dados do usuário atual na tabela users
+          
           const { data: currentUserData } = await supabase
             .from('users')
             .select('id, role, cliente_id')
@@ -1347,4 +1363,4 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
     </div>
   );
 }
-  const sbInsert = (table: string, values: unknown) => (supabase as unknown as { from: (rel: string) => { insert: (vals: unknown) => Promise<unknown> } }).from(table).insert(values);
+  const sbInsert = (table: string, values: unknown) => (supabase as unknown as { from: (rel: string) => { insert: (vals: unknown) => { select: () => { single: () => Promise<unknown> } } } }).from(table).insert(values).select().single();

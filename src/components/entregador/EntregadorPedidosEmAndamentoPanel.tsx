@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { MapPin, CheckCircle, Truck, AlertCircle, Phone, Navigation, Map as MapIcon, XCircle, DollarSign } from 'lucide-react';
+import { MapPin, CheckCircle, Truck, AlertCircle, Phone, Navigation, Map as MapIcon, DollarSign } from 'lucide-react';
 import { MapView, MapDeliveryPerson } from '../MapView';
 import type { Database } from '../../lib/database.types';
 import { Geolocation } from '@capacitor/geolocation';
@@ -465,17 +465,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
               </div>
 
               <div className="p-5 bg-gray-50 flex gap-3 flex-wrap">
-                {/* REJEITAR - Somente se ainda não coletou */}
-                {(entrega.status === 'criada' || entrega.status === 'atribuida') && (
-                  <button
-                    onClick={() => handleRejeitar(entrega.id)}
-                    disabled={updatingId === entrega.id}
-                    className="bg-red-100 hover:bg-red-200 text-red-700 font-bold px-4 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
-                    title="Rejeitar Entrega"
-                  >
-                     <XCircle size={24} />
-                  </button>
-                )}
+
 
                 {/* ACEITAR (Se criada) */}
                 {entrega.status === 'criada' && (

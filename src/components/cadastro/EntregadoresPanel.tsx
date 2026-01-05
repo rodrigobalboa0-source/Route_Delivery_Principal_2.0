@@ -28,7 +28,7 @@ type CSVRow = {
   cidade?: string
 };
 
-const sbInsert = (table: string, values: unknown) => (supabase as unknown as { from: (rel: string) => { insert: (vals: unknown) => Promise<unknown> } }).from(table).insert(values);
+const sbInsert = (table: string, values: unknown) => (supabase as unknown as { from: (rel: string) => { insert: (vals: unknown) => { select: () => { single: () => Promise<unknown> } } } }).from(table).insert(values).select().single();
 
 export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' }) {
   const [entregadores, setEntregadores] = useState<Entregador[]>([]);
