@@ -36,7 +36,12 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
             .single()
             .then(({ data, error }) => {
                 if (error) {
-                    console.error('Erro ao buscar dados do comércio:', error);
+                    // Ignora erro 404 se a função ainda não existir no banco (migração pendente)
+                    if (error.code === 'PGRST202' || error.message.includes('404')) {
+                         console.warn('Função get_cliente_public_info não encontrada. Execute a migration fix_rpc_and_bucket.sql');
+                    } else {
+                         console.error('Erro ao buscar dados do comércio:', error);
+                    }
                     setCommerceData(null);
                     return;
                 }
