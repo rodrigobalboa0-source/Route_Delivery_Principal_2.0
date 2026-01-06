@@ -525,7 +525,7 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
       precificacao_config: pConfig,
     });
     
-    // Set preview from root columns first
+    
     if (c.foto_url) setEditFotoPreview(c.foto_url);
     else if (c.foto_base64) setEditFotoPreview(c.foto_base64);
     else setEditFotoPreview('');

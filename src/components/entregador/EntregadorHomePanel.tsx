@@ -240,11 +240,13 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
     
     const checkPending = async () => {
         
+        
         const { data: assigned } = await supabase
             .from('nova_entrega')
             .select('*')
             .eq('entregador_id', entregadorId)
             .eq('status', 'atribuida')
+            .eq('atribuicao_modo', 'automatica') 
             .order('updated_at', { ascending: false })
             .limit(1)
             .maybeSingle();
@@ -285,19 +287,30 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                
                
                if (newRecord.status === 'atribuida' && newRecord.entregador_id === entregadorId) {
-                   setIncomingDelivery(newRecord);
+                   
+                   if (newRecord.atribuicao_modo === 'automatica') {
+                       setIncomingDelivery(newRecord);
+                   } else {
+                       
+                       if (incomingDelivery?.id === newRecord.id) {
+                           setIncomingDelivery(null);
+                       }
+                   }
                } 
+               
                
                else if (newRecord.status === 'criada' && !newRecord.entregador_id) {
                    
                    setIncomingDelivery(newRecord);
                }
                
+               
                else if (incomingDelivery?.id === newRecord.id) {
                    
                    if (newRecord.entregador_id !== entregadorId && newRecord.status !== 'criada') {
                         setIncomingDelivery(null);
                    }
+                   
                    
                    if (incomingDelivery.status === 'criada' && newRecord.status === 'atribuida' && newRecord.entregador_id !== entregadorId) {
                         setIncomingDelivery(null);
@@ -330,6 +343,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                   .update({ 
                       status: 'atribuida', 
                       entregador_id: entregadorId,
+                      atribuicao_modo: 'manual', 
                       updated_at: new Date().toISOString()
                   })
                   .eq('id', incomingDelivery.id)
