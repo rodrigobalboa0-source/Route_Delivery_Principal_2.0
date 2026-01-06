@@ -520,10 +520,16 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
       lead_por: '',
       franquia: '',
       hub: '',
-      foto_url: '',
-      foto_base64: '',
+      foto_url: c.foto_url || '',
+      foto_base64: c.foto_base64 || '',
       precificacao_config: pConfig,
     });
+    
+    // Set preview from root columns first
+    if (c.foto_url) setEditFotoPreview(c.foto_url);
+    else if (c.foto_base64) setEditFotoPreview(c.foto_base64);
+    else setEditFotoPreview('');
+
     try {
       const obs = String(c.observacoes || '');
       const parsed = obs.startsWith('{') ? JSON.parse(obs) : null;
@@ -531,21 +537,24 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
       if (extras) {
         setEditForm((prev) => ({
           ...prev,
-          segmento: extras.segmento || '',
-          data_inicio: extras.data_inicio || '',
-          razao_social: extras.razao_social || '',
-          nome_fantasia: extras.nome_fantasia || '',
-          cadastro_via: extras.cadastro_via || '',
-          tipo_documento: extras.tipo_documento || 'cnpj',
-          cnpj: extras.cnpj || '',
-          lead_por: extras.lead_por || '',
-          franquia: extras.franquia || '',
-          hub: extras.hub || '',
-          foto_url: extras.foto_url || '',
-          foto_base64: extras.foto_base64 || '',
+          segmento: extras.segmento || prev.segmento,
+          data_inicio: extras.data_inicio || prev.data_inicio,
+          razao_social: extras.razao_social || prev.razao_social,
+          nome_fantasia: extras.nome_fantasia || prev.nome_fantasia,
+          cadastro_via: extras.cadastro_via || prev.cadastro_via,
+          tipo_documento: extras.tipo_documento || prev.tipo_documento,
+          cnpj: extras.cnpj || prev.cnpj,
+          lead_por: extras.lead_por || prev.lead_por,
+          franquia: extras.franquia || prev.franquia,
+          hub: extras.hub || prev.hub,
+          // Do not overwrite foto_url/base64 from extras if they exist in root, 
+          // or if they are empty in extras. Prioritize root columns.
         }));
-        if (extras.foto_url) setEditFotoPreview(extras.foto_url);
-        if (extras.foto_base64) setEditFotoPreview(extras.foto_base64);
+        // Only override preview if root was empty and extras has something (legacy fallback)
+        if (!c.foto_url && !c.foto_base64) {
+           if (extras.foto_url) setEditFotoPreview(extras.foto_url);
+           if (extras.foto_base64) setEditFotoPreview(extras.foto_base64);
+        }
       }
     } catch (e) { void e; }
     const { data } = await supabase.from('cliente_enderecos').select('*').eq('cliente_id', c.id).order('created_at');
