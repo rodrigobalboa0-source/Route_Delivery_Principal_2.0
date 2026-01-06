@@ -88,7 +88,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
            const { data } = await supabase
              .from('entregadores')
              .select('id, foto_url, is_online')
-             .eq('email', user.email)
+             .ilike('email', user.email || '')
              .single();
              
            if (data) {
@@ -459,12 +459,12 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
         </div>
       </div>
 
-      {incomingDelivery && (
-        <Modal 
-            isOpen={!!incomingDelivery} 
-            onClose={() => {}} 
-            title={incomingDelivery.status === 'criada' ? "Nova Oferta Disponível!" : "Nova Entrega Atribuída!"}
-        >
+       {incomingDelivery && (
+         <Modal 
+             open={!!incomingDelivery} 
+             onClose={() => {}} 
+             title={incomingDelivery.status === 'criada' ? "Nova Oferta Disponível!" : "Nova Entrega Atribuída!"}
+         >
             <div className="flex flex-col gap-4 items-center p-4">
                 <div className={`w-16 h-16 rounded-full flex items-center justify-center animate-bounce ${incomingDelivery.status === 'criada' ? 'bg-sky-100 text-sky-600' : 'bg-green-100 text-green-600'}`}>
                     <Truck size={32} />
