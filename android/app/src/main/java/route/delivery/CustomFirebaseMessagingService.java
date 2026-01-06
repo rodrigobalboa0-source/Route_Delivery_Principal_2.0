@@ -43,6 +43,15 @@ public class CustomFirebaseMessagingService extends MessagingService {
             intent.putExtra(entry.getKey(), entry.getValue());
         }
 
+        
+        try {
+            startActivity(intent);
+        } catch (Exception e) {
+            
+            
+            System.out.println("Erro ao tentar abrir activity diretamente: " + e.getMessage());
+        }
+
         PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
@@ -69,7 +78,7 @@ public class CustomFirebaseMessagingService extends MessagingService {
                 .setContentText(body)
                 .setAutoCancel(true)
                 .setSound(android.provider.Settings.System.DEFAULT_NOTIFICATION_URI)
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setPriority(NotificationCompat.PRIORITY_MAX) // MAX priority for Heads-up
                 .setCategory(NotificationCompat.CATEGORY_CALL)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setContentIntent(pendingIntent)

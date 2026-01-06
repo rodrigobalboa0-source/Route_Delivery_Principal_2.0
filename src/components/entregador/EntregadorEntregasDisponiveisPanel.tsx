@@ -260,7 +260,7 @@ export function EntregadorEntregasDisponiveisPanel() {
       ) : (
         <div className="space-y-4">
           {entregas.filter(e => !hiddenIds.includes(e.id)).map((entrega) => {
-             const assignedToMe = entrega.status === 'atribuida'; // Since we only fetch attributed if it's ours
+             const assignedToMe = entrega.status === 'atribuida'; 
              return (
             <div key={entrega.id} className={`bg-white p-5 rounded-lg shadow-sm border border-gray-100 hover:border-sky-200 transition-colors ${assignedToMe ? 'ring-2 ring-sky-500 ring-offset-2' : ''}`}>
               <div className="flex justify-between items-start mb-4">
