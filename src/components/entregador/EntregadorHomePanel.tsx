@@ -213,9 +213,9 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
   useEffect(() => {
     if (!entregadorId) return;
 
-    // Check for existing assigned or created (pending)
+    
     const checkPending = async () => {
-        // First check assigned to me
+        
         const { data: assigned } = await supabase
             .from('nova_entrega')
             .select('*')
@@ -230,7 +230,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
              return;
         }
 
-        // Then check created (available)
+        
         const { data: created } = await supabase
             .from('nova_entrega')
             .select('*')
@@ -259,22 +259,22 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
            if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
                const newRecord = payload.new;
                
-               // Case 1: Assigned to me
+               
                if (newRecord.status === 'atribuida' && newRecord.entregador_id === entregadorId) {
                    setIncomingDelivery(newRecord);
                } 
-               // Case 2: New available delivery (created and no driver)
+               
                else if (newRecord.status === 'criada' && !newRecord.entregador_id) {
-                   // Optional: Check radius here if needed, for now show all
+                   
                    setIncomingDelivery(newRecord);
                }
-               // Case 3: Current delivery changed
+               
                else if (incomingDelivery?.id === newRecord.id) {
-                   // If I was viewing it, and it's no longer assigned to me OR no longer created (e.g. someone else took it)
+                   
                    if (newRecord.entregador_id !== entregadorId && newRecord.status !== 'criada') {
                         setIncomingDelivery(null);
                    }
-                   // If it was 'criada' and now 'atribuida' to someone else
+                   
                    if (incomingDelivery.status === 'criada' && newRecord.status === 'atribuida' && newRecord.entregador_id !== entregadorId) {
                         setIncomingDelivery(null);
                    }
@@ -292,13 +292,13 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
   const handleAceitar = async () => {
       if (!incomingDelivery || !entregadorId) return;
 
-      // Se já atribuída a mim, só fechar
+      
       if (incomingDelivery.status === 'atribuida' && incomingDelivery.entregador_id === entregadorId) {
           setIncomingDelivery(null);
           return;
       }
 
-      // Se for criada, tentar pegar
+      
       if (incomingDelivery.status === 'criada') {
           try {
               const { error } = await supabase
@@ -309,12 +309,10 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                       updated_at: new Date().toISOString()
                   })
                   .eq('id', incomingDelivery.id)
-                  .eq('status', 'criada'); // Garante concorrência
+                  .eq('status', 'criada'); 
 
               if (error) throw error;
               
-              // Sucesso, o realtime vai atualizar para "atribuida" e cair no case 1, mantendo o modal ou fechando conforme lógica.
-              // Mas como já aceitei, posso fechar o modal.
               setIncomingDelivery(null);
               alert('Entrega aceita com sucesso!');
           } catch (e) {
@@ -328,7 +326,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
   const handleRecusar = async () => {
       if (!incomingDelivery) return;
       
-      // Se for apenas oferta (criada), "Recusar" é apenas fechar/ignorar
+      
       if (incomingDelivery.status === 'criada') {
           setIncomingDelivery(null);
           return;

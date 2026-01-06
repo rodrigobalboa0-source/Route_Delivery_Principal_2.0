@@ -9,17 +9,18 @@ import { getCoordsFromAddress, getDistanceFromLatLonInKm } from '../utils/geo';
 interface NotificationManagerProps {
   userId: string;
   userRole: string;
+  onNavigate?: (menu: string) => void;
 }
 
-export function NotificationManager({ userId, userRole }: NotificationManagerProps) {
+export function NotificationManager({ userId, userRole, onNavigate }: NotificationManagerProps) {
   useEffect(() => {
     if (userRole !== 'entregador') return;
 
     let channel: any = null;
 
     const setupNotifications = async () => {
-      // Fetch radius config
-      let radiusKm = 10; // default
+      
+      let radiusKm = 10;
       try {
         const { data: config } = await supabase.from('configuracoes_comercio').select('raio_busca_entregador').single();
         if (config?.raio_busca_entregador) {
@@ -87,7 +88,9 @@ export function NotificationManager({ userId, userRole }: NotificationManagerPro
           });
 
           PushNotifications.addListener('pushNotificationActionPerformed', notification => {
-            console.log('Push Action:', notification);
+            if (onNavigate && userRole === 'entregador') {
+              onNavigate('home_entregador');
+            }
           });
         } catch (e) {
           console.error('Erro ao configurar Push Notifications:', e);
@@ -110,7 +113,7 @@ export function NotificationManager({ userId, userRole }: NotificationManagerPro
               (eventType === 'INSERT' && newRecord.status === 'criada' && !newRecord.entregador_id) ||
               (eventType === 'UPDATE' && newRecord.status === 'criada' && !newRecord.entregador_id && (oldRecord.status !== 'criada' || oldRecord.entregador_id))
             ) {
-              // Verificar raio
+              
               try {
                 if (newRecord.coleta_endereco_texto) {
                    const pickupCoords = await getCoordsFromAddress(newRecord.coleta_endereco_texto);
