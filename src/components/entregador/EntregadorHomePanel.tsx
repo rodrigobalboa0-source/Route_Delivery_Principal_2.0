@@ -1,9 +1,10 @@
 import { useEffect, useState, useRef } from 'react';
 import { MapView, MapDeliveryPerson } from '../MapView';
-import { MapPin, Truck, Home, Power } from 'lucide-react';
+import { MapPin, Truck, Home, Power, CheckCircle, XCircle } from 'lucide-react';
 import { Database } from '../../lib/database.types';
 import { supabase } from '../../lib/supabase';
 import { Geolocation } from '@capacitor/geolocation';
+import { Modal } from '../Modal';
 
 type DeliveryPerson = Database['public']['Tables']['delivery_persons']['Row'];
 
@@ -23,7 +24,55 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
   const [isOnline, setIsOnline] = useState(false);
   const [entregadorId, setEntregadorId] = useState<string | null>(null);
   const [ganhos, setGanhos] = useState(0);
+  const [incomingDelivery, setIncomingDelivery] = useState<any>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const lastLocationUpdateRef = useRef<number>(0);
+
+  useEffect(() => {
+    // Initialize audio
+    audioRef.current = new Audio('data:audio/mp3;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq'); // Short silence/placeholder, need real beep. 
+    // Actually, I'll use a simple oscillator if possible or a known beep URL if I can't embed a long string.
+    // For now, I'll use a standard notification sound URL or a generated beep.
+    // Since I can't guarantee internet for a URL, I'll try to generate a beep with AudioContext if possible, but Audio element is requested.
+    // I will use a very short beep base64.
+    audioRef.current = new Audio('data:audio/wav;base64,UklGRl9vT1BXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU'); // This is invalid/too short.
+    // Let's use a reliable online beep for now, or assume local asset. 
+    // The user said "apitando".
+    // I will try to use the browser's AudioContext for a synthetic beep to be safe and dependency-free.
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
+
+  // Audio Loop Effect
+  useEffect(() => {
+    let interval: any;
+    if (incomingDelivery) {
+        // Play sound loop
+        const playBeep = () => {
+            const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(440, ctx.currentTime);
+            osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.1, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 0.5);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.5);
+        };
+        playBeep();
+        interval = setInterval(playBeep, 2000);
+    }
+    return () => {
+        if (interval) clearInterval(interval);
+    };
+  }, [incomingDelivery]);
 
   useEffect(() => {
     if (userLocation) {
@@ -161,6 +210,77 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
     pushLocation();
   }, [userLocation, isOnline, entregadorId]);
 
+  useEffect(() => {
+    if (!entregadorId) return;
+
+    // Check for existing assigned
+    const checkPending = async () => {
+        const { data } = await supabase
+            .from('nova_entrega')
+            .select('*')
+            .eq('entregador_id', entregadorId)
+            .eq('status', 'atribuida')
+            .order('updated_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+        
+        if (data) {
+             setIncomingDelivery(data);
+        }
+    };
+    checkPending();
+
+    const channel = supabase
+      .channel('home_entregas_realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'nova_entrega',
+        },
+        (payload) => {
+           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+               const newRecord = payload.new;
+               if (newRecord.status === 'atribuida' && newRecord.entregador_id === entregadorId) {
+                   setIncomingDelivery(newRecord);
+               } else if (incomingDelivery?.id === newRecord.id) {
+                   // If status changed to something else or unassigned
+                   if (newRecord.status !== 'atribuida' || newRecord.entregador_id !== entregadorId) {
+                        setIncomingDelivery(null);
+                   }
+               }
+           }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [entregadorId, incomingDelivery?.id]);
+
+  const handleAceitar = () => {
+      setIncomingDelivery(null);
+  };
+
+  const handleRecusar = async () => {
+      if (!incomingDelivery) return;
+      if (!confirm('Tem certeza que deseja recusar esta entrega?')) return;
+      
+      try {
+          await supabase.from('nova_entrega').update({
+              entregador_id: null,
+              status: 'criada',
+              atribuicao_modo: 'manual',
+              updated_at: new Date().toISOString()
+          }).eq('id', incomingDelivery.id);
+          setIncomingDelivery(null);
+      } catch (e) {
+          console.error(e);
+      }
+  };
+
   const toggleOnline = async () => {
     if (!entregadorId) return;
 
@@ -272,6 +392,57 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
           </button>
         </div>
       </div>
+
+      {incomingDelivery && (
+        <Modal 
+            isOpen={!!incomingDelivery} 
+            onClose={() => {}} 
+            title="Nova Entrega Atribuída!"
+        >
+            <div className="flex flex-col gap-4 items-center p-4">
+                <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center animate-bounce">
+                    <Truck size={32} />
+                </div>
+                
+                <div className="text-center">
+                    <p className="text-lg font-bold text-gray-800">Você recebeu uma nova entrega!</p>
+                    <p className="text-sm text-gray-500">#{incomingDelivery.id.slice(0, 8)}</p>
+                </div>
+
+                <div className="w-full bg-gray-50 p-3 rounded-lg border border-gray-100 text-sm">
+                    <p className="font-semibold text-gray-700 mb-1">Retirada:</p>
+                    <p className="text-gray-600 mb-2">{incomingDelivery.coleta_endereco_texto}</p>
+                    
+                    <p className="font-semibold text-gray-700 mb-1">Entrega:</p>
+                    <p className="text-gray-600">{incomingDelivery.entrega_endereco_texto}</p>
+
+                    <div className="mt-3 pt-3 border-t border-gray-200 flex justify-between items-center">
+                         <span className="font-bold text-gray-700">Valor:</span>
+                         <span className="font-bold text-green-600 text-lg">
+                            R$ {(incomingDelivery.valor_entregador || incomingDelivery.valor_entrega || 0).toFixed(2)}
+                         </span>
+                    </div>
+                </div>
+
+                <div className="flex gap-3 w-full mt-2">
+                    <button
+                        onClick={handleRecusar}
+                        className="flex-1 bg-red-100 hover:bg-red-200 text-red-700 font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                    >
+                        <XCircle size={20} />
+                        Recusar
+                    </button>
+                    <button
+                        onClick={handleAceitar}
+                        className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-lg shadow-green-200"
+                    >
+                        <CheckCircle size={20} />
+                        Aceitar
+                    </button>
+                </div>
+            </div>
+        </Modal>
+      )}
     </div>
   );
 }

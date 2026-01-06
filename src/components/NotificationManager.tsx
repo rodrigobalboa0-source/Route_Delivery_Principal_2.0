@@ -172,6 +172,10 @@ export function NotificationManager({ userId, userRole }: NotificationManagerPro
                     }
                   }]
                 });
+
+                if (onNavigate) {
+                    onNavigate('home_entregador');
+                }
               }
           }
         )
