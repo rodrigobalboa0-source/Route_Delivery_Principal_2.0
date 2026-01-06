@@ -29,6 +29,17 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const lastLocationUpdateRef = useRef<number>(0);
 
+  const [rejectedIds, setRejectedIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('rejected_deliveries');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('rejected_deliveries', JSON.stringify(rejectedIds));
+  }, [rejectedIds]);
+
   useEffect(() => {
     if (incomingDelivery?.cliente_id) {
         
@@ -237,10 +248,8 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
   useEffect(() => {
     if (!entregadorId) return;
 
-    
     const checkPending = async () => {
-        
-        
+        // 1. Check if assigned explicitly to me (automatic)
         const { data: assigned } = await supabase
             .from('nova_entrega')
             .select('*')
@@ -251,23 +260,28 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
             .limit(1)
             .maybeSingle();
         
-        if (assigned) {
+        if (assigned && !rejectedIds.includes(assigned.id)) {
              setIncomingDelivery(assigned);
              return;
         }
 
-        
-        const { data: created } = await supabase
+        // 2. Check for pool deliveries (criada)
+        // Fetch more candidates to allow client-side filtering of rejectedIds
+        const { data: createdCandidates } = await supabase
             .from('nova_entrega')
             .select('*')
             .eq('status', 'criada')
             .is('entregador_id', null)
             .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
+            .limit(20);
+
+        const created = createdCandidates?.find(c => !rejectedIds.includes(c.id));
 
         if (created) {
             setIncomingDelivery(created);
+        } else if (!assigned) {
+            // If nothing found and currently showing something that was rejected (edge case), clear it
+            setIncomingDelivery(null);
         }
     };
     checkPending();
@@ -285,33 +299,34 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
            if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
                const newRecord = payload.new;
                
-               
+               if (rejectedIds.includes(newRecord.id)) return;
+
+               // SE FOI ATRIBUIDA PRA MIM
                if (newRecord.status === 'atribuida' && newRecord.entregador_id === entregadorId) {
                    
                    if (newRecord.atribuicao_modo === 'automatica') {
                        setIncomingDelivery(newRecord);
                    } else {
-                       
+                       // Manual assignment usually handled elsewhere, but if I'm on home:
                        if (incomingDelivery?.id === newRecord.id) {
                            setIncomingDelivery(null);
                        }
                    }
                } 
                
-               
+               // NOVA ENTREGA NO POOL
                else if (newRecord.status === 'criada' && !newRecord.entregador_id) {
-                   
                    setIncomingDelivery(newRecord);
                }
                
-               
+               // ATUALIZAÇÃO DA QUE ESTOU VENDO
                else if (incomingDelivery?.id === newRecord.id) {
                    
                    if (newRecord.entregador_id !== entregadorId && newRecord.status !== 'criada') {
                         setIncomingDelivery(null);
                    }
                    
-                   
+                   // Alguém pegou
                    if (incomingDelivery.status === 'criada' && newRecord.status === 'atribuida' && newRecord.entregador_id !== entregadorId) {
                         setIncomingDelivery(null);
                    }
@@ -324,7 +339,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [entregadorId, incomingDelivery?.id]);
+  }, [entregadorId, incomingDelivery?.id, rejectedIds]);
 
   const handleAceitar = async () => {
       if (!incomingDelivery) return;
@@ -392,14 +407,18 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
   const handleRecusar = async () => {
       if (!incomingDelivery) return;
       
+      if (!confirm('Tem certeza que deseja recusar esta entrega?')) return;
+
+      // Add to rejected list (both local state and localStorage via useEffect)
+      setRejectedIds(prev => [...prev, incomingDelivery.id]);
       
+      // If it was just a pool offer, just clear it from screen
       if (incomingDelivery.status === 'criada') {
           setIncomingDelivery(null);
           return;
       }
 
-      if (!confirm('Tem certeza que deseja recusar esta entrega?')) return;
-      
+      // If it was assigned to me, I need to release it back to pool
       try {
           await supabase.from('nova_entrega').update({
               entregador_id: null,
@@ -407,6 +426,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
               atribuicao_modo: 'manual',
               updated_at: new Date().toISOString()
           }).eq('id', incomingDelivery.id);
+          
           setIncomingDelivery(null);
       } catch (e) {
           console.error(e);
