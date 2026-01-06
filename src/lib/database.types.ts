@@ -1721,5 +1721,16 @@ export interface Database {
         }
       }
     }
+    Functions: {
+      get_cliente_public_info: {
+        Args: {
+          cid: string
+        }
+        Returns: {
+          nome_completo: string
+          foto_url: string | null
+        }[]
+      }
+    }
   }
 }

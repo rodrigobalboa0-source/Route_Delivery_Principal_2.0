@@ -69,7 +69,7 @@ export function NotificationManager({ userId, userRole, onNavigate }: Notificati
                 const { error } = await supabase
                   .from('entregadores')
                   .update({ fcm_token: token.value })
-                  .eq('email', user.email);
+                  .ilike('email', user.email);
                 
                 if (error) console.error('Erro ao atualizar token FCM:', error);
                 else console.log('Token FCM salvo com sucesso');

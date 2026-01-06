@@ -97,7 +97,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user?.email) {
-           const { data } = await supabase.from('entregadores').select('foto_url').eq('email', user.email).single();
+           const { data } = await supabase.from('entregadores').select('foto_url').ilike('email', user.email).single();
            if (data?.foto_url) setPhotoUrl(data.foto_url);
         }
       } catch (e) { console.error(e); }
@@ -191,7 +191,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
       const { data: entregador } = await supabase
         .from('entregadores')
         .select('id')
-        .eq('email', user.email)
+        .ilike('email', user.email)
         .single();
 
       if (!entregador) {

@@ -25,20 +25,39 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
   const [entregadorId, setEntregadorId] = useState<string | null>(null);
   const [ganhos, setGanhos] = useState(0);
   const [incomingDelivery, setIncomingDelivery] = useState<any>(null);
+  const [commerceData, setCommerceData] = useState<{ nome: string, foto: string | null } | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const lastLocationUpdateRef = useRef<number>(0);
 
   useEffect(() => {
-    // Initialize audio
+    if (incomingDelivery?.cliente_id) {
+        
+        supabase.rpc('get_cliente_public_info', { cid: incomingDelivery.cliente_id })
+            .single()
+            .then(({ data, error }) => {
+                if (error) {
+                    console.error('Erro ao buscar dados do comércio:', error);
+                    setCommerceData(null);
+                    return;
+                }
+                if (data) {
+                    setCommerceData({
+                        nome: data.nome_completo,
+                        foto: data.foto_url
+                    });
+                }
+            });
+    } else {
+        setCommerceData(null);
+    }
+  }, [incomingDelivery?.cliente_id]);
+
+  useEffect(() => {
+    
     audioRef.current = new Audio('data:audio/mp3;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq'); // Short silence/placeholder, need real beep. 
-    // Actually, I'll use a simple oscillator if possible or a known beep URL if I can't embed a long string.
-    // For now, I'll use a standard notification sound URL or a generated beep.
-    // Since I can't guarantee internet for a URL, I'll try to generate a beep with AudioContext if possible, but Audio element is requested.
-    // I will use a very short beep base64.
-    audioRef.current = new Audio('data:audio/wav;base64,UklGRl9vT1BXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU'); // This is invalid/too short.
-    // Let's use a reliable online beep for now, or assume local asset. 
-    // The user said "apitando".
-    // I will try to use the browser's AudioContext for a synthetic beep to be safe and dependency-free.
+    
+    audioRef.current = new Audio('data:audio/wav;base64,UklGRl9vT1BXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU'); 
+    
     return () => {
       if (audioRef.current) {
         audioRef.current.pause();
@@ -47,11 +66,11 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
     };
   }, []);
 
-  // Audio Loop Effect
+  
   useEffect(() => {
     let interval: any;
     if (incomingDelivery) {
-        // Play sound loop
+        
         const playBeep = () => {
             const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
             const osc = ctx.createOscillator();
@@ -96,7 +115,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
              setPhotoUrl(data.foto_url);
              setIsOnline(data.is_online || false);
              
-             // Fetch earnings (ganhos)
+             
              const { data: entregasData } = await supabase
               .from('nova_entrega')
               .select('*')
@@ -463,15 +482,24 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
          <Modal 
              open={!!incomingDelivery} 
              onClose={() => {}} 
-             title={incomingDelivery.status === 'criada' ? "Nova Oferta Disponível!" : "Nova Entrega Atribuída!"}
+             title={incomingDelivery.status === 'criada' ? "Nova Entrega Disponível!" : "Nova Entrega Atribuída!"}
          >
             <div className="flex flex-col gap-4 items-center p-4">
-                <div className={`w-16 h-16 rounded-full flex items-center justify-center animate-bounce ${incomingDelivery.status === 'criada' ? 'bg-sky-100 text-sky-600' : 'bg-green-100 text-green-600'}`}>
-                    <Truck size={32} />
+                <div className={`w-20 h-20 rounded-full flex items-center justify-center overflow-hidden border-4 animate-bounce ${incomingDelivery.status === 'criada' ? 'border-sky-100' : 'border-green-100'}`}>
+                    {commerceData?.foto ? (
+                         <img src={commerceData.foto} alt={commerceData.nome} className="w-full h-full object-cover" />
+                    ) : (
+                        <div className={`w-full h-full flex items-center justify-center ${incomingDelivery.status === 'criada' ? 'bg-sky-100 text-sky-600' : 'bg-green-100 text-green-600'}`}>
+                            <Truck size={32} />
+                        </div>
+                    )}
                 </div>
                 
                 <div className="text-center">
-                    <p className="text-lg font-bold text-gray-800">
+                    {commerceData?.nome && (
+                        <h3 className="text-xl font-bold text-gray-900 mb-1">{commerceData.nome}</h3>
+                    )}
+                    <p className="text-lg font-medium text-gray-800">
                         {incomingDelivery.status === 'criada' ? 'Nova entrega disponível na região!' : 'Você recebeu uma nova entrega!'}
                     </p>
                     <p className="text-sm text-gray-500">#{incomingDelivery.id.slice(0, 8)}</p>
@@ -498,7 +526,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                         className="flex-1 bg-red-100 hover:bg-red-200 text-red-700 font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors"
                     >
                         <XCircle size={20} />
-                        {incomingDelivery.status === 'criada' ? 'Ignorar' : 'Recusar'}
+                        {incomingDelivery.status === 'criada' ? 'Rejeitar' : 'Recusar'}
                     </button>
                     <button
                         onClick={handleAceitar}

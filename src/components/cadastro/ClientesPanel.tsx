@@ -250,21 +250,24 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
 
     if (fotoFile) {
       try {
-        const fileName = `clientes/${cid}/foto-${Date.now()}-${(fotoFile.name || 'foto').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
-        const up = await (supabase as unknown as { storage: { from: (b: string) => { upload: (p: string, f: File, o?: unknown) => Promise<{ data?: { path?: string }; error?: { message?: string } }>; getPublicUrl: (p: string) => { data: { publicUrl: string } } } } })
-          .storage.from('images')
+        const fileExt = fotoFile.name.split('.').pop() || 'jpg';
+        const fileName = `clientes/${cid}/foto-${Date.now()}.${fileExt}`;
+        
+        const { data: upData, error: upError } = await supabase.storage
+          .from('images')
           .upload(fileName, fotoFile, { upsert: true });
         
-        if (!up.error && up.data?.path) {
-          finalFotoUrl = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
-        } else {
-          const reader = new FileReader();
-          await new Promise((resolve) => {
-             reader.onload = () => { finalFotoBase64 = String(reader.result || ''); resolve(true); };
-             reader.readAsDataURL(fotoFile);
-          });
+        if (upError) {
+           console.error('Erro no upload da imagem:', upError);
+           throw upError;
         }
-      } catch {
+
+        if (upData?.path) {
+          const { data } = supabase.storage.from('images').getPublicUrl(upData.path);
+          finalFotoUrl = data.publicUrl;
+        }
+      } catch (err) {
+        console.error('Falha no upload, usando base64:', err);
         const reader = new FileReader();
         await new Promise((resolve) => {
              reader.onload = () => { finalFotoBase64 = String(reader.result || ''); resolve(true); };
@@ -350,7 +353,7 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
         },
       };
       const mergedObs = JSON.stringify({ extras, observacoes: form.observacoes || '' });
-      await (supabase as unknown as { from: (t: string) => { update: (v: unknown) => { eq: (c: string, v: unknown) => Promise<unknown> } } })
+      await supabase
         .from('clientes')
         .update({ observacoes: mergedObs })
         .eq('id', cid);
@@ -601,20 +604,24 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
 
     if (editFotoFile && editing?.id) {
       try {
-        const fileName = `clientes/${editing.id}/foto-${Date.now()}-${(editFotoFile.name || 'foto').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
-        const up2 = await (supabase as unknown as { storage: { from: (b: string) => { upload: (p: string, f: File, o?: unknown) => Promise<{ data?: { path?: string }; error?: { message?: string } }>; getPublicUrl: (p: string) => { data: { publicUrl: string } } } } })
-          .storage.from('images')
+        const fileExt = editFotoFile.name.split('.').pop() || 'jpg';
+        const fileName = `clientes/${editing.id}/foto-${Date.now()}.${fileExt}`;
+        
+        const { data: upData, error: upError } = await supabase.storage
+          .from('images')
           .upload(fileName, editFotoFile, { upsert: true });
-        if (!up2.error && up2.data?.path) {
-          finalEditFotoUrl = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up2.data.path).data.publicUrl;
-        } else {
-            const reader = new FileReader();
-            await new Promise((resolve) => {
-                 reader.onload = () => { finalEditFotoBase64 = String(reader.result || ''); resolve(true); };
-                 reader.readAsDataURL(editFotoFile);
-            });
+
+        if (upError) {
+           console.error('Erro no upload da imagem (edição):', upError);
+           throw upError;
+        }
+
+        if (upData?.path) {
+          const { data } = supabase.storage.from('images').getPublicUrl(upData.path);
+          finalEditFotoUrl = data.publicUrl;
         }
       } catch (e) {
+          console.error('Falha no upload (edição), usando base64:', e);
           const reader = new FileReader();
           await new Promise((resolve) => {
                reader.onload = () => { finalEditFotoBase64 = String(reader.result || ''); resolve(true); };
@@ -640,7 +647,7 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
       };
     }
 
-    const res = await (supabase as unknown as { from: (t: string) => { update: (v: unknown) => { eq: (c: string, v: unknown) => Promise<unknown> } } })
+    const res = await supabase
       .from('clientes')
       .update({
         nome_completo: editForm.nome_completo,
@@ -670,7 +677,7 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
     if (r.error?.message) setError(r.error.message);
     if (!r.error?.message) {
       const updates = editEnderecos.filter((e) => e.id).map((e) =>
-        (supabase as unknown as { from: (t: string) => { update: (v: unknown) => { eq: (c: string, v: unknown) => Promise<unknown> } } })
+        supabase
           .from('cliente_enderecos')
           .update({
             cep: e.cep ?? null,
@@ -1363,4 +1370,4 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
     </div>
   );
 }
-  const sbInsert = (table: string, values: unknown) => (supabase as unknown as { from: (rel: string) => { insert: (vals: unknown) => { select: () => { single: () => Promise<unknown> } } } }).from(table).insert(values).select().single();
+  const sbInsert = (table: string, values: any) => supabase.from(table as any).insert(values).select().single();
