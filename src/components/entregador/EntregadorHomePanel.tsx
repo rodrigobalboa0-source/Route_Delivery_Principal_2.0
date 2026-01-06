@@ -327,35 +327,63 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
   }, [entregadorId, incomingDelivery?.id]);
 
   const handleAceitar = async () => {
-      if (!incomingDelivery || !entregadorId) return;
+      if (!incomingDelivery) return;
 
-      
-      if (incomingDelivery.status === 'atribuida' && incomingDelivery.entregador_id === entregadorId) {
-          setIncomingDelivery(null);
+      let currentEntregadorId = entregadorId;
+
+      if (!currentEntregadorId) {
+          try {
+              const { data: { user } } = await supabase.auth.getUser();
+              if (user?.email) {
+                   const { data } = await supabase
+                     .from('entregadores')
+                     .select('id')
+                     .ilike('email', user.email)
+                     .single();
+                   if (data) {
+                       currentEntregadorId = data.id;
+                       setEntregadorId(data.id);
+                   }
+              }
+          } catch (e) {
+              console.error('Erro ao tentar recuperar entregador_id on-the-fly', e);
+          }
+      }
+
+      if (!currentEntregadorId) {
+          console.error('Entregador ID não encontrado ao tentar aceitar entrega');
+          alert('Erro: Seu perfil de entregador não foi carregado corretamente. Por favor, recarregue a página.');
           return;
       }
 
-      
+      // Se já é minha, só fecha o modal (mas deveria navegar)
+      if (incomingDelivery.status === 'atribuida' && incomingDelivery.entregador_id === currentEntregadorId) {
+          setIncomingDelivery(null);
+          onNavigate('entregas_andamento');
+          return;
+      }
+
+      // Se é nova entrega (pool)
       if (incomingDelivery.status === 'criada') {
           try {
-              const { error } = await supabase
-                  .from('nova_entrega')
-                  .update({ 
-                      status: 'atribuida', 
-                      entregador_id: entregadorId,
-                      atribuicao_modo: 'manual', 
-                      updated_at: new Date().toISOString()
-                  })
-                  .eq('id', incomingDelivery.id)
-                  .eq('status', 'criada'); 
+              const { data, error } = await supabase.rpc('aceitar_entrega', {
+                  entrega_id: incomingDelivery.id
+              });
 
               if (error) throw error;
               
+              // Verifica retorno da function
+              if (data && !data.success) {
+                  // Se falhou (ex: outro pegou), lança erro para cair no catch
+                  throw new Error(data.message || 'Erro ao aceitar entrega');
+              }
+              
               setIncomingDelivery(null);
-              alert('Entrega aceita com sucesso!');
-          } catch (e) {
+              // alert('Entrega aceita com sucesso!'); // Feedback visual rápido
+              onNavigate('entregas_andamento'); // Navega para a tela de pedidos
+          } catch (e: any) {
               console.error(e);
-              alert('Não foi possível aceitar a entrega. Talvez outro entregador já tenha pego.');
+              alert(e.message || 'Não foi possível aceitar a entrega. Talvez outro entregador já tenha pego.');
               setIncomingDelivery(null);
           }
       }

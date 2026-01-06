@@ -166,7 +166,7 @@ export function EntregadorEntregasDisponiveisPanel() {
           clientes:cliente_id (nome_completo),
           tipo_servicos:tipo_servico_id (nome)
         `)
-        .or(`and(status.eq.criada,entregador_id.is.null),and(status.eq.atribuida,entregador_id.eq.${entregador.id})`)
+        .or(`and(status.eq.criada,entregador_id.is.null),and(status.eq.atribuida,entregador_id.eq.${entregador.id},atribuicao_modo.eq.automatica)`)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
