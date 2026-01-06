@@ -213,9 +213,10 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
   useEffect(() => {
     if (!entregadorId) return;
 
-    // Check for existing assigned
+    // Check for existing assigned or created (pending)
     const checkPending = async () => {
-        const { data } = await supabase
+        // First check assigned to me
+        const { data: assigned } = await supabase
             .from('nova_entrega')
             .select('*')
             .eq('entregador_id', entregadorId)
@@ -224,8 +225,23 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
             .limit(1)
             .maybeSingle();
         
-        if (data) {
-             setIncomingDelivery(data);
+        if (assigned) {
+             setIncomingDelivery(assigned);
+             return;
+        }
+
+        // Then check created (available)
+        const { data: created } = await supabase
+            .from('nova_entrega')
+            .select('*')
+            .eq('status', 'criada')
+            .is('entregador_id', null)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (created) {
+            setIncomingDelivery(created);
         }
     };
     checkPending();
@@ -242,11 +258,24 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
         (payload) => {
            if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
                const newRecord = payload.new;
+               
+               // Case 1: Assigned to me
                if (newRecord.status === 'atribuida' && newRecord.entregador_id === entregadorId) {
                    setIncomingDelivery(newRecord);
-               } else if (incomingDelivery?.id === newRecord.id) {
-                   // If status changed to something else or unassigned
-                   if (newRecord.status !== 'atribuida' || newRecord.entregador_id !== entregadorId) {
+               } 
+               // Case 2: New available delivery (created and no driver)
+               else if (newRecord.status === 'criada' && !newRecord.entregador_id) {
+                   // Optional: Check radius here if needed, for now show all
+                   setIncomingDelivery(newRecord);
+               }
+               // Case 3: Current delivery changed
+               else if (incomingDelivery?.id === newRecord.id) {
+                   // If I was viewing it, and it's no longer assigned to me OR no longer created (e.g. someone else took it)
+                   if (newRecord.entregador_id !== entregadorId && newRecord.status !== 'criada') {
+                        setIncomingDelivery(null);
+                   }
+                   // If it was 'criada' and now 'atribuida' to someone else
+                   if (incomingDelivery.status === 'criada' && newRecord.status === 'atribuida' && newRecord.entregador_id !== entregadorId) {
                         setIncomingDelivery(null);
                    }
                }
@@ -260,12 +289,51 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
     };
   }, [entregadorId, incomingDelivery?.id]);
 
-  const handleAceitar = () => {
-      setIncomingDelivery(null);
+  const handleAceitar = async () => {
+      if (!incomingDelivery || !entregadorId) return;
+
+      // Se já atribuída a mim, só fechar
+      if (incomingDelivery.status === 'atribuida' && incomingDelivery.entregador_id === entregadorId) {
+          setIncomingDelivery(null);
+          return;
+      }
+
+      // Se for criada, tentar pegar
+      if (incomingDelivery.status === 'criada') {
+          try {
+              const { error } = await supabase
+                  .from('nova_entrega')
+                  .update({ 
+                      status: 'atribuida', 
+                      entregador_id: entregadorId,
+                      updated_at: new Date().toISOString()
+                  })
+                  .eq('id', incomingDelivery.id)
+                  .eq('status', 'criada'); // Garante concorrência
+
+              if (error) throw error;
+              
+              // Sucesso, o realtime vai atualizar para "atribuida" e cair no case 1, mantendo o modal ou fechando conforme lógica.
+              // Mas como já aceitei, posso fechar o modal.
+              setIncomingDelivery(null);
+              alert('Entrega aceita com sucesso!');
+          } catch (e) {
+              console.error(e);
+              alert('Não foi possível aceitar a entrega. Talvez outro entregador já tenha pego.');
+              setIncomingDelivery(null);
+          }
+      }
   };
 
   const handleRecusar = async () => {
       if (!incomingDelivery) return;
+      
+      // Se for apenas oferta (criada), "Recusar" é apenas fechar/ignorar
+      if (incomingDelivery.status === 'criada') {
+          setIncomingDelivery(null);
+          return;
+      }
+
       if (!confirm('Tem certeza que deseja recusar esta entrega?')) return;
       
       try {
@@ -397,15 +465,17 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
         <Modal 
             isOpen={!!incomingDelivery} 
             onClose={() => {}} 
-            title="Nova Entrega Atribuída!"
+            title={incomingDelivery.status === 'criada' ? "Nova Oferta Disponível!" : "Nova Entrega Atribuída!"}
         >
             <div className="flex flex-col gap-4 items-center p-4">
-                <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center animate-bounce">
+                <div className={`w-16 h-16 rounded-full flex items-center justify-center animate-bounce ${incomingDelivery.status === 'criada' ? 'bg-sky-100 text-sky-600' : 'bg-green-100 text-green-600'}`}>
                     <Truck size={32} />
                 </div>
                 
                 <div className="text-center">
-                    <p className="text-lg font-bold text-gray-800">Você recebeu uma nova entrega!</p>
+                    <p className="text-lg font-bold text-gray-800">
+                        {incomingDelivery.status === 'criada' ? 'Nova entrega disponível na região!' : 'Você recebeu uma nova entrega!'}
+                    </p>
                     <p className="text-sm text-gray-500">#{incomingDelivery.id.slice(0, 8)}</p>
                 </div>
 
@@ -430,14 +500,14 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                         className="flex-1 bg-red-100 hover:bg-red-200 text-red-700 font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors"
                     >
                         <XCircle size={20} />
-                        Recusar
+                        {incomingDelivery.status === 'criada' ? 'Ignorar' : 'Recusar'}
                     </button>
                     <button
                         onClick={handleAceitar}
                         className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-lg shadow-green-200"
                     >
                         <CheckCircle size={20} />
-                        Aceitar
+                        {incomingDelivery.status === 'criada' ? 'Pegar Entrega' : 'Aceitar'}
                     </button>
                 </div>
             </div>

@@ -133,7 +133,7 @@ export function NotificationManager({ userId, userRole }: NotificationManagerPro
               }
 
               if (onNavigate) {
-                  onNavigate('entregas_disponiveis');
+                  onNavigate('home_entregador');
               }
 
               await LocalNotifications.schedule({

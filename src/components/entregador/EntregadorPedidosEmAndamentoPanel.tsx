@@ -31,17 +31,17 @@ export function EntregadorPedidosEmAndamentoPanel() {
         let delivery: [number, number] | undefined;
 
         if (entrega.coleta_endereco_texto) {
-            await new Promise(r => setTimeout(r, 1000)); // Rate limit
+            await new Promise(r => setTimeout(r, 1000)); 
             pickup = await getCoordsFromAddress(entrega.coleta_endereco_texto);
         }
         if (entrega.entrega_endereco_texto) {
-            await new Promise(r => setTimeout(r, 1000)); // Rate limit
+            await new Promise(r => setTimeout(r, 1000)); 
             delivery = await getCoordsFromAddress(entrega.entrega_endereco_texto);
         }
         
         if (pickup || delivery) {
             newCoords[entrega.id] = { pickup, delivery };
-            // Update incrementally
+            
             setDeliveryCoords(prev => ({ ...prev, [entrega.id]: { pickup, delivery } }));
         }
       }
