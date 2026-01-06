@@ -125,6 +125,9 @@ export function EntregadorEntregasDisponiveisPanel() {
   useEffect(() => {
     fetchEntregas();
     
+    // Polling fallback every 5 seconds
+    const intervalId = setInterval(fetchEntregas, 5000);
+
     const subscription = supabase
       .channel('nova_entrega_disponiveis')
       .on('postgres_changes', { 
@@ -137,6 +140,7 @@ export function EntregadorEntregasDisponiveisPanel() {
       .subscribe();
 
     return () => {
+      clearInterval(intervalId);
       subscription.unsubscribe();
     };
   }, []);

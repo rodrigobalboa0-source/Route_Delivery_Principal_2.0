@@ -280,10 +280,16 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
         if (created) {
             setIncomingDelivery(created);
         } else if (!assigned) {
-            // If nothing found and currently showing something that was rejected (edge case), clear it
+            
             setIncomingDelivery(null);
         }
     };
+    
+    const intervalId = setInterval(() => {
+        checkPending();
+    }, 5000); 
+
+    
     checkPending();
 
     const channel = supabase
@@ -337,6 +343,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
       .subscribe();
 
     return () => {
+      clearInterval(intervalId);
       supabase.removeChannel(channel);
     };
   }, [entregadorId, incomingDelivery?.id, rejectedIds]);
