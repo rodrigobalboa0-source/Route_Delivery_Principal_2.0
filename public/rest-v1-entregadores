@@ -1,6 +1,6 @@
 {
-  "event_message": "POST | 401 | 177.79.81.253 | 9bac9c5a7ef9cac2 | https://mtanrihprbgrrtgwcyia.supabase.co/rest/v1/entregadores?select=* | Mozilla/5.0 (Linux; Android 15; RMX3941 Build/AP3A.240617.008; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/143.0.7499.146 Mobile Safari/537.36",
-  "id": "cffc8020-b480-4823-a336-bb8730885b48",
+  "event_message": "POST | 401 | 187.43.199.89 | 9badb9e2188c6236 | https://mtanrihprbgrrtgwcyia.supabase.co/rest/v1/entregadores?select=id | Mozilla/5.0 (Linux; Android 16; SM-A256E Build/BP2A.250605.031.A3; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/143.0.7499.34 Mobile Safari/537.36",
+  "id": "ae043449-f98b-4978-8325-ed73ab571ada",
   "metadata": [
     {
       "load_balancer_experimental_routing": null,
@@ -8,20 +8,20 @@
       "load_balancer_redirect_identifier": null,
       "logflare_worker": [
         {
-          "worker_id": "IMV49B"
+          "worker_id": "T3DXPQ"
         }
       ],
       "request": [
         {
           "cf": [
             {
-              "asOrganization": "TELEFÔNICA BRASIL S.A",
-              "asn": 26599,
+              "asOrganization": "CLARO S.A.",
+              "asn": 4230,
               "botManagement": [
                 {
                   "corporateProxy": false,
                   "detectionIds": [],
-                  "ja3Hash": "4d7d693a23de86af5edca564f1882b81",
+                  "ja3Hash": "646c1c26508273eba9d6e62d356dd9e3",
                   "ja4": "q13d0311h3_55b375c5d22e_653d80c3fe9d",
                   "ja4Signals": [
                     {
@@ -42,7 +42,7 @@
                       "passed": false
                     }
                   ],
-                  "score": 99,
+                  "score": 98,
                   "staticResource": false,
                   "verifiedBot": false
                 }
@@ -50,8 +50,8 @@
               "city": "Campinas",
               "clientAcceptEncoding": "gzip, deflate, br",
               "clientTcpRtt": null,
-              "clientTrustScore": 99,
-              "colo": "GIG",
+              "clientTrustScore": 98,
+              "colo": "GRU",
               "continent": "SA",
               "country": "BR",
               "edgeRequestKeepAliveStatus": 1,
@@ -74,16 +74,16 @@
                 }
               ],
               "tlsClientCiphersSha1": "3HTt3+R/6BL3zeALJDSq0pR1yOQ=",
-              "tlsClientExtensionsSha1": "lqJf7Jz0F8Xt1G+iDefwGcEm/K4=",
-              "tlsClientExtensionsSha1Le": "TfoFGUXD5R4BpwVKUKJkM/X7TX0=",
-              "tlsClientHelloLength": "1772",
-              "tlsClientRandom": "KFLjCJReyy9HuOWYSGfN3aXmzpfP1MB0+0TsC8pe28Q=",
+              "tlsClientExtensionsSha1": "C7szWaFYDxBFWDsxX23Gaxkn9QY=",
+              "tlsClientExtensionsSha1Le": "3BqHoMd/VIMQ0zXWTVGuexgBdQg=",
+              "tlsClientHelloLength": "1779",
+              "tlsClientRandom": "6uQamXrLoUPIcTQPDkkhZbR0tn6z7Af3YhqQRJj8OIw=",
               "tlsExportedAuthenticator": [
                 {
-                  "clientFinished": "80f670aff1feb3c6ae7a8f9e0a6c0d9e9c871d7c7ca5593c08e2f5dea347f06f",
-                  "clientHandshake": "c381c4596256824ce60fd827405a6e3af12087b332c95aa917606c96b21dfd3f",
-                  "serverFinished": "0a87d4c26db82023e58df3ade63ead892dc9e8ad5a87764129e938963bf2a9c0",
-                  "serverHandshake": "e86ad89655b477dda47b13b6900937bcaf263057058de8144a5bf8a29e41888d"
+                  "clientFinished": "881b5c6d197adde6e1b5e49806cc78d7e6fb01f257241631989b1ac13cd74748",
+                  "clientHandshake": "7e43349c25839a998d0b68d130cd8ef908ec52af54201d164084a236e7701215",
+                  "serverFinished": "69b5fc07ce90112a9d58eccbdd016b6d55367db4c105ff531e87b35be8e660ba",
+                  "serverHandshake": "2748593a3170765e670938b822d0ed71aad2e2182c3d0053ddc6adc917dcfc3c"
                 }
               ],
               "tlsVersion": "TLSv1.3",
@@ -92,12 +92,12 @@
           ],
           "headers": [
             {
-              "accept": "application/vnd.pgrst.object+json",
+              "accept": "*/*",
               "cf_cache_status": null,
-              "cf_connecting_ip": "177.79.81.253",
+              "cf_connecting_ip": "187.43.199.89",
               "cf_ipcountry": "BR",
-              "cf_ray": "9bac9c5a7ef9cac2",
-              "content_length": "558",
+              "cf_ray": "9badb9e2188c6236",
+              "content_length": "2794287",
               "content_location": null,
               "content_range": null,
               "content_type": "application/json",
@@ -108,15 +108,15 @@
               "referer": "https://localhost/",
               "sb_gateway_mode": null,
               "sb_gateway_version": null,
-              "user_agent": "Mozilla/5.0 (Linux; Android 15; RMX3941 Build/AP3A.240617.008; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/143.0.7499.146 Mobile Safari/537.36",
-              "x_client_info": "supabase-js-web/2.57.4",
+              "user_agent": "Mozilla/5.0 (Linux; Android 16; SM-A256E Build/BP2A.250605.031.A3; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/143.0.7499.34 Mobile Safari/537.36",
+              "x_client_info": null,
               "x_forwarded_for": null,
               "x_forwarded_host": null,
               "x_forwarded_proto": "https",
               "x_forwarded_user_agent": null,
               "x_kong_proxy_latency": null,
               "x_kong_upstream_latency": null,
-              "x_real_ip": "177.79.81.253"
+              "x_real_ip": "187.43.199.89"
             }
           ],
           "host": "mtanrihprbgrrtgwcyia.supabase.co",
@@ -166,8 +166,8 @@
               ]
             }
           ],
-          "search": "?select=*",
-          "url": "https://mtanrihprbgrrtgwcyia.supabase.co/rest/v1/entregadores?select=*"
+          "search": "?select=id",
+          "url": "https://mtanrihprbgrrtgwcyia.supabase.co/rest/v1/entregadores?select=id"
         }
       ],
       "response": [
@@ -175,27 +175,27 @@
           "headers": [
             {
               "cf_cache_status": "DYNAMIC",
-              "cf_ray": "9bac9c5aa3a2cac2-GIG",
+              "cf_ray": "9badb9f704c76236-GRU",
               "content_length": null,
               "content_location": null,
               "content_range": null,
               "content_type": "application/json; charset=utf-8",
-              "date": "Thu, 08 Jan 2026 15:08:31 GMT",
+              "date": "Thu, 08 Jan 2026 18:23:31 GMT",
               "proxy_status": "PostgREST; error=42501",
               "sb_gateway_mode": null,
               "sb_gateway_version": "1",
-              "sb_request_id": "019b9e26-f49a-7d9d-be45-55d2cbc88dcf",
+              "sb_request_id": "019b9ed9-7665-71ec-8751-adeff47f03d3",
               "transfer_encoding": "chunked",
               "x_kong_proxy_latency": null,
               "x_kong_upstream_latency": null,
               "x_sb_error_code": null
             }
           ],
-          "origin_time": 52,
+          "origin_time": 967,
           "status_code": 401
         }
       ]
     }
   ],
-  "timestamp": 1767884911770000
+  "timestamp": 1767896610405000
 }

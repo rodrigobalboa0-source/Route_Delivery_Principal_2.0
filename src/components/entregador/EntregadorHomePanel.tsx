@@ -454,8 +454,6 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
   const handleRecusar = async () => {
       if (!incomingDelivery) return;
       
-      if (!confirm('Tem certeza que deseja recusar esta entrega?')) return;
-
       // Add to rejected list (both local state and localStorage via useEffect)
       setRejectedIds(prev => [...prev, incomingDelivery.id]);
       

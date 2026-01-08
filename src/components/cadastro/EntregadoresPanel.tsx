@@ -256,39 +256,17 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
       insertValues.documento_veiculo_base64 = motoDocPreview || null;
 
       try {
-        const resp = await fetch(`${SUPABASE_URL}/rest/v1/entregadores?select=id`, {
-          method: 'POST',
-          headers: {
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-            Prefer: 'return=representation',
-          },
-          body: JSON.stringify(insertValues),
+        const { error } = await supabase.rpc('cadastrar_entregador_v2', {
+          payload: insertValues
         });
 
-        if (!resp.ok) {
-          let msg = `Falha ${resp.status}`;
-          const body = await resp.text().catch(() => '');
-          if (body) {
-            try {
-              const j: unknown = JSON.parse(body);
-              if (typeof j === 'object' && j) {
-                const jj = j as Record<string, unknown>;
-                const m = jj.message ?? jj.error_description ?? jj.error;
-                if (typeof m === 'string' && m.trim()) msg = m;
-                else msg = body;
-              } else {
-                msg = body;
-              }
-            } catch {
-              msg = body;
-            }
-          }
-          if (String(msg).includes('row-level security policy')) {
+        if (error) {
+          console.error('RPC Error:', error);
+          let msg = error.message;
+          if (msg.includes('row-level security policy')) {
             msg = 'Erro de permissão ao salvar dados. Tente novamente ou contate o suporte.';
           }
-          setError(String(msg));
+          setError(msg);
           setLoading(false);
           return;
         }
