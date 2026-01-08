@@ -205,13 +205,6 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
         
         if (signUpData?.user?.id) {
            authUserId = signUpData.user.id;
-           
-           await supabase.from('users').upsert({
-             id: authUserId,
-             email: emailKey,
-             full_name: form.nome_completo,
-             role: 'entregador'
-           });
         }
       }
     } catch (e) {

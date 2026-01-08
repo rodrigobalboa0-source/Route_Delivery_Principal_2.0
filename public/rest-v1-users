@@ -1,6 +1,6 @@
 {
-  "event_message": "POST | 401 | 177.79.81.253 | 9bac48946e4e82f4 | https://mtanrihprbgrrtgwcyia.supabase.co/rest/v1/users | Mozilla/5.0 (Linux; Android 15; RMX3941 Build/AP3A.240617.008; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/143.0.7499.146 Mobile Safari/537.36",
-  "id": "8dca9ffb-a081-4c68-a546-62b2fe8c03b8",
+  "event_message": "POST | 401 | 177.79.81.253 | 9bac5fc2499dcb14 | https://mtanrihprbgrrtgwcyia.supabase.co/rest/v1/users | Mozilla/5.0 (Linux; Android 15; RMX3941 Build/AP3A.240617.008; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/143.0.7499.146 Mobile Safari/537.36",
+  "id": "177c86b2-3cf4-4df8-bc30-927bce931af7",
   "metadata": [
     {
       "load_balancer_experimental_routing": null,
@@ -8,7 +8,7 @@
       "load_balancer_redirect_identifier": null,
       "logflare_worker": [
         {
-          "worker_id": "07I5N6"
+          "worker_id": "FN7RPP"
         }
       ],
       "request": [
@@ -21,7 +21,7 @@
                 {
                   "corporateProxy": false,
                   "detectionIds": [],
-                  "ja3Hash": "1002f3395c3c05ba69e5cc17bfe0144f",
+                  "ja3Hash": "e267f54a2a17bfaeb655e97e6891ac8b",
                   "ja4": "q13d0312h3_55b375c5d22e_5a06198afb93",
                   "ja4Signals": [
                     {
@@ -74,16 +74,16 @@
                 }
               ],
               "tlsClientCiphersSha1": "3HTt3+R/6BL3zeALJDSq0pR1yOQ=",
-              "tlsClientExtensionsSha1": "NNpbu/SabxgCLbr9vkjulTwGp0Y=",
-              "tlsClientExtensionsSha1Le": "SoLg5gaBk/Fj6ARpD7siZShCBeg=",
-              "tlsClientHelloLength": "1948",
-              "tlsClientRandom": "PBgU5KhvoSZHpU9RTMjt7YX8e1Sc5Yz/fI1GuPDm/eA=",
+              "tlsClientExtensionsSha1": "N95gbfkx0g/wd3OtbwVxottk0Ic=",
+              "tlsClientExtensionsSha1Le": "i2gDaTLJOZV8W8uSktvMGiDYzM8=",
+              "tlsClientHelloLength": "2056",
+              "tlsClientRandom": "04A2KNHiiPtfOUW7PvwUGeHbEiRKUCjjHzsFf0xBlZA=",
               "tlsExportedAuthenticator": [
                 {
-                  "clientFinished": "afd907c83197260aa11658d7d989762528b239cecccfb2d7ef9286a6d3cb476b",
-                  "clientHandshake": "5a3adaffb97689f87673e96bae64c0365c64be4722e2ac00430f81b57c63b9ab",
-                  "serverFinished": "044840ea7a7c3bd413c0302d9c28478cf29f8589fc01cde735fa1701557fcdb6",
-                  "serverHandshake": "b406b3c63d634f1610bf2bae3a1611ce361c54acc07451509900efb6eb38d8dd"
+                  "clientFinished": "93056b9ccc488489c67f92f8f100fe240c850cd82f1596a4ce25ae0977590659",
+                  "clientHandshake": "39cf9aee7153c66f971c6ad997e98acd2317b6b1497e5729a2d9076504029b1d",
+                  "serverFinished": "d992c0342c5b43cc189493dded031a71c7a7a0d9bb83de71de5ec93062d261f6",
+                  "serverHandshake": "536768646c4b1ba2bbad9cb6db0e87f66c5469ed586df3416ce71b17750c4d76"
                 }
               ],
               "tlsVersion": "TLSv1.3",
@@ -96,8 +96,8 @@
               "cf_cache_status": null,
               "cf_connecting_ip": "177.79.81.253",
               "cf_ipcountry": "BR",
-              "cf_ray": "9bac48946e4e82f4",
-              "content_length": "131",
+              "cf_ray": "9bac5fc2499dcb14",
+              "content_length": "138",
               "content_location": null,
               "content_range": null,
               "content_type": "application/json",
@@ -175,27 +175,27 @@
           "headers": [
             {
               "cf_cache_status": "DYNAMIC",
-              "cf_ray": "9bac4894947882f4-GIG",
+              "cf_ray": "9bac5fc2657dcb14-GIG",
               "content_length": null,
               "content_location": null,
               "content_range": null,
               "content_type": "application/json; charset=utf-8",
-              "date": "Thu, 08 Jan 2026 14:11:20 GMT",
+              "date": "Thu, 08 Jan 2026 14:27:09 GMT",
               "proxy_status": "PostgREST; error=42501",
               "sb_gateway_mode": null,
               "sb_gateway_version": "1",
-              "sb_request_id": "019b9df2-98cc-7bff-bb1b-b0de98626cee",
+              "sb_request_id": "019b9e01-1577-77e8-b881-171d642fc9a8",
               "transfer_encoding": "chunked",
               "x_kong_proxy_latency": null,
               "x_kong_upstream_latency": null,
               "x_sb_error_code": null
             }
           ],
-          "origin_time": 56,
+          "origin_time": 24,
           "status_code": 401
         }
       ]
     }
   ],
-  "timestamp": 1767881480396000
+  "timestamp": 1767882429815000
 }
