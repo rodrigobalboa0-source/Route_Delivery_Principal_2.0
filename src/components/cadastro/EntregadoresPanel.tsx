@@ -192,7 +192,13 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
           },
         });
         if (signUpError) {
-          setError(signUpError.message);
+          let msg = signUpError.message;
+          if (msg.includes('over_email_send_rate_limit')) {
+            msg = 'Muitas tentativas de cadastro. Por favor, aguarde alguns minutos e tente novamente.';
+          } else if (msg.includes('User already registered')) {
+            msg = 'E-mail já cadastrado.';
+          }
+          setError(msg);
           setLoading(false);
           return;
         }
@@ -238,7 +244,11 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
     });
     const r = res as unknown as { data?: { id?: string }; error?: { message?: string } };
     if (r.error?.message) {
-      setError(r.error.message);
+      let msg = r.error.message;
+      if (msg.includes('row-level security policy')) {
+        msg = 'Erro de permissão ao salvar dados. Tente novamente ou contate o suporte.';
+      }
+      setError(msg);
       setLoading(false);
       return;
     }
