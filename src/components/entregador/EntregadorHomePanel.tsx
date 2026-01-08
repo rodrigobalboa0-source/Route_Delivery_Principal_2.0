@@ -597,6 +597,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
              open={!!incomingDelivery} 
              onClose={() => {}} 
              title={incomingDelivery.status === 'criada' ? "Nova Entrega Disponível!" : "Nova Entrega Atribuída!"}
+             hideFooter={true}
          >
             <div className="flex flex-col gap-4 items-center p-4">
                 <div className={`w-20 h-20 rounded-full flex items-center justify-center overflow-hidden border-4 animate-bounce ${incomingDelivery.status === 'criada' ? 'border-sky-100' : 'border-green-100'}`}>

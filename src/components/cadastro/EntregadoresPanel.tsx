@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../lib/supabase';
 import { Modal } from '../Modal';
 import { AccountUnderAnalysis } from '../AccountUnderAnalysis';
@@ -35,6 +35,7 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const lastSignupAttemptAtRef = useRef(0);
   const [editing, setEditing] = useState<Entregador | null>(null);
   const [showForm, setShowForm] = useState(mode === 'public');
   const Chevron = ({ open }: { open: boolean }) => (
@@ -120,8 +121,10 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
 
   useEffect(() => {
-    fetchEntregadores();
-    fetchClientes();
+    if (mode !== 'public') {
+      fetchEntregadores();
+      fetchClientes();
+    }
   }, []);
 
   const fetchClientes = async () => {
@@ -157,7 +160,7 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
     setLoading(true);
     setError(null);
     const emailKey = (form.email || '').trim().toLowerCase();
-    if (emailKey) {
+    if (mode !== 'public' && emailKey) {
       const { data: exists, error: existsErr } = await supabase.from('entregadores').select('id').ilike('email', emailKey).maybeSingle();
       if (!existsErr && (exists as { id?: string } | null)?.id) {
         setError('Já existe entregador com este e-mail');
@@ -181,6 +184,13 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
     try {
       const shouldRegisterAuth = Boolean(emailKey) && Boolean((form.senha || '').trim());
       if (shouldRegisterAuth) {
+        const now = Date.now();
+        if (now - lastSignupAttemptAtRef.current < 15000) {
+          setError('Aguarde 15 segundos para tentar novamente.');
+          setLoading(false);
+          return;
+        }
+        lastSignupAttemptAtRef.current = now;
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email: emailKey,
           password: (form.senha || '').trim(),
@@ -195,6 +205,8 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
           let msg = signUpError.message;
           if (msg.includes('over_email_send_rate_limit')) {
             msg = 'Muitas tentativas de cadastro. Por favor, aguarde alguns minutos e tente novamente.';
+          } else if (msg.toLowerCase().includes('only request this after 15 seconds')) {
+            msg = 'Aguarde 15 segundos para tentar novamente.';
           } else if (msg.includes('User already registered')) {
             msg = 'E-mail já cadastrado.';
           }
@@ -210,8 +222,10 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
     } catch (e) {
       const msg = (e as { message?: string })?.message;
       if (msg) setError(msg);
+      setLoading(false);
+      return;
     }
-    const res = await sbInsert('entregadores', {
+    const insertValues: Record<string, unknown> = {
       ...(authUserId ? { id: authUserId } : {}),
       nome_completo: form.nome_completo,
       cpf: form.cpf || null,
@@ -234,7 +248,63 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
       status: form.status as Entregador['status'],
       restricao_clientes_modo: form.restricao_clientes_modo as 'todos' | 'selecionados',
       clientes_permitidos: form.clientes_permitidos,
-    });
+    };
+    if (mode === 'public') {
+      insertValues.foto_base64 = fotoPreview || null;
+      insertValues.cnh_foto_base64 = cnhPreview || null;
+      insertValues.comprovante_residencia_base64 = comprovantePreview || null;
+      insertValues.documento_veiculo_base64 = motoDocPreview || null;
+
+      try {
+        const resp = await fetch(`${SUPABASE_URL}/rest/v1/entregadores?select=id`, {
+          method: 'POST',
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+            Prefer: 'return=representation',
+          },
+          body: JSON.stringify(insertValues),
+        });
+
+        if (!resp.ok) {
+          let msg = `Falha ${resp.status}`;
+          const body = await resp.text().catch(() => '');
+          if (body) {
+            try {
+              const j: unknown = JSON.parse(body);
+              if (typeof j === 'object' && j) {
+                const jj = j as Record<string, unknown>;
+                const m = jj.message ?? jj.error_description ?? jj.error;
+                if (typeof m === 'string' && m.trim()) msg = m;
+                else msg = body;
+              } else {
+                msg = body;
+              }
+            } catch {
+              msg = body;
+            }
+          }
+          if (String(msg).includes('row-level security policy')) {
+            msg = 'Erro de permissão ao salvar dados. Tente novamente ou contate o suporte.';
+          }
+          setError(String(msg));
+          setLoading(false);
+          return;
+        }
+
+        setRegistrationSuccess(true);
+        setLoading(false);
+        return;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Falha ao salvar cadastro';
+        setError(msg);
+        setLoading(false);
+        return;
+      }
+    }
+
+    const res = await sbInsert('entregadores', insertValues);
     const r = res as unknown as { data?: { id?: string }; error?: { message?: string } };
     if (r.error?.message) {
       let msg = r.error.message;
@@ -354,12 +424,6 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
         documento_veiculo_url: finalMotoUrl || null,
         documento_veiculo_base64: finalMotoBase64 || null,
       }).eq('id', idNew);
-    }
-
-    if (mode === 'public') {
-      setRegistrationSuccess(true);
-      setLoading(false);
-      return;
     }
 
     setForm({ nome_completo: '', cpf: '', rg: '', data_nascimento: '', telefone: '', email: '', senha: '', veiculo_tipo: '', veiculo_modelo: '', veiculo_placa: '', veiculo_ano: '', cnh_valida: false, tipo_entrega: '', taxa_entrega: '', status: 'inativo', cep: '', rua: '', numero: '', complemento: '', bairro: '', cidade: '', foto_url: '', foto_base64: '', cnh_foto_url: '', cnh_foto_base64: '', comprovante_residencia_url: '', comprovante_residencia_base64: '', documento_veiculo_url: '', documento_veiculo_base64: '', restricao_clientes_modo: 'todos', clientes_permitidos: [] });
