@@ -454,16 +454,16 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
   const handleRecusar = async () => {
       if (!incomingDelivery) return;
       
-      // Add to rejected list (both local state and localStorage via useEffect)
+      
       setRejectedIds(prev => [...prev, incomingDelivery.id]);
       
-      // If it was just a pool offer, just clear it from screen
+      
       if (incomingDelivery.status === 'criada') {
           setIncomingDelivery(null);
           return;
       }
 
-      // If it was assigned to me, I need to release it back to pool
+      
       try {
           await supabase.from('nova_entrega').update({
               entregador_id: null,
