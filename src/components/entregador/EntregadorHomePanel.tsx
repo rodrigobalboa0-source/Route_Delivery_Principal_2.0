@@ -4,6 +4,7 @@ import { MapPin, Truck, Home, Power, CheckCircle, XCircle } from 'lucide-react';
 import { Database } from '../../lib/database.types';
 import { supabase } from '../../lib/supabase';
 import { Geolocation } from '@capacitor/geolocation';
+import { getCoordsFromAddress, getDistanceFromLatLonInKm } from '../../utils/geo';
 import { Modal } from '../Modal';
 
 type DeliveryPerson = Database['public']['Tables']['delivery_persons']['Row'];
@@ -266,7 +267,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
         }
 
         // 2. Check for pool deliveries (criada)
-        // Fetch more candidates to allow client-side filtering of rejectedIds
+        // Fetch more candidates to allow client-side filtering of rejectedIds and radius
         const { data: createdCandidates } = await supabase
             .from('nova_entrega')
             .select('*')
@@ -275,12 +276,32 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
             .order('created_at', { ascending: false })
             .limit(20);
 
-        const created = createdCandidates?.find(c => !rejectedIds.includes(c.id));
+        if (createdCandidates) {
+             for (const c of createdCandidates) {
+                 if (rejectedIds.includes(c.id)) continue;
 
-        if (created) {
-            setIncomingDelivery(created);
-        } else if (!assigned) {
-            
+                 // Check radius
+                 if (c.coleta_endereco_texto && userLocation) {
+                     try {
+                         const pickupCoords = await getCoordsFromAddress(c.coleta_endereco_texto);
+                         if (pickupCoords) {
+                             const dist = getDistanceFromLatLonInKm(
+                                 userLocation.lat, userLocation.lng,
+                                 pickupCoords[0], pickupCoords[1]
+                             );
+                             if (dist > radiusKm) continue;
+                         }
+                     } catch (e) {
+                         console.error('Erro ao verificar raio:', e);
+                     }
+                 }
+
+                 setIncomingDelivery(c);
+                 return;
+             }
+        }
+        
+        if (!assigned) {
             setIncomingDelivery(null);
         }
     };
@@ -301,7 +322,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
           schema: 'public',
           table: 'nova_entrega',
         },
-        (payload) => {
+        async (payload) => {
            if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
                const newRecord = payload.new;
                
@@ -322,7 +343,26 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                
                // NOVA ENTREGA NO POOL
                else if (newRecord.status === 'criada' && !newRecord.entregador_id) {
-                   setIncomingDelivery(newRecord);
+                   // Check radius logic
+                   let inRadius = true;
+                   if (newRecord.coleta_endereco_texto && userLocation) {
+                        try {
+                             const pickupCoords = await getCoordsFromAddress(newRecord.coleta_endereco_texto);
+                             if (pickupCoords) {
+                                 const dist = getDistanceFromLatLonInKm(
+                                     userLocation.lat, userLocation.lng,
+                                     pickupCoords[0], pickupCoords[1]
+                                 );
+                                 if (dist > radiusKm) inRadius = false;
+                             }
+                        } catch (e) {
+                             console.error('Erro realtime raio:', e);
+                        }
+                   }
+                   
+                   if (inRadius) {
+                       setIncomingDelivery(newRecord);
+                   }
                }
                
                // ATUALIZAÇÃO DA QUE ESTOU VENDO
