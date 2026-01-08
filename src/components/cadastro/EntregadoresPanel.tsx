@@ -38,6 +38,14 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
   const lastSignupAttemptAtRef = useRef(0);
   const [editing, setEditing] = useState<Entregador | null>(null);
   const [showForm, setShowForm] = useState(mode === 'public');
+  const [expandedStatus, setExpandedStatus] = useState<Record<string, boolean>>({
+    em_analise: false,
+    ativo: false,
+    inativo: false
+  });
+  const toggleStatus = (st: string) => {
+    setExpandedStatus(prev => ({ ...prev, [st]: !prev[st] }));
+  };
   const Chevron = ({ open }: { open: boolean }) => (
     <svg viewBox="0 0 24 24" className={`w-4 h-4 transition-transform duration-300 ${open ? 'rotate-180' : ''}`}>
       <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -761,16 +769,7 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
               <input placeholder="Modelo" value={form.veiculo_modelo} onChange={(e) => setForm({ ...form, veiculo_modelo: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
               <input placeholder="Placa" value={form.veiculo_placa} onChange={(e) => setForm({ ...form, veiculo_placa: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
               <input placeholder="Ano" value={form.veiculo_ano} onChange={(e) => setForm({ ...form, veiculo_ano: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-              <div className="flex items-center gap-2">
-                <input id="cnh" type="checkbox" checked={form.cnh_valida} onChange={(e) => setForm({ ...form, cnh_valida: e.target.checked })} />
-                <label htmlFor="cnh" className="text-sm text-slate-700">CNH válida</label>
-              </div>
-              <select value={form.tipo_entrega} onChange={(e) => setForm({ ...form, tipo_entrega: e.target.value })} className="px-3 py-2 border border-slate-300 rounded">
-                <option value="">Tipo de entrega</option>
-                <option value="proprio">Próprio</option>
-                <option value="terceirizado">Terceirizado</option>
-                <option value="parceiro">Parceiro</option>
-              </select>
+
             </div>
             <div className="md:w-48 flex flex-col items-center gap-3 mt-6 md:mt-0">
               <div className="w-24 h-24 rounded bg-slate-100 border border-slate-300 overflow-hidden">
@@ -994,29 +993,80 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
       )}
 
       {mode !== 'public' && (
-      <div className="bg-white border border-slate-200 rounded-lg">
-        <div className="px-4 py-2 border-b border-slate-200 text-sm text-slate-600">Lista de entregadores</div>
-        {loading ? (
-          <div className="p-4 text-slate-600">Carregando...</div>
-        ) : entregadores.length === 0 ? (
-          <div className="p-4 text-slate-600">Nenhum entregador cadastrado</div>
-        ) : (
-          <div className="divide-y">
-            {entregadores.map((c) => (
-              <div key={c.id} className="flex items-center justify-between px-4 py-3">
-                <div>
-                  <div className="font-medium text-slate-900">{c.nome_completo}</div>
-                  <div className="text-sm text-slate-600">{[c.telefone, c.email, c.veiculo_tipo].filter(Boolean).join(' • ')}</div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button onClick={() => openEdit(c)} className="text-sm text-sky-700">Editar</button>
-                  <button onClick={() => handleDelete(c.id)} className="text-sm text-red-700">Excluir</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+        <div className="mt-6">
+          <div className="text-sm font-semibold text-slate-700 mb-4">Gestão de Entregadores</div>
+          {loading ? (
+            <div className="p-4 text-slate-600 bg-white border border-slate-200 rounded-lg">Carregando...</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+              {[
+                { key: 'em_analise', label: 'Em Análise', bg: 'bg-yellow-50', border: 'border-yellow-200', text: 'text-yellow-800' },
+                { key: 'ativo', label: 'Ativos', bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-800' },
+                { key: 'inativo', label: 'Inativos', bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-800' }
+              ].map(group => {
+                 const items = entregadores.filter(e => {
+                    if (group.key === 'em_analise') return e.status === 'em_analise' || !e.status;
+                    return e.status === group.key;
+                 });
+                 const isOpen = expandedStatus[group.key];
+                 
+                 return (
+                   <div key={group.key} className={`border rounded-lg ${group.border} bg-white overflow-hidden shadow-sm`}>
+                      <button 
+                        onClick={() => toggleStatus(group.key)}
+                        className={`w-full flex items-center justify-between px-4 py-3 ${group.bg} ${group.text} font-medium transition-colors hover:opacity-90`}
+                      >
+                        <div className="flex items-center gap-2">
+                           <span>{group.label}</span>
+                           <span className="text-xs bg-white/60 px-2 py-0.5 rounded-full border border-black/5">{items.length}</span>
+                        </div>
+                        <Chevron open={isOpen} />
+                      </button>
+                      
+                      {isOpen && (
+                        <div className="divide-y divide-slate-100 max-h-[600px] overflow-y-auto">
+                           {items.length === 0 ? (
+                              <div className="p-6 text-sm text-slate-400 text-center italic">Nenhum entregador nesta categoria</div>
+                           ) : (
+                              items.map(c => (
+                                <div key={c.id} className="p-4 hover:bg-slate-50 transition-colors group">
+                                   <div className="flex justify-between items-start mb-2">
+                                      <div className="font-semibold text-slate-800 text-sm leading-tight">{c.nome_completo}</div>
+                                   </div>
+                                   <div className="text-xs text-slate-600 space-y-1.5">
+                                      <div className="flex items-center gap-1.5">
+                                        <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                                        {c.telefone || <span className="text-slate-400 italic">Sem telefone</span>}
+                                      </div>
+                                      <div className="flex items-center gap-1.5">
+                                        <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                                        <span className="truncate" title={c.email || ''}>{c.email || <span className="text-slate-400 italic">Sem e-mail</span>}</span>
+                                      </div>
+                                      <div className="flex items-center gap-1.5">
+                                        <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 012-2h5a2 2 0 012 2" /></svg>
+                                        <span className="capitalize">{c.veiculo_tipo || '?'}</span>
+                                        {c.veiculo_placa && <span className="text-slate-400">• {c.veiculo_placa}</span>}
+                                      </div>
+                                   </div>
+                                   <div className="mt-3 flex items-center justify-end gap-3 pt-3 border-t border-slate-50">
+                                      <button onClick={() => openEdit(c)} className="text-xs font-medium text-sky-600 hover:text-sky-700 flex items-center gap-1 transition-colors">
+                                        Editar
+                                      </button>
+                                      <button onClick={() => handleDelete(c.id)} className="text-xs font-medium text-red-600 hover:text-red-700 flex items-center gap-1 transition-colors">
+                                        Excluir
+                                      </button>
+                                   </div>
+                                </div>
+                              ))
+                           )}
+                        </div>
+                      )}
+                   </div>
+                 );
+              })}
+            </div>
+          )}
+        </div>
       )}
       <Modal
         open={Boolean(editing)}

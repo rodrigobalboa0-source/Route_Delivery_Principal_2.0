@@ -57,10 +57,18 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6 flex items-center gap-2">
-        <Wallet className="w-6 h-6" />
-        Carteira / Extrato
-      </h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <Wallet className="w-6 h-6" />
+          Carteira / Extrato
+        </h1>
+        <button 
+          onClick={() => alert('Solicitação de saque em breve disponível!')}
+          className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors text-sm font-medium"
+        >
+          Retirar saldo
+        </button>
+      </div>
       
       <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
          <h2 className="text-sm text-gray-500 uppercase font-semibold">Saldo Atual</h2>
