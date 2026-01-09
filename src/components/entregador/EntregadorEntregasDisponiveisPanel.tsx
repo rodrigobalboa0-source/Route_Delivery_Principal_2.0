@@ -310,18 +310,10 @@ export function EntregadorEntregasDisponiveisPanel() {
               </div>
 
               {distances[entrega.id] && (
-                <div className="grid grid-cols-3 gap-2 mb-4 text-xs bg-gray-50 p-2 rounded border border-gray-100">
+                <div className="grid grid-cols-1 gap-2 mb-4 text-xs bg-gray-50 p-2 rounded border border-gray-100">
                     <div className="text-center">
-                        <span className="block text-gray-400">Até Coleta</span>
-                        <span className="font-semibold text-gray-700">{distances[entrega.id].toPickup.toFixed(1)} km</span>
-                    </div>
-                    <div className="text-center border-l border-gray-200">
-                        <span className="block text-gray-400">Percurso</span>
-                        <span className="font-semibold text-gray-700">{distances[entrega.id].toDelivery.toFixed(1)} km</span>
-                    </div>
-                    <div className="text-center border-l border-gray-200">
-                        <span className="block text-gray-400">Total</span>
-                        <span className="font-bold text-sky-600">{(distances[entrega.id].toPickup + distances[entrega.id].toDelivery).toFixed(1)} km</span>
+                        <span className="block text-gray-400">Entrega</span>
+                        <span className="font-semibold text-gray-700 text-lg">{distances[entrega.id].toDelivery.toFixed(1)} km</span>
                     </div>
                 </div>
               )}

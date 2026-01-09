@@ -83,8 +83,8 @@ export function EntregadorMinhaContaPanel() {
         <div className="flex items-center gap-6 mb-8">
           <div className="relative group">
             <div className="w-24 h-24 bg-gray-200 rounded-full overflow-hidden border-2 border-white shadow-md">
-               {perfil.foto_url ? (
-                 <img src={perfil.foto_url} alt={perfil.nome_completo} className="w-full h-full object-cover" />
+               {perfil.foto_url || perfil.foto_base64 ? (
+                 <img src={perfil.foto_url || perfil.foto_base64} alt={perfil.nome_completo} className="w-full h-full object-cover" />
                ) : (
                  <div className="w-full h-full flex items-center justify-center text-gray-400 bg-slate-100">
                    <User size={40} />

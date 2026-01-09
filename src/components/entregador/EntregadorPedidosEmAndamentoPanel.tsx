@@ -416,17 +416,9 @@ export function EntregadorPedidosEmAndamentoPanel() {
                            </>
                         ) : (
                            <>
-                            <div className="text-center">
-                                <span className="block text-gray-400">Até Coleta</span>
-                                <span className="font-semibold text-gray-700">{distances[entrega.id].userToPickup.toFixed(1)} km</span>
-                            </div>
-                            <div className="text-center border-l border-gray-200">
+                            <div className="text-center col-span-3">
                                 <span className="block text-gray-400">Entrega</span>
-                                <span className="font-semibold text-gray-700">{distances[entrega.id].pickupToDelivery.toFixed(1)} km</span>
-                            </div>
-                            <div className="text-center border-l border-gray-200">
-                                <span className="block text-gray-400">Total</span>
-                                <span className="font-bold text-sky-600">{(distances[entrega.id].userToPickup + distances[entrega.id].pickupToDelivery).toFixed(1)} km</span>
+                                <span className="font-semibold text-gray-700 text-lg">{distances[entrega.id].pickupToDelivery.toFixed(1)} km</span>
                             </div>
                            </>
                         )}

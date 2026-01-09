@@ -27,6 +27,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
   const [ganhos, setGanhos] = useState(0);
   const [incomingDelivery, setIncomingDelivery] = useState<any>(null);
   const [commerceData, setCommerceData] = useState<{ nome: string, foto: string | null } | null>(null);
+  const [deliveryDistance, setDeliveryDistance] = useState<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const lastLocationUpdateRef = useRef<number>(0);
 
@@ -108,6 +109,29 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
     return () => {
         if (interval) clearInterval(interval);
     };
+  }, [incomingDelivery]);
+
+  useEffect(() => {
+    if (incomingDelivery?.coleta_endereco_texto && incomingDelivery?.entrega_endereco_texto) {
+        const calcDist = async () => {
+            try {
+                const pickup = await getCoordsFromAddress(incomingDelivery.coleta_endereco_texto);
+                const delivery = await getCoordsFromAddress(incomingDelivery.entrega_endereco_texto);
+                
+                if (pickup && delivery) {
+                    const dist = getDistanceFromLatLonInKm(pickup[0], pickup[1], delivery[0], delivery[1]);
+                    setDeliveryDistance(dist);
+                } else {
+                    setDeliveryDistance(null);
+                }
+            } catch (e) {
+                setDeliveryDistance(null);
+            }
+        };
+        calcDist();
+    } else {
+        setDeliveryDistance(null);
+    }
   }, [incomingDelivery]);
 
   useEffect(() => {
@@ -615,6 +639,13 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                     <p className="text-lg font-medium text-gray-800">
                         {incomingDelivery.status === 'criada' ? 'Nova entrega disponível na região!' : 'Você recebeu uma nova entrega!'}
                     </p>
+
+                    {deliveryDistance !== null && (
+                        <div className="mt-2 bg-gray-50 px-3 py-1 rounded-full inline-block border border-gray-200">
+                             <span className="text-sm text-gray-500 font-medium">Entrega: </span>
+                             <span className="text-sm font-bold text-sky-600">{deliveryDistance.toFixed(1)} km</span>
+                        </div>
+                    )}
                     <p className="text-sm text-gray-500">#{incomingDelivery.id.slice(0, 8)}</p>
                 </div>
 
