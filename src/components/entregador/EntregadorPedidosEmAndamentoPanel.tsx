@@ -405,23 +405,14 @@ export function EntregadorPedidosEmAndamentoPanel() {
                 )}
 
                 {/* Distances */}
-                {distances[entrega.id] && (
-                    <div className="grid grid-cols-3 gap-2 text-xs bg-gray-50 p-2 rounded border border-gray-100">
-                        {['em_rota', 'chegou_coleta', 'chegou_entrega'].includes(entrega.status) ? (
-                           <>
-                             <div className="text-center col-span-3">
-                                <span className="block text-gray-400">Distância até Entrega</span>
-                                <span className="font-bold text-sky-600 text-lg">{distances[entrega.id].userToDelivery.toFixed(1)} km</span>
-                             </div>
-                           </>
-                        ) : (
-                           <>
-                            <div className="text-center col-span-3">
-                                <span className="block text-gray-400">Entrega</span>
-                                <span className="font-semibold text-gray-700 text-lg">{distances[entrega.id].pickupToDelivery.toFixed(1)} km</span>
-                            </div>
-                           </>
-                        )}
+                {(entrega.distancia_km || distances[entrega.id]) && (
+                    <div className="grid grid-cols-1 gap-2 text-xs bg-gray-50 p-2 rounded border border-gray-100">
+                         <div className="text-center">
+                            <span className="block text-gray-400">Entrega</span>
+                            <span className="font-bold text-sky-600 text-lg">
+                                {entrega.distancia_km ? Number(entrega.distancia_km).toFixed(1) : distances[entrega.id]?.pickupToDelivery.toFixed(1)} km
+                            </span>
+                         </div>
                     </div>
                 )}
 

@@ -112,6 +112,11 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
   }, [incomingDelivery]);
 
   useEffect(() => {
+    if (incomingDelivery?.distancia_km !== undefined && incomingDelivery?.distancia_km !== null) {
+        setDeliveryDistance(Number(incomingDelivery.distancia_km));
+        return;
+    }
+
     if (incomingDelivery?.coleta_endereco_texto && incomingDelivery?.entrega_endereco_texto) {
         const calcDist = async () => {
             try {

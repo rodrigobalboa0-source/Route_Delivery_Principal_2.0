@@ -309,11 +309,13 @@ export function EntregadorEntregasDisponiveisPanel() {
                 </div>
               </div>
 
-              {distances[entrega.id] && (
+              {(entrega.distancia_km || distances[entrega.id]) && (
                 <div className="grid grid-cols-1 gap-2 mb-4 text-xs bg-gray-50 p-2 rounded border border-gray-100">
                     <div className="text-center">
                         <span className="block text-gray-400">Entrega</span>
-                        <span className="font-semibold text-gray-700 text-lg">{distances[entrega.id].toDelivery.toFixed(1)} km</span>
+                        <span className="font-semibold text-gray-700 text-lg">
+                            {entrega.distancia_km ? Number(entrega.distancia_km).toFixed(1) : distances[entrega.id]?.toDelivery.toFixed(1)} km
+                        </span>
                     </div>
                 </div>
               )}
