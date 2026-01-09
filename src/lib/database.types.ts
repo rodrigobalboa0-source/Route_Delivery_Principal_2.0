@@ -370,6 +370,7 @@ export interface Database {
           documento_veiculo_base64: string | null
           restricao_clientes_modo: 'todos' | 'selecionados' | null
           clientes_permitidos: Json | null
+          dados_bancarios: Json | null
           created_at: string
           updated_at: string
         }
