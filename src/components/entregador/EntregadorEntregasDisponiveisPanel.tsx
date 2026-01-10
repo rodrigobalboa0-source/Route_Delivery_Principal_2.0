@@ -13,7 +13,33 @@ export function EntregadorEntregasDisponiveisPanel() {
   const [deliveryCoords, setDeliveryCoords] = useState<Record<string, { pickup?: [number, number], delivery?: [number, number] }>>({});
   const [distances, setDistances] = useState<Record<string, { toPickup: number, toDelivery: number }>>({});
   const [hiddenIds, setHiddenIds] = useState<string[]>([]);
+  const [entregadorId, setEntregadorId] = useState<string | null>(null);
   const lastCountRef = useRef(0);
+
+  useEffect(() => {
+    async function loadProfile() {
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user?.email) {
+                const { data } = await supabase
+                    .from('entregadores')
+                    .select('id')
+                    .eq('email', user.email)
+                    .single();
+                if (data) {
+                    setEntregadorId(data.id);
+                } else {
+                    setProfileMissing(true);
+                    setLoading(false);
+                }
+            }
+        } catch (e) {
+            console.error('Erro ao carregar perfil', e);
+            setLoading(false);
+        }
+    }
+    loadProfile();
+  }, []);
 
   const playNotificationSound = () => {
     try {
@@ -123,6 +149,8 @@ export function EntregadorEntregasDisponiveisPanel() {
   }, [currentLocation, deliveryCoords]);
 
   useEffect(() => {
+    if (!entregadorId) return;
+
     fetchEntregas();
     
     // Polling fallback every 5 seconds
@@ -134,7 +162,25 @@ export function EntregadorEntregasDisponiveisPanel() {
         event: '*', 
         schema: 'public', 
         table: 'nova_entrega' 
-      }, () => {
+      }, (payload) => {
+        // Optimistic updates (Atualização em tempo real)
+        if (payload.eventType === 'DELETE') {
+            setEntregas(prev => prev.filter(e => e.id !== payload.old.id));
+        } else if (payload.eventType === 'UPDATE') {
+            const newRecord = payload.new as any;
+            
+            // Se o status mudou para algo diferente de 'criada' e não é atribuído a mim, remove da lista
+            if (newRecord.status !== 'criada') {
+                const isAssignedToMe = newRecord.status === 'atribuida' && 
+                                     newRecord.entregador_id === entregadorId &&
+                                     newRecord.atribuicao_modo === 'automatica';
+                
+                if (!isAssignedToMe) {
+                    setEntregas(prev => prev.filter(e => e.id !== newRecord.id));
+                }
+            }
+        }
+        
         fetchEntregas();
       })
       .subscribe();
@@ -143,26 +189,12 @@ export function EntregadorEntregasDisponiveisPanel() {
       clearInterval(intervalId);
       subscription.unsubscribe();
     };
-  }, []);
+  }, [entregadorId]);
 
   async function fetchEntregas() {
+    if (!entregadorId) return;
+
     try {
-      
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: entregador } = await supabase
-        .from('entregadores')
-        .select('id')
-        .eq('email', user.email)
-        .single();
-
-      if (!entregador) {
-        setProfileMissing(true);
-        setLoading(false);
-        return;
-      }
-
       const { data, error } = await supabase
         .from('nova_entrega')
         .select(`
@@ -170,14 +202,13 @@ export function EntregadorEntregasDisponiveisPanel() {
           clientes:cliente_id (nome_completo),
           tipo_servicos:tipo_servico_id (nome)
         `)
-        .or(`and(status.eq.criada,entregador_id.is.null),and(status.eq.atribuida,entregador_id.eq.${entregador.id},atribuicao_modo.eq.automatica)`)
+        .or(`and(status.eq.criada,entregador_id.is.null),and(status.eq.atribuida,entregador_id.eq.${entregadorId},atribuicao_modo.eq.automatica)`)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       
       const newEntregas = data || [];
       setEntregas(newEntregas);
-      
       
       if (newEntregas.length > lastCountRef.current) {
           playNotificationSound();
