@@ -110,7 +110,21 @@ export function EntregadorPedidosEmAndamentoPanel() {
         event: '*', 
         schema: 'public', 
         table: 'nova_entrega' 
-      }, () => {
+      }, (payload) => {
+        
+        if (payload.eventType === 'UPDATE') {
+             const newRecord = payload.new;
+             
+             if (newRecord.status === 'cancelada' || !newRecord.entregador_id) {
+                 setEntregas(prev => prev.filter(e => e.id !== newRecord.id));
+             } else {
+                 
+                 setEntregas(prev => prev.map(e => e.id === newRecord.id ? { ...e, ...newRecord } : e));
+             }
+        } else if (payload.eventType === 'DELETE') {
+             setEntregas(prev => prev.filter(e => e.id !== payload.old.id));
+        }
+
         fetchEntregas();
       })
       .subscribe();
@@ -256,7 +270,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
                      );
                      
                      if (distKm > MAX_DISTANCE_KM) {
-                         alert(`Você está a ${(distKm * 1000).toFixed(0)}m do local de coleta. Aproxime-se para confirmar.`);
+                         alert('Você ainda não chegou no local indicado, chegue ao local primeiro para poder confirmar');
                          setUpdatingId(null);
                          return;
                      }
@@ -281,7 +295,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
                      );
                      
                      if (distKm > MAX_DISTANCE_KM) {
-                         alert(`Você está a ${(distKm * 1000).toFixed(0)}m do local de entrega. Aproxime-se para confirmar.`);
+                         alert('Você ainda não chegou no local indicado, chegue ao local primeiro para poder confirmar');
                          setUpdatingId(null);
                          return;
                      }
