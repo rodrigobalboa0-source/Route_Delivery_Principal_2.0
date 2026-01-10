@@ -63,6 +63,8 @@ import { EntregadorNotificacoesPanel } from './components/entregador/EntregadorN
 import { EntregadorEntregasDisponiveisPanel } from './components/entregador/EntregadorEntregasDisponiveisPanel';
 import { EntregadorPedidosEmAndamentoPanel } from './components/entregador/EntregadorPedidosEmAndamentoPanel';
 import { EntregadorHomePanel } from './components/entregador/EntregadorHomePanel';
+import { ComercioCreditosPanel } from './components/comercio/ComercioCreditosPanel';
+import { ComercioFaturamentoPanel } from './components/comercio/ComercioFaturamentoPanel';
 
 function App() {
   const [activeMenu, setActiveMenu] = useState('operations');
@@ -313,6 +315,9 @@ function App() {
           {activeMenu === 'config_integracoes_open_delivery' && <IntegracoesOpenDeliveryPanel />}
           {activeMenu === 'config_operacao' && <ConfiguracoesOperacaoPanel />}
           
+          {activeMenu === 'comercio_creditos' && <ComercioCreditosPanel />}
+          {activeMenu === 'comercio_faturamento' && <ComercioFaturamentoPanel />}
+
           {/* Entregador specific routes */}
           {activeMenu === 'home_entregador' && <EntregadorHomePanel onNavigate={setActiveMenu} />}
           {activeMenu === 'entregas_disponiveis' && <EntregadorEntregasDisponiveisPanel />}

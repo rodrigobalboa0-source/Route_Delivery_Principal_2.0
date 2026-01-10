@@ -181,6 +181,7 @@ export interface Database {
           cidade: string | null
           referencia_entrega: string | null
           precificacao_config: Json | null
+          saldo_creditos?: number
           created_at: string
           updated_at: string
         }
@@ -203,7 +204,8 @@ export interface Database {
           cidade?: string | null
           referencia_entrega?: string | null
           precificacao_config?: Json | null
-          created_at?: string
+          saldo_creditos?: number
+          created_at: string
           updated_at?: string
         }
         Update: {
@@ -225,8 +227,82 @@ export interface Database {
           cidade?: string | null
           referencia_entrega?: string | null
           precificacao_config?: Json | null
+          saldo_creditos?: number
           created_at?: string
           updated_at?: string
+        }
+      }
+      creditos_clientes: {
+        Row: {
+          id: string
+          cliente_id: string
+          valor: number
+          tipo: 'compra' | 'uso' | 'ajuste' | 'estorno'
+          descricao: string | null
+          saldo_anterior: number
+          saldo_novo: number
+          created_at: string
+          created_by: string | null
+        }
+        Insert: {
+          id?: string
+          cliente_id: string
+          valor: number
+          tipo: 'compra' | 'uso' | 'ajuste' | 'estorno'
+          descricao?: string | null
+          saldo_anterior: number
+          saldo_novo: number
+          created_at?: string
+          created_by?: string | null
+        }
+        Update: {
+          id?: string
+          cliente_id?: string
+          valor?: number
+          tipo?: 'compra' | 'uso' | 'ajuste' | 'estorno'
+          descricao?: string | null
+          saldo_anterior?: number
+          saldo_novo?: number
+          created_at?: string
+          created_by?: string | null
+        }
+      }
+      faturamento_clientes: {
+        Row: {
+          id: string
+          cliente_id: string
+          periodo_inicio: string | null
+          periodo_fim: string | null
+          valor_total: number
+          status: 'pendente' | 'pago' | 'vencido' | 'cancelado'
+          vencimento: string | null
+          link_boleto: string | null
+          descricao: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          cliente_id: string
+          periodo_inicio?: string | null
+          periodo_fim?: string | null
+          valor_total: number
+          status?: 'pendente' | 'pago' | 'vencido' | 'cancelado'
+          vencimento?: string | null
+          link_boleto?: string | null
+          descricao?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          cliente_id?: string
+          periodo_inicio?: string | null
+          periodo_fim?: string | null
+          valor_total?: number
+          status?: 'pendente' | 'pago' | 'vencido' | 'cancelado'
+          vencimento?: string | null
+          link_boleto?: string | null
+          descricao?: string | null
+          created_at?: string
         }
       }
       cliente_enderecos: {

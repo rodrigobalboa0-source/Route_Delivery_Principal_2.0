@@ -362,21 +362,31 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [availableEntregadores, setAvailableEntregadores] = useState<Entregador[]>([]);
   const [mapDeliveryPersons, setMapDeliveryPersons] = useState<MapDeliveryPerson[]>([]);
   
-  // Allocation Modal State
+  
   const [isAllocationModalOpen, setIsAllocationModalOpen] = useState(false);
   const [selectedPedidoForAllocation, setSelectedPedidoForAllocation] = useState<Pedido | null>(null);
   const [selectedEntregadorId, setSelectedEntregadorId] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isComercio, setIsComercio] = useState(false);
+  const [allowAlocarComercio, setAllowAlocarComercio] = useState(false);
 
   useEffect(() => {
     if (userId) {
       supabase.from('users').select('role').eq('id', userId).single().then(({ data }) => {
-        setIsAdmin(data?.role === 'admin');
+        setIsAdmin(data?.role === 'admin' || data?.role === 'operador');
+        setIsComercio(data?.role === 'cliente');
+      });
+      
+      
+      supabase.from('configuracoes_comercio').select('permitir_alocar_entregador').maybeSingle().then(({ data }) => {
+          if (data) {
+              setAllowAlocarComercio(data.permitir_alocar_entregador);
+          }
       });
     }
   }, [userId]);
 
-  // Map State
+  
   const [mapSelectedEntregadorId, setMapSelectedEntregadorId] = useState('');
   const [selectedDeliveryPerson, setSelectedDeliveryPerson] = useState<DeliveryPerson | null>(null);
   const [originCoords, setOriginCoords] = useState<[number, number] | undefined>(undefined);
@@ -384,17 +394,17 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [originTitle, setOriginTitle] = useState<string>('');
   const [destinationTitle, setDestinationTitle] = useState<string>('');
   
-  // Menu State
+  
   const [menuPos, setMenuPos] = useState<{top?: number, bottom?: number, left: number} | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
-  // Modals State
+  
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null);
 
-  // Close menu on outside click
+  
   useEffect(() => {
     const handleClickOutside = () => setOpenMenuId(null);
     window.addEventListener('click', handleClickOutside);
@@ -410,12 +420,12 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     const rect = e.currentTarget.getBoundingClientRect();
     const screenHeight = window.innerHeight;
     const spaceBelow = screenHeight - rect.bottom;
-    const approximateMenuHeight = 320; // Estimated height of the menu
+    const approximateMenuHeight = 320; 
 
-    // Determine position: if space below is insufficient, open upwards
+    
     if (spaceBelow < approximateMenuHeight) {
        setMenuPos({
-         bottom: screenHeight - rect.top, // Position from bottom relative to viewport
+         bottom: screenHeight - rect.top, 
          left: rect.right - 224
        });
     } else {
@@ -430,7 +440,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const getColetaAddress = (p: Pedido) => {
     const entrega = entregasMap[p.id];
     if (entrega?.coleta_endereco_texto) return entrega.coleta_endereco_texto;
-    // Fallback to client address if needed, but explicit is better
+    
     return '-';
   };
 
@@ -863,14 +873,25 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
   const handleDelete = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir este pedido?')) return;
-    await supabase.from('pedidos').delete().eq('id', id);
     
-    const isSynthetic = !items.find(p => p.id === id && p.item_descricao !== 'Entrega Direta (Sem Pedido)');
-    if (isSynthetic) {
-         await supabase.from('nova_entrega').delete().eq('id', id);
+    
+    const { error: errorEntregaFK } = await supabase.from('nova_entrega').delete().eq('pedido_id', id);
+    if (errorEntregaFK) console.warn('Aviso ao deletar entrega vinculada:', errorEntregaFK);
+
+    const { error: errorEntregaPK } = await supabase.from('nova_entrega').delete().eq('id', id);
+    if (errorEntregaPK) console.warn('Aviso ao deletar entrega direta:', errorEntregaPK);
+    
+    const { error } = await supabase.from('pedidos').delete().eq('id', id);
+    
+    if (error) {
+        console.error('Erro ao excluir pedido:', error);
+        alert('Erro ao excluir pedido');
+        return;
     }
     
-    await fetchPedidos();
+    setAllItems(prev => prev.filter(p => p.id !== id));
+    setItems(prev => prev.filter(p => p.id !== id));
+    setOpenMenuId(null);
   };
 
   const handleOpenAllocation = (pedido: Pedido) => {
@@ -1011,6 +1032,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
       {/* Filters */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            {!isComercio && (
             <select 
                 className="bg-white border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-slate-200 outline-none"
                 value={filters.cliente_id}
@@ -1021,6 +1043,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                     <option key={c.id} value={c.id}>{c.nome_completo}</option>
                 ))}
             </select>
+            )}
 
             <select 
                 className="bg-white border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-slate-200 outline-none"
@@ -1028,12 +1051,19 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                 onChange={e => setFilters({...filters, status: e.target.value})}
             >
                 <option value="todos">Status (todos)</option>
+                {!isComercio && (
+                <>
                 <option value="criado">Criado</option>
                 <option value="confirmado">Confirmado</option>
                 <option value="em_preparo">Em Preparo</option>
                 <option value="pronto">Pronto</option>
                 <option value="em_rota">Em Rota</option>
                 <option value="entregue">Entregue</option>
+                </>
+                )}
+                {isComercio && (
+                    <option value="finalizados">Finalizados</option>
+                )}
                 <option value="cancelado">Cancelado</option>
             </select>
 
@@ -1064,6 +1094,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       </div>
 
       {/* Status Counters */}
+      {!isComercio && (
       <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         {['Criado', 'Confirmado', 'Em Preparo', 'Pronto', 'Cancelado', 'Entregue'].map(status => (
             <div key={status} className="bg-white p-4 rounded-lg border border-slate-200 text-center shadow-sm">
@@ -1074,6 +1105,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             </div>
         ))}
       </div>
+      )}
 
       {/* Table */}
       <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
@@ -1137,12 +1169,14 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                                         <span className="text-slate-700">{entregador.nome_completo.split(' ')[0]}</span>
                                     </div>
                                 ) : (
+                                    (!isComercio || allowAlocarComercio) && (
                                     <button 
                                         onClick={() => handleOpenAllocation(p)}
                                         className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded border border-slate-200"
                                     >
                                         Alocar
                                     </button>
+                                    )
                                 )}
                             </td>
                             <td className="px-4 py-3 relative">

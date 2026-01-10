@@ -89,22 +89,28 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
     let interval: any;
     if (incomingDelivery) {
         
-        const playBeep = () => {
-            const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(440, ctx.currentTime);
-            osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
-            gain.gain.setValueAtTime(0.1, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 0.5);
-            osc.start();
-            osc.stop(ctx.currentTime + 0.5);
+        const playSound = () => {
+            // Tenta tocar o arquivo de som personalizado
+            const audio = new Audio('/notification.mp3');
+            audio.play().catch(e => {
+                console.warn('Som personalizado não encontrado ou erro ao tocar, usando fallback:', e);
+                // Fallback: Beep eletrônico caso o arquivo não exista
+                const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(440, ctx.currentTime);
+                osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 0.5);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.5);
+            });
         };
-        playBeep();
-        interval = setInterval(playBeep, 2000);
+        playSound();
+        interval = setInterval(playSound, 2000); // Toca a cada 2 segundos (ideal para som de 1s)
     }
     return () => {
         if (interval) clearInterval(interval);

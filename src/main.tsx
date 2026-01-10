@@ -6,6 +6,18 @@ import './index.css';
 
 
 window.onerror = function(message, source, lineno, colno, error) {
+  
+  if (typeof message === 'string' && message.toLowerCase().includes('script error') && !error) {
+    console.warn('Ignored generic Script Error:', message);
+    return;
+  }
+  
+  
+  if (typeof message === 'string' && (message.includes('WebGL') || message.includes('context'))) {
+      console.warn('Ignored WebGL Error:', message);
+      return;
+  }
+
   console.error('Global Error:', message, error);
   const errorDiv = document.createElement('div');
   errorDiv.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; color: red; z-index: 9999; padding: 20px; overflow: auto; font-family: monospace;';
