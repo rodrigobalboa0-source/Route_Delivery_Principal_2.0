@@ -242,15 +242,25 @@ export function EntregadorPedidosEmAndamentoPanel() {
          if (newStatus === 'chegou_coleta' || newStatus === 'em_rota') {
              if (hasPickupAddress) {
                  if (!coords || !coords.pickup) {
-                     // Loading or invalid address
+                     
                      if (!confirm('Localização da coleta não identificada ou carregando. Deseja continuar sem validação?')) {
                         setUpdatingId(null);
                         return;
                      }
-                 } else if (dists && dists.userToPickup > MAX_DISTANCE_KM) {
-                     alert(`Você está a ${(dists.userToPickup * 1000).toFixed(0)}m do local de coleta. Aproxime-se para confirmar.`);
-                     setUpdatingId(null);
-                     return;
+                 } else {
+                     
+                     const distKm = getDistanceFromLatLonInKm(
+                         userLocation.lat, 
+                         userLocation.lng, 
+                         coords.pickup[0], 
+                         coords.pickup[1]
+                     );
+                     
+                     if (distKm > MAX_DISTANCE_KM) {
+                         alert(`Você está a ${(distKm * 1000).toFixed(0)}m do local de coleta. Aproxime-se para confirmar.`);
+                         setUpdatingId(null);
+                         return;
+                     }
                  }
              }
          }
@@ -258,15 +268,25 @@ export function EntregadorPedidosEmAndamentoPanel() {
          if (newStatus === 'chegou_entrega' || newStatus === 'entregue') {
              if (hasDeliveryAddress) {
                  if (!coords || !coords.delivery) {
-                     // Loading or invalid address
+                     
                      if (!confirm('Localização da entrega não identificada ou carregando. Deseja continuar sem validação?')) {
                         setUpdatingId(null);
                         return;
                      }
-                 } else if (dists && dists.userToDelivery > MAX_DISTANCE_KM) {
-                     alert(`Você está a ${(dists.userToDelivery * 1000).toFixed(0)}m do local de entrega. Aproxime-se para confirmar.`);
-                     setUpdatingId(null);
-                     return;
+                 } else {
+                     
+                     const distKm = getDistanceFromLatLonInKm(
+                         userLocation.lat, 
+                         userLocation.lng, 
+                         coords.delivery[0], 
+                         coords.delivery[1]
+                     );
+                     
+                     if (distKm > MAX_DISTANCE_KM) {
+                         alert(`Você está a ${(distKm * 1000).toFixed(0)}m do local de entrega. Aproxime-se para confirmar.`);
+                         setUpdatingId(null);
+                         return;
+                     }
                  }
              }
          }
@@ -382,9 +402,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
         <div className="space-y-6">
           {entregas.map((entrega) => {
             const coords = deliveryCoords[entrega.id];
-            // Fases de Coleta: criada, atribuida, chegou_coleta
-            // Nota: Se 'chegou_coleta', o próximo passo é sair para entrega, então talvez já queira ver o destino?
-            // Mas o usuário pode querer ver o mapa da loja enquanto está lá. Vamos manter pickup até sair ('em_rota').
+            
             const isPickupPhase = ['criada', 'atribuida', 'chegou_coleta'].includes(entrega.status);
             const destCoords = isPickupPhase ? coords?.pickup : coords?.delivery;
             
