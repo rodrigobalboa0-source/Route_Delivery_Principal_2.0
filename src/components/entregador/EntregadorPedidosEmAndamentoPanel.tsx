@@ -243,10 +243,9 @@ export function EntregadorPedidosEmAndamentoPanel() {
              if (hasPickupAddress) {
                  if (!coords || !coords.pickup) {
                      
-                     if (!confirm('Localização da coleta não identificada ou carregando. Deseja continuar sem validação?')) {
-                        setUpdatingId(null);
-                        return;
-                     }
+                     alert('Não foi possível identificar a localização da coleta no mapa. Não é possível validar sua presença no local.');
+                     setUpdatingId(null);
+                     return;
                  } else {
                      
                      const distKm = getDistanceFromLatLonInKm(
@@ -269,10 +268,9 @@ export function EntregadorPedidosEmAndamentoPanel() {
              if (hasDeliveryAddress) {
                  if (!coords || !coords.delivery) {
                      
-                     if (!confirm('Localização da entrega não identificada ou carregando. Deseja continuar sem validação?')) {
-                        setUpdatingId(null);
-                        return;
-                     }
+                     alert('Não foi possível identificar a localização da entrega no mapa. Não é possível validar sua presença no local.');
+                     setUpdatingId(null);
+                     return;
                  } else {
                      
                      const distKm = getDistanceFromLatLonInKm(

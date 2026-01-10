@@ -378,7 +378,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                
                // NOVA ENTREGA NO POOL
                else if (newRecord.status === 'criada' && !newRecord.entregador_id) {
-                   // Check radius logic
+                   // Check radius logic - FAIL OPEN (if error/no coords, show anyway)
                    let inRadius = true;
                    if (newRecord.coleta_endereco_texto && userLocation) {
                         try {
@@ -388,10 +388,16 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                                      userLocation.lat, userLocation.lng,
                                      pickupCoords[0], pickupCoords[1]
                                  );
-                                 if (dist > radiusKm) inRadius = false;
+                                 if (dist > radiusKm) {
+                                     inRadius = false;
+                                     console.log(`Entrega fora do raio: ${dist.toFixed(2)}km > ${radiusKm}km`);
+                                 }
+                             } else {
+                                 console.warn('Não foi possível obter coordenadas para verificar raio. Assumindo dentro.');
                              }
                         } catch (e) {
                              console.error('Erro realtime raio:', e);
+                             // Keep inRadius = true on error
                         }
                    }
                    

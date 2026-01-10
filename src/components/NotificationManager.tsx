@@ -129,10 +129,13 @@ export function NotificationManager({ userId, userRole, onNavigate }: Notificati
                               return;
                           }
                       }
+                   } else {
+                       console.warn('Coordenadas de coleta não encontradas para notificação. Assumindo dentro do raio.');
                    }
                 }
               } catch (e) {
                 console.error('Erro ao verificar raio para notificação:', e);
+                // Fail open: se der erro, mostra notificação
               }
 
               if (onNavigate) {
