@@ -3,6 +3,7 @@ import { Filter, Users } from 'lucide-react';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase';
 import { MapView, MapDeliveryPerson } from './MapView';
 import { DeliveryPersonCard } from './DeliveryPersonCard';
+import { getCoordsFromAddress } from '../utils/geo';
 import type { Database } from '../lib/database.types';
 type Entregador = Database['public']['Tables']['entregadores']['Row'];
 
@@ -13,6 +14,40 @@ export function OperationsDashboard() {
   const [onlineFilter, setOnlineFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [selectedEntregadorId, setSelectedEntregadorId] = useState<string | undefined>(undefined);
+  const [mapCenter, setMapCenter] = useState<[number, number]>([-23.5505, -46.6333]);
+  const [storeLocation, setStoreLocation] = useState<[number, number] | undefined>(undefined);
+
+  useEffect(() => {
+    const loadComercioAddress = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: userData } = await supabase
+        .from('users')
+        .select('role, cliente_id')
+        .eq('id', user.id)
+        .single();
+
+      if (userData?.role === 'cliente' && userData.cliente_id) {
+        const { data: cliente } = await supabase
+          .from('clientes')
+          .select('rua, numero, bairro, cidade, cep')
+          .eq('id', userData.cliente_id)
+          .single();
+
+        if (cliente) {
+          const fullAddress = `${cliente.rua}, ${cliente.numero} - ${cliente.bairro}, ${cliente.cidade}`;
+          const coords = await getCoordsFromAddress(fullAddress);
+          if (coords) {
+            setMapCenter(coords);
+            setStoreLocation(coords);
+          }
+        }
+      }
+    };
+    loadComercioAddress();
+  }, []);
 
   useEffect(() => {
     fetchDeliveryPersons();
@@ -91,7 +126,18 @@ export function OperationsDashboard() {
           8000
         ),
       ]);
-      const entregadores = (eRes as { data?: Entregador[] }).data || [];
+      let entregadores = (eRes as { data?: Entregador[] }).data || [];
+      
+      // Fallback: Try RPC if empty (assuming RLS might be blocking for 'comercio' role)
+      if (entregadores.length === 0) {
+        try {
+          const { data: rpcData, error: rpcError } = await supabase.rpc('get_active_delivery_persons');
+          if (!rpcError && rpcData && rpcData.length > 0) {
+             entregadores = rpcData;
+          }
+        } catch (ignore) {}
+      }
+
       const entregasAtivas = new Set(
         (((dRes as { data?: { entregador_id?: string | null }[] }).data) || [])
           .map((x) => (x.entregador_id || '').trim())
@@ -185,7 +231,13 @@ export function OperationsDashboard() {
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 p-6 overflow-hidden">
           <div className="h-full bg-white rounded-lg border border-slate-200 overflow-hidden">
-            <MapView deliveryPersons={filteredPersons} />
+            <MapView 
+              deliveryPersons={filteredPersons} 
+              selectedEntregadorId={selectedEntregadorId}
+              center={mapCenter}
+              origin={!selectedEntregadorId ? storeLocation : undefined}
+              originTitle="Minha Loja"
+            />
           </div>
         </div>
 
@@ -261,7 +313,12 @@ export function OperationsDashboard() {
             ) : (
               <div className="space-y-3">
                 {filteredPersons.map((person) => (
-                  <DeliveryPersonCard key={person.id} person={person} />
+                  <DeliveryPersonCard 
+                    key={person.id} 
+                    person={person} 
+                    onClick={() => setSelectedEntregadorId(person.id)}
+                    isSelected={selectedEntregadorId === person.id}
+                  />
                 ))}
               </div>
             )}

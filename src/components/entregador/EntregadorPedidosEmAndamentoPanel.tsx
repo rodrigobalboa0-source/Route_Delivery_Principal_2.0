@@ -219,10 +219,59 @@ export function EntregadorPedidosEmAndamentoPanel() {
     }
   }
 
+  const MAX_DISTANCE_KM = 0.2; 
+
   async function updateStatus(id: string, newStatus: string) {
     setUpdatingId(id);
     try {
       const currentEntrega = entregas.find(e => e.id === id);
+      const dists = distances[id];
+      const coords = deliveryCoords[id];
+
+      
+      if (!userLocation) {
+          alert('Aguardando localização do dispositivo...');
+          setUpdatingId(null);
+          return;
+      }
+
+      if (currentEntrega) {
+         const hasPickupAddress = !!currentEntrega.coleta_endereco_texto;
+         const hasDeliveryAddress = !!currentEntrega.entrega_endereco_texto;
+         
+         if (newStatus === 'chegou_coleta' || newStatus === 'em_rota') {
+             if (hasPickupAddress) {
+                 if (!coords || !coords.pickup) {
+                     // Loading or invalid address
+                     if (!confirm('Localização da coleta não identificada ou carregando. Deseja continuar sem validação?')) {
+                        setUpdatingId(null);
+                        return;
+                     }
+                 } else if (dists && dists.userToPickup > MAX_DISTANCE_KM) {
+                     alert(`Você está a ${(dists.userToPickup * 1000).toFixed(0)}m do local de coleta. Aproxime-se para confirmar.`);
+                     setUpdatingId(null);
+                     return;
+                 }
+             }
+         }
+
+         if (newStatus === 'chegou_entrega' || newStatus === 'entregue') {
+             if (hasDeliveryAddress) {
+                 if (!coords || !coords.delivery) {
+                     // Loading or invalid address
+                     if (!confirm('Localização da entrega não identificada ou carregando. Deseja continuar sem validação?')) {
+                        setUpdatingId(null);
+                        return;
+                     }
+                 } else if (dists && dists.userToDelivery > MAX_DISTANCE_KM) {
+                     alert(`Você está a ${(dists.userToDelivery * 1000).toFixed(0)}m do local de entrega. Aproxime-se para confirmar.`);
+                     setUpdatingId(null);
+                     return;
+                 }
+             }
+         }
+      }
+
       const opcionais = currentEntrega?.opcionais || {};
       const timeline = opcionais.timeline || {};
       const now = new Date().toISOString();

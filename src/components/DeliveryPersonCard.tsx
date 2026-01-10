@@ -5,9 +5,11 @@ type DeliveryPerson = Database['public']['Tables']['delivery_persons']['Row'];
 
 interface DeliveryPersonCardProps {
   person: DeliveryPerson;
+  onClick?: () => void;
+  isSelected?: boolean;
 }
 
-export function DeliveryPersonCard({ person }: DeliveryPersonCardProps) {
+export function DeliveryPersonCard({ person, onClick, isSelected }: DeliveryPersonCardProps) {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'disponivel':
@@ -49,7 +51,14 @@ export function DeliveryPersonCard({ person }: DeliveryPersonCardProps) {
   };
 
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-4 hover:shadow-md transition-shadow">
+    <div 
+      onClick={onClick}
+      className={`bg-white rounded-lg border p-4 transition-all cursor-pointer ${
+        isSelected 
+          ? 'border-sky-500 ring-2 ring-sky-200 shadow-md' 
+          : 'border-slate-200 hover:shadow-md hover:border-slate-300'
+      }`}
+    >
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center">

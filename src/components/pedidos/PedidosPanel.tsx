@@ -982,6 +982,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
       {/* Summary Cards & Actions */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {!isComercio && (
         <div className="bg-white p-4 rounded-lg border border-slate-200 flex items-center gap-3">
             <div className="bg-slate-50 p-3 rounded-lg text-slate-600">
                 <User size={24} />
@@ -991,6 +992,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                 <div className="text-xs text-slate-500">Online</div>
             </div>
         </div>
+        )}
 
         <div className="bg-white p-4 rounded-lg border border-slate-200 flex items-center gap-3">
             <div className="bg-slate-50 p-3 rounded-lg text-slate-600">
@@ -1013,6 +1015,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         </div>
 
         <div className="flex gap-2">
+             {!isComercio && (
              <button 
                 onClick={handleQuickAssign}
                 className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg flex items-center justify-center gap-2 shadow-sm"
@@ -1020,6 +1023,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                 <User size={20} />
                 Atribuir
              </button>
+             )}
              <button 
                 onClick={() => onNavigate?.('nova_criar')} 
                 className="flex-1 bg-sky-500 hover:bg-sky-600 text-white font-medium rounded-lg flex items-center justify-center gap-2 shadow-sm"

@@ -134,6 +134,19 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
     map.current.flyTo(center, 12, { animate: true, duration: 1.5 });
   }, [center[0], center[1]]);
 
+  useEffect(() => {
+    if (!map.current || !selectedEntregadorId) return;
+
+    const person = deliveryPersons.find(p => p.id === selectedEntregadorId);
+    if (person && person.current_latitude && person.current_longitude) {
+      map.current.flyTo(
+        [person.current_latitude, person.current_longitude], 
+        16, 
+        { animate: true, duration: 1.0 }
+      );
+    }
+  }, [selectedEntregadorId, deliveryPersons]);
+
   
   useEffect(() => {
     if (!mapLoaded || !map.current) return;
