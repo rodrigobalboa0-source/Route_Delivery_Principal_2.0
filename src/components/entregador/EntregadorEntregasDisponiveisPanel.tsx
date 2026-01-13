@@ -308,9 +308,21 @@ export function EntregadorEntregasDisponiveisPanel() {
                    </h3>
                  </div>
                  <div className="text-right">
-                   <div className="flex items-center gap-1 text-green-600 font-bold text-lg">
-                     <DollarSign size={18} />
-                     {Number(entrega.valor_entregador ?? entrega.valor_entrega ?? 0).toFixed(2)}
+                   <div className="flex flex-col items-end">
+                     <div className="flex items-center gap-1 text-green-600 font-bold text-lg">
+                       <DollarSign size={18} />
+                       {Number(entrega.valor_entregador ?? entrega.valor_entrega ?? 0).toFixed(2)}
+                     </div>
+                     {entrega.opcionais?.driver_bonuses && Array.isArray(entrega.opcionais.driver_bonuses) && (
+                       <div className="text-xs text-right flex flex-col items-end gap-1 mb-1">
+                         {entrega.opcionais.driver_bonuses.map((bonus: any, idx: number) => (
+                           <div key={idx} className="text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-100 flex items-center gap-1">
+                             <span className="font-bold">+ R$ {Number(bonus.value).toFixed(2)}</span>
+                             <span className="text-[10px] text-green-600 opacity-75">{bonus.description}</span>
+                           </div>
+                         ))}
+                       </div>
+                     )}
                    </div>
                    <div className="flex items-center gap-1 text-xs text-gray-400 mt-1 justify-end">
                      <Clock size={12} />
