@@ -495,14 +495,30 @@ export function EntregadorPedidosEmAndamentoPanel() {
                     </div>
                 )}
 
-                {/* Map Toggle */}
-                <button 
-                  onClick={() => setMapVisibleId(mapVisibleId === entrega.id ? null : entrega.id)}
-                  className="w-full flex items-center justify-center gap-2 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded transition-colors text-sm font-medium"
-                >
-                  <MapIcon size={16} />
-                  {mapVisibleId === entrega.id ? 'Ocultar Mapa' : 'Acompanhar no Mapa'}
-                </button>
+                {/* Map & Navigation Actions */}
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setMapVisibleId(mapVisibleId === entrega.id ? null : entrega.id)}
+                    className="flex-1 flex items-center justify-center gap-2 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded transition-colors text-sm font-medium"
+                  >
+                    <MapIcon size={16} />
+                    {mapVisibleId === entrega.id ? 'Ocultar Mapa' : 'Ver no App'}
+                  </button>
+
+                  <button 
+                    onClick={() => {
+                        const address = isPickupPhase ? entrega.coleta_endereco_texto : entrega.entrega_endereco_texto;
+                        if (!address) return alert('Endereço não disponível');
+                        
+                        const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}&travelmode=driving`;
+                        window.open(url, '_blank');
+                    }}
+                    className="flex-1 flex items-center justify-center gap-2 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded transition-colors text-sm font-medium border border-blue-200"
+                  >
+                    <Navigation size={16} />
+                    Abrir GPS
+                  </button>
+                </div>
 
                 {mapVisibleId === entrega.id && (
                   <div className="h-64 rounded-lg overflow-hidden border border-slate-200 relative">
