@@ -8,22 +8,15 @@ type Entregador = Database['public']['Tables']['entregadores']['Row'];
 
 export function PrecoDinamicoEntregadorPanel() {
   const [items, setItems] = useState<Regra[]>([]);
-  const [entregadores, setEntregadores] = useState<Entregador[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({ entregador_id: '', multiplicador: '', tipo: 'MULTIPLICADOR', ativa: true, observacao: '' });
+  const [form, setForm] = useState({ multiplicador: '', tipo: 'MULTIPLICADOR', ativa: true, observacao: '' });
   const [editing, setEditing] = useState<Regra | null>(null);
-  const [editForm, setEditForm] = useState({ entregador_id: '', multiplicador: '', tipo: 'MULTIPLICADOR', ativa: true, observacao: '' });
+  const [editForm, setEditForm] = useState({ multiplicador: '', tipo: 'MULTIPLICADOR', ativa: true, observacao: '' });
 
   useEffect(() => {
-    fetchEntregadores();
     fetchAll();
   }, []);
-
-  const fetchEntregadores = async () => {
-    const { data } = await supabase.from('entregadores').select('id, nome_completo').order('nome_completo');
-    setEntregadores((data || []) as Entregador[]);
-  };
 
   const fetchAll = async () => {
     setLoading(true);
@@ -38,7 +31,7 @@ export function PrecoDinamicoEntregadorPanel() {
     setLoading(true);
     setError(null);
     const res = await (supabase as unknown as { from: (t: string) => { insert: (v: unknown) => Promise<unknown> } }).from('preco_dinamico_entregador').insert({
-      entregador_id: form.entregador_id,
+      entregador_id: null,
       multiplicador: form.multiplicador ? Number(form.multiplicador.replace(',', '.')) : null,
       criterio: form.tipo,
       ativa: form.ativa,
@@ -46,7 +39,7 @@ export function PrecoDinamicoEntregadorPanel() {
     });
     const r = res as unknown as { error?: { message?: string } };
     if (r.error?.message) setError(r.error.message);
-    setForm({ entregador_id: '', multiplicador: '', tipo: 'MULTIPLICADOR', ativa: true, observacao: '' });
+    setForm({ multiplicador: '', tipo: 'MULTIPLICADOR', ativa: true, observacao: '' });
     await fetchAll();
   };
 
@@ -72,7 +65,6 @@ export function PrecoDinamicoEntregadorPanel() {
   const openEdit = (m: Regra) => {
     setEditing(m);
     setEditForm({
-      entregador_id: m.entregador_id,
       multiplicador: m.multiplicador != null ? String(m.multiplicador) : '',
       tipo: m.criterio || 'MULTIPLICADOR',
       ativa: Boolean(m.ativa),
@@ -87,7 +79,7 @@ export function PrecoDinamicoEntregadorPanel() {
     const res = await (supabase as unknown as { from: (t: string) => { update: (v: unknown) => { eq: (c: string, v: unknown) => Promise<unknown> } } })
       .from('preco_dinamico_entregador')
       .update({
-        entregador_id: editForm.entregador_id,
+        entregador_id: null,
         multiplicador: editForm.multiplicador ? Number(editForm.multiplicador.replace(',', '.')) : null,
         criterio: editForm.tipo,
         ativa: editForm.ativa,
@@ -107,13 +99,6 @@ export function PrecoDinamicoEntregadorPanel() {
       {error && <div className="mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</div>}
       <div className="bg-white border border-slate-200 rounded-lg p-4 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <select value={form.entregador_id} onChange={(e) => setForm({ ...form, entregador_id: e.target.value })} className="px-3 py-2 border border-slate-300 rounded">
-            <option value="">Entregador</option>
-            {entregadores.map((e) => (
-              <option key={e.id} value={e.id}>{e.nome_completo}</option>
-            ))}
-          </select>
-          
           <select 
             value={form.tipo} 
             onChange={(e) => setForm({ ...form, tipo: e.target.value })} 
@@ -153,7 +138,6 @@ export function PrecoDinamicoEntregadorPanel() {
         ) : (
           <div className="divide-y">
             {items.map((m) => {
-              const ent = entregadores.find(e => e.id === m.entregador_id);
               const isFixed = m.criterio === 'TAXA_FIXA';
               const displayValue = isFixed 
                 ? `+ R$ ${Number(m.multiplicador).toFixed(2)}` 
@@ -162,7 +146,7 @@ export function PrecoDinamicoEntregadorPanel() {
               return (
                 <div key={m.id} className="flex items-center justify-between px-4 py-3">
                   <div>
-                    <div className="font-medium text-slate-900">{ent ? ent.nome_completo : m.entregador_id}</div>
+                    <div className="font-medium text-slate-900">Aplicável a todos os entregadores</div>
                     <div className="text-sm text-slate-600 flex gap-2 items-center mt-1">
                       <span className={`px-2 py-0.5 rounded text-xs font-semibold ${isFixed ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
                         {displayValue}
@@ -188,13 +172,6 @@ export function PrecoDinamicoEntregadorPanel() {
       </div>
       <Modal open={Boolean(editing)} title="Editar regra" onClose={() => setEditing(null)} onConfirm={handleUpdate} confirmDisabled={loading}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <select value={editForm.entregador_id} onChange={(e) => setEditForm({ ...editForm, entregador_id: e.target.value })} className="px-3 py-2 border border-slate-300 rounded">
-            <option value="">Entregador</option>
-            {entregadores.map((e) => (
-              <option key={e.id} value={e.id}>{e.nome_completo}</option>
-            ))}
-          </select>
-          
           <select 
             value={editForm.tipo} 
             onChange={(e) => setEditForm({ ...editForm, tipo: e.target.value })} 

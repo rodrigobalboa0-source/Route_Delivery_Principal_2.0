@@ -579,11 +579,12 @@ export function NovaEntregaPanel() {
     }
   };
 
-  const calculateDriverCommission = (km: number, hasReturn: boolean, pointsCount: number, entregadorId?: string | null): string => {
+  const calculateDriverCommission = (km: number, hasReturn: boolean, pointsCount: number, entregadorId?: string | null): { total: string, breakdown: { description: string, value: number }[] } => {
+      const breakdown: { description: string, value: number }[] = [];
+      let val = 0;
       
       // 1. Priority: Table Commission
       if (faixasComissoes.length > 0) {
-         let val = 0;
          const faixa = faixasComissoes.find(f => f.km_ate >= km);
          
          if (faixa) {
@@ -605,19 +606,30 @@ export function NovaEntregaPanel() {
          }
          
          // Apply dynamic driver rules
-         if (entregadorId) {
-             const rules = dynamicDriverRules.filter(r => r.entregador_id === entregadorId && r.ativa);
-             rules.forEach(r => {
-               if (r.multiplicador) {
-                 if (r.criterio === 'TAXA_FIXA') {
-                   val += r.multiplicador;
-                 } else {
-                   val *= r.multiplicador;
-                 }
-               }
-             });
-         }
-         return val.toFixed(2);
+         const rules = dynamicDriverRules.filter(r => 
+             r.ativa && 
+             (r.entregador_id === entregadorId || r.entregador_id === null)
+         );
+         
+         rules.forEach(r => {
+           if (r.multiplicador) {
+             let bonus = 0;
+             if (r.criterio === 'TAXA_FIXA') {
+               bonus = r.multiplicador;
+               val += bonus;
+             } else {
+               const increase = val * (r.multiplicador - 1);
+               bonus = increase;
+               val *= r.multiplicador;
+             }
+             
+             if (bonus > 0) {
+                 breakdown.push({ description: r.observacao || 'Bônus Dinâmico', value: bonus });
+             }
+           }
+         });
+         
+         return { total: val.toFixed(2), breakdown };
       }
       
       if (form.valor_entrega) {
@@ -625,23 +637,33 @@ export function NovaEntregaPanel() {
           if (!isNaN(totalValue)) {
               let commission = totalValue * 0.75;
               
-              if (entregadorId) {
-                 const rules = dynamicDriverRules.filter(r => r.entregador_id === entregadorId && r.ativa);
-                 rules.forEach(r => {
-                   if (r.multiplicador) {
-                     if (r.criterio === 'TAXA_FIXA') {
-                       commission += r.multiplicador;
-                     } else {
-                       commission *= r.multiplicador;
-                     }
-                   }
-                 });
-              }
+              const rules = dynamicDriverRules.filter(r => 
+                 r.ativa && 
+                 (r.entregador_id === entregadorId || r.entregador_id === null)
+              );
+
+              rules.forEach(r => {
+                if (r.multiplicador) {
+                  let bonus = 0;
+                  if (r.criterio === 'TAXA_FIXA') {
+                    bonus = r.multiplicador;
+                    commission += bonus;
+                  } else {
+                    const increase = commission * (r.multiplicador - 1);
+                    bonus = increase;
+                    commission *= r.multiplicador;
+                  }
+                  
+                  if (bonus > 0) {
+                      breakdown.push({ description: r.observacao || 'Bônus Dinâmico', value: bonus });
+                  }
+                }
+              });
               
-              return commission.toFixed(2); 
+              return { total: commission.toFixed(2), breakdown }; 
           }
       }
-      return '0.00';
+      return { total: '0.00', breakdown: [] };
   };
 
   const handleSubmit = async () => {
@@ -667,7 +689,7 @@ export function NovaEntregaPanel() {
 
     
     const kmValue = distanciaKm ? parseFloat(distanciaKm.replace(',', '.')) : 0;
-    const driverValueStr = calculateDriverCommission(kmValue, form.retorno, form.pontos.length, entregadorEscolhido);
+    const { total: driverValueStr, breakdown: driverBonuses } = calculateDriverCommission(kmValue, form.retorno, form.pontos.length, entregadorEscolhido);
     const driverValue = parseFloat(driverValueStr);
 
     let pedidoId = null;
@@ -743,7 +765,7 @@ export function NovaEntregaPanel() {
         entrega_observacoes: form.entrega_observacoes || null,
         retorno: form.retorno,
         pontos_adicionais: form.pontos.length ? form.pontos : null,
-        opcionais: null,
+        opcionais: driverBonuses.length > 0 ? { driver_bonuses: driverBonuses } : null,
         observacoes: form.observacoes || null,
         status: entregadorEscolhido ? 'atribuida' : 'criada',
         distancia_km: kmValue > 0 ? kmValue : null,
