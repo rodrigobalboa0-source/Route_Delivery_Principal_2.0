@@ -584,7 +584,8 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
       try {
         const { error: pwdError } = await supabase.rpc('admin_update_password', {
           target_user_id: editing.id,
-          new_password: (editForm as any).nova_senha
+          new_password: ((editForm as any).nova_senha || '').trim(),
+          new_email: (editForm.email || '').trim()
         });
         if (pwdError) {
            console.error('Password update error:', pwdError);
