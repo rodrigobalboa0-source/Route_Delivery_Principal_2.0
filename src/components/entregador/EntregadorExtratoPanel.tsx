@@ -272,11 +272,14 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
                 <input type="text" placeholder="Agência" className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 outline-none" value={bankData.agencia} onChange={e => setBankData({...bankData, agencia: e.target.value})} required />
               </div>
               <div>
-                <select className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 outline-none bg-white" value={bankData.tipo_conta} onChange={e => setBankData({...bankData, tipo_conta: e.target.value})} required>
-                  <option value="corrente">Conta Corrente</option>
-                  <option value="poupanca">Conta Poupança</option>
-                </select>
-              </div>
+            <select className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 outline-none bg-white" value={bankData.tipo_conta} onChange={e => setBankData({...bankData, tipo_conta: e.target.value})} required>
+              <option value="corrente">Conta Corrente</option>
+              <option value="poupanca">Conta Poupança</option>
+            </select>
+          </div>
+          <div>
+            <input type="text" placeholder="Chave PIX (Opcional)" className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 outline-none" value={bankData.chave_pix} onChange={e => setBankData({...bankData, chave_pix: e.target.value})} />
+          </div>
               <div className="flex gap-3">
                 <input type="text" placeholder="Conta" className="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 outline-none" value={bankData.conta} onChange={e => setBankData({...bankData, conta: e.target.value})} required />
                 <input type="text" placeholder="Digito" className="w-24 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 outline-none text-center" value={bankData.digito} onChange={e => setBankData({...bankData, digito: e.target.value})} required />

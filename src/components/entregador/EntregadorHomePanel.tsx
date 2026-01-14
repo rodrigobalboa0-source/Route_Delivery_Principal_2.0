@@ -174,9 +174,16 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
               .eq('entregador_id', data.id)
               .eq('status', 'entregue');
               
+             const { data: acertosData } = await supabase
+               .from('acertos_entregadores')
+               .select('valor_pago')
+               .eq('entregador_id', data.id)
+               .eq('status', 'pago');
+              
              if (entregasData) {
-               const total = entregasData.reduce((acc, curr) => acc + (curr.valor_entregador || curr.valor_entrega || 0), 0);
-               setGanhos(total);
+               const totalEntregas = entregasData.reduce((acc, curr) => acc + (curr.valor_entregador || curr.valor_entrega || 0), 0);
+               const totalAcertos = acertosData?.reduce((acc, curr) => acc + (Number(curr.valor_pago) || 0), 0) || 0;
+               setGanhos(totalEntregas - totalAcertos);
              }
            }
         }
@@ -428,6 +435,49 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
       supabase.removeChannel(channel);
     };
   }, [entregadorId, incomingDelivery?.id, rejectedIds]);
+
+  useEffect(() => {
+    if (!entregadorId) return;
+
+    const fetchBalance = async () => {
+        const { data: entregasData } = await supabase
+            .from('nova_entrega')
+            .select('valor_entrega, valor_entregador')
+            .eq('entregador_id', entregadorId)
+            .eq('status', 'entregue');
+
+        const { data: acertosData } = await supabase
+            .from('acertos_entregadores')
+            .select('valor_pago')
+            .eq('entregador_id', entregadorId)
+            .eq('status', 'pago');
+
+        const totalEntregas = entregasData?.reduce((acc, curr) => acc + (curr.valor_entregador || curr.valor_entrega || 0), 0) || 0;
+        const totalAcertos = acertosData?.reduce((acc, curr) => acc + (Number(curr.valor_pago) || 0), 0) || 0;
+        
+        setGanhos(totalEntregas - totalAcertos);
+    };
+
+    const channel = supabase
+      .channel('home_acertos_balance')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'acertos_entregadores',
+          filter: `entregador_id=eq.${entregadorId}`
+        },
+        () => {
+            fetchBalance();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [entregadorId]);
 
   const handleAceitar = async () => {
       if (!incomingDelivery) return;
