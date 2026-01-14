@@ -128,6 +128,9 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
   const [editComprovantePreview, setEditComprovantePreview] = useState('');
   const [editMotoDocPreview, setEditMotoDocPreview] = useState('');
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
+  const [showBankModal, setShowBankModal] = useState(false);
+  const [selectedBankData, setSelectedBankData] = useState<any | null>(null);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   useEffect(() => {
     if (mode !== 'public') {
@@ -711,6 +714,13 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
         cidade: data.localidade || prev.cidade,
       }));
     }
+  };
+
+  const copyToClipboard = (text: string, field: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
   };
 
   if (registrationSuccess) {
