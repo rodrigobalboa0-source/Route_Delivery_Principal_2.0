@@ -1,0 +1,201 @@
+{
+  "event_message": "POST | 403 | 45.71.126.12 | 9bdf5e3a1a97f1fb | https://mtanrihprbgrrtgwcyia.supabase.co/rest/v1/acertos_entregadores | Mozilla/5.0 (Linux; Android 16; SM-A256E Build/BP2A.250605.031.A3; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/143.0.7499.146 Mobile Safari/537.36",
+  "id": "45e2f7bf-c92d-406d-9755-f08ca354c92e",
+  "metadata": [
+    {
+      "load_balancer_experimental_routing": null,
+      "load_balancer_geo_aware_info": [],
+      "load_balancer_redirect_identifier": null,
+      "logflare_worker": [
+        {
+          "worker_id": "675Q0N"
+        }
+      ],
+      "request": [
+        {
+          "cf": [
+            {
+              "asOrganization": "TELEXTRA TELECOMUNICACOES LTDA",
+              "asn": 267620,
+              "botManagement": [
+                {
+                  "corporateProxy": false,
+                  "detectionIds": [],
+                  "ja3Hash": "f883abd2af79a737cc405b430505509a",
+                  "ja4": "q13d0312h3_55b375c5d22e_5a06198afb93",
+                  "ja4Signals": [
+                    {
+                      "browser_ratio_1h": 0.92763668298721,
+                      "cache_ratio_1h": 0.30760100483894,
+                      "h2h3_ratio_1h": 1,
+                      "heuristic_ratio_1h": 0.0011678752489388,
+                      "ips_quantile_1h": 0.99998807907104,
+                      "ips_rank_1h": 10,
+                      "paths_rank_1h": 8,
+                      "reqs_quantile_1h": 0.99998807907104,
+                      "reqs_rank_1h": 10,
+                      "uas_rank_1h": 28
+                    }
+                  ],
+                  "jsDetection": [
+                    {
+                      "passed": false
+                    }
+                  ],
+                  "score": 98,
+                  "staticResource": false,
+                  "verifiedBot": false
+                }
+              ],
+              "city": "Campinas",
+              "clientAcceptEncoding": "gzip, deflate, br",
+              "clientTcpRtt": null,
+              "clientTrustScore": 98,
+              "colo": "GRU",
+              "continent": "SA",
+              "country": "BR",
+              "edgeRequestKeepAliveStatus": 1,
+              "httpProtocol": "HTTP/3",
+              "isEUCountry": null,
+              "latitude": "-22.90556",
+              "longitude": "-47.06083",
+              "metroCode": null,
+              "postalCode": "13000-000",
+              "region": "São Paulo",
+              "regionCode": "SP",
+              "requestPriority": null,
+              "timezone": "America/Sao_Paulo",
+              "tlsCipher": "AEAD-AES128-GCM-SHA256",
+              "tlsClientAuth": [
+                {
+                  "certPresented": "0",
+                  "certRevoked": "0",
+                  "certVerified": "NONE"
+                }
+              ],
+              "tlsClientCiphersSha1": "3HTt3+R/6BL3zeALJDSq0pR1yOQ=",
+              "tlsClientExtensionsSha1": "2d0AWEao3+BPFhHqj8//6bvAtoY=",
+              "tlsClientExtensionsSha1Le": "tk8sOsMcynw0VXFafllYXTYDPgY=",
+              "tlsClientHelloLength": "1990",
+              "tlsClientRandom": "kU1ZtE2qklfyXPu80SuI4u/lfpoFl/flSDz+7cHbkO8=",
+              "tlsExportedAuthenticator": [
+                {
+                  "clientFinished": "45f73a9edaf1075a814c62702d66ef344cf2771850c3d96b8a5b6b84f0bb005e",
+                  "clientHandshake": "82e31f519eba1aa3c1ccf918b8e5cfe65c925bf3e0ab5b813a1011a1e3ebcc39",
+                  "serverFinished": "9f650686dfcca5a45bca6908454af42cd1dd69918c75b4ef506a45797fcaba27",
+                  "serverHandshake": "d15d096d4f18cbfdc531a251af8bf061b38fc78f365cbaa585053259fb62de3c"
+                }
+              ],
+              "tlsVersion": "TLSv1.3",
+              "verifiedBotCategory": null
+            }
+          ],
+          "headers": [
+            {
+              "accept": "*/*",
+              "cf_cache_status": null,
+              "cf_connecting_ip": "45.71.126.12",
+              "cf_ipcountry": "BR",
+              "cf_ray": "9bdf5e3a1a97f1fb",
+              "content_length": "109",
+              "content_location": null,
+              "content_range": null,
+              "content_type": "application/json",
+              "date": null,
+              "host": "mtanrihprbgrrtgwcyia.supabase.co",
+              "prefer": null,
+              "range": null,
+              "referer": "https://localhost/",
+              "sb_gateway_mode": null,
+              "sb_gateway_version": null,
+              "user_agent": "Mozilla/5.0 (Linux; Android 16; SM-A256E Build/BP2A.250605.031.A3; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/143.0.7499.146 Mobile Safari/537.36",
+              "x_client_info": "supabase-js-web/2.57.4",
+              "x_forwarded_for": null,
+              "x_forwarded_host": null,
+              "x_forwarded_proto": "https",
+              "x_forwarded_user_agent": null,
+              "x_kong_proxy_latency": null,
+              "x_kong_upstream_latency": null,
+              "x_real_ip": "45.71.126.12"
+            }
+          ],
+          "host": "mtanrihprbgrrtgwcyia.supabase.co",
+          "method": "POST",
+          "path": "/rest/v1/acertos_entregadores",
+          "port": null,
+          "protocol": "https:",
+          "sb": [
+            {
+              "apikey": [],
+              "auth_user": "f151dd32-692e-49b4-bfd8-aadf5c46ce6e",
+              "jwt": [
+                {
+                  "apikey": [
+                    {
+                      "invalid": null,
+                      "payload": [
+                        {
+                          "algorithm": "HS256",
+                          "expires_at": 2078611692,
+                          "issuer": "supabase",
+                          "role": "anon",
+                          "signature_prefix": "5YbuhW",
+                          "subject": null
+                        }
+                      ]
+                    }
+                  ],
+                  "authorization": [
+                    {
+                      "invalid": null,
+                      "payload": [
+                        {
+                          "algorithm": "HS256",
+                          "expires_at": 1768420250,
+                          "issuer": "https://mtanrihprbgrrtgwcyia.supabase.co/auth/v1",
+                          "key_id": "Iyjul8+6z3MWD5qc",
+                          "role": "authenticated",
+                          "session_id": "af200ffb-df93-46db-bbaa-950397fb217a",
+                          "signature_prefix": "Yp_lcN",
+                          "subject": "f151dd32-692e-49b4-bfd8-aadf5c46ce6e"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "search": null,
+          "url": "https://mtanrihprbgrrtgwcyia.supabase.co/rest/v1/acertos_entregadores"
+        }
+      ],
+      "response": [
+        {
+          "headers": [
+            {
+              "cf_cache_status": "DYNAMIC",
+              "cf_ray": "9bdf5e3a20edf1fb-GRU",
+              "content_length": null,
+              "content_location": null,
+              "content_range": null,
+              "content_type": "application/json; charset=utf-8",
+              "date": "Wed, 14 Jan 2026 18:59:00 GMT",
+              "proxy_status": "PostgREST; error=42501",
+              "sb_gateway_mode": null,
+              "sb_gateway_version": "1",
+              "sb_request_id": "019bbde0-2057-7d21-92d5-1e9cbe2b3798",
+              "transfer_encoding": "chunked",
+              "x_kong_proxy_latency": null,
+              "x_kong_upstream_latency": null,
+              "x_sb_error_code": null
+            }
+          ],
+          "origin_time": 48,
+          "status_code": 403
+        }
+      ]
+    }
+  ],
+  "timestamp": 1768417140823000
+}

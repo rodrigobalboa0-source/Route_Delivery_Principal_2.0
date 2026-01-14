@@ -1228,6 +1228,14 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                         <button onClick={() => handleEdit(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2"><Edit size={16}/> Editar</button>
                         <button onClick={() => handleDetails(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2"><FileText size={16}/> Detalhes</button>
                         <button onClick={() => handleSetReady(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2"><CheckSquare size={16}/> Pronto</button>
+                        {isAdmin && p.status !== 'entregue' && p.status !== 'cancelado' && (
+                          <button
+                            onClick={() => handleFinalizePedido(p)}
+                            className="px-4 py-2 hover:bg-slate-50 text-sm text-emerald-700 flex items-center gap-2"
+                          >
+                            <CheckCircle size={16} /> Concluir pedido
+                          </button>
+                        )}
                         <button onClick={() => handleCopyLink(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2"><Link size={16}/> Copiar link de rastreio</button>
                         <button onClick={() => handleHistory(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2"><Clock size={16}/> Histórico de Alterações</button>
                         <button onClick={() => handleClone(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2"><Copy size={16}/> Clonar</button>

@@ -307,6 +307,7 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
                 <p><span className="font-semibold">Agência:</span> {bankData.agencia}</p>
                 <p><span className="font-semibold">Conta:</span> {bankData.conta}-{bankData.digito}</p>
                 <p><span className="font-semibold">Tipo:</span> {bankData.tipo_conta === 'poupanca' ? 'Poupança' : 'Corrente'}</p>
+                <p><span className="font-semibold">Chave PIX:</span> {bankData.chave_pix || 'Não informada'}</p>
               </div>
               <div className="flex gap-3 pt-2">
                 <button onClick={handleEditData} className="flex-1 py-3 border border-slate-300 rounded-lg text-slate-600 font-medium hover:bg-slate-50 transition-colors">

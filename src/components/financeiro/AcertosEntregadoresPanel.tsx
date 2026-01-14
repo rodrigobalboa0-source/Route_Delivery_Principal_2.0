@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../lib/supabase';
 import type { Database } from '../../lib/database.types';
+import { CreditCard, X } from 'lucide-react';
 
 type Acerto = any;
 type Entregador = Database['public']['Tables']['entregadores']['Row'];
@@ -14,6 +15,8 @@ export function AcertosEntregadoresPanel() {
   const [loadingSubmit, setLoadingSubmit] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ entregador_id: '', entrega_id: '', valor_pago: '' });
+  const [selectedBankData, setSelectedBankData] = useState<any>(null);
+  const [showBankModal, setShowBankModal] = useState(false);
 
   useEffect(() => {
     fetchAll();
@@ -164,6 +167,35 @@ export function AcertosEntregadoresPanel() {
           </div>
         )}
       </div>
+      
+      {showBankModal && selectedBankData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-center p-4 border-b border-gray-100">
+              <h3 className="font-bold text-lg text-gray-800">Dados Bancários</h3>
+              <button onClick={() => setShowBankModal(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-slate-50 p-4 rounded-lg space-y-2 text-sm text-slate-700">
+                <p><span className="font-semibold">Titular:</span> {selectedBankData.nome_titular}</p>
+                <p><span className="font-semibold">CPF/CNPJ:</span> {selectedBankData.cpf_cnpj}</p>
+                <p><span className="font-semibold">Banco:</span> {selectedBankData.banco}</p>
+                <p><span className="font-semibold">Agência:</span> {selectedBankData.agencia}</p>
+                <p><span className="font-semibold">Conta:</span> {selectedBankData.conta}-{selectedBankData.digito}</p>
+                <p><span className="font-semibold">Tipo:</span> {selectedBankData.tipo_conta === 'poupanca' ? 'Poupança' : 'Corrente'}</p>
+                <p><span className="font-semibold">Chave PIX:</span> {selectedBankData.chave_pix || 'Não informada'}</p>
+              </div>
+              <div className="flex justify-end pt-2">
+                <button onClick={() => setShowBankModal(false)} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition-colors">
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
