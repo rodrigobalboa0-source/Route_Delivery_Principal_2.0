@@ -1233,7 +1233,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                             onClick={() => handleFinalizePedido(p)}
                             className="px-4 py-2 hover:bg-slate-50 text-sm text-emerald-700 flex items-center gap-2"
                           >
-                            <CheckCircle size={16} /> Concluir pedido
+                            <CheckCircle size={16} /> Finalizar pedido
                           </button>
                         )}
                         <button onClick={() => handleCopyLink(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2"><Link size={16}/> Copiar link de rastreio</button>
