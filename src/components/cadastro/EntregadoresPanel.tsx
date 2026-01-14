@@ -1030,7 +1030,7 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
                               <div className="p-6 text-sm text-slate-400 text-center italic">Nenhum entregador nesta categoria</div>
                            ) : (
                               items.map(c => (
-                                <div key={c.id} className="p-4 hover:bg-slate-50 transition-colors group">
+                                 <div key={c.id} className="p-4 hover:bg-slate-50 transition-colors group">
                                    <div className="flex justify-between items-start mb-2">
                                       <div className="font-semibold text-slate-800 text-sm leading-tight">{c.nome_completo}</div>
                                    </div>
@@ -1052,6 +1052,30 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
                                    <div className="mt-3 flex items-center justify-end gap-3 pt-3 border-t border-slate-50">
                                       <button onClick={() => openEdit(c)} className="text-xs font-medium text-sky-600 hover:text-sky-700 flex items-center gap-1 transition-colors">
                                         Editar
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          if (!c.dados_bancarios) {
+                                            alert('Este entregador ainda não preencheu os dados bancários no app.');
+                                            return;
+                                          }
+                                          const dados = c.dados_bancarios as any;
+                                          const linhas: string[] = [];
+                                          if (dados.nome_titular) linhas.push(`Titular: ${dados.nome_titular}`);
+                                          if (dados.cpf_cnpj) linhas.push(`CPF/CNPJ: ${dados.cpf_cnpj}`);
+                                          if (dados.banco) linhas.push(`Banco: ${dados.banco}`);
+                                          if (dados.agencia) linhas.push(`Agência: ${dados.agencia}`);
+                                          if (dados.tipo_conta) linhas.push(`Tipo de conta: ${dados.tipo_conta === 'corrente' ? 'Corrente' : dados.tipo_conta === 'poupanca' ? 'Poupança' : dados.tipo_conta}`);
+                                          if (dados.conta) linhas.push(`Conta: ${dados.conta}${dados.digito ? '-' + dados.digito : ''}`);
+                                          if (linhas.length === 0) {
+                                            alert('Nenhum dado bancário cadastrado ainda.');
+                                          } else {
+                                            alert(linhas.join('\n'));
+                                          }
+                                        }}
+                                        className="text-xs font-medium text-emerald-600 hover:text-emerald-700 flex items-center gap-1 transition-colors"
+                                      >
+                                        Dados Bancários
                                       </button>
                                       <button onClick={() => handleDelete(c.id)} className="text-xs font-medium text-red-600 hover:text-red-700 flex items-center gap-1 transition-colors">
                                         Excluir

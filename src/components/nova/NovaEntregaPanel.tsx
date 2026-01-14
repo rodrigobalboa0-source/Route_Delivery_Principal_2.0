@@ -479,9 +479,19 @@ export function NovaEntregaPanel() {
         price = price * 1.20;
     }
 
-    // Apply Dynamic Rules
+    let rulesSource = dynamicRules;
+    try {
+      const { data } = await supabase
+        .from('preco_dinamico_demanda')
+        .select('*')
+        .eq('ativa', true)
+        .order('nome');
+      rulesSource = (data || []) as DynamicRule[];
+      setDynamicRules(rulesSource);
+    } catch (e) {}
+
     const activeRules: { name: string; value: number }[] = [];
-    dynamicRules.forEach(rule => {
+    rulesSource.forEach(rule => {
       if (!rule.ativa) return;
       
       let addedValue = 0;
@@ -579,11 +589,17 @@ export function NovaEntregaPanel() {
     }
   };
 
-  const calculateDriverCommission = (km: number, hasReturn: boolean, pointsCount: number, entregadorId?: string | null): { total: string, breakdown: { description: string, value: number }[] } => {
+  const calculateDriverCommission = (
+    km: number,
+    hasReturn: boolean,
+    pointsCount: number,
+    entregadorId?: string | null,
+    rulesOverride?: DynamicDriverRule[]
+  ): { total: string, breakdown: { description: string, value: number }[] } => {
       const breakdown: { description: string, value: number }[] = [];
       let val = 0;
       
-      // 1. Priority: Table Commission
+      
       if (faixasComissoes.length > 0) {
          const faixa = faixasComissoes.find(f => f.km_ate >= km);
          
@@ -605,8 +621,8 @@ export function NovaEntregaPanel() {
              }
          }
          
-         // Apply dynamic driver rules
-         const rules = dynamicDriverRules.filter(r => 
+         const sourceRules = rulesOverride ?? dynamicDriverRules;
+         const rules = sourceRules.filter(r => 
              r.ativa && 
              (r.entregador_id === entregadorId || r.entregador_id === null)
          );
@@ -637,7 +653,8 @@ export function NovaEntregaPanel() {
           if (!isNaN(totalValue)) {
               let commission = totalValue * 0.75;
               
-              const rules = dynamicDriverRules.filter(r => 
+              const sourceRules = rulesOverride ?? dynamicDriverRules;
+              const rules = sourceRules.filter(r => 
                  r.ativa && 
                  (r.entregador_id === entregadorId || r.entregador_id === null)
               );
@@ -689,7 +706,24 @@ export function NovaEntregaPanel() {
 
     
     const kmValue = distanciaKm ? parseFloat(distanciaKm.replace(',', '.')) : 0;
-    const { total: driverValueStr, breakdown: driverBonuses } = calculateDriverCommission(kmValue, form.retorno, form.pontos.length, entregadorEscolhido);
+
+    let freshDriverRules = dynamicDriverRules;
+    try {
+      const { data } = await supabase
+        .from('preco_dinamico_entregador')
+        .select('*')
+        .eq('ativa', true);
+      freshDriverRules = (data || []) as DynamicDriverRule[];
+      setDynamicDriverRules(freshDriverRules);
+    } catch (e) {}
+
+    const { total: driverValueStr, breakdown: driverBonuses } = calculateDriverCommission(
+      kmValue,
+      form.retorno,
+      form.pontos.length,
+      entregadorEscolhido,
+      freshDriverRules
+    );
     const driverValue = parseFloat(driverValueStr);
 
     let pedidoId = null;

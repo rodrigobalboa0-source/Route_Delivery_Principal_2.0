@@ -639,7 +639,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
              hideFooter={true}
          >
             <div className="flex flex-col gap-4 items-center p-4">
-                <div className={`w-20 h-20 rounded-full flex items-center justify-center overflow-hidden border-4 animate-bounce ${incomingDelivery.status === 'criada' ? 'border-sky-100' : 'border-green-100'}`}>
+               <div className={`w-20 h-20 rounded-full flex items-center justify-center overflow-hidden border-4 ${incomingDelivery.status === 'criada' ? 'border-sky-100' : 'border-green-100'}`}>
                     {commerceData?.foto ? (
                          <img src={commerceData.foto} alt={commerceData.nome} className="w-full h-full object-cover" />
                     ) : (

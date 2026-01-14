@@ -152,8 +152,8 @@ export function AcertosEntregadoresPanel() {
             {items.map((a) => (
               <div key={a.id} className="flex items-center justify-between px-4 py-3">
                 <div>
-                  <div className="font-medium text-slate-900">{a.entregador_id}</div>
-                  <div className="text-sm text-slate-600">{[a.entrega_id, a.valor_pago != null ? `R$ ${a.valor_pago}` : '', a.status === 'pago' ? 'pago' : 'pendente'].filter(Boolean).join(' • ')}</div>
+                  <div className="font-medium text-slate-900">{entregadores.find(e => e.id === a.entregador_id)?.nome_completo || a.entregador_id}</div>
+                  <div className="text-sm text-slate-600">{[a.entrega_id || 'Solicitação de Saque', a.valor_pago != null ? `R$ ${Number(a.valor_pago).toFixed(2)}` : '', a.status === 'pago' ? 'pago' : 'pendente'].filter(Boolean).join(' • ')}</div>
                 </div>
                 <div className="flex items-center gap-3">
                   <button onClick={() => handleTogglePago(a.id, a.status)} className="text-sm text-sky-700">{a.status === 'pago' ? 'Desmarcar pago' : 'Marcar pago'}</button>
