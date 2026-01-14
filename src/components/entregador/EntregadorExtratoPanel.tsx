@@ -446,7 +446,7 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
                         {isAcerto && item.status === 'pendente' && <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">Pendente</span>}
                      </td>
                      <td className={`p-4 text-right font-medium text-sm ${valor >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                      {valor >= 0 ? '+' : ''} R$ {Math.abs(valor).toFixed(2)}
+                      {valor >= 0 ? '+' : '-'} R$ {Math.abs(valor).toFixed(2)}
                     </td>
                    </tr>
                  );

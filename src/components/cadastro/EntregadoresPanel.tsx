@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../lib/supabase';
 import { Modal } from '../Modal';
 import { AccountUnderAnalysis } from '../AccountUnderAnalysis';
+import { Copy, Check, X } from 'lucide-react';
 import type { Database } from '../../lib/database.types';
 
 type Entregador = Database['public']['Tables']['entregadores']['Row'];
@@ -1059,19 +1060,8 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
                                             alert('Este entregador ainda não preencheu os dados bancários no app.');
                                             return;
                                           }
-                                          const dados = c.dados_bancarios as any;
-                                          const linhas: string[] = [];
-                                          if (dados.nome_titular) linhas.push(`Titular: ${dados.nome_titular}`);
-                                          if (dados.cpf_cnpj) linhas.push(`CPF/CNPJ: ${dados.cpf_cnpj}`);
-                                          if (dados.banco) linhas.push(`Banco: ${dados.banco}`);
-                                          if (dados.agencia) linhas.push(`Agência: ${dados.agencia}`);
-                                          if (dados.tipo_conta) linhas.push(`Tipo de conta: ${dados.tipo_conta === 'corrente' ? 'Corrente' : dados.tipo_conta === 'poupanca' ? 'Poupança' : dados.tipo_conta}`);
-                                          if (dados.conta) linhas.push(`Conta: ${dados.conta}${dados.digito ? '-' + dados.digito : ''}`);
-                                          if (linhas.length === 0) {
-                                            alert('Nenhum dado bancário cadastrado ainda.');
-                                          } else {
-                                            alert(linhas.join('\n'));
-                                          }
+                                          setSelectedBankData(c.dados_bancarios);
+                                          setShowBankModal(true);
                                         }}
                                         className="text-xs font-medium text-emerald-600 hover:text-emerald-700 flex items-center gap-1 transition-colors"
                                       >
@@ -1213,6 +1203,149 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
           </div>
         </div>
       </Modal>
+
+      {showBankModal && selectedBankData && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200 border border-slate-100">
+            <div className="flex justify-between items-center p-5 border-b border-slate-100 bg-slate-50/50">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg">
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg text-slate-800">Dados Bancários</h3>
+                  <p className="text-xs text-slate-500">Informações financeiras do entregador</p>
+                </div>
+              </div>
+              <button onClick={() => setShowBankModal(false)} className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-full transition-all">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-6 bg-slate-50/30 max-h-[70vh] overflow-y-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                {/* Nome do Titular */}
+                <div className="bg-white border border-slate-200 rounded-lg p-3 relative group hover:border-sky-300 transition-colors md:col-span-2">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">Nome do Titular</span>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-slate-900 truncate pr-8">{selectedBankData.nome_titular || '-'}</span>
+                    <button 
+                      onClick={() => copyToClipboard(selectedBankData.nome_titular, 'titular')}
+                      className="text-slate-400 hover:text-sky-600 p-1.5 rounded-md hover:bg-sky-50 transition-all absolute right-2 top-1/2 -translate-y-1/2"
+                      title="Copiar Titular"
+                    >
+                      {copiedField === 'titular' ? <Check size={16} className="text-emerald-500" /> : <Copy size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* CPF/CNPJ */}
+                <div className="bg-white border border-slate-200 rounded-lg p-3 relative group hover:border-sky-300 transition-colors">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">CPF/CNPJ</span>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-slate-900 truncate pr-8">{selectedBankData.cpf_cnpj || '-'}</span>
+                    <button 
+                      onClick={() => copyToClipboard(selectedBankData.cpf_cnpj, 'cpf')}
+                      className="text-slate-400 hover:text-sky-600 p-1.5 rounded-md hover:bg-sky-50 transition-all absolute right-2 top-1/2 -translate-y-1/2"
+                      title="Copiar CPF/CNPJ"
+                    >
+                      {copiedField === 'cpf' ? <Check size={16} className="text-emerald-500" /> : <Copy size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Banco */}
+                <div className="bg-white border border-slate-200 rounded-lg p-3 relative group hover:border-sky-300 transition-colors">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">Banco</span>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-slate-900 truncate pr-8">{selectedBankData.banco || '-'}</span>
+                    <button 
+                      onClick={() => copyToClipboard(selectedBankData.banco, 'banco')}
+                      className="text-slate-400 hover:text-sky-600 p-1.5 rounded-md hover:bg-sky-50 transition-all absolute right-2 top-1/2 -translate-y-1/2"
+                      title="Copiar Banco"
+                    >
+                      {copiedField === 'banco' ? <Check size={16} className="text-emerald-500" /> : <Copy size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Agência */}
+                <div className="bg-white border border-slate-200 rounded-lg p-3 relative group hover:border-sky-300 transition-colors">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">Agência</span>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-slate-900 truncate pr-8">{selectedBankData.agencia || '-'}</span>
+                    <button 
+                      onClick={() => copyToClipboard(selectedBankData.agencia, 'agencia')}
+                      className="text-slate-400 hover:text-sky-600 p-1.5 rounded-md hover:bg-sky-50 transition-all absolute right-2 top-1/2 -translate-y-1/2"
+                      title="Copiar Agência"
+                    >
+                      {copiedField === 'agencia' ? <Check size={16} className="text-emerald-500" /> : <Copy size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Conta */}
+                <div className="bg-white border border-slate-200 rounded-lg p-3 relative group hover:border-sky-300 transition-colors">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">Conta</span>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-slate-900 truncate pr-8">
+                      {selectedBankData.conta}{selectedBankData.digito ? '-' + selectedBankData.digito : ''}
+                    </span>
+                    <button 
+                      onClick={() => copyToClipboard(`${selectedBankData.conta}${selectedBankData.digito ? '-' + selectedBankData.digito : ''}`, 'conta')}
+                      className="text-slate-400 hover:text-sky-600 p-1.5 rounded-md hover:bg-sky-50 transition-all absolute right-2 top-1/2 -translate-y-1/2"
+                      title="Copiar Conta"
+                    >
+                      {copiedField === 'conta' ? <Check size={16} className="text-emerald-500" /> : <Copy size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Tipo de Conta */}
+                <div className="bg-white border border-slate-200 rounded-lg p-3 relative group hover:border-sky-300 transition-colors">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">Tipo de Conta</span>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-slate-900 truncate pr-8">
+                      {selectedBankData.tipo_conta === 'poupanca' ? 'Poupança' : 'Corrente'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Chave PIX */}
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 relative group hover:border-emerald-400 transition-colors md:col-span-2">
+                  <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wider block mb-1 flex items-center gap-1">
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                    Chave PIX
+                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-slate-900 truncate pr-8 text-lg">{selectedBankData.chave_pix || 'Não informada'}</span>
+                    <button 
+                      onClick={() => copyToClipboard(selectedBankData.chave_pix, 'pix')}
+                      className="text-emerald-400 hover:text-emerald-700 p-1.5 rounded-md hover:bg-emerald-100 transition-all absolute right-2 top-1/2 -translate-y-1/2"
+                      title="Copiar PIX"
+                    >
+                      {copiedField === 'pix' ? <Check size={16} className="text-emerald-600" /> : <Copy size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+            
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end">
+              <button 
+                onClick={() => setShowBankModal(false)} 
+                className="px-5 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg font-medium transition-colors shadow-sm text-sm"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
   </div>
 );
 }
