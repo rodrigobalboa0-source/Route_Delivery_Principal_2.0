@@ -28,7 +28,7 @@ export function AcertosEntregadoresPanel() {
     try {
       const p = Promise.all([
         supabase.from('acertos_entregadores').select('*').order('created_at', { ascending: false }),
-        supabase.from('entregadores').select('id, nome_completo').order('nome_completo'),
+        supabase.from('entregadores').select('id, nome_completo, dados_bancarios').order('nome_completo'),
         supabase.from('nova_entrega').select('id, status').order('created_at', { ascending: false }).limit(200),
       ]);
       const result = await new Promise<[
@@ -57,7 +57,7 @@ export function AcertosEntregadoresPanel() {
       try {
         const [aR, eR, nR] = await Promise.all([
           fetch(`${SUPABASE_URL}/rest/v1/acertos_entregadores?select=*&order=created_at.desc`, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }),
-          fetch(`${SUPABASE_URL}/rest/v1/entregadores?select=id,nome_completo&order=nome_completo`, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }),
+          fetch(`${SUPABASE_URL}/rest/v1/entregadores?select=id,nome_completo,dados_bancarios&order=nome_completo`, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }),
           fetch(`${SUPABASE_URL}/rest/v1/nova_entrega?select=id,status&order=created_at.desc&limit=200`, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }),
         ]);
         if (aR.ok) setItems(await aR.json());
@@ -121,6 +121,16 @@ export function AcertosEntregadoresPanel() {
     setLoadingSubmit(false);
   };
 
+  const handleViewBankData = (entregadorId: string) => {
+    const entregador = entregadores.find(e => e.id === entregadorId);
+    if (entregador && entregador.dados_bancarios) {
+      setSelectedBankData(entregador.dados_bancarios);
+      setShowBankModal(true);
+    } else {
+      alert('Dados bancários não encontrados para este entregador.');
+    }
+  };
+
   return (
     <div className="p-6">
       <h2 className="text-lg font-semibold text-slate-900 mb-4">Acerto de entregadores</h2>
@@ -155,7 +165,19 @@ export function AcertosEntregadoresPanel() {
             {items.map((a) => (
               <div key={a.id} className="flex items-center justify-between px-4 py-3">
                 <div>
-                  <div className="font-medium text-slate-900">{entregadores.find(e => e.id === a.entregador_id)?.nome_completo || a.entregador_id}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="font-medium text-slate-900">
+                      {entregadores.find(e => e.id === a.entregador_id)?.nome_completo || a.entregador_id}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleViewBankData(a.entregador_id)}
+                      className="text-gray-400 hover:text-sky-600 transition-colors"
+                      title="Ver dados bancários"
+                    >
+                      <CreditCard size={16} />
+                    </button>
+                  </div>
                   <div className="text-sm text-slate-600">{[a.entrega_id || 'Solicitação de Saque', a.valor_pago != null ? `R$ ${Number(a.valor_pago).toFixed(2)}` : '', a.status === 'pago' ? 'pago' : 'pendente'].filter(Boolean).join(' • ')}</div>
                 </div>
                 <div className="flex items-center gap-3">
