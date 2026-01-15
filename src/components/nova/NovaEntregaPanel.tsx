@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { Database } from '../../lib/database.types';
 
@@ -153,6 +153,8 @@ export function NovaEntregaPanel() {
   const [dynamicRules, setDynamicRules] = useState<DynamicRule[]>([]);
   const [activeDynamicRules, setActiveDynamicRules] = useState<{ name: string; value: number }[]>([]);
   const [dynamicDriverRules, setDynamicDriverRules] = useState<DynamicDriverRule[]>([]);
+  const [faixasPreco, setFaixasPreco] = useState<FaixaPreco[]>([]);
+  const coordsCache = useRef<Map<string, { lat: number; lon: number }>>(new Map());
 
   const [form, setForm] = useState({
     cliente_id: '',
@@ -197,6 +199,22 @@ export function NovaEntregaPanel() {
     if (form.cliente_id) fetchEnderecos(form.cliente_id);
     else setEnderecos([]);
   }, [form.cliente_id]);
+
+  useEffect(() => {
+    const loadFaixas = async () => {
+      if (!selectedTabelaId) {
+        setFaixasPreco([]);
+        return;
+      }
+      const { data } = await supabase
+        .from('tabelas_precos_faixas')
+        .select('*')
+        .eq('tabela_id', selectedTabelaId)
+        .order('km_ate', { ascending: true });
+      setFaixasPreco((data || []) as FaixaPreco[]);
+    };
+    loadFaixas();
+  }, [selectedTabelaId]);
 
   useEffect(() => {
     const loadComissaoRules = async () => {
@@ -363,6 +381,9 @@ export function NovaEntregaPanel() {
       return { lat: parseFloat(match[1]), lon: parseFloat(match[2]) };
     }
     
+    if (coordsCache.current.has(address)) {
+      return coordsCache.current.get(address) || null;
+    }
     
     if (address.length > 5) {
       try {
@@ -373,7 +394,9 @@ export function NovaEntregaPanel() {
         });
         const data = await response.json();
         if (data && data.length > 0) {
-          return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+          const res = { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+          coordsCache.current.set(address, res);
+          return res;
         }
       } catch (error) {
         console.error("Geocoding error:", error);
@@ -410,16 +433,16 @@ export function NovaEntregaPanel() {
 
     const timeoutId = setTimeout(() => {
       updateDistance();
-    }, 1000);
+    }, 500);
 
     return () => clearTimeout(timeoutId);
   }, [form.coleta_endereco_texto, form.entrega_endereco_texto, form.pontos]);
 
   useEffect(() => {
     calculatePrice();
-  }, [distanciaKm, selectedTabelaId, pricingMode, pricePerPoint, form.pontos, form.retorno, dynamicRules]);
+  }, [distanciaKm, selectedTabelaId, pricingMode, pricePerPoint, form.pontos, form.retorno, dynamicRules, faixasPreco]);
 
-  const calculatePrice = async () => {
+  const calculatePrice = () => {
     let price = 0;
     let shouldCalculate = false;
 
@@ -445,23 +468,15 @@ export function NovaEntregaPanel() {
       const tabela = tabelasPrecos.find(t => t.id === selectedTabelaId);
       if (!tabela) return;
   
-      const { data } = await supabase
-        .from('tabelas_precos_faixas')
-        .select('*')
-        .eq('tabela_id', selectedTabelaId)
-        .order('km_ate', { ascending: true });
+      if (!faixasPreco || faixasPreco.length === 0) return;
   
-      const faixas = data as FaixaPreco[] | null;
-  
-      if (!faixas || faixas.length === 0) return;
-  
-      const faixa = faixas.find(f => f.km_ate >= km);
+      const faixa = faixasPreco.find(f => f.km_ate >= km);
   
       if (faixa) {
         price = faixa.valor;
       } else {
         
-        const lastFaixa = faixas[faixas.length - 1];
+        const lastFaixa = faixasPreco[faixasPreco.length - 1];
         const extraKm = km - lastFaixa.km_ate;
         price = lastFaixa.valor + (extraKm * (tabela.km_adicional || 0));
       }
@@ -479,19 +494,8 @@ export function NovaEntregaPanel() {
         price = price * 1.20;
     }
 
-    let rulesSource = dynamicRules;
-    try {
-      const { data } = await supabase
-        .from('preco_dinamico_demanda')
-        .select('*')
-        .eq('ativa', true)
-        .order('nome');
-      rulesSource = (data || []) as DynamicRule[];
-      setDynamicRules(rulesSource);
-    } catch (e) {}
-
     const activeRules: { name: string; value: number }[] = [];
-    rulesSource.forEach(rule => {
+    dynamicRules.forEach(rule => {
       if (!rule.ativa) return;
       
       let addedValue = 0;

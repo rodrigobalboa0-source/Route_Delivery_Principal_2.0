@@ -128,6 +128,21 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
   }, []);
 
   
+  // Handle container resize
+  useEffect(() => {
+    if (!mapContainer.current || !map.current) return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      map.current?.invalidateSize();
+    });
+
+    resizeObserver.observe(mapContainer.current);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [mapLoaded]);
+
   useEffect(() => {
     if (!map.current || !center) return;
     
@@ -399,14 +414,14 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
 
   return (
     <div className="relative w-full h-full">
-      <div ref={mapContainer} className="w-full h-full rounded-lg z-0" />
+      <div ref={mapContainer} className="w-full h-full z-0" />
       {!mapLoaded && !mapError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-100 rounded-lg">
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-100">
           <div className="text-slate-600">Carregando mapa...</div>
         </div>
       )}
       {mapError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-100 rounded-lg">
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-100">
           <div className="text-red-600 font-medium px-4 py-2 bg-red-50 border border-red-200 rounded">
             {mapError}
           </div>
