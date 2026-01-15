@@ -525,7 +525,11 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     if (!confirm('Marcar pedido como Pronto?')) return;
     const { error } = await supabase.from('pedidos').update({ status: 'pronto' }).eq('id', p.id);
     if (error) alert('Erro ao atualizar status: ' + error.message);
-    else fetchPedidos();
+    else {
+        // Trigger update on nova_entrega to fire notifications (mobile/realtime)
+        await supabase.from('nova_entrega').update({ updated_at: new Date().toISOString() }).eq('pedido_id', p.id);
+        fetchPedidos();
+    }
     setOpenMenuId(null); 
   };
 

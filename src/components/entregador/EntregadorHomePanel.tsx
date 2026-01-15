@@ -312,9 +312,10 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
         // Fetch more candidates to allow client-side filtering of rejectedIds and radius
         const { data: createdCandidates } = await supabase
             .from('nova_entrega')
-            .select('*')
+            .select('*, pedidos!inner(status)')
             .eq('status', 'criada')
             .is('entregador_id', null)
+            .eq('pedidos.status', 'pronto')
             .order('created_at', { ascending: false })
             .limit(20);
 
@@ -367,6 +368,23 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
         async (payload) => {
            if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
                const newRecord = payload.new;
+
+               // VERIFICA SE O PEDIDO ESTÁ PRONTO
+               if (newRecord.pedido_id) {
+                   const { data: p } = await supabase
+                       .from('pedidos')
+                       .select('status')
+                       .eq('id', newRecord.pedido_id)
+                       .single();
+                   
+                   if (!p || p.status !== 'pronto') {
+                       // Se estávamos vendo ela, limpar
+                       if (incomingDelivery?.id === newRecord.id) {
+                           setIncomingDelivery(null);
+                       }
+                       return;
+                   }
+               }
                
                if (rejectedIds.includes(newRecord.id)) return;
 

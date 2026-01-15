@@ -200,8 +200,10 @@ export function EntregadorEntregasDisponiveisPanel() {
         .select(`
           *,
           clientes:cliente_id (nome_completo),
-          tipo_servicos:tipo_servico_id (nome)
+          tipo_servicos:tipo_servico_id (nome),
+          pedidos!inner(status)
         `)
+        .eq('pedidos.status', 'pronto')
         .or(`and(status.eq.criada,entregador_id.is.null),and(status.eq.atribuida,entregador_id.eq.${entregadorId},atribuicao_modo.eq.automatica)`)
         .order('created_at', { ascending: false });
 
