@@ -156,6 +156,9 @@ export function NovaEntregaPanel() {
   const [faixasPreco, setFaixasPreco] = useState<FaixaPreco[]>([]);
   const coordsCache = useRef<Map<string, { lat: number; lon: number }>>(new Map());
 
+  const [driverValueDisplay, setDriverValueDisplay] = useState<string>('0.00');
+  const [driverReturnDisplay, setDriverReturnDisplay] = useState<string | null>(null);
+
   const [form, setForm] = useState({
     cliente_id: '',
     endereco_id: '',
@@ -442,6 +445,40 @@ export function NovaEntregaPanel() {
     calculatePrice();
   }, [distanciaKm, selectedTabelaId, pricingMode, pricePerPoint, form.pontos, form.retorno, dynamicRules, faixasPreco]);
 
+  useEffect(() => {
+    const kmValue = distanciaKm ? parseFloat(distanciaKm.replace(',', '.')) : 0;
+    
+    const { total } = calculateDriverCommission(
+      kmValue,
+      form.retorno,
+      form.pontos.length,
+      form.entregador_id || null,
+      dynamicDriverRules
+    );
+    
+    setDriverValueDisplay(total);
+
+    if (form.retorno) {
+        if (selectedComissaoTable && faixasComissoes.length > 0) {
+             const { total: totalSemRetorno } = calculateDriverCommission(
+              kmValue,
+              false, 
+              form.pontos.length,
+              form.entregador_id || null,
+              dynamicDriverRules
+            );
+            const diff = parseFloat(total) - parseFloat(totalSemRetorno);
+            setDriverReturnDisplay(diff > 0.01 ? diff.toFixed(2) : null);
+        } else {
+            const totalDriver = parseFloat(total);
+            const returnPart = totalDriver - (totalDriver / 1.2);
+            setDriverReturnDisplay(returnPart > 0.01 ? returnPart.toFixed(2) : null);
+        }
+    } else {
+        setDriverReturnDisplay(null);
+    }
+  }, [distanciaKm, form.retorno, form.pontos, form.entregador_id, form.valor_entrega, dynamicDriverRules, selectedComissaoTable, faixasComissoes]);
+
   const calculatePrice = () => {
     let price = 0;
     let shouldCalculate = false;
@@ -622,6 +659,7 @@ export function NovaEntregaPanel() {
              }
              if (hasReturn && table.valor_retorno) {
                  val += table.valor_retorno;
+                 breakdown.push({ description: 'Adicional Retorno', value: table.valor_retorno });
              }
          }
          
@@ -657,6 +695,19 @@ export function NovaEntregaPanel() {
           if (!isNaN(totalValue)) {
               let commission = totalValue * 0.75;
               
+              if (hasReturn) {
+                  // Se tem retorno, o totalValue inclui 20% de markup.
+                  // O entregador recebe 75% do total.
+                  // Vamos destacar quanto disso é referente ao retorno.
+                  const totalSemRetorno = totalValue / 1.20;
+                  const commissionSemRetorno = totalSemRetorno * 0.75;
+                  const returnPart = commission - commissionSemRetorno;
+                  
+                  if (returnPart > 0.01) {
+                      breakdown.push({ description: 'Adicional Retorno (20%)', value: returnPart });
+                  }
+              }
+
               const sourceRules = rulesOverride ?? dynamicDriverRules;
               const rules = sourceRules.filter(r => 
                  r.ativa && 
@@ -963,7 +1014,7 @@ export function NovaEntregaPanel() {
              </div>
              <div className="text-3xl font-bold text-sky-900">
                {calculatingDistance ? '...' : `R$ ${form.valor_entrega}`}
-             </div>
+            </div>
            </div>
         )}
 
