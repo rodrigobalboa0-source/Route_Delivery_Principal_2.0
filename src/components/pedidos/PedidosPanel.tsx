@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
-import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { MapView, MapDeliveryPerson } from '../MapView';
 import { Modal } from '../Modal';
 import type { Database } from '../../lib/database.types';
@@ -527,42 +527,12 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     if (error) {
         alert('Erro ao atualizar status: ' + error.message);
     } else {
-        try {
-            const nowIso = new Date().toISOString();
-
-            
-            await supabase
-                .from('nova_entrega')
-                .update({ updated_at: nowIso })
-                .eq('pedido_id', p.id);
-
-            
-            let entrega = entregasMap[p.id];
-            if (!entrega) {
-                const { data } = await supabase
-                    .from('nova_entrega')
-                    .select('*')
-                    .eq('pedido_id', p.id)
-                    .maybeSingle();
-                entrega = data as any;
-            }
-
-            if (entrega) {
-                const url = `${SUPABASE_URL}/functions/v1/push-notification`;
-                await fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-                    },
-                    body: JSON.stringify({ record: entrega }),
-                });
-            }
-        } catch (e) {
-            console.error('Erro ao disparar notificação após marcar PRONTO:', e);
-        } finally {
-            fetchPedidos();
-        }
+        const nowIso = new Date().toISOString();
+        await supabase
+            .from('nova_entrega')
+            .update({ updated_at: nowIso })
+            .eq('pedido_id', p.id);
+        fetchPedidos();
     }
     setOpenMenuId(null); 
   };
