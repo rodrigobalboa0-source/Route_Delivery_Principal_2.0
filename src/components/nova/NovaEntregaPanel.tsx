@@ -658,9 +658,17 @@ export function NovaEntregaPanel() {
                  val += (table.valor_por_ponto * pointsCount);
              }
              if (hasReturn && table.valor_retorno) {
-                 val += table.valor_retorno;
-                 breakdown.push({ description: 'Adicional Retorno', value: table.valor_retorno });
+             let returnVal = table.valor_retorno;
+             let description = 'Adicional Retorno';
+
+             if (table.tipo_retorno === 'Percentual' || table.tipo_retorno === 'percentual') {
+                 returnVal = val * (table.valor_retorno / 100);
+                 description = `Adicional Retorno (${table.valor_retorno}%)`;
              }
+
+             val += returnVal;
+             breakdown.push({ description, value: returnVal });
+         }
          }
          
          const sourceRules = rulesOverride ?? dynamicDriverRules;
