@@ -109,63 +109,91 @@ export function NotificationManager({ userId, userRole, onNavigate }: Notificati
           async (payload) => {
             const { eventType, new: newRecord, old: oldRecord } = payload;
 
-            if (
+            const isAvailableCandidate =
               (eventType === 'INSERT' && newRecord.status === 'criada' && !newRecord.entregador_id) ||
-              (eventType === 'UPDATE' && newRecord.status === 'criada' && !newRecord.entregador_id && (oldRecord.status !== 'criada' || oldRecord.entregador_id))
-            ) {
-              
+              (eventType === 'UPDATE' && newRecord.status === 'criada' && !newRecord.entregador_id);
+
+            if (isAvailableCandidate) {
+              let pedidoPronto = true;
+
+              if (newRecord.pedido_id) {
+                try {
+                  const { data: pedido } = await supabase
+                    .from('pedidos')
+                    .select('status')
+                    .eq('id', newRecord.pedido_id)
+                    .single();
+
+                  if (!pedido || pedido.status !== 'pronto') {
+                    pedidoPronto = false;
+                  }
+                } catch (e) {
+                  pedidoPronto = false;
+                }
+              }
+
+              if (newRecord.pedido_id && !pedidoPronto) {
+                return;
+              }
+
               try {
                 if (newRecord.coleta_endereco_texto) {
-                   const pickupCoords = await getCoordsFromAddress(newRecord.coleta_endereco_texto);
-                   if (pickupCoords) {
-                      const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: false, timeout: 5000 });
-                      if (pos) {
-                          const dist = getDistanceFromLatLonInKm(
-                              pos.coords.latitude, pos.coords.longitude,
-                              pickupCoords[0], pickupCoords[1]
-                          );
-                          if (dist > radiusKm) {
-                              console.log(`Ignorando notificação: Distância ${dist.toFixed(1)}km > Raio ${radiusKm}km`);
-                              return;
-                          }
+                  const pickupCoords = await getCoordsFromAddress(newRecord.coleta_endereco_texto);
+                  if (pickupCoords) {
+                    const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: false, timeout: 5000 });
+                    if (pos) {
+                      const dist = getDistanceFromLatLonInKm(
+                        pos.coords.latitude,
+                        pos.coords.longitude,
+                        pickupCoords[0],
+                        pickupCoords[1]
+                      );
+                      if (dist > radiusKm) {
+                        console.log(`Ignorando notificação: Distância ${dist.toFixed(1)}km > Raio ${radiusKm}km`);
+                        return;
                       }
-                   } else {
-                       console.warn('Coordenadas de coleta não encontradas para notificação. Assumindo dentro do raio.');
-                   }
+                    }
+                  } else {
+                    console.warn('Coordenadas de coleta não encontradas para notificação. Assumindo dentro do raio.');
+                  }
                 }
               } catch (e) {
                 console.error('Erro ao verificar raio para notificação:', e);
-                // Fail open: se der erro, mostra notificação
               }
 
               if (onNavigate) {
-                  onNavigate('home_entregador');
+                onNavigate('home_entregador');
               }
 
               await LocalNotifications.schedule({
-                notifications: [{
-                  title: 'Nova Entrega Disponível! 🛵',
-                  body: `Entrega #${String(newRecord.id).slice(0, 8)} está disponível para aceite.`,
-                  id: new Date().getTime(),
-                  schedule: { at: new Date(Date.now() + 100) },
-                  sound: 'default',
-                  channelId: 'entregas',
-                  actionTypeId: '',
-                  extra: {
-                    type: 'nova_disponivel',
-                    entregaId: newRecord.id
-                  }
-                }]
+                notifications: [
+                  {
+                    title: 'Nova Entrega Disponível! 🛵',
+                    body: `Entrega #${String(newRecord.id).slice(0, 8)} está disponível para aceite.`,
+                    id: new Date().getTime(),
+                    schedule: { at: new Date(Date.now() + 100) },
+                    sound: 'default',
+                    channelId: 'entregas',
+                    actionTypeId: '',
+                    extra: {
+                      type: 'nova_disponivel',
+                      entregaId: newRecord.id,
+                    },
+                  },
+                ],
               });
             }
 
             if (
               (eventType === 'INSERT' && (newRecord.status === 'atribuida' || newRecord.status === 'criada') && newRecord.entregador_id === userId) ||
-              (eventType === 'UPDATE' && (newRecord.status === 'atribuida' || newRecord.status === 'criada') && newRecord.entregador_id === userId && 
-               (oldRecord.entregador_id !== userId || (oldRecord.status !== 'atribuida' && oldRecord.status !== 'criada')))
+              (eventType === 'UPDATE' &&
+                (newRecord.status === 'atribuida' || newRecord.status === 'criada') &&
+                newRecord.entregador_id === userId &&
+                (oldRecord.entregador_id !== userId || (oldRecord.status !== 'atribuida' && oldRecord.status !== 'criada')))
             ) {
-                await LocalNotifications.schedule({
-                  notifications: [{
+              await LocalNotifications.schedule({
+                notifications: [
+                  {
                     title: 'Entrega Atribuída! ✅',
                     body: `Você recebeu uma nova entrega #${String(newRecord.id).slice(0, 8)}.`,
                     id: new Date().getTime(),
@@ -174,15 +202,16 @@ export function NotificationManager({ userId, userRole, onNavigate }: Notificati
                     channelId: 'entregas',
                     extra: {
                       type: 'atribuida',
-                      entregaId: newRecord.id
-                    }
-                  }]
-                });
+                      entregaId: newRecord.id,
+                    },
+                  },
+                ],
+              });
 
-                if (onNavigate) {
-                    onNavigate('home_entregador');
-                }
+              if (onNavigate) {
+                onNavigate('home_entregador');
               }
+            }
           }
         )
         .on(
