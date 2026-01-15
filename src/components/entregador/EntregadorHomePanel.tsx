@@ -30,6 +30,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
   const [deliveryDistance, setDeliveryDistance] = useState<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const lastLocationUpdateRef = useRef<number>(0);
+  const [radiusKm, setRadiusKm] = useState<number | null>(null);
 
   const [rejectedIds, setRejectedIds] = useState<string[]>(() => {
     try {
@@ -41,6 +42,36 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
   useEffect(() => {
     localStorage.setItem('rejected_deliveries', JSON.stringify(rejectedIds));
   }, [rejectedIds]);
+
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('configuracoes_comercio')
+          .select('raio_busca_entregador')
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (error) {
+          console.error('Erro ao carregar raio de busca do comércio:', error);
+          setRadiusKm(30);
+          return;
+        }
+
+        if (data && typeof data.raio_busca_entregador === 'number') {
+          setRadiusKm(data.raio_busca_entregador || 30);
+        } else {
+          setRadiusKm(30);
+        }
+      } catch (e) {
+        console.error('Erro inesperado ao carregar configurações do comércio:', e);
+        setRadiusKm(30);
+      }
+    };
+
+    fetchConfig();
+  }, []);
 
   useEffect(() => {
     if (incomingDelivery?.cliente_id) {
@@ -292,6 +323,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
     if (!entregadorId) return;
 
     const checkPending = async () => {
+        const effectiveRadiusKm = radiusKm ?? 30;
         // 1. Check if assigned explicitly to me (automatic)
         const { data: assigned } = await supabase
             .from('nova_entrega')
@@ -332,7 +364,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                                  userLocation.lat, userLocation.lng,
                                  pickupCoords[0], pickupCoords[1]
                              );
-                             if (dist > radiusKm) continue;
+                             if (dist > effectiveRadiusKm) continue;
                          }
                      } catch (e) {
                          console.error('Erro ao verificar raio:', e);
@@ -371,11 +403,15 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
 
                // VERIFICA SE O PEDIDO ESTÁ PRONTO
                if (newRecord.pedido_id) {
-                   const { data: p } = await supabase
+                   const { data: p, error: pError } = await supabase
                        .from('pedidos')
                        .select('status')
                        .eq('id', newRecord.pedido_id)
                        .single();
+                   
+                   if (pError) {
+                       console.warn('Erro ao verificar status do pedido. Verifique se a política RLS "Entregadores podem ver pedidos" foi aplicada.', pError);
+                   }
                    
                    if (!p || p.status !== 'pronto') {
                        // Se estávamos vendo ela, limpar
@@ -404,6 +440,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                // NOVA ENTREGA NO POOL
                else if (newRecord.status === 'criada' && !newRecord.entregador_id) {
                    // Check radius logic - FAIL OPEN (if error/no coords, show anyway)
+                   const effectiveRadiusKm = radiusKm ?? 30;
                    let inRadius = true;
                    if (newRecord.coleta_endereco_texto && userLocation) {
                         try {
@@ -413,9 +450,9 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                                      userLocation.lat, userLocation.lng,
                                      pickupCoords[0], pickupCoords[1]
                                  );
-                                 if (dist > radiusKm) {
+                                 if (dist > effectiveRadiusKm) {
                                      inRadius = false;
-                                     console.log(`Entrega fora do raio: ${dist.toFixed(2)}km > ${radiusKm}km`);
+                                     console.log(`Entrega fora do raio: ${dist.toFixed(2)}km > ${effectiveRadiusKm}km`);
                                  }
                              } else {
                                  console.warn('Não foi possível obter coordenadas para verificar raio. Assumindo dentro.');
