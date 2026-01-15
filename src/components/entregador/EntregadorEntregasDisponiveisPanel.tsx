@@ -14,7 +14,36 @@ export function EntregadorEntregasDisponiveisPanel() {
   const [distances, setDistances] = useState<Record<string, { toPickup: number, toDelivery: number }>>({});
   const [hiddenIds, setHiddenIds] = useState<string[]>([]);
   const [entregadorId, setEntregadorId] = useState<string | null>(null);
+  const [radiusKm, setRadiusKm] = useState<number | null>(null);
   const lastCountRef = useRef(0);
+
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('configuracoes_comercio')
+          .select('raio_busca_entregador')
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (error) {
+          console.error('Erro ao carregar raio de busca:', error);
+          setRadiusKm(30);
+          return;
+        }
+
+        if (data && typeof data.raio_busca_entregador === 'number') {
+          setRadiusKm(data.raio_busca_entregador || 30);
+        } else {
+          setRadiusKm(30);
+        }
+      } catch (e) {
+        setRadiusKm(30);
+      }
+    };
+    fetchConfig();
+  }, []);
 
   useEffect(() => {
     async function loadProfile() {
@@ -270,6 +299,18 @@ export function EntregadorEntregasDisponiveisPanel() {
     }
   }
 
+  const filterEntregas = (e: any) => {
+      if (hiddenIds.includes(e.id)) return false;
+      if (e.status === 'atribuida' && e.entregador_id === entregadorId) return true;
+      
+      // Radius check
+      if (radiusKm && distances[e.id]) {
+          const dist = distances[e.id].toPickup;
+          if (dist && dist > radiusKm) return false;
+      }
+      return true;
+  };
+
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold mb-6 flex items-center gap-2">
@@ -289,14 +330,14 @@ export function EntregadorEntregasDisponiveisPanel() {
         </div>
       ) : loading ? (
         <div className="text-center py-8">Carregando...</div>
-      ) : entregas.filter(e => !hiddenIds.includes(e.id)).length === 0 ? (
+      ) : entregas.filter(filterEntregas).length === 0 ? (
         <div className="bg-white p-8 rounded-lg shadow-sm text-center text-gray-500 border border-gray-100">
           <Package className="w-12 h-12 mx-auto mb-3 text-gray-300" />
           <p>Nenhuma entrega disponível no momento.</p>
         </div>
       ) : (
         <div className="space-y-4">
-          {entregas.filter(e => !hiddenIds.includes(e.id)).map((entrega) => {
+          {entregas.filter(filterEntregas).map((entrega) => {
              const assignedToMe = entrega.status === 'atribuida'; 
              return (
             <div key={entrega.id} className={`bg-white p-5 rounded-lg shadow-sm border border-gray-100 hover:border-sky-200 transition-colors ${assignedToMe ? 'ring-2 ring-sky-500 ring-offset-2' : ''}`}>
