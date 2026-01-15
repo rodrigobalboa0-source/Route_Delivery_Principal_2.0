@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../lib/supabase';
 import { MapView, MapDeliveryPerson } from '../MapView';
 import { Modal } from '../Modal';
 import type { Database } from '../../lib/database.types';
@@ -524,11 +524,45 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const handleSetReady = async (p: Pedido) => { 
     if (!confirm('Marcar pedido como Pronto?')) return;
     const { error } = await supabase.from('pedidos').update({ status: 'pronto' }).eq('id', p.id);
-    if (error) alert('Erro ao atualizar status: ' + error.message);
-    else {
-        // Trigger update on nova_entrega to fire notifications (mobile/realtime)
-        await supabase.from('nova_entrega').update({ updated_at: new Date().toISOString() }).eq('pedido_id', p.id);
-        fetchPedidos();
+    if (error) {
+        alert('Erro ao atualizar status: ' + error.message);
+    } else {
+        try {
+            const nowIso = new Date().toISOString();
+
+            
+            await supabase
+                .from('nova_entrega')
+                .update({ updated_at: nowIso })
+                .eq('pedido_id', p.id);
+
+            
+            let entrega = entregasMap[p.id];
+            if (!entrega) {
+                const { data } = await supabase
+                    .from('nova_entrega')
+                    .select('*')
+                    .eq('pedido_id', p.id)
+                    .maybeSingle();
+                entrega = data as any;
+            }
+
+            if (entrega) {
+                const url = `${SUPABASE_URL}/functions/v1/push-notification`;
+                await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                    },
+                    body: JSON.stringify({ record: entrega }),
+                });
+            }
+        } catch (e) {
+            console.error('Erro ao disparar notificação após marcar PRONTO:', e);
+        } finally {
+            fetchPedidos();
+        }
     }
     setOpenMenuId(null); 
   };
@@ -849,20 +883,20 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             created_at: e.created_at
         }));
 
-        
-        
         const finalPedidos = [...pedidosList, ...syntheticPedidos];
+
+        const finalPedidosSemEntregues = finalPedidos.filter(p => p.status !== 'entregue');
 
         
         unlinkedEntregas.forEach(e => {
             eMap[e.id] = e; 
         });
 
-        setAllItems(finalPedidos);
+        setAllItems(finalPedidosSemEntregues);
         
         const displayedItems = filters.status === 'todos' 
-            ? finalPedidos 
-            : finalPedidos.filter(p => p.status === filters.status);
+            ? finalPedidosSemEntregues 
+            : finalPedidosSemEntregues.filter(p => p.status === filters.status);
             
         setItems(displayedItems);
         setEntregasMap(eMap);
