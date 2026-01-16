@@ -4,7 +4,7 @@ import { Cadastro } from './Cadastro';
 import { AccountUnderAnalysis } from './AccountUnderAnalysis';
 import { Lock, Key, Eye, EyeOff, CheckCircle, Mail, ArrowLeft } from 'lucide-react';
 
-export function AuthPage() {
+export function AuthPage({ forceResetMode = false, onResetComplete }: { forceResetMode?: boolean; onResetComplete?: () => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(true);
@@ -13,7 +13,7 @@ export function AuthPage() {
   const [signupOpen, setSignupOpen] = useState(false);
   
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
-  const [resetPasswordMode, setResetPasswordMode] = useState(false);
+  const [resetPasswordMode, setResetPasswordMode] = useState(forceResetMode);
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -21,6 +21,12 @@ export function AuthPage() {
   const [accountPending, setAccountPending] = useState(false);
 
   const isNative = window.Capacitor?.isNativePlatform();
+
+  useEffect(() => {
+    if (forceResetMode) {
+        setResetPasswordMode(true);
+    }
+  }, [forceResetMode]);
 
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event) => {
@@ -76,6 +82,7 @@ export function AuthPage() {
       setResetMessage('Senha atualizada com sucesso! Faça login com a nova senha.');
       setNewPassword('');
       setConfirmNewPassword('');
+      if (onResetComplete) onResetComplete();
     } catch (e: any) {
       setError(e.message || 'Erro ao atualizar senha');
     } finally {

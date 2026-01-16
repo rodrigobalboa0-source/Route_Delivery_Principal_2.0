@@ -77,6 +77,7 @@ function App() {
   const [trainingOpen, setTrainingOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
   const [accountPending, setAccountPending] = useState(false);
+  const [isRecoveryMode, setIsRecoveryMode] = useState(false);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -85,6 +86,7 @@ function App() {
     setUserRole('loading');
     setActiveMenu('operations');
     setAccountPending(false);
+    setIsRecoveryMode(false);
     try {
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i) || '';
@@ -184,6 +186,11 @@ function App() {
   };
 
   useEffect(() => {
+    // Check for hash parameters indicating a recovery flow
+    const hash = window.location.hash;
+    if (hash && hash.includes('type=recovery')) {
+      setIsRecoveryMode(true);
+    }
     
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
@@ -196,7 +203,9 @@ function App() {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsRecoveryMode(true);
+      } else if (event === 'SIGNED_IN' && session?.user) {
         setAuthenticated(true);
         resolveRole(session.user.id, session.user.email || '');
       } else if (event === 'SIGNED_OUT') {
@@ -204,6 +213,7 @@ function App() {
         setUserName(undefined);
         setUserRole('loading');
         setAccountPending(false);
+        setIsRecoveryMode(false);
       } else if (event === 'TOKEN_REFRESHED' && session?.user) {
         
         setAuthenticated(true);
@@ -214,6 +224,10 @@ function App() {
       subscription.unsubscribe();
     };
   }, []);
+
+  if (isRecoveryMode) {
+    return <AuthPage forceResetMode={true} onResetComplete={() => setIsRecoveryMode(false)} />;
+  }
 
   if (!authenticated) {
     return <AuthPage />;
