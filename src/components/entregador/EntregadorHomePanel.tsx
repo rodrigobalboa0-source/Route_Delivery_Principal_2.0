@@ -787,12 +787,15 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                         </div>
                         {incomingDelivery.opcionais?.driver_bonuses && Array.isArray(incomingDelivery.opcionais.driver_bonuses) && (
                             <div className="flex flex-col items-end gap-1">
-                                {incomingDelivery.opcionais.driver_bonuses.map((bonus: any, idx: number) => (
+                                {incomingDelivery.opcionais.driver_bonuses.map((bonus: any, idx: number) => {
+                                    if (bonus.description && bonus.description.toLowerCase().includes('retorno')) return null;
+                                    return (
                                     <div key={idx} className="text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-100 flex items-center gap-1">
                                         <span className="font-bold">+ R$ {Number(bonus.value).toFixed(2)}</span>
                                         <span className="text-[10px] text-green-600 opacity-75">{bonus.description}</span>
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>

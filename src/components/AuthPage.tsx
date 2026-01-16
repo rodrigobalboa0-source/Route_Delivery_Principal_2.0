@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Cadastro } from './Cadastro';
 import { AccountUnderAnalysis } from './AccountUnderAnalysis';
+import { Lock, Key, Eye, EyeOff, CheckCircle, Mail, ArrowLeft } from 'lucide-react';
 
 export function AuthPage() {
   const [email, setEmail] = useState('');
@@ -14,6 +15,8 @@ export function AuthPage() {
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
   const [resetPasswordMode, setResetPasswordMode] = useState(false);
   const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
   const [resetMessage, setResetMessage] = useState('');
   const [accountPending, setAccountPending] = useState(false);
 
@@ -54,6 +57,15 @@ export function AuthPage() {
   };
 
   const handleUpdatePassword = async () => {
+    if (!newPassword || newPassword.length < 6) {
+        setError('A senha deve ter pelo menos 6 caracteres');
+        return;
+    }
+    if (newPassword !== confirmNewPassword) {
+        setError('As senhas não coincidem');
+        return;
+    }
+
     setLoading(true);
     setError(null);
     try {
@@ -63,6 +75,7 @@ export function AuthPage() {
       setForgotPasswordOpen(false);
       setResetMessage('Senha atualizada com sucesso! Faça login com a nova senha.');
       setNewPassword('');
+      setConfirmNewPassword('');
     } catch (e: any) {
       setError(e.message || 'Erro ao atualizar senha');
     } finally {
@@ -144,50 +157,101 @@ export function AuthPage() {
             )}
 
             {resetPasswordMode ? (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Nova Senha</label>
-                  <input
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    placeholder="Nova senha segura"
-                  />
+              <div className="space-y-6">
+                <div className="text-center mb-6">
+                    <div className="w-16 h-16 bg-sky-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <Key className="w-8 h-8 text-sky-600" />
+                    </div>
+                    <h3 className="text-lg font-medium text-slate-900">Redefinir Senha</h3>
+                    <p className="text-sm text-slate-500 mt-1">Crie uma nova senha segura para sua conta</p>
                 </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Nova Senha</label>
+                    <div className="relative">
+                        <input
+                            type={showNewPassword ? "text" : "password"}
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            className="w-full pl-3 pr-10 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                            placeholder="Mínimo 6 caracteres"
+                        />
+                        <button 
+                            type="button"
+                            onClick={() => setShowNewPassword(!showNewPassword)}
+                            className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
+                        >
+                            {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Confirmar Senha</label>
+                    <input
+                        type="password"
+                        value={confirmNewPassword}
+                        onChange={(e) => setConfirmNewPassword(e.target.value)}
+                        className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        placeholder="Repita a nova senha"
+                    />
+                  </div>
+                </div>
+
                 <button
                   onClick={handleUpdatePassword}
                   disabled={loading}
-                  className="w-full px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-medium disabled:opacity-50"
+                  className="w-full px-4 py-3 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold shadow-lg shadow-sky-200 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                 >
-                  {loading ? 'Atualizando...' : 'Atualizar Senha'}
+                  {loading ? (
+                      'Atualizando...'
+                  ) : (
+                      <>
+                        <CheckCircle size={20} />
+                        Atualizar Senha
+                      </>
+                  )}
                 </button>
-                <div className="text-center">
-                  <button onClick={() => setResetPasswordMode(false)} className="text-xs text-slate-500 hover:text-slate-700">Voltar para Login</button>
+                <div className="text-center pt-2">
+                  <button onClick={() => setResetPasswordMode(false)} className="text-sm text-slate-500 hover:text-slate-800 font-medium flex items-center justify-center gap-2 mx-auto">
+                     <ArrowLeft size={16} />
+                     Voltar para Login
+                  </button>
                 </div>
               </div>
             ) : forgotPasswordOpen ? (
-              <div className="space-y-4">
-                <p className="text-sm text-slate-600">Digite seu e-mail para receber um link de redefinição de senha.</p>
+              <div className="space-y-6">
+                <div className="text-center mb-4">
+                    <div className="w-12 h-12 bg-sky-50 rounded-full flex items-center justify-center mx-auto mb-2">
+                        <Mail className="w-6 h-6 text-sky-500" />
+                    </div>
+                    <p className="text-sm text-slate-600">Digite seu e-mail para receber um link de redefinição de senha.</p>
+                </div>
+
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">E-mail</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    placeholder="seu@email.com"
-                  />
+                  <div className="relative">
+                      <Mail className="absolute left-3 top-2.5 w-5 h-5 text-slate-400" />
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        placeholder="seu@email.com"
+                      />
+                  </div>
                 </div>
+
                 <button
                   onClick={handleForgotPassword}
                   disabled={loading}
-                  className="w-full px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-medium disabled:opacity-50"
+                  className="w-full px-4 py-3 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold disabled:opacity-50 transition-all shadow-md"
                 >
-                  {loading ? 'Enviando...' : 'Enviar Link'}
+                  {loading ? 'Enviando...' : 'Enviar Link de Recuperação'}
                 </button>
                 <div className="text-center">
-                  <button onClick={() => setForgotPasswordOpen(false)} className="text-xs text-sky-600 hover:underline">Voltar para Login</button>
+                  <button onClick={() => setForgotPasswordOpen(false)} className="text-sm text-sky-600 hover:underline font-medium">Voltar para Login</button>
                 </div>
               </div>
             ) : (
