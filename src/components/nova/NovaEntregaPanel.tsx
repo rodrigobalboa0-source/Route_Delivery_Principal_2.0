@@ -530,13 +530,14 @@ export function NovaEntregaPanel() {
     if (form.retorno) {
         const tabela = tabelasPrecos.find(t => t.id === selectedTabelaId);
         if (tabela && tabela.valor_retorno) {
-             if (tabela.tipo_retorno === 'Percentual' || tabela.tipo_retorno === 'percentual') {
+             const tipo = (tabela.tipo_retorno || '').trim().toLowerCase();
+             if (tipo === 'percentual' || tipo === 'porcentagem') {
                  price += price * (tabela.valor_retorno / 100);
              } else {
                  price += tabela.valor_retorno;
              }
         } else {
-             // Fallback default if table doesn't specify return rules
+             
              price = price * 1.20;
         }
     }
@@ -670,8 +671,9 @@ export function NovaEntregaPanel() {
              if (hasReturn && table.valor_retorno) {
              let returnVal = table.valor_retorno;
              let description = 'Adicional Retorno';
+             const tipo = (table.tipo_retorno || '').trim().toLowerCase();
 
-             if (table.tipo_retorno === 'Percentual' || table.tipo_retorno === 'percentual') {
+             if (tipo === 'percentual' || tipo === 'porcentagem') {
                  returnVal = val * (table.valor_retorno / 100);
                  description = 'Com retorno';
              }
