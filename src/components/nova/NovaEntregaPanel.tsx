@@ -849,6 +849,16 @@ export function NovaEntregaPanel() {
         entrega_usa_endereco_cadastro: false, entrega_contato: '', entrega_telefone: '', entrega_codigo_pedido: '', entrega_centro_custo: '', entrega_solicitante: '', entrega_cep: '', entrega_endereco_texto: '', entrega_complemento: '', entrega_observacoes: '',
         retorno: false, pontos: [],
       });
+      setDistanciaKm('');
+      setValorDinamico(false);
+      setActiveDynamicRules([]);
+      setDriverValueDisplay('0.00');
+      setDriverReturnDisplay(null);
+      setSelectedTabelaId('');
+      setFaixasPreco([]);
+      setFaixasComissoes([]);
+      setSelectedComissaoTable(null);
+      setComissaoTableFound(null);
     }
     setLoading(false);
   };
