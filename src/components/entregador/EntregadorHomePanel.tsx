@@ -758,9 +758,11 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                     {commerceData?.nome && (
                         <h3 className="text-xl font-bold text-gray-900 mb-1">{commerceData.nome}</h3>
                     )}
-                    <p className="text-lg font-medium text-gray-800">
-                        {incomingDelivery.status === 'criada' ? 'Nova entrega disponível na região!' : 'Você recebeu uma nova entrega!'}
-                    </p>
+                    {incomingDelivery.status !== 'criada' && (
+                      <p className="text-lg font-medium text-gray-800">
+                          Você recebeu uma nova entrega!
+                      </p>
+                    )}
 
                     {deliveryDistance !== null && (
                         <div className="mt-2 bg-gray-50 px-3 py-1 rounded-full inline-block border border-gray-200">
@@ -768,7 +770,6 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                              <span className="text-sm font-bold text-sky-600">{deliveryDistance.toFixed(1)} km</span>
                         </div>
                     )}
-                    <p className="text-sm text-gray-500">#{incomingDelivery.id.slice(0, 8)}</p>
                 </div>
 
                 <div className="w-full bg-gray-50 p-3 rounded-lg border border-gray-100 text-sm">

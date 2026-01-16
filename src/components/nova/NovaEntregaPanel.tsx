@@ -528,7 +528,17 @@ export function NovaEntregaPanel() {
     if (!shouldCalculate) return;
 
     if (form.retorno) {
-        price = price * 1.20;
+        const tabela = tabelasPrecos.find(t => t.id === selectedTabelaId);
+        if (tabela && tabela.valor_retorno) {
+             if (tabela.tipo_retorno === 'Percentual' || tabela.tipo_retorno === 'percentual') {
+                 price += price * (tabela.valor_retorno / 100);
+             } else {
+                 price += tabela.valor_retorno;
+             }
+        } else {
+             // Fallback default if table doesn't specify return rules
+             price = price * 1.20;
+        }
     }
 
     const activeRules: { name: string; value: number }[] = [];
@@ -698,51 +708,7 @@ export function NovaEntregaPanel() {
          return { total: val.toFixed(2), breakdown };
       }
       
-      if (form.valor_entrega) {
-          const totalValue = parseFloat(form.valor_entrega.replace(',', '.'));
-          if (!isNaN(totalValue)) {
-              let commission = totalValue * 0.75;
-              
-              if (hasReturn) {
-                  // Se tem retorno, o totalValue inclui 20% de markup.
-                  // O entregador recebe 75% do total.
-                  // Vamos destacar quanto disso é referente ao retorno.
-                  const totalSemRetorno = totalValue / 1.20;
-                  const commissionSemRetorno = totalSemRetorno * 0.75;
-                  const returnPart = commission - commissionSemRetorno;
-                  
-                  if (returnPart > 0.01) {
-                      breakdown.push({ description: 'Adicional Retorno (20%)', value: returnPart });
-                  }
-              }
-
-              const sourceRules = rulesOverride ?? dynamicDriverRules;
-              const rules = sourceRules.filter(r => 
-                 r.ativa && 
-                 (r.entregador_id === entregadorId || r.entregador_id === null)
-              );
-
-              rules.forEach(r => {
-                if (r.multiplicador) {
-                  let bonus = 0;
-                  if (r.criterio === 'TAXA_FIXA') {
-                    bonus = r.multiplicador;
-                    commission += bonus;
-                  } else {
-                    const increase = commission * (r.multiplicador - 1);
-                    bonus = increase;
-                    commission *= r.multiplicador;
-                  }
-                  
-                  if (bonus > 0) {
-                      breakdown.push({ description: r.observacao || 'Bônus Dinâmico', value: bonus });
-                  }
-                }
-              });
-              
-              return { total: commission.toFixed(2), breakdown }; 
-          }
-      }
+      
       return { total: '0.00', breakdown: [] };
   };
 

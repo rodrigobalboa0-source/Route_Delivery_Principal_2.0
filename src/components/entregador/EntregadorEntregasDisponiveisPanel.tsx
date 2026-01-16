@@ -17,6 +17,36 @@ export function EntregadorEntregasDisponiveisPanel() {
   const [radiusKm, setRadiusKm] = useState<number | null>(null);
   const lastCountRef = useRef(0);
 
+  const [commerceNames, setCommerceNames] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const fetchNames = async () => {
+      const missingIds = [...new Set(entregas.map(e => e.cliente_id).filter(id => id && !commerceNames[id]))];
+      if (missingIds.length === 0) return;
+
+      const newNames: Record<string, string> = {};
+      
+      await Promise.all(missingIds.map(async (id) => {
+        try {
+          const { data } = await supabase.rpc('get_cliente_public_info', { cid: id });
+          if (data && data.length > 0) {
+            newNames[id] = data[0].nome_completo;
+          }
+        } catch (e) {
+          console.error('Error fetching client name', e);
+        }
+      }));
+      
+      if (Object.keys(newNames).length > 0) {
+        setCommerceNames(prev => ({ ...prev, ...newNames }));
+      }
+    };
+    
+    if (entregas.length > 0) {
+        fetchNames();
+    }
+  }, [entregas]);
+
   useEffect(() => {
     const fetchConfig = async () => {
       try {
@@ -347,7 +377,7 @@ export function EntregadorEntregasDisponiveisPanel() {
                      {assignedToMe ? 'Atribuída a Você' : (entrega.tipo_servicos?.nome || 'Entrega')}
                    </span>
                    <h3 className="font-semibold text-lg mt-1">
-                     {entrega.clientes?.nome_completo || 'Cliente'}
+                     {commerceNames[entrega.cliente_id] || entrega.clientes?.nome_completo || 'Cliente'}
                    </h3>
                  </div>
                  <div className="text-right">
