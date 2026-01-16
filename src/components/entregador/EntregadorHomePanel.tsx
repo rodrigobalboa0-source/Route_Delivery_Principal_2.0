@@ -740,7 +740,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
          <Modal 
              open={!!incomingDelivery} 
              onClose={() => {}} 
-             title={incomingDelivery.status === 'criada' ? "Nova Entrega Disponível!" : "Nova Entrega Atribuída!"}
+             title=""
              hideFooter={true}
          >
             <div className="flex flex-col gap-4 items-center p-4">
@@ -757,11 +757,6 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                 <div className="text-center">
                     {commerceData?.nome && (
                         <h3 className="text-xl font-bold text-gray-900 mb-1">{commerceData.nome}</h3>
-                    )}
-                    {incomingDelivery.status !== 'criada' && (
-                      <p className="text-lg font-medium text-gray-800">
-                          Você recebeu uma nova entrega!
-                      </p>
                     )}
 
                     {deliveryDistance !== null && (
@@ -783,17 +778,16 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                         <div className="flex justify-between items-center">
                              <span className="font-bold text-gray-700">Valor:</span>
                              <span className="font-bold text-green-600 text-lg">
-                                R$ {(incomingDelivery.valor_entregador || incomingDelivery.valor_entrega || 0).toFixed(2)}
+                                R$ {(incomingDelivery.valor_entregador ?? incomingDelivery.valor_entrega ?? 0).toFixed(2)}
                              </span>
                         </div>
                         {incomingDelivery.opcionais?.driver_bonuses && Array.isArray(incomingDelivery.opcionais.driver_bonuses) && (
                             <div className="flex flex-col items-end gap-1">
                                 {incomingDelivery.opcionais.driver_bonuses.map((bonus: any, idx: number) => {
-                                    if (bonus.description && bonus.description.toLowerCase().includes('retorno')) return null;
+                                    const isReturn = bonus.description && bonus.description.toLowerCase().includes('retorno');
                                     return (
                                     <div key={idx} className="text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-100 flex items-center gap-1">
-                                        <span className="font-bold">+ R$ {Number(bonus.value).toFixed(2)}</span>
-                                        <span className="text-[10px] text-green-600 opacity-75">{bonus.description}</span>
+                                        <span className="text-[10px] text-green-600 opacity-75">{isReturn ? 'Com retorno' : bonus.description}</span>
                                     </div>
                                     );
                                 })}

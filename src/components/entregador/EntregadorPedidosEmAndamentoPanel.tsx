@@ -451,11 +451,10 @@ export function EntregadorPedidosEmAndamentoPanel() {
                        {entrega.opcionais?.driver_bonuses && Array.isArray(entrega.opcionais.driver_bonuses) && (
                          <div className="text-xs text-right flex flex-col items-end gap-1">
                            {entrega.opcionais.driver_bonuses.map((bonus: any, idx: number) => {
-                             if (bonus.description && bonus.description.toLowerCase().includes('retorno')) return null;
+                             const isReturn = bonus.description && bonus.description.toLowerCase().includes('retorno');
                              return (
                              <div key={idx} className="text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-100 flex items-center gap-1">
-                               <span className="font-bold">+ R$ {Number(bonus.value).toFixed(2)}</span>
-                               <span className="text-[10px] text-green-600 opacity-75">{bonus.description}</span>
+                               <span className="text-[10px] text-green-600 opacity-75">{isReturn ? 'Com retorno' : bonus.description}</span>
                              </div>
                              );
                            })}
