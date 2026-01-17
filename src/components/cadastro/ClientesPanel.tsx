@@ -176,9 +176,15 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
           password: form.senha,
         });
         if (signUpError) {
-          setError(signUpError.message);
-          setLoading(false);
-          return;
+          const err = signUpError as unknown as { message?: string; status?: number };
+          const status = err?.status;
+          const msg = err?.message || 'Falha ao criar acesso de login';
+          if (mode !== 'public' || (status && status !== 500)) {
+            setError(msg);
+            setLoading(false);
+            return;
+          }
+          console.error('Falha ao criar acesso de login (prosseguindo com cadastro de comércio):', err);
         } else if (signUpData?.user?.id) {
           authUserId = signUpData.user.id;
           await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown) => Promise<unknown> } })
@@ -212,6 +218,17 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
       email: (form.email || '').trim() ? (form.email || '').trim().toLowerCase() : null,
       metodo_pagamento_preferido: form.metodo_pagamento_preferido || null,
       observacoes: form.observacoes || null,
+      segmento: form.segmento || null,
+      data_inicio: form.data_inicio || null,
+      razao_social: form.razao_social || null,
+      nome_fantasia: form.nome_fantasia || null,
+      cadastro_via: form.cadastro_via || null,
+      tipo_documento: form.tipo_documento || null,
+      cnpj: form.cnpj || null,
+      lead_por: form.lead_por || null,
+      franquia: form.franquia || null,
+      hub: form.hub || null,
+      precificacao_config: form.precificacao_config,
       cep: primaryAddress.cep || null,
       rua: primaryAddress.rua || null,
       numero: primaryAddress.numero || null,
@@ -323,6 +340,7 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
           hub: form.hub || null,
           foto_url: finalFotoUrl || null,
           foto_base64: finalFotoBase64 || null,
+          precificacao_config: form.precificacao_config,
         })
         .eq('id', cid);
         
