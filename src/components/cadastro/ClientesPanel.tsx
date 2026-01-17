@@ -178,13 +178,17 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
         if (signUpError) {
           const err = signUpError as unknown as { message?: string; status?: number };
           const status = err?.status;
-          const msg = err?.message || 'Falha ao criar acesso de login';
-          if (mode !== 'public' || (status && status !== 500)) {
+          const rawMsg = err?.message || 'Falha ao criar acesso de login';
+          const msg = rawMsg;
+          const isUserAlreadyExists = status === 422 && /user already/i.test(rawMsg);
+          const isServerError = status === 500;
+          if (mode === 'public' && (isServerError || isUserAlreadyExists)) {
+            console.error('Falha ao criar acesso de login (prosseguindo com cadastro de comércio):', err);
+          } else {
             setError(msg);
             setLoading(false);
             return;
           }
-          console.error('Falha ao criar acesso de login (prosseguindo com cadastro de comércio):', err);
         } else if (signUpData?.user?.id) {
           authUserId = signUpData.user.id;
           await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown) => Promise<unknown> } })
