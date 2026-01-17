@@ -174,18 +174,29 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email: form.email,
           password: form.senha,
+          options: {
+            data: {
+              full_name: form.nome_completo,
+              role: 'cliente',
+            },
+          },
         });
         if (signUpError) {
           const err = signUpError as unknown as { message?: string; status?: number };
           const status = err?.status;
           const rawMsg = err?.message || 'Falha ao criar acesso de login';
           const msg = rawMsg;
-          const isUserAlreadyExists = status === 422 && /user already/i.test(rawMsg);
+          const isDuplicateEmail = /duplicate key value .*users_email_key/i.test(rawMsg);
+          const isUserAlreadyExists = (status === 422 && /user already/i.test(rawMsg)) || isDuplicateEmail;
           const isServerError = status === 500;
-          if (mode === 'public' && (isServerError || isUserAlreadyExists)) {
-            console.error('Falha ao criar acesso de login (prosseguindo com cadastro de comércio):', err);
+          if (mode === 'public') {
+            console.error('Erro ao criar acesso de login no fluxo público (ignorado para não travar cadastro):', err);
           } else {
-            setError(msg);
+            if (isUserAlreadyExists) {
+              setError('Este e-mail já possui um acesso criado. Use outro e-mail ou apenas faça login.');
+            } else {
+              setError(msg);
+            }
             setLoading(false);
             return;
           }
@@ -243,6 +254,7 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
     });
     const r = res as unknown as { data?: { id?: string }; error?: { message?: string } };
     if (r.error?.message) {
+      console.error('Erro ao inserir cliente:', r.error);
       setError(r.error.message);
       setLoading(false);
       return;

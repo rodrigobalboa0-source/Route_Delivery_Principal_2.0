@@ -1,6 +1,6 @@
 {
-  "event_message": "POST | 422 | 177.214.138.112 | 9bf7b9a6dd71cad4 | https://mtanrihprbgrrtgwcyia.supabase.co/auth/v1/signup | Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
-  "id": "1db8c869-9b24-44d5-9090-8866e13cf7c1",
+  "event_message": "POST | 500 | 45.71.126.12 | 9bf81a33bdd5a44e | https://mtanrihprbgrrtgwcyia.supabase.co/auth/v1/signup | Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+  "id": "a6b482e4-bbb0-48c2-a6d5-ca3e75c3802b",
   "metadata": [
     {
       "load_balancer_experimental_routing": null,
@@ -8,20 +8,20 @@
       "load_balancer_redirect_identifier": null,
       "logflare_worker": [
         {
-          "worker_id": "EPG1NQ"
+          "worker_id": "9WHFJG"
         }
       ],
       "request": [
         {
           "cf": [
             {
-              "asOrganization": "TELEFÔNICA BRASIL S.A",
-              "asn": 26599,
+              "asOrganization": "TELEXTRA TELECOMUNICACOES LTDA",
+              "asn": 267620,
               "botManagement": [
                 {
                   "corporateProxy": false,
                   "detectionIds": [],
-                  "ja3Hash": "9d1e68ab30a694db739f04484f710dd4",
+                  "ja3Hash": "76b76f00e54a2f70ced2e1350fa4ae6a",
                   "ja4": "q13d0312h3_55b375c5d22e_5a06198afb93",
                   "ja4Signals": [
                     {
@@ -42,25 +42,25 @@
                       "passed": false
                     }
                   ],
-                  "score": 98,
+                  "score": 95,
                   "staticResource": false,
                   "verifiedBot": false
                 }
               ],
-              "city": "São Paulo",
+              "city": "Campinas",
               "clientAcceptEncoding": "gzip, deflate, br",
               "clientTcpRtt": null,
-              "clientTrustScore": 98,
-              "colo": "GIG",
+              "clientTrustScore": 95,
+              "colo": "GRU",
               "continent": "SA",
               "country": "BR",
               "edgeRequestKeepAliveStatus": 1,
               "httpProtocol": "HTTP/3",
               "isEUCountry": null,
-              "latitude": "-23.54750",
-              "longitude": "-46.63611",
+              "latitude": "-22.90556",
+              "longitude": "-47.06083",
               "metroCode": null,
-              "postalCode": "01000-000",
+              "postalCode": "13000-000",
               "region": "São Paulo",
               "regionCode": "SP",
               "requestPriority": null,
@@ -74,16 +74,16 @@
                 }
               ],
               "tlsClientCiphersSha1": "3HTt3+R/6BL3zeALJDSq0pR1yOQ=",
-              "tlsClientExtensionsSha1": "Hvf75KJnje1z6EAEoXA6wXSlbG4=",
-              "tlsClientExtensionsSha1Le": "BFFPlyh6dS3OsY8ySrfhAc2C++E=",
-              "tlsClientHelloLength": "2014",
-              "tlsClientRandom": "nZw/OGt2RnCdWuyPbI3GRDhSrRKgfK2hQDBhsvoNmfs=",
+              "tlsClientExtensionsSha1": "8EpeuefG61We4Qlh6+cx2mjwZkU=",
+              "tlsClientExtensionsSha1Le": "Ik4/PgyQ+pgNdF6zIyggVbVaz+o=",
+              "tlsClientHelloLength": "2054",
+              "tlsClientRandom": "b/LBzvt6kA0pJ4X3Ji7Sn8OTJAfEEf//mw/fh0aIaTQ=",
               "tlsExportedAuthenticator": [
                 {
-                  "clientFinished": "351724e2ccffa9daa49aea5ff855660b5841a1ee903f2ee0926473e3264dd6b5",
-                  "clientHandshake": "9e180e77adbdfb8e620d92b66203193f6f6510217a5d9f072300d1817cbc1dd8",
-                  "serverFinished": "396bbcf8c494a1082984feee67b6eca7dfa0a3d859b779035d386a6db99ca2f3",
-                  "serverHandshake": "f0b2214a3bb00a5589bbaa153910bce989a8cbd47e57ba264c61a1e113b3c331"
+                  "clientFinished": "a00cc889ff680c625b605737e223201a3d15d1f0f227983b96071540d5c459c4",
+                  "clientHandshake": "f692645b44ee7433e6f92b19ddfee43886ef9515730b1fa52ca82012239dae80",
+                  "serverFinished": "b125e3d8b37ba8122064e3e2be129098f8c5a3da8e0af28e5be8e21395d77a28",
+                  "serverHandshake": "e64f9575947e04e54bb50faf43d686985acf886ac24a4f0e437b0da50ab2d0a3"
                 }
               ],
               "tlsVersion": "TLSv1.3",
@@ -94,10 +94,10 @@
             {
               "accept": "*/*",
               "cf_cache_status": null,
-              "cf_connecting_ip": "177.214.138.112",
+              "cf_connecting_ip": "45.71.126.12",
               "cf_ipcountry": "BR",
-              "cf_ray": "9bf7b9a6dd71cad4",
-              "content_length": "145",
+              "cf_ray": "9bf81a33bdd5a44e",
+              "content_length": "191",
               "content_location": null,
               "content_range": null,
               "content_type": "application/json;charset=UTF-8",
@@ -105,7 +105,7 @@
               "host": "mtanrihprbgrrtgwcyia.supabase.co",
               "prefer": null,
               "range": null,
-              "referer": "https://route-delivery.vercel.app/",
+              "referer": "http://localhost:5173/",
               "sb_gateway_mode": null,
               "sb_gateway_version": null,
               "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
@@ -116,7 +116,7 @@
               "x_forwarded_user_agent": null,
               "x_kong_proxy_latency": null,
               "x_kong_upstream_latency": null,
-              "x_real_ip": "177.214.138.112"
+              "x_real_ip": "45.71.126.12"
             }
           ],
           "host": "mtanrihprbgrrtgwcyia.supabase.co",
@@ -175,27 +175,27 @@
           "headers": [
             {
               "cf_cache_status": "DYNAMIC",
-              "cf_ray": "9bf7b9a9e200cad4-GIG",
-              "content_length": "66",
+              "cf_ray": "9bf81a352357a44e-GRU",
+              "content_length": "72",
               "content_location": null,
               "content_range": null,
               "content_type": "application/json",
-              "date": "Sat, 17 Jan 2026 17:55:44 GMT",
+              "date": "Sat, 17 Jan 2026 19:01:38 GMT",
               "proxy_status": null,
               "sb_gateway_mode": null,
               "sb_gateway_version": "1",
-              "sb_request_id": "019bcd19-4453-7cd7-b4e6-679557bf76cd",
+              "sb_request_id": "019bcd55-9c66-73b4-9f7e-e5bd5b7c410f",
               "transfer_encoding": null,
               "x_kong_proxy_latency": null,
               "x_kong_upstream_latency": null,
-              "x_sb_error_code": "user_already_exists"
+              "x_sb_error_code": "unexpected_failure"
             }
           ],
-          "origin_time": 525,
-          "status_code": 422
+          "origin_time": 429,
+          "status_code": 500
         }
       ]
     }
   ],
-  "timestamp": 1768672543827000
+  "timestamp": 1768676498534000
 }
