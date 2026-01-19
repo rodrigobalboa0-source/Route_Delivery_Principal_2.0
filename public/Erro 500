@@ -1,6 +1,6 @@
 {
-  "event_message": "POST | 500 | 45.71.126.12 | 9bf81a33bdd5a44e | https://mtanrihprbgrrtgwcyia.supabase.co/auth/v1/signup | Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
-  "id": "a6b482e4-bbb0-48c2-a6d5-ca3e75c3802b",
+  "event_message": "POST | 500 | 187.59.25.131 | 9c076cdfc9b9cb5c | https://mtanrihprbgrrtgwcyia.supabase.co/auth/v1/signup | Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+  "id": "cbe1ed70-f992-4502-9b43-4158fabc4327",
   "metadata": [
     {
       "load_balancer_experimental_routing": null,
@@ -8,20 +8,20 @@
       "load_balancer_redirect_identifier": null,
       "logflare_worker": [
         {
-          "worker_id": "9WHFJG"
+          "worker_id": "V1HIJJ"
         }
       ],
       "request": [
         {
           "cf": [
             {
-              "asOrganization": "TELEXTRA TELECOMUNICACOES LTDA",
-              "asn": 267620,
+              "asOrganization": "TELEFÔNICA BRASIL S.A",
+              "asn": 18881,
               "botManagement": [
                 {
                   "corporateProxy": false,
                   "detectionIds": [],
-                  "ja3Hash": "76b76f00e54a2f70ced2e1350fa4ae6a",
+                  "ja3Hash": "8ec7c0a26e74421c302bfc0f7f811d11",
                   "ja4": "q13d0312h3_55b375c5d22e_5a06198afb93",
                   "ja4Signals": [
                     {
@@ -42,27 +42,27 @@
                       "passed": false
                     }
                   ],
-                  "score": 95,
+                  "score": 99,
                   "staticResource": false,
                   "verifiedBot": false
                 }
               ],
-              "city": "Campinas",
+              "city": "Curitiba",
               "clientAcceptEncoding": "gzip, deflate, br",
               "clientTcpRtt": null,
-              "clientTrustScore": 95,
-              "colo": "GRU",
+              "clientTrustScore": 99,
+              "colo": "GIG",
               "continent": "SA",
               "country": "BR",
               "edgeRequestKeepAliveStatus": 1,
               "httpProtocol": "HTTP/3",
               "isEUCountry": null,
-              "latitude": "-22.90556",
-              "longitude": "-47.06083",
+              "latitude": "-25.42778",
+              "longitude": "-49.27306",
               "metroCode": null,
-              "postalCode": "13000-000",
-              "region": "São Paulo",
-              "regionCode": "SP",
+              "postalCode": "80000-000",
+              "region": "Paraná",
+              "regionCode": "PR",
               "requestPriority": null,
               "timezone": "America/Sao_Paulo",
               "tlsCipher": "AEAD-AES128-GCM-SHA256",
@@ -74,16 +74,16 @@
                 }
               ],
               "tlsClientCiphersSha1": "3HTt3+R/6BL3zeALJDSq0pR1yOQ=",
-              "tlsClientExtensionsSha1": "8EpeuefG61We4Qlh6+cx2mjwZkU=",
-              "tlsClientExtensionsSha1Le": "Ik4/PgyQ+pgNdF6zIyggVbVaz+o=",
-              "tlsClientHelloLength": "2054",
-              "tlsClientRandom": "b/LBzvt6kA0pJ4X3Ji7Sn8OTJAfEEf//mw/fh0aIaTQ=",
+              "tlsClientExtensionsSha1": "rv44SscdPe0W1YvJWF1d3meVWfQ=",
+              "tlsClientExtensionsSha1Le": "YgqDADk11RAM0d+y6zq/USX1ITQ=",
+              "tlsClientHelloLength": "1954",
+              "tlsClientRandom": "u40XtCsbwwZLLmmz1chHC7sEfbZZjrXrxAvHlfQCi2c=",
               "tlsExportedAuthenticator": [
                 {
-                  "clientFinished": "a00cc889ff680c625b605737e223201a3d15d1f0f227983b96071540d5c459c4",
-                  "clientHandshake": "f692645b44ee7433e6f92b19ddfee43886ef9515730b1fa52ca82012239dae80",
-                  "serverFinished": "b125e3d8b37ba8122064e3e2be129098f8c5a3da8e0af28e5be8e21395d77a28",
-                  "serverHandshake": "e64f9575947e04e54bb50faf43d686985acf886ac24a4f0e437b0da50ab2d0a3"
+                  "clientFinished": "981a78dd01a18eecf38ff012d149c7c334260b01060064058d7ce0598fb66a77",
+                  "clientHandshake": "48836172347b702c20a6e89bb07db648505dd71a59802d89ad6d874514ad6058",
+                  "serverFinished": "41cbf4434c488ab8822c3c688aaf3e1d20efc02e9b7c8ea4bf8f5bbafed450ba",
+                  "serverHandshake": "c6f7b431b77e50e0169d7a97420f6eda74d1dc68f5e896a4b71d8addfff55800"
                 }
               ],
               "tlsVersion": "TLSv1.3",
@@ -94,10 +94,10 @@
             {
               "accept": "*/*",
               "cf_cache_status": null,
-              "cf_connecting_ip": "45.71.126.12",
+              "cf_connecting_ip": "187.59.25.131",
               "cf_ipcountry": "BR",
-              "cf_ray": "9bf81a33bdd5a44e",
-              "content_length": "191",
+              "cf_ray": "9c076cdfc9b9cb5c",
+              "content_length": "197",
               "content_location": null,
               "content_range": null,
               "content_type": "application/json;charset=UTF-8",
@@ -105,10 +105,10 @@
               "host": "mtanrihprbgrrtgwcyia.supabase.co",
               "prefer": null,
               "range": null,
-              "referer": "http://localhost:5173/",
+              "referer": "https://route-delivery.vercel.app/",
               "sb_gateway_mode": null,
               "sb_gateway_version": null,
-              "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+              "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
               "x_client_info": "supabase-js-web/2.57.4",
               "x_forwarded_for": null,
               "x_forwarded_host": null,
@@ -116,7 +116,7 @@
               "x_forwarded_user_agent": null,
               "x_kong_proxy_latency": null,
               "x_kong_upstream_latency": null,
-              "x_real_ip": "45.71.126.12"
+              "x_real_ip": "187.59.25.131"
             }
           ],
           "host": "mtanrihprbgrrtgwcyia.supabase.co",
@@ -175,27 +175,27 @@
           "headers": [
             {
               "cf_cache_status": "DYNAMIC",
-              "cf_ray": "9bf81a352357a44e-GRU",
+              "cf_ray": "9c076cdfd614cb5c-GIG",
               "content_length": "72",
               "content_location": null,
               "content_range": null,
               "content_type": "application/json",
-              "date": "Sat, 17 Jan 2026 19:01:38 GMT",
+              "date": "Mon, 19 Jan 2026 15:39:31 GMT",
               "proxy_status": null,
               "sb_gateway_mode": null,
               "sb_gateway_version": "1",
-              "sb_request_id": "019bcd55-9c66-73b4-9f7e-e5bd5b7c410f",
+              "sb_request_id": "019bd6e9-47e5-7a92-9560-16bd2f4db2d6",
               "transfer_encoding": null,
               "x_kong_proxy_latency": null,
               "x_kong_upstream_latency": null,
               "x_sb_error_code": "unexpected_failure"
             }
           ],
-          "origin_time": 429,
+          "origin_time": 124,
           "status_code": 500
         }
       ]
     }
   ],
-  "timestamp": 1768676498534000
+  "timestamp": 1768837171173000
 }

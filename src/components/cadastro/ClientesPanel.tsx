@@ -186,17 +186,19 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
           const status = err?.status;
           const rawMsg = err?.message || 'Falha ao criar acesso de login';
           const msg = rawMsg;
-          const isDuplicateEmail = /duplicate key value .*users_email_key/i.test(rawMsg);
+          const isDuplicateEmail = /duplicate key value .*users_email(_partial)?_key/i.test(rawMsg) || /duplicate key value .*users_email/i.test(rawMsg);
           const isUserAlreadyExists = (status === 422 && /user already/i.test(rawMsg)) || isDuplicateEmail;
-          const isServerError = status === 500;
+          
+          if (isUserAlreadyExists) {
+             setError('Este e-mail já possui um acesso criado. Use outro e-mail ou apenas faça login.');
+             setLoading(false);
+             return;
+          }
+
           if (mode === 'public') {
             console.error('Erro ao criar acesso de login no fluxo público (ignorado para não travar cadastro):', err);
           } else {
-            if (isUserAlreadyExists) {
-              setError('Este e-mail já possui um acesso criado. Use outro e-mail ou apenas faça login.');
-            } else {
-              setError(msg);
-            }
+            setError(msg);
             setLoading(false);
             return;
           }
@@ -255,7 +257,11 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
     const r = res as unknown as { data?: { id?: string }; error?: { message?: string } };
     if (r.error?.message) {
       console.error('Erro ao inserir cliente:', r.error);
-      setError(r.error.message);
+      if (/duplicate key/i.test(r.error.message)) {
+         setError('Já existe um comércio cadastrado com estes dados (e-mail, CPF ou CNPJ).');
+      } else {
+         setError(r.error.message);
+      }
       setLoading(false);
       return;
     }
