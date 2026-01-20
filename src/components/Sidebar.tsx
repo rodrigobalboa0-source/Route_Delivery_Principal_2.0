@@ -137,7 +137,7 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
   }, [forceOpenGroups]);
 
   const visibleMenuItems = ((): { id: string; label: string; icon: any }[] => {
-    if (userRole === 'cliente') return menuItems.filter((m) => ['operations', 'mensagens', 'pedidos', 'comercio_creditos', 'comercio_faturamento'].includes(m.id));
+    if (userRole === 'cliente') return menuItems.filter((m) => ['mensagens', 'pedidos', 'comercio_creditos', 'comercio_faturamento'].includes(m.id));
     if (userRole === 'entregador') return menuItems.filter((m) => ['home_entregador', 'entregas', 'mensagens', 'carteira', 'conta'].includes(m.id));
 
     return menuItems.filter((m) => !['home_entregador', 'entregas', 'carteira', 'conta', 'comercio_creditos', 'comercio_faturamento'].includes(m.id));

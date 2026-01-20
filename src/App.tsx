@@ -117,6 +117,7 @@ function App() {
       const { data: c } = await supabase.from('clientes').select('id, nome_completo').ilike('email', email).maybeSingle();
       if ((c as { id?: string } | null)?.id) {
         setUserRole('cliente');
+        setActiveMenu('pedidos');
         roleResolvedRef.current = true;
         try {
           const cid = ((c as { id?: string } | null)?.id) || '';
@@ -150,6 +151,7 @@ function App() {
       const nome = userName || email;
       await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown, o?: unknown) => Promise<unknown> } }).from('users').upsert({ id: uid, full_name: nome, email, role: 'cliente' });
       setUserRole('cliente');
+      setActiveMenu('pedidos');
       roleResolvedRef.current = true;
       try {
         const cid2 = ((c2 as { id?: string } | null)?.id) || '';

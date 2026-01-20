@@ -646,35 +646,39 @@ export function NovaEntregaPanel() {
     hasReturn: boolean,
     pointsCount: number,
     entregadorId?: string | null,
-    rulesOverride?: DynamicDriverRule[]
+    rulesOverride?: DynamicDriverRule[],
+    faixasOverride?: FaixaComissao[],
+    tableOverride?: TabelaComissao
   ): { total: string, breakdown: { description: string, value: number }[] } => {
       const breakdown: { description: string, value: number }[] = [];
       let val = 0;
       
-      
-      if (faixasComissoes.length > 0) {
-         const faixa = faixasComissoes.find(f => f.km_ate >= km);
+      const faixasToUse = faixasOverride || faixasComissoes;
+      const tableToUse = tableOverride || selectedComissaoTable;
+
+      if (faixasToUse.length > 0) {
+         const faixa = faixasToUse.find(f => f.km_ate >= km);
          
          if (faixa) {
              val = faixa.valor;
          } else {
-             const last = faixasComissoes[faixasComissoes.length - 1];
+             const last = faixasToUse[faixasToUse.length - 1];
              val = last ? last.valor : 0;
          }
 
-         const table = selectedComissaoTable;
+         const table = tableToUse;
          
          if (table) {
-             if (table.valor_por_ponto && pointsCount > 0) {
-                 val += (table.valor_por_ponto * pointsCount);
+             if ((table.valor_por_ponto || 0) > 0 && pointsCount > 0) {
+                 val += ((table.valor_por_ponto || 0) * pointsCount);
              }
-             if (hasReturn && table.valor_retorno) {
-             let returnVal = table.valor_retorno;
+             if (hasReturn && (table.valor_retorno || 0) > 0) {
+             let returnVal = table.valor_retorno || 0;
              let description = 'Adicional Retorno';
              const tipo = (table.tipo_retorno || '').trim().toLowerCase();
 
              if (tipo === 'percentual' || tipo === 'porcentagem') {
-                 returnVal = val * (table.valor_retorno / 100);
+                 returnVal = val * ((table.valor_retorno || 0) / 100);
                  description = 'Com retorno';
              }
 
@@ -711,7 +715,8 @@ export function NovaEntregaPanel() {
            }
          });
          
-         return { total: val.toFixed(2), breakdown };
+         const totalStr = val.toFixed(2);
+         return { total: totalStr === 'NaN' ? '0.00' : totalStr, breakdown };
       }
       
       
@@ -752,14 +757,69 @@ export function NovaEntregaPanel() {
       setDynamicDriverRules(freshDriverRules);
     } catch (e) {}
 
+    // Ensure commission data is present (Fix for race condition)
+    let effectiveFaixasComissoes = faixasComissoes;
+    let effectiveSelectedTable = selectedComissaoTable;
+
+    if ((!effectiveFaixasComissoes.length || !effectiveSelectedTable) && form.cliente_id && tabelasComissoes.length > 0) {
+        console.log('Commission data missing in submit. Attempting to resolve...');
+        const table = tabelasComissoes.find(t => {
+            let ids = t.cliente_ids;
+            if (typeof ids === 'string') {
+                try {
+                    const parsed = JSON.parse(ids);
+                    if (Array.isArray(parsed)) ids = parsed;
+                } catch (e) {}
+            }
+            if (Array.isArray(ids)) {
+                const targetId = String(form.cliente_id).trim().toLowerCase();
+                return (ids as any[]).some(id => String(id).trim().toLowerCase() === targetId);
+            }
+            return false;
+        });
+
+        if (table) {
+            console.log('Resolved table in submit:', table.nome);
+            effectiveSelectedTable = table;
+            try {
+                const { data } = await supabase
+                    .from('tabelas_comissoes_faixas')
+                    .select('*')
+                    .eq('tabela_id', table.id)
+                    .order('km_ate', { ascending: true });
+                effectiveFaixasComissoes = (data || []) as FaixaComissao[];
+            } catch (e) {
+                console.error('Error fetching commission ranges in submit:', e);
+            }
+        } else {
+             console.warn('No commission table found for client in submit');
+        }
+    }
+
     const { total: driverValueStr, breakdown: driverBonuses } = calculateDriverCommission(
       kmValue,
       form.retorno,
       form.pontos.length,
       entregadorEscolhido,
-      freshDriverRules
+      freshDriverRules,
+      effectiveFaixasComissoes, // Pass as override
+      effectiveSelectedTable || undefined // Pass as override
     );
-    const driverValue = parseFloat(driverValueStr);
+    const parsedDriverValue = parseFloat(driverValueStr);
+    const driverValue = isNaN(parsedDriverValue) ? 0 : parsedDriverValue;
+
+    if (driverValue === 0 && effectiveSelectedTable) {
+         // Only warn if a table was found but calculation resulted in 0 (meaning maybe ranges don't cover this KM)
+         const confirmed = confirm('Atenção: O valor da comissão do entregador foi calculado como R$ 0,00. Deseja continuar mesmo assim?');
+         if (!confirmed) {
+             setLoading(false);
+             return;
+         }
+    }
+
+    if (isNaN(parsedDriverValue)) {
+        console.warn('Driver value calculation resulted in NaN. Defaulting to 0.');
+    }
 
     let pedidoId = null;
     try {
