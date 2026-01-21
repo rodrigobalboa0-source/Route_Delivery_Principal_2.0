@@ -567,6 +567,8 @@ export function NovaEntregaPanel() {
   };
 
   const fetchData = async () => {
+    const userPromise = supabase.auth.getUser();
+
     const [c, e, t, m, tp, tc, b, dyn, dynDriver] = await Promise.all([
       supabase.from('clientes').select('*').order('nome_completo'),
       supabase.from('entregadores').select('id, nome_completo, status, is_online').neq('status', 'inativo').order('nome_completo'),
@@ -578,7 +580,26 @@ export function NovaEntregaPanel() {
        supabase.from('preco_dinamico_demanda').select('*').eq('ativa', true).order('nome'),
        supabase.from('preco_dinamico_entregador').select('*').eq('ativa', true)
      ]);
-     setClientes((c.data || []) as Cliente[]);
+
+     let finalClientes = (c.data || []) as Cliente[];
+     
+     // Filter clients if user is 'cliente' (comercio)
+      const { data: { user } } = await userPromise;
+      if (user) {
+          const { data: uData } = await supabase.from('users').select('role').eq('id', user.id).maybeSingle();
+          if (uData?.role === 'cliente') {
+              const userEmail = user.email?.trim().toLowerCase();
+              const matched = finalClientes.find(cli => cli.email?.trim().toLowerCase() === userEmail);
+              if (matched) {
+                  finalClientes = [matched];
+                  setForm(prev => ({ ...prev, cliente_id: matched.id }));
+              } else {
+                  finalClientes = [];
+              }
+          }
+      }
+
+     setClientes(finalClientes);
     setEntregadores((e.data || []) as Entregador[]);
     const tiposList = (t.data || []) as TipoServico[];
     setTipos(tiposList);
