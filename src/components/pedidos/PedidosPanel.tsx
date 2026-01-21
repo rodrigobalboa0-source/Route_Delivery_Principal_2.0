@@ -372,10 +372,31 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
   useEffect(() => {
     if (userId) {
-      supabase.from('users').select('role').eq('id', userId).single().then(({ data }) => {
+      const loadUserRole = async () => {
+        const { data } = await supabase.from('users').select('role, cliente_id, email').eq('id', userId).single();
+        
+        const isClient = data?.role === 'cliente';
         setIsAdmin(data?.role === 'admin' || data?.role === 'operador');
-        setIsComercio(data?.role === 'cliente');
-      });
+        setIsComercio(isClient);
+        
+        if (isClient) {
+            let targetClientId = data?.cliente_id;
+            
+            if (!targetClientId && data?.email) {
+                const { data: clienteData } = await supabase
+                    .from('clientes')
+                    .select('id')
+                    .eq('email', data.email)
+                    .single();
+                if (clienteData) targetClientId = clienteData.id;
+            }
+
+            if (targetClientId) {
+                setFilters(prev => ({ ...prev, cliente_id: targetClientId }));
+            }
+        }
+      };
+      loadUserRole();
       
       
       supabase.from('configuracoes_comercio').select('permitir_alocar_entregador').maybeSingle().then(({ data }) => {
@@ -767,6 +788,19 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
   const onlineEntregadoresCount = availableEntregadores.filter(e => e.status === 'ativo').length;
   
+  const visibleDeliveryPersons = useMemo(() => {
+    if (!isComercio) return mapDeliveryPersons;
+    
+    const assignedIds = new Set<string>();
+    Object.values(entregasMap).forEach(entrega => {
+        if (entrega.entregador_id) {
+            assignedIds.add(entrega.entregador_id);
+        }
+    });
+    
+    return mapDeliveryPersons.filter(dp => assignedIds.has(dp.id));
+  }, [isComercio, mapDeliveryPersons, entregasMap]);
+
   const fetchClientes = async () => {
     const { data, error } = await supabase.from('clientes').select('id, nome_completo, rua, numero, bairro, cidade, cep').order('nome_completo');
     if (error) setError(error.message);
@@ -978,7 +1012,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       <div className="bg-white p-1 rounded-lg shadow-sm border border-slate-200">
         <div className="h-[400px] bg-slate-100 rounded-lg overflow-hidden relative">
           <MapView 
-            deliveryPersons={mapDeliveryPersons || []} 
+            deliveryPersons={visibleDeliveryPersons || []} 
             selectedEntregadorId={mapSelectedEntregadorId}
             origin={originCoords}
             destination={destinationCoords}
