@@ -1,148 +1,262 @@
 import { useEffect, useState } from 'react';
-import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../lib/supabase';
-import type { Database } from '../../lib/database.types';
-
-type Credito = any;
-type Cliente = Database['public']['Tables']['clientes']['Row'];
+import { supabase } from '../../lib/supabase';
+import { CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react';
 
 export function CreditoClientesPanel() {
-  const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [items, setItems] = useState<Credito[]>([]);
-  const [loadingList, setLoadingList] = useState(false);
-  const [loadingSubmit, setLoadingSubmit] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [clientes, setClientes] = useState<any[]>([]);
+  const [requests, setRequests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  
+  // Manual Credit Form
   const [form, setForm] = useState({ cliente_id: '', valor: '', motivo: '' });
+  const [submittingManual, setSubmittingManual] = useState(false);
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => {
+    fetchData();
+  }, []);
 
-  const fetchAll = async () => {
-    setLoadingList(true);
-    setError(null);
+  async function fetchData() {
+    setLoading(true);
     try {
-      const p = Promise.all([
-        supabase.from('clientes').select('id, nome_completo').order('nome_completo'),
-        supabase.from('creditos_clientes').select('*').order('created_at', { ascending: false }),
-      ]);
-      const result = await new Promise<[
-        { data?: Cliente[]; error?: { message?: string } },
-        { data?: Credito[]; error?: { message?: string } }
-      ]>((resolve, reject) => {
-        const t = setTimeout(() => reject(new Error('Tempo excedido na consulta')), 8000);
-        p.then(
-          (v) => { clearTimeout(t); resolve(v as unknown as [
-            { data?: Cliente[]; error?: { message?: string } },
-            { data?: Credito[]; error?: { message?: string } }
-          ]); },
-          (err) => { clearTimeout(t); reject(err); }
-        );
-      });
-      const [cRes, kRes] = result;
-      if (cRes.error?.message) setError(cRes.error.message);
-      if (kRes.error?.message) setError(kRes.error.message);
-      setClientes((cRes.data || []) as Cliente[]);
-      setItems((kRes.data || []) as Credito[]);
-    } catch {
-      try {
-        const [cR, kR] = await Promise.all([
-          fetch(`${SUPABASE_URL}/rest/v1/clientes?select=id,nome_completo&order=nome_completo`, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }),
-          fetch(`${SUPABASE_URL}/rest/v1/creditos_clientes?select=*&order=created_at.desc`, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }),
-        ]);
-        if (cR.ok) setClientes(await cR.json());
-        if (kR.ok) setItems(await kR.json());
-        if (!cR.ok || !kR.ok) {
-          const msg = `Falha ${(cR.ok ? '' : cR.status)} ${(kR.ok ? '' : kR.status)}`.trim();
-          if (msg) setError(msg);
-        } else {
-          setError(null);
-        }
-      } catch (e2) {
-        const msg = (e2 as { message?: string })?.message || 'Erro ao carregar créditos';
-        setError(msg);
-      }
+      // Fetch Clients
+      const { data: clientesData } = await supabase
+        .from('clientes')
+        .select('id, nome_completo, saldo_creditos')
+        .order('nome_completo');
+      setClientes(clientesData || []);
+
+      // Fetch Pending Requests
+      const { data: requestsData } = await supabase
+        .from('solicitacoes_credito')
+        .select(`
+            *,
+            clientes (nome_completo)
+        `)
+        .eq('status', 'pendente')
+        .order('created_at', { ascending: false });
+      
+      setRequests(requestsData || []);
+
+    } catch (error) {
+      console.error('Erro ao buscar dados:', error);
     } finally {
-      setLoadingList(false);
+      setLoading(false);
+    }
+  }
+
+  const handleApprove = async (req: any) => {
+    if (!confirm(`Confirmar aprovação de R$ ${req.valor} para ${req.clientes?.nome_completo}?`)) return;
+    
+    setProcessingId(req.id);
+    try {
+        // Update request status to 'aprovado'
+        // The database trigger 'trg_process_approved_credit_request' will handle the balance update and logging
+        const { error } = await supabase
+            .from('solicitacoes_credito')
+            .update({ status: 'aprovado' })
+            .eq('id', req.id);
+
+        if (error) throw error;
+        
+        // Refresh data
+        await fetchData();
+        alert('Solicitação aprovada com sucesso!');
+
+    } catch (error: any) {
+        console.error('Erro ao aprovar:', error);
+        alert('Erro ao aprovar: ' + error.message);
+    } finally {
+        setProcessingId(null);
     }
   };
 
-  const handleSubmit = async () => {
+  const handleReject = async (req: any) => {
+    if (!confirm(`Rejeitar solicitação de R$ ${req.valor}?`)) return;
+
+    setProcessingId(req.id);
+    try {
+        const { error } = await supabase
+            .from('solicitacoes_credito')
+            .update({ status: 'rejeitado' })
+            .eq('id', req.id);
+
+        if (error) throw error;
+        
+        await fetchData();
+
+    } catch (error: any) {
+        console.error('Erro ao rejeitar:', error);
+        alert('Erro ao rejeitar: ' + error.message);
+    } finally {
+        setProcessingId(null);
+    }
+  };
+
+  const handleManualSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!form.cliente_id || !form.valor) return;
-    setLoadingSubmit(true);
-    setError(null);
-    const res = await (supabase as unknown as { from: (t: string) => { insert: (v: unknown) => Promise<unknown> } })
-      .from('creditos_clientes')
-      .insert({ cliente_id: form.cliente_id, valor: Number(form.valor), motivo: form.motivo || null, status: 'disponivel' });
-    const r = res as unknown as { error?: { message?: string } };
-    if (r.error?.message) setError(r.error.message);
-    setForm({ cliente_id: '', valor: '', motivo: '' });
-    await fetchAll();
-    setLoadingSubmit(false);
-  };
 
-  const handleToggleUtilizado = async (id: string, status: Credito['status']) => {
-    setLoadingSubmit(true);
-    setError(null);
-    const novo = status === 'utilizado' ? 'disponivel' : 'utilizado';
-    const res = await (supabase as unknown as { from: (t: string) => { update: (v: unknown) => { eq: (c: string, v: string) => Promise<unknown> } } })
-      .from('creditos_clientes')
-      .update({ status: novo })
-      .eq('id', id);
-    const r = res as unknown as { error?: { message?: string } };
-    if (r.error?.message) setError(r.error.message);
-    await fetchAll();
-    setLoadingSubmit(false);
-  };
+    setSubmittingManual(true);
+    try {
+        const amount = parseFloat(form.valor.replace(',', '.'));
+        if (isNaN(amount) || amount <= 0) {
+            throw new Error('Valor inválido');
+        }
 
-  const handleDelete = async (id: string) => {
-    setLoadingSubmit(true);
-    setError(null);
-    const { error: delErr } = await supabase.from('creditos_clientes').delete().eq('id', id);
-    if (delErr) setError(delErr.message);
-    await fetchAll();
-    setLoadingSubmit(false);
+        const cliente = clientes.find(c => c.id === form.cliente_id);
+        if (!cliente) throw new Error('Cliente não encontrado');
+
+        // Use RPC for atomic and secure update
+        const { data, error } = await supabase.rpc('admin_add_credit', {
+            p_cliente_id: form.cliente_id,
+            p_valor: amount,
+            p_motivo: form.motivo || 'Adição manual pelo admin'
+        });
+
+        if (error) throw error;
+
+        alert('Crédito adicionado com sucesso!');
+        setForm({ cliente_id: '', valor: '', motivo: '' });
+        fetchData();
+
+    } catch (error: any) {
+        console.error('Erro ao adicionar crédito:', error);
+        alert('Erro: ' + error.message);
+    } finally {
+        setSubmittingManual(false);
+    }
   };
 
   return (
-    <div className="p-6">
-      <h2 className="text-lg font-semibold text-slate-900 mb-4">Crédito para clientes</h2>
-      {error && <div className="mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</div>}
-      <div className="bg-white border border-slate-200 rounded-lg p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <select value={form.cliente_id} onChange={(e) => setForm({ ...form, cliente_id: e.target.value })} className="px-3 py-2 border border-slate-300 rounded">
-            <option value="">Cliente</option>
-            {clientes.map((c) => (<option key={c.id} value={c.id}>{c.nome_completo}</option>))}
-          </select>
-          <input placeholder="Valor" value={form.valor} onChange={(e) => setForm({ ...form, valor: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-          <input placeholder="Motivo (opcional)" value={form.motivo} onChange={(e) => setForm({ ...form, motivo: e.target.value })} className="px-3 py-2 border border-slate-300 rounded md:col-span-2" />
-        </div>
-        <div className="mt-4">
-          <button onClick={handleSubmit} disabled={loadingSubmit} className="px-4 py-2 rounded bg-sky-600 hover:bg-sky-700 text-white text-sm disabled:opacity-50">
-            {loadingSubmit ? 'Salvando...' : 'Adicionar crédito'}
-          </button>
-        </div>
+    <div className="p-6 max-w-6xl mx-auto space-y-8">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-800 mb-2">Gerenciamento de Créditos</h1>
+        <p className="text-slate-500">Aprove solicitações ou adicione créditos manualmente.</p>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-lg">
-        <div className="px-4 py-2 border-b border-slate-200 text-sm text-slate-600">Créditos</div>
-        {loadingList ? (
-          <div className="p-4 text-slate-600">Carregando...</div>
-        ) : items.length === 0 ? (
-          <div className="p-4 text-slate-600">Nenhum crédito</div>
+      {/* Pending Requests */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+            <h2 className="font-bold text-slate-700 flex items-center gap-2">
+                <Clock className="w-5 h-5 text-orange-500" />
+                Solicitações Pendentes
+            </h2>
+            <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-xs font-bold">
+                {requests.length}
+            </span>
+        </div>
+        
+        {loading ? (
+            <div className="p-8 text-center text-slate-500 flex justify-center items-center gap-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-500"></div>
+                Carregando solicitações...
+            </div>
+        ) : requests.length === 0 ? (
+            <div className="p-8 text-center text-slate-500">
+                Nenhuma solicitação pendente no momento.
+            </div>
         ) : (
-          <div className="divide-y">
-            {items.map((k) => (
-              <div key={k.id} className="flex items-center justify-between px-4 py-3">
-                <div>
-                  <div className="font-medium text-slate-900">{k.cliente_id}</div>
-                  <div className="text-sm text-slate-600">{[k.valor != null ? `R$ ${k.valor}` : '', k.motivo || '', k.status || ''].filter(Boolean).join(' • ')}</div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button onClick={() => handleToggleUtilizado(k.id, k.status)} className="text-sm text-sky-700">{k.status === 'utilizado' ? 'Desmarcar utilizado' : 'Marcar utilizado'}</button>
-                  <button onClick={() => handleDelete(k.id)} className="text-sm text-red-700">Excluir</button>
-                </div>
-              </div>
-            ))}
-          </div>
+            <div className="divide-y divide-slate-100">
+                {requests.map(req => (
+                    <div key={req.id} className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-slate-50 transition-colors">
+                        <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                                <span className="font-bold text-slate-800">{req.clientes?.nome_completo || 'Cliente Desconhecido'}</span>
+                                <span className="text-xs text-slate-400">• {new Date(req.created_at).toLocaleDateString()}</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <span className="text-lg font-bold text-sky-600">R$ {Number(req.valor).toFixed(2)}</span>
+                                {req.observacao && (
+                                    <span className="text-sm text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                                        "{req.observacao}"
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => handleReject(req)}
+                                disabled={processingId === req.id}
+                                className="px-3 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 text-sm font-medium transition-colors disabled:opacity-50"
+                            >
+                                Rejeitar
+                            </button>
+                            <button
+                                onClick={() => handleApprove(req)}
+                                disabled={processingId === req.id}
+                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2"
+                            >
+                                {processingId === req.id ? 'Processando...' : (
+                                    <>
+                                        <CheckCircle size={16} />
+                                        Aprovar
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                ))}
+            </div>
         )}
+      </div>
+
+      {/* Manual Add */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <h2 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-slate-400" />
+            Adicionar Crédito Manualmente
+        </h2>
+        <form onSubmit={handleManualSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div className="md:col-span-1">
+                <label className="block text-sm font-medium text-slate-600 mb-1">Cliente</label>
+                <select
+                    value={form.cliente_id}
+                    onChange={e => setForm({...form, cliente_id: e.target.value})}
+                    className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none"
+                    required
+                >
+                    <option value="">Selecione...</option>
+                    {clientes.map(c => (
+                        <option key={c.id} value={c.id}>
+                            {c.nome_completo} (Saldo: R$ {c.saldo_creditos?.toFixed(2) || '0.00'})
+                        </option>
+                    ))}
+                </select>
+            </div>
+            <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Valor (R$)</label>
+                <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={form.valor}
+                    onChange={e => setForm({...form, valor: e.target.value})}
+                    className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none"
+                    placeholder="0.00"
+                    required
+                />
+            </div>
+            <div className="md:col-span-1">
+                <label className="block text-sm font-medium text-slate-600 mb-1">Motivo</label>
+                <input
+                    type="text"
+                    value={form.motivo}
+                    onChange={e => setForm({...form, motivo: e.target.value})}
+                    className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none"
+                    placeholder="Opcional"
+                />
+            </div>
+            <div>
+                <button
+                    type="submit"
+                    disabled={submittingManual}
+                    className="w-full py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-900 font-medium disabled:opacity-50 transition-colors"
+                >
+                    {submittingManual ? 'Adicionando...' : 'Adicionar'}
+                </button>
+            </div>
+        </form>
       </div>
     </div>
   );

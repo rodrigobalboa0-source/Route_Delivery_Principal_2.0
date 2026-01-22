@@ -1,24 +1,79 @@
-
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Wallet, History, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 
 export function ComercioCreditosPanel() {
   const [history, setHistory] = useState<any[]>([]);
+  const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saldo, setSaldo] = useState(0);
   const [clientId, setClientId] = useState<string | null>(null);
+  
+  
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [requestAmount, setRequestAmount] = useState('');
+  const [requestObs, setRequestObs] = useState('');
+  const [submittingRequest, setSubmittingRequest] = useState(false);
 
   useEffect(() => {
     fetchData();
-  }, []);
+
+    // Subscribe to changes
+    const subscription = supabase
+      .channel('comercio_creditos_updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'solicitacoes_credito'
+        },
+        () => {
+          fetchData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'creditos_clientes'
+        },
+        () => {
+          fetchData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'clientes'
+        },
+        (payload) => {
+            // Only refresh if it's the current user's client
+            if (clientId && payload.new.id === clientId) {
+                fetchData();
+            } else if (!clientId) {
+                 // If clientId is not set yet, we might want to refresh anyway or wait
+                 fetchData();
+            }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [clientId]); // Add clientId dependency to filter properly, or just refresh all
+
 
   async function fetchData() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user?.email) return;
 
-      // First try to find client by email directly or linked user
+      
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('cliente_id, role')
@@ -29,7 +84,7 @@ export function ComercioCreditosPanel() {
 
       let targetClientId = userData.cliente_id;
 
-      // If not linked in users, try looking up in clientes table by email (legacy/fallback)
+      
       if (!targetClientId && userData.role === 'cliente') {
          const { data: clienteData } = await supabase
             .from('clientes')
@@ -47,7 +102,7 @@ export function ComercioCreditosPanel() {
       
       setClientId(targetClientId);
 
-      // Fetch Client Data (Saldo)
+      
       const { data: cliente, error: clienteError } = await supabase
         .from('clientes')
         .select('saldo_creditos')
@@ -57,7 +112,7 @@ export function ComercioCreditosPanel() {
       if (clienteError) throw clienteError;
       setSaldo(cliente.saldo_creditos || 0);
 
-      // Fetch History
+      
       const { data: historyData, error: historyError } = await supabase
         .from('creditos_clientes') 
         .select('*')
@@ -67,12 +122,62 @@ export function ComercioCreditosPanel() {
       if (historyError) throw historyError;
       setHistory(historyData || []);
 
+      
+      const { data: requestsData, error: requestsError } = await supabase
+        .from('solicitacoes_credito')
+        .select('*')
+        .eq('cliente_id', targetClientId)
+        .order('created_at', { ascending: false });
+        
+      if (requestsError) {
+        
+        console.warn('Erro ao buscar solicitações (pode ser falta de migração):', requestsError);
+      } else {
+        setRequests(requestsData || []);
+      }
+
     } catch (error) {
       console.error('Erro ao buscar dados de créditos:', error);
     } finally {
       setLoading(false);
     }
   }
+
+  const handleRequestCredit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clientId) return;
+
+    const amount = parseFloat(requestAmount.replace(',', '.'));
+    if (isNaN(amount) || amount <= 0) {
+      alert('Por favor, insira um valor válido.');
+      return;
+    }
+
+    setSubmittingRequest(true);
+    try {
+      const { error } = await supabase
+        .from('solicitacoes_credito')
+        .insert({
+          cliente_id: clientId,
+          valor: amount,
+          observacao: requestObs,
+          status: 'pendente'
+        });
+
+      if (error) throw error;
+
+      alert('Solicitação enviada com sucesso! Aguarde a aprovação.');
+      setShowRequestModal(false);
+      setRequestAmount('');
+      setRequestObs('');
+      fetchData();
+    } catch (error: any) {
+      console.error('Erro ao solicitar crédito:', error);
+      alert('Erro ao solicitar crédito: ' + (error.message || 'Erro desconhecido'));
+    } finally {
+      setSubmittingRequest(false);
+    }
+  };
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -85,15 +190,62 @@ export function ComercioCreditosPanel() {
             <p className="text-gray-500 mt-1">Gerencie seu saldo e visualize seu histórico de uso.</p>
         </div>
         
-        {/* Placeholder for future "Buy Credits" button */}
+        {}
         <button 
-          onClick={() => alert('Funcionalidade de compra online em breve! Por favor, contate o suporte.')}
-          className="px-6 py-2.5 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors font-medium shadow-sm hover:shadow"
+          onClick={() => setShowRequestModal(true)}
+          className="px-6 py-2.5 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors font-medium shadow-sm hover:shadow flex items-center gap-2"
         >
-          Adicionar Créditos
+          Solicitar Créditos
         </button>
       </div>
       
+      {}
+      {requests.filter(r => r.status === 'pendente').length > 0 && (
+        <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+           <div className="text-yellow-600 mt-0.5">
+             <History size={20} />
+           </div>
+           <div>
+             <h3 className="font-semibold text-yellow-800 text-sm">Solicitação em análise</h3>
+             <p className="text-yellow-700 text-sm mt-1">
+               Você tem {requests.filter(r => r.status === 'pendente').length} solicitação(ões) de crédito pendente(s). Aguarde a aprovação do administrador.
+             </p>
+             <div className="mt-2 space-y-1">
+               {requests.filter(r => r.status === 'pendente').map(req => (
+                 <div key={req.id} className="text-xs text-yellow-800/80 flex items-center gap-2">
+                    <span>• {new Date(req.created_at).toLocaleDateString()} - R$ {Number(req.valor).toFixed(2)}</span>
+                 </div>
+               ))}
+             </div>
+           </div>
+        </div>
+      )}
+
+      {/* History/Other Requests */}
+      {requests.filter(r => r.status !== 'pendente').length > 0 && (
+        <div className="mb-8">
+            <h3 className="text-lg font-semibold text-gray-700 mb-4">Histórico de Solicitações</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {requests.filter(r => r.status !== 'pendente').map(req => (
+                    <div key={req.id} className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm flex flex-col gap-2 opacity-75">
+                        <div className="flex justify-between items-start">
+                            <span className={`px-2 py-1 rounded text-xs font-semibold uppercase ${
+                                req.status === 'aprovado' ? 'bg-green-100 text-green-700' :
+                                req.status === 'rejeitado' ? 'bg-red-100 text-red-700' :
+                                'bg-gray-100 text-gray-700'
+                            }`}>
+                                {req.status}
+                            </span>
+                            <span className="text-sm text-gray-500">{new Date(req.created_at).toLocaleDateString()}</span>
+                        </div>
+                        <div className="text-xl font-bold text-gray-800">R$ {Number(req.valor).toFixed(2)}</div>
+                        {req.observacao && <div className="text-sm text-gray-600 italic">"{req.observacao}"</div>}
+                    </div>
+                ))}
+            </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-gradient-to-br from-sky-500 to-sky-600 p-6 rounded-xl shadow-lg text-white">
             <h2 className="text-sky-100 text-sm font-medium uppercase tracking-wider mb-2">Saldo Disponível</h2>
@@ -186,6 +338,61 @@ export function ComercioCreditosPanel() {
             </div>
         )}
       </div>
+
+      {/* Request Modal */}
+      {showRequestModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+                <div className="p-6 border-b border-gray-100">
+                    <h2 className="text-xl font-bold text-gray-800">Solicitar Créditos</h2>
+                    <p className="text-sm text-gray-500">Informe o valor que deseja adicionar à sua carteira.</p>
+                </div>
+                <form onSubmit={handleRequestCredit} className="p-6 space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Valor (R$)</label>
+                        <div className="relative">
+                            <span className="absolute left-3 top-3 text-gray-500">R$</span>
+                            <input
+                                type="number"
+                                step="0.01"
+                                min="1"
+                                required
+                                className="w-full pl-10 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none"
+                                placeholder="0.00"
+                                value={requestAmount}
+                                onChange={e => setRequestAmount(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Observação (Opcional)</label>
+                        <textarea
+                            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none h-24 resize-none"
+                            placeholder="Ex: Pagamento via PIX, comprovante em anexo..."
+                            value={requestObs}
+                            onChange={e => setRequestObs(e.target.value)}
+                        />
+                    </div>
+                    <div className="flex gap-3 pt-2">
+                        <button 
+                            type="button" 
+                            onClick={() => setShowRequestModal(false)}
+                            className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium"
+                        >
+                            Cancelar
+                        </button>
+                        <button 
+                            type="submit" 
+                            disabled={submittingRequest}
+                            className="flex-1 px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 font-medium disabled:opacity-50"
+                        >
+                            {submittingRequest ? 'Enviando...' : 'Confirmar'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+      )}
     </div>
   );
 }
