@@ -8,7 +8,7 @@ export function CreditoClientesPanel() {
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   
-  // Manual Credit Form
+  
   const [form, setForm] = useState({ cliente_id: '', valor: '', motivo: '' });
   const [submittingManual, setSubmittingManual] = useState(false);
 
@@ -19,14 +19,14 @@ export function CreditoClientesPanel() {
   async function fetchData() {
     setLoading(true);
     try {
-      // Fetch Clients
+      
       const { data: clientesData } = await supabase
         .from('clientes')
         .select('id, nome_completo, saldo_creditos')
         .order('nome_completo');
       setClientes(clientesData || []);
 
-      // Fetch Pending Requests
+      
       const { data: requestsData } = await supabase
         .from('solicitacoes_credito')
         .select(`
@@ -50,8 +50,7 @@ export function CreditoClientesPanel() {
     
     setProcessingId(req.id);
     try {
-        // Update request status to 'aprovado'
-        // The database trigger 'trg_process_approved_credit_request' will handle the balance update and logging
+        
         const { error } = await supabase
             .from('solicitacoes_credito')
             .update({ status: 'aprovado' })
@@ -59,7 +58,7 @@ export function CreditoClientesPanel() {
 
         if (error) throw error;
         
-        // Refresh data
+        
         await fetchData();
         alert('Solicitação aprovada com sucesso!');
 
@@ -107,7 +106,7 @@ export function CreditoClientesPanel() {
         const cliente = clientes.find(c => c.id === form.cliente_id);
         if (!cliente) throw new Error('Cliente não encontrado');
 
-        // Use RPC for atomic and secure update
+        
         const { data, error } = await supabase.rpc('admin_add_credit', {
             p_cliente_id: form.cliente_id,
             p_valor: amount,

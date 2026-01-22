@@ -18,7 +18,7 @@ export function ComercioCreditosPanel() {
   useEffect(() => {
     fetchData();
 
-    // Subscribe to changes
+    
     const subscription = supabase
       .channel('comercio_creditos_updates')
       .on(
