@@ -143,6 +143,8 @@ export function NovaEntregaPanel() {
   const [blacklist, setBlacklist] = useState<Array<{ cliente_id: string, entregador_id: string }>>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isComercio, setIsComercio] = useState(false);
+  const [clientSaldo, setClientSaldo] = useState<number | null>(null);
 
   const [distanciaKm, setDistanciaKm] = useState<string>('');
   const [calculatingDistance, setCalculatingDistance] = useState(false);
@@ -583,16 +585,18 @@ export function NovaEntregaPanel() {
 
      let finalClientes = (c.data || []) as Cliente[];
      
-     // Filter clients if user is 'cliente' (comercio)
+     
       const { data: { user } } = await userPromise;
       if (user) {
           const { data: uData } = await supabase.from('users').select('role').eq('id', user.id).maybeSingle();
           if (uData?.role === 'cliente') {
+              setIsComercio(true);
               const userEmail = user.email?.trim().toLowerCase();
               const matched = finalClientes.find(cli => cli.email?.trim().toLowerCase() === userEmail);
               if (matched) {
                   finalClientes = [matched];
                   setForm(prev => ({ ...prev, cliente_id: matched.id }));
+                  setClientSaldo(matched.saldo_creditos);
               } else {
                   finalClientes = [];
               }
@@ -749,6 +753,15 @@ export function NovaEntregaPanel() {
       setError('Preencha o cliente');
       return;
     }
+
+    if (isComercio && clientSaldo !== null) {
+        const total = form.valor_entrega ? parseFloat(form.valor_entrega.replace(',', '.')) : 0;
+        if (!isNaN(total) && total > 0 && clientSaldo < total) {
+             setError(`Saldo insuficiente para realizar esta entrega. Seu saldo: R$ ${clientSaldo.toFixed(2)}. Valor da entrega: R$ ${total.toFixed(2)}.`);
+             return;
+        }
+    }
+
     setLoading(true);
     setError(null);
    
@@ -947,6 +960,18 @@ export function NovaEntregaPanel() {
   return (
     <div className="p-6">
       <h2 className="text-lg font-semibold text-slate-900 mb-4">Criar nova entrega</h2>
+      
+      {isComercio && clientSaldo !== null && (
+          <div className={`mb-4 p-3 rounded-lg border ${
+              (form.valor_entrega && parseFloat(form.valor_entrega.replace(',', '.') || '0') > clientSaldo) 
+              ? 'bg-red-50 border-red-200 text-red-700' 
+              : 'bg-green-50 border-green-200 text-green-700'
+          } flex justify-between items-center`}>
+              <span className="font-medium">Seu Saldo Disponível:</span>
+              <span className="text-lg font-bold">R$ {clientSaldo.toFixed(2)}</span>
+          </div>
+      )}
+
       {error && <div className="mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</div>}
       <div className="bg-white border border-slate-200 rounded-lg p-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1087,6 +1112,17 @@ export function NovaEntregaPanel() {
                {calculatingDistance ? '...' : `R$ ${form.valor_entrega}`}
             </div>
            </div>
+        )}
+
+        {isComercio && clientSaldo !== null && (
+            <div className={`mb-4 p-3 rounded-lg border ${
+                (form.valor_entrega && parseFloat(form.valor_entrega.replace(',', '.')) > clientSaldo) 
+                ? 'bg-red-50 border-red-200 text-red-700' 
+                : 'bg-green-50 border-green-200 text-green-700'
+            } flex justify-between items-center`}>
+                <span className="font-medium">Seu Saldo Disponível:</span>
+                <span className="text-lg font-bold">R$ {clientSaldo.toFixed(2)}</span>
+            </div>
         )}
 
         <div className="flex justify-end">

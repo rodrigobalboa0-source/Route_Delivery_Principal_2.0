@@ -1203,7 +1203,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                                 {getStatusBadge(entrega?.status || p.status)}
                             </td>
                             <td className="px-4 py-3">
-                                {entregador ? (
+                                {entregador && (!isComercio || ['atribuida', 'coletando', 'entregando', 'entregue', 'finalizada'].includes(entrega?.status)) ? (
                                     <div className="flex items-center gap-2">
                                         <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center overflow-hidden">
                                             {entregador.foto_url ? (
@@ -1215,7 +1215,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                                         <span className="text-slate-700">{entregador.nome_completo.split(' ')[0]}</span>
                                     </div>
                                 ) : (
-                                    (!isComercio || allowAlocarComercio) && (
+                                    (!entregador || (isComercio && !['atribuida', 'coletando', 'entregando', 'entregue', 'finalizada'].includes(entrega?.status))) && (!isComercio || allowAlocarComercio) && (
                                     <button 
                                         onClick={() => handleOpenAllocation(p)}
                                         className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded border border-slate-200"
