@@ -675,7 +675,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
     
     if (entrega?.entregador_id) {
-      if (!isComercio || ['atribuida', 'coletando', 'entregando', 'entregue', 'finalizada'].includes(entrega.status)) {
+      if (!isComercio || ['atribuida', 'coletando', 'entregando'].includes(entrega.status)) {
           setMapSelectedEntregadorId(entrega.entregador_id);
       }
     }
@@ -795,7 +795,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     
     const assignedIds = new Set<string>();
     Object.values(entregasMap).forEach(entrega => {
-        if (entrega.entregador_id && ['atribuida', 'coletando', 'entregando', 'entregue', 'finalizada'].includes(entrega.status)) {
+        if (entrega.entregador_id && ['atribuida', 'coletando', 'entregando'].includes(entrega.status)) {
             assignedIds.add(entrega.entregador_id);
         }
     });
