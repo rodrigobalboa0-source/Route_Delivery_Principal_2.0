@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Wallet, History, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import { Wallet, History, ArrowUpRight, ArrowDownLeft, Copy, Check } from 'lucide-react';
+import QRCode from 'qrcode';
+import { generatePixPayload } from '../../lib/pix';
+import { ADMIN_PIX_KEY, ADMIN_PIX_NAME, ADMIN_PIX_CITY } from '../../config/admin';
 
 export function ComercioCreditosPanel() {
   const [history, setHistory] = useState<any[]>([]);
@@ -14,6 +17,31 @@ export function ComercioCreditosPanel() {
   const [requestAmount, setRequestAmount] = useState('');
   const [requestObs, setRequestObs] = useState('');
   const [submittingRequest, setSubmittingRequest] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<'pix' | 'outros'>('pix');
+  const [pixPayload, setPixPayload] = useState('');
+  const [qrCodeUrl, setQrCodeUrl] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (showRequestModal && paymentMethod === 'pix' && requestAmount) {
+      const amount = parseFloat(requestAmount.replace(',', '.'));
+      if (!isNaN(amount) && amount > 0) {
+        const payload = generatePixPayload(ADMIN_PIX_KEY, ADMIN_PIX_NAME, ADMIN_PIX_CITY, amount, 'CRED' + Date.now().toString().slice(-6));
+        setPixPayload(payload);
+        QRCode.toDataURL(payload, { width: 300, margin: 1 })
+          .then(url => setQrCodeUrl(url))
+          .catch(err => console.error('Erro QR Code:', err));
+      } else {
+          setQrCodeUrl('');
+      }
+    }
+  }, [requestAmount, paymentMethod, showRequestModal]);
+
+  const handleCopyPix = () => {
+    navigator.clipboard.writeText(pixPayload);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   useEffect(() => {
     fetchData();
@@ -51,11 +79,11 @@ export function ComercioCreditosPanel() {
           table: 'clientes'
         },
         (payload) => {
-            // Only refresh if it's the current user's client
+            
             if (clientId && payload.new.id === clientId) {
                 fetchData();
             } else if (!clientId) {
-                 // If clientId is not set yet, we might want to refresh anyway or wait
+                 
                  fetchData();
             }
         }
@@ -65,7 +93,7 @@ export function ComercioCreditosPanel() {
     return () => {
       subscription.unsubscribe();
     };
-  }, [clientId]); // Add clientId dependency to filter properly, or just refresh all
+  }, [clientId]); 
 
 
   async function fetchData() {
@@ -155,12 +183,14 @@ export function ComercioCreditosPanel() {
 
     setSubmittingRequest(true);
     try {
+      const finalObs = `[Pagamento: ${paymentMethod.toUpperCase()}] ${requestObs}`;
+
       const { error } = await supabase
         .from('solicitacoes_credito')
         .insert({
           cliente_id: clientId,
           valor: amount,
-          observacao: requestObs,
+          observacao: finalObs,
           status: 'pendente'
         });
 
@@ -364,6 +394,63 @@ export function ComercioCreditosPanel() {
                             />
                         </div>
                     </div>
+                    
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Método de Pagamento</label>
+                        <div className="flex gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setPaymentMethod('pix')}
+                                className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
+                                    paymentMethod === 'pix' 
+                                    ? 'bg-sky-50 border-sky-500 text-sky-700' 
+                                    : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                                }`}
+                            >
+                                PIX (Instantâneo)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setPaymentMethod('outros')}
+                                className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
+                                    paymentMethod === 'outros' 
+                                    ? 'bg-sky-50 border-sky-500 text-sky-700' 
+                                    : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                                }`}
+                            >
+                                Outros
+                            </button>
+                        </div>
+                    </div>
+
+                    {paymentMethod === 'pix' && qrCodeUrl && (
+                        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 flex flex-col items-center animate-in fade-in zoom-in duration-300">
+                            <p className="text-sm text-slate-600 mb-2 font-medium">Escaneie o QR Code para pagar</p>
+                            <div className="bg-white p-2 rounded shadow-sm mb-3">
+                                <img src={qrCodeUrl} alt="QR Code PIX" className="w-40 h-40" />
+                            </div>
+                            
+                            <div className="w-full">
+                                <p className="text-xs text-slate-500 mb-1 text-center">Ou copie o código PIX:</p>
+                                <div className="flex gap-2">
+                                    <input 
+                                        readOnly 
+                                        value={pixPayload} 
+                                        className="flex-1 text-xs p-2 border rounded bg-white text-slate-600 truncate font-mono"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={handleCopyPix}
+                                        className="p-2 bg-white border rounded hover:bg-slate-50 text-slate-600 transition-colors"
+                                        title="Copiar Código"
+                                    >
+                                        {copied ? <Check size={16} className="text-green-600" /> : <Copy size={16} />}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Observação (Opcional)</label>
                         <textarea

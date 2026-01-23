@@ -961,13 +961,13 @@ export function NovaEntregaPanel() {
     <div className="p-6">
       <h2 className="text-lg font-semibold text-slate-900 mb-4">Criar nova entrega</h2>
       
-      {isComercio && clientSaldo !== null && (
+      {clientSaldo !== null && (
           <div className={`mb-4 p-3 rounded-lg border ${
               (form.valor_entrega && parseFloat(form.valor_entrega.replace(',', '.') || '0') > clientSaldo) 
               ? 'bg-red-50 border-red-200 text-red-700' 
               : 'bg-green-50 border-green-200 text-green-700'
           } flex justify-between items-center`}>
-              <span className="font-medium">Seu Saldo Disponível:</span>
+              <span className="font-medium">{isComercio ? 'Seu Saldo Disponível:' : 'Saldo Disponível do Cliente:'}</span>
               <span className="text-lg font-bold">R$ {clientSaldo.toFixed(2)}</span>
           </div>
       )}
@@ -975,7 +975,12 @@ export function NovaEntregaPanel() {
       {error && <div className="mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</div>}
       <div className="bg-white border border-slate-200 rounded-lg p-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <select value={form.cliente_id} onChange={(e) => setForm({ ...form, cliente_id: e.target.value, endereco_id: '' })} className="px-3 py-2 border border-slate-300 rounded">
+          <select value={form.cliente_id} onChange={(e) => {
+            const val = e.target.value;
+            setForm({ ...form, cliente_id: val, endereco_id: '' });
+            const selected = clientes.find(c => c.id === val);
+            setClientSaldo(selected && selected.saldo_creditos !== undefined ? selected.saldo_creditos : null);
+          }} className="px-3 py-2 border border-slate-300 rounded">
             <option value="">Cliente</option>
             {clientes.map((c) => (
               <option key={c.id} value={c.id}>{c.nome_completo || 'Cliente'}</option>
@@ -1114,13 +1119,13 @@ export function NovaEntregaPanel() {
            </div>
         )}
 
-        {isComercio && clientSaldo !== null && (
+        {clientSaldo !== null && (
             <div className={`mb-4 p-3 rounded-lg border ${
                 (form.valor_entrega && parseFloat(form.valor_entrega.replace(',', '.')) > clientSaldo) 
                 ? 'bg-red-50 border-red-200 text-red-700' 
                 : 'bg-green-50 border-green-200 text-green-700'
             } flex justify-between items-center`}>
-                <span className="font-medium">Seu Saldo Disponível:</span>
+                <span className="font-medium">{isComercio ? 'Seu Saldo Disponível:' : 'Saldo Disponível do Cliente:'}</span>
                 <span className="text-lg font-bold">R$ {clientSaldo.toFixed(2)}</span>
             </div>
         )}
