@@ -936,6 +936,20 @@ export function NovaEntregaPanel() {
 
     if (insertError?.message) setError(insertError.message);
     else {
+      // Optimistic update of client balance in the list
+      if (form.cliente_id && form.valor_entrega) {
+         const val = parseFloat(form.valor_entrega.replace(',', '.'));
+         if (!isNaN(val) && val > 0) {
+             setClientes(prev => prev.map(c => {
+                 if (c.id === form.cliente_id) {
+                     return { ...c, saldo_creditos: (c.saldo_creditos || 0) - val };
+                 }
+                 return c;
+             }));
+         }
+      }
+      setClientSaldo(null);
+
       setForm({
         cliente_id: '', endereco_id: '', tipo_servico_id: '', modal_tipo: '', atribuicao_modo: 'manual', entregador_id: '', observacoes: '',
         solicitar_comprovante: false, agendar_em: '', valor_manual: false, valor_entrega: '', tipo_cobranca: 'fatura', cobrar_destinatario: false,
