@@ -936,7 +936,7 @@ export function NovaEntregaPanel() {
 
     if (insertError?.message) setError(insertError.message);
     else {
-      // Optimistic update of client balance in the list
+      
       if (form.cliente_id && form.valor_entrega) {
          const val = parseFloat(form.valor_entrega.replace(',', '.'));
          if (!isNaN(val) && val > 0) {

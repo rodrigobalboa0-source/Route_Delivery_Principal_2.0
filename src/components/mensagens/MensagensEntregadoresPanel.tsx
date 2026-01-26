@@ -20,6 +20,28 @@ export function MensagensEntregadoresPanel() {
 
   const fetchEntregadores = useCallback(async () => {
     try {
+      if (clienteId) {
+        const { data } = await supabase
+          .from('nova_entrega')
+          .select(`
+            entregador_id,
+            entregadores:entregador_id (id, nome_completo)
+          `)
+          .eq('cliente_id', clienteId)
+          .in('status', ['criada', 'atribuida', 'em_rota']);
+        const rows = (data || []) as Array<{ entregador_id: string; entregadores: { id: string; nome_completo: string | null } | null }>;
+        const seen = new Set<string>();
+        const list: Entregador[] = [];
+        for (const row of rows) {
+          const e = row.entregadores;
+          if (!e || seen.has(e.id)) continue;
+          seen.add(e.id);
+          list.push({ id: e.id, nome_completo: e.nome_completo || '' } as Entregador);
+        }
+        setEntregadores(list);
+        return;
+      }
+
       const result = await withTimeout(
         supabase.from('entregadores').select('id, nome_completo').order('nome_completo'),
         8000
@@ -38,7 +60,7 @@ export function MensagensEntregadoresPanel() {
         }
       } catch (e2) { void e2; }
     }
-  }, []);
+  }, [clienteId]);
 
   useEffect(() => {
     fetchEntregadores();

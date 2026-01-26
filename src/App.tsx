@@ -73,6 +73,7 @@ function App() {
   const [userName, setUserName] = useState<string | undefined>(undefined);
   const [userId, setUserId] = useState<string | undefined>(undefined);
   const [userRole, setUserRole] = useState<'operador' | 'cliente' | 'entregador' | 'loading'>('loading');
+  const [menuParams, setMenuParams] = useState<any>(null);
   const roleResolvedRef = useRef(false);
   const [trainingOpen, setTrainingOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
@@ -252,7 +253,7 @@ function App() {
 
   return (
     <div className="flex flex-col h-[100dvh] w-screen overflow-hidden bg-slate-100">
-      <NotificationManager userId={userId || ''} userRole={userRole} onNavigate={(menu) => setActiveMenu(menu)} />
+      <NotificationManager userId={userId || ''} userRole={userRole} onNavigate={(menu, params) => { setActiveMenu(menu); setMenuParams(params || null); }} />
       <TopBar
         onMenuToggle={() => setSidebarOpen((v) => !v)}
         onLogout={handleLogout}
@@ -262,8 +263,9 @@ function App() {
       />
       <Sidebar
         activeMenu={activeMenu}
-        onMenuChange={(menu) => {
+        onMenuChange={(menu, params) => {
           setActiveMenu(menu);
+          setMenuParams(params || null);
           setSidebarOpen(true);
         }}
         isOpen={sidebarOpen}
@@ -284,9 +286,9 @@ function App() {
         <div className="h-full overflow-y-auto overflow-x-hidden scrollbar-modern pb-[env(safe-area-inset-bottom)]">
           {activeMenu === 'operations' && <OperationsDashboard />}
           
-          {activeMenu === 'cadastro_clientes' && <ClientesPanel />}
+          {activeMenu === 'cadastro_clientes' && <ClientesPanel initialEditId={menuParams?.editId} />}
           {activeMenu === 'cadastro_contas' && <ContasPanel />}
-          {activeMenu === 'cadastro_entregadores' && <EntregadoresPanel />}
+          {activeMenu === 'cadastro_entregadores' && <EntregadoresPanel initialEditId={menuParams?.editId} />}
           {activeMenu === 'cadastro_grupos' && <GruposPanel />}
           {activeMenu === 'cadastro_modais' && <ModaisPanel />}
           {activeMenu === 'cadastro_precificacao' && <PrecificacaoPanel />}
@@ -300,7 +302,7 @@ function App() {
           {activeMenu === 'mensagens_clientes' && <MensagensClientesPanel />}
           {activeMenu === 'mensagens_historico' && <HistoricoMensagensPanel userRole={userRole} onNavigate={setActiveMenu} />}
           {activeMenu === 'nova_criar' && <NovaEntregaPanel />}
-          {activeMenu === 'pedidos' && <PedidosPanel onNavigate={setActiveMenu} userRole={userRole} userId={userId} />}
+          {activeMenu === 'pedidos' && <PedidosPanel onNavigate={(menu, params) => { setActiveMenu(menu); setMenuParams(params || null); }} userRole={userRole} userId={userId} />}
           {activeMenu === 'financeiro_dashboard' && <FinanceiroDashboard />}
           {activeMenu === 'financeiro_contas_receber' && <ContasReceberPanel />}
           {activeMenu === 'financeiro_contas_pagar' && <ContasPagarPanel />}
@@ -315,7 +317,7 @@ function App() {
           {activeMenu === 'relatorios_entregadores_analitico' && <EntregadoresAnaliticoReport />}
           {activeMenu === 'relatorios_roteirizacao' && <RoteirizacaoReport />}
           {activeMenu === 'relatorios_operacao_analitico' && <OperacaoAnaliticoReport />}
-          {activeMenu === 'relatorios_entregas' && <RelatorioEntregasReport />}
+          {activeMenu === 'relatorios_entregas' && <RelatorioEntregasReport onNavigate={(menu, params) => { setActiveMenu(menu); setMenuParams(params || null); }} userRole={userRole} />}
           {activeMenu === 'relatorios_notas_fiscais' && <NotasFiscaisReport />}
           {activeMenu === 'relatorios_recorrencia' && <RecorrenciaReport />}
           {activeMenu === 'relatorios_trajeto_entregadores' && <TrajetoEntregadoresReport />}
@@ -346,7 +348,7 @@ function App() {
         </div>
       </main>
       <TrainingOverlay open={trainingOpen} onClose={() => setTrainingOpen(false)} goToMenu={(m) => setActiveMenu(m)} userRole={userRole} />
-      <SupportChatOverlay open={supportOpen} onClose={() => setSupportOpen(false)} />
+      <SupportChatOverlay open={supportOpen} onClose={() => setSupportOpen(false)} userRole={userRole} />
     </div>
   );
 }

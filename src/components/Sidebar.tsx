@@ -67,7 +67,7 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
 
   const mensagensItems = [
     { id: 'mensagens_entregadores', label: 'Entregadores', icon: MessageSquare },
-    { id: 'mensagens_clientes', label: 'Clientes', icon: MessageSquare },
+    { id: 'mensagens_clientes', label: 'Comércio', icon: MessageSquare },
     { id: 'mensagens_historico', label: 'Histórico', icon: MessageSquare },
   ];
 

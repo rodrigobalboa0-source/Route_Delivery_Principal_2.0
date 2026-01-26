@@ -4,7 +4,7 @@ import { MapView, MapDeliveryPerson } from '../MapView';
 import { Modal } from '../Modal';
 import type { Database } from '../../lib/database.types';
 import { format } from 'date-fns';
-import { Trash2, User, CheckCircle, Truck, Plus, ArrowRight, MapPin, Settings, Edit, FileText, CheckSquare, Link, Clock, Copy, MoreVertical, X, RefreshCw } from 'lucide-react';
+import { Trash2, User, CheckCircle, Truck, Plus, ArrowRight, MapPin, Settings, Edit, FileText, CheckSquare, Link, Clock, Copy, MoreVertical, X, RefreshCw, Ban, RotateCcw, MessageSquare, UserCog, Store } from 'lucide-react';
 
 type Cliente = { 
   id: string; 
@@ -20,9 +20,10 @@ type Pedido = Database['public']['Tables']['pedidos']['Row'];
 type Entrega = Database['public']['Tables']['nova_entrega']['Row'];
 type Entregador = Database['public']['Tables']['entregadores']['Row'];
 type DeliveryPerson = Database['public']['Tables']['delivery_persons']['Row'];
+type DeliveryLog = Database['public']['Tables']['delivery_logs']['Row'] & { created_by_user?: { email: string } };
 
 interface PedidosPanelProps {
-  onNavigate?: (menu: string) => void;
+  onNavigate?: (menu: string, params?: any) => void;
   userRole?: 'operador' | 'cliente' | 'entregador' | 'loading';
   userId?: string;
 }
@@ -309,7 +310,24 @@ function PedidoDetailsView({ pedido, entrega, cliente, onClose }: { pedido: Pedi
   );
 }
 
-function PedidoHistoryModal({ pedido }: { pedido: Pedido }) {
+function PedidoHistoryModal({ pedido, entregaId }: { pedido: Pedido, entregaId?: string }) {
+  const [logs, setLogs] = useState<DeliveryLog[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (entregaId) {
+        setLoading(true);
+        supabase.from('delivery_logs')
+            .select('*, created_by_user:created_by(email)')
+            .eq('delivery_id', entregaId)
+            .order('created_at', { ascending: false })
+            .then(({ data, error }) => {
+                if (!error) setLogs((data || []) as DeliveryLog[]);
+                setLoading(false);
+            });
+    }
+  }, [entregaId]);
+
   const hasUpdate = pedido.updated_at && pedido.updated_at !== pedido.created_at;
 
   return (
@@ -317,6 +335,22 @@ function PedidoHistoryModal({ pedido }: { pedido: Pedido }) {
       <h3 className="text-lg font-semibold mb-4">Histórico de Alterações</h3>
       <div className="space-y-4 max-h-[400px] overflow-y-auto">
         
+        {loading && <p className="text-sm text-slate-500">Carregando logs...</p>}
+
+        {!loading && logs.map(log => (
+             <div key={log.id} className="flex gap-3">
+                <div className="flex flex-col items-center">
+                    <div className="w-2 h-2 rounded-full bg-slate-500"></div>
+                    <div className="w-0.5 h-full bg-slate-200"></div>
+                </div>
+                <div className="pb-4">
+                    <p className="text-sm font-medium">{log.action}</p>
+                    <p className="text-xs text-slate-500">{format(new Date(log.created_at), 'dd/MM/yyyy HH:mm')} - {log.created_by_user?.email || 'Sistema'}</p>
+                    {log.description && <p className="text-xs text-slate-600 mt-1">{log.description}</p>}
+                </div>
+            </div>
+        ))}
+
         {hasUpdate && (
              <div className="flex gap-3">
                 <div className="flex flex-col items-center">
@@ -324,7 +358,7 @@ function PedidoHistoryModal({ pedido }: { pedido: Pedido }) {
                     <div className="w-0.5 h-full bg-slate-200"></div>
                 </div>
                 <div className="pb-4">
-                    <p className="text-sm font-medium">Última Atualização</p>
+                    <p className="text-sm font-medium">Última Atualização (Pedido)</p>
                     <p className="text-xs text-slate-500">{format(new Date(pedido.updated_at), 'dd/MM/yyyy HH:mm')}</p>
                 </div>
             </div>
@@ -340,10 +374,6 @@ function PedidoHistoryModal({ pedido }: { pedido: Pedido }) {
                 <p className="text-xs text-slate-500">{format(new Date(pedido.created_at), 'dd/MM/yyyy HH:mm')}</p>
             </div>
         </div>
-        
-        <p className="text-sm text-slate-500 italic mt-4 border-t pt-2">
-            * Histórico detalhado de alterações não disponível nesta versão.
-        </p>
       </div>
     </div>
   );
@@ -366,9 +396,28 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [isAllocationModalOpen, setIsAllocationModalOpen] = useState(false);
   const [selectedPedidoForAllocation, setSelectedPedidoForAllocation] = useState<Pedido | null>(null);
   const [selectedEntregadorId, setSelectedEntregadorId] = useState('');
+  const [isSwappingFinalized, setIsSwappingFinalized] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isComercio, setIsComercio] = useState(false);
   const [allowAlocarComercio, setAllowAlocarComercio] = useState(false);
+
+  const logAction = async (pedidoId: string, action: string, description: string, oldData?: any, newData?: any) => {
+    const entrega = entregasMap[pedidoId];
+    if (!entrega) return;
+    
+    try {
+        await supabase.from('delivery_logs').insert({
+            delivery_id: entrega.id,
+            action,
+            description,
+            old_data: oldData,
+            new_data: newData,
+            created_by: userId
+        });
+    } catch (e) {
+        console.error('Error logging action:', e);
+    }
+  };
 
   useEffect(() => {
     if (userId) {
@@ -964,6 +1013,66 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       }
   };
 
+  const handleEditCommerce = (p: Pedido) => {
+    if (onNavigate && p.cliente_id) {
+        onNavigate('cadastro_clientes', { editId: p.cliente_id });
+    }
+  };
+
+  const handleEditDeliverer = (p: Pedido) => {
+    const entrega = entregasMap[p.id];
+    if (onNavigate && entrega?.entregador_id) {
+        onNavigate('cadastro_entregadores', { editId: entrega.entregador_id });
+    }
+  };
+
+  const handleRevertFinalized = async (p: Pedido) => {
+      if (!confirm('Deseja realmente reverter esta entrega finalizada para ativa?')) return;
+      
+      const entrega = entregasMap[p.id];
+      const newStatus = entrega?.entregador_id ? 'atribuida' : 'criada';
+      
+      try {
+        await supabase.from('pedidos').update({ status: 'pronto' }).eq('id', p.id);
+        await supabase.from('nova_entrega').update({ status: newStatus }).eq('pedido_id', p.id);
+        
+        await logAction(p.id, 'REVERTER_FINALIZADA', 'Entrega finalizada revertida para ativa', 
+            { pedido_status: p.status, entrega_status: entrega?.status }, 
+            { pedido_status: 'pronto', entrega_status: newStatus }
+        );
+        
+        fetchPedidos();
+        setOpenMenuId(null);
+      } catch (e) {
+          console.error('Erro ao reverter entrega:', e);
+          alert('Erro ao reverter entrega');
+      }
+  };
+
+  const handleSwapFinalized = (p: Pedido) => {
+      const entrega = entregasMap[p.id];
+      setSelectedPedidoForAllocation(p);
+      setSelectedEntregadorId(entrega?.entregador_id || '');
+      setIsSwappingFinalized(true);
+      setIsAllocationModalOpen(true);
+      setOpenMenuId(null);
+  };
+
+  const handleAddObservation = async (p: Pedido) => {
+      const currentObs = p.observacoes || '';
+      const newObs = prompt('Escrever Observação:', currentObs);
+      if (newObs === null || newObs === currentObs) return;
+      
+      try {
+        await supabase.from('pedidos').update({ observacoes: newObs }).eq('id', p.id);
+        await logAction(p.id, 'ALTERAR_OBSERVACAO', `Observação alterada: ${newObs}`, { observacoes: currentObs }, { observacoes: newObs });
+        fetchPedidos();
+        setOpenMenuId(null);
+      } catch (e) {
+          console.error('Erro ao adicionar observação:', e);
+      }
+  };
+
   const handleSaveAllocation = async () => {
     if (!selectedPedidoForAllocation) return;
     const entrega = entregasMap[selectedPedidoForAllocation.id];
@@ -974,15 +1083,35 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     }
 
     try {
-      await supabase.from('nova_entrega').update({
-        entregador_id: selectedEntregadorId || null,
-        status: selectedEntregadorId ? 'atribuida' : 'criada'
-      }).eq('id', entrega.id);
+      if (isSwappingFinalized) {
+          const oldEntregador = entrega.entregador_id;
+          await supabase.from('nova_entrega').update({
+            entregador_id: selectedEntregadorId || null,
+          }).eq('id', entrega.id);
+
+          await logAction(selectedPedidoForAllocation.id, 'TROCAR_ENTREGADOR_FINALIZADA', 
+              `Troca de entregador em entrega finalizada: de ${oldEntregador} para ${selectedEntregadorId}`, 
+              { entregador_id: oldEntregador }, { entregador_id: selectedEntregadorId });
+              
+          alert('Entregador trocado com sucesso.');
+      } else {
+          await supabase.from('nova_entrega').update({
+            entregador_id: selectedEntregadorId || null,
+            status: selectedEntregadorId ? 'atribuida' : 'criada'
+          }).eq('id', entrega.id);
+
+          await logAction(selectedPedidoForAllocation.id, 'ALOCAR_ENTREGADOR', 
+              `Alocação manual: ${selectedEntregadorId || 'removido'}`, 
+              { status: entrega.status, entregador_id: entrega.entregador_id }, 
+              { status: selectedEntregadorId ? 'atribuida' : 'criada', entregador_id: selectedEntregadorId });
+      }
       
       setIsAllocationModalOpen(false);
+      setIsSwappingFinalized(false);
       fetchPedidos(); 
     } catch (err) {
       alert('Erro ao salvar alocação');
+      console.error(err);
     }
   };
 
@@ -1285,13 +1414,30 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                           </button>
                         )}
                         <button onClick={() => handleCopyLink(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2"><Link size={16}/> Copiar link de rastreio</button>
-                        <button onClick={() => handleHistory(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2"><Clock size={16}/> Histórico de Alterações</button>
+                        <button onClick={() => handleHistory(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2"><Clock size={16}/> Logs</button>
                         <button onClick={() => handleClone(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2"><Copy size={16}/> Clonar</button>
+                        
+                        {isAdmin && (
+                            <>
+                                <button onClick={() => handleAddObservation(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2"><MessageSquare size={16}/> Escrever Observação</button>
+                                <button onClick={() => handleEditCommerce(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2"><Store size={16}/> Editar Comércio</button>
+                                {entregasMap[p.id]?.entregador_id && (
+                                    <button onClick={() => handleEditDeliverer(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2"><UserCog size={16}/> Editar Entregador</button>
+                                )}
+                                {entregasMap[p.id]?.entregador_id && (
+                                     <button onClick={() => handleBlacklist(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-red-600 flex items-center gap-2 border-t border-slate-100 mt-1"><Ban size={16}/> Bloquear Entregador</button>
+                                )}
+                                {p.status === 'entregue' && (
+                                    <>
+                                        <button onClick={() => handleRevertFinalized(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-orange-600 flex items-center gap-2 border-t border-slate-100 mt-1"><RotateCcw size={16}/> Cancelar entrega Finalizada</button>
+                                        <button onClick={() => handleSwapFinalized(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-blue-600 flex items-center gap-2"><RefreshCw size={16}/> Trocar finalizada</button>
+                                    </>
+                                )}
+                            </>
+                        )}
+
                         {isAdmin && entregasMap[p.id]?.status === 'atribuida' && (
                              <button onClick={() => handleReprocurar(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2 border-t border-slate-100 mt-1"><RefreshCw size={16}/> Reprocurar</button>
-                        )}
-                        {isAdmin && entregasMap[p.id]?.entregador_id && (
-                             <button onClick={() => handleBlacklist(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-red-600 flex items-center gap-2 border-t border-slate-100 mt-1"><User size={16}/> Blacklist Entregador</button>
                         )}
                         {userRole !== 'entregador' && (
                              <button onClick={() => handleDelete(p.id)} className="px-4 py-2 hover:bg-red-50 text-sm text-red-600 flex items-center gap-2 border-t border-slate-100 mt-1"><Trash2 size={16}/> Cancelar</button>
@@ -1383,6 +1529,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
          {selectedPedido && (
              <PedidoHistoryModal
                 pedido={selectedPedido}
+                entregaId={entregasMap[selectedPedido.id]?.id}
              />
          )}
       </Modal>

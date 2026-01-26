@@ -26,7 +26,7 @@ type EnderecoEdit = {
   referencia_entrega?: string | null;
 };
 
-export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' }) {
+export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin' | 'public', initialEditId?: string }) {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -115,6 +115,15 @@ export function ClientesPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' })
     fetchClientes();
     fetchTabelasPrecos();
   }, []);
+
+  useEffect(() => {
+    if (initialEditId && clientes.length > 0) {
+      const target = clientes.find(c => c.id === initialEditId);
+      if (target) {
+        openEdit(target);
+      }
+    }
+  }, [initialEditId, clientes]);
 
   const fetchTabelasPrecos = async () => {
     const { data } = await supabase.from('tabelas_precos').select('*').order('nome');

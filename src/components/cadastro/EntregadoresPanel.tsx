@@ -31,7 +31,7 @@ type CSVRow = {
 
 const sbInsert = (table: string, values: unknown) => (supabase as unknown as { from: (rel: string) => { insert: (vals: unknown) => { select: () => { single: () => Promise<unknown> } } } }).from(table).insert(values).select().single();
 
-export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public' }) {
+export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'admin' | 'public', initialEditId?: string }) {
   const [entregadores, setEntregadores] = useState<Entregador[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(false);
@@ -138,6 +138,15 @@ export function EntregadoresPanel({ mode = 'admin' }: { mode?: 'admin' | 'public
       fetchClientes();
     }
   }, []);
+
+  useEffect(() => {
+    if (initialEditId && entregadores.length > 0) {
+      const target = entregadores.find(e => e.id === initialEditId);
+      if (target) {
+        openEdit(target);
+      }
+    }
+  }, [initialEditId, entregadores]);
 
   const fetchClientes = async () => {
     const { data } = await supabase.from('clientes').select('*').order('nome_completo');

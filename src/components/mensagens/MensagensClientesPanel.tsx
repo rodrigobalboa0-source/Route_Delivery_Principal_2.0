@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import type { Database } from '../../lib/database.types';
 
-type Cliente = Database['public']['Tables']['clientes']['Row'];
+type Cliente = { id: string; nome_completo: string };
 type MsgThread = Database['public']['Tables']['conversa_mensagens']['Row'];
 
 export function MensagensClientesPanel() {
@@ -20,7 +19,7 @@ export function MensagensClientesPanel() {
 
   useEffect(() => {
     fetchClientes();
-  }, []);
+  }, [entregadorId, isClienteUser]);
 
   useEffect(() => {
     try {
@@ -51,6 +50,27 @@ export function MensagensClientesPanel() {
 
   const fetchClientes = async () => {
     if (isClienteUser) { setClientes([]); return; }
+    if (entregadorId) {
+      const { data } = await supabase
+        .from('nova_entrega')
+        .select(`
+          cliente_id,
+          clientes:cliente_id (id, nome_completo)
+        `)
+        .eq('entregador_id', entregadorId)
+        .in('status', ['criada', 'atribuida', 'em_rota']);
+      const rows = (data || []) as Array<{ cliente_id: string; clientes: { id: string; nome_completo: string | null } | null }>;
+      const seen = new Set<string>();
+      const list: Cliente[] = [];
+      for (const row of rows) {
+        const c = row.clientes;
+        if (!c || seen.has(c.id)) continue;
+        seen.add(c.id);
+        list.push({ id: c.id, nome_completo: c.nome_completo || '' });
+      }
+      setClientes(list);
+      return;
+    }
     const { data } = await supabase.from('clientes').select('id, nome_completo').order('nome_completo');
     setClientes((data || []) as Cliente[]);
   };
@@ -135,34 +155,34 @@ export function MensagensClientesPanel() {
 
   return (
     <div className="p-6">
-      <h2 className="text-lg font-semibold text-slate-900 mb-4">Chat com clientes</h2>
+      <h2 className="text-lg font-semibold text-slate-900 mb-4">Chat com comércios</h2>
       {error && <div className="mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</div>}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white border border-slate-200 rounded-lg p-4">
           {!isClienteUser ? (
             <>
-              <div className="text-sm text-slate-700 mb-2">Selecionar cliente</div>
+              <div className="text-sm text-slate-700 mb-2">Selecionar comércio</div>
               <select value={selectedCliente} onChange={(e) => handleSelectCliente(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded">
                 <option value="">Escolha</option>
                 {clientes.map((c) => (
-                  <option key={c.id} value={c.id}>{(c as unknown as { nome_completo?: string }).nome_completo || 'Cliente'}</option>
+                  <option key={c.id} value={c.id}>{c.nome_completo || 'Comércio'}</option>
                 ))}
               </select>
             </>
           ) : (
-            <div className="text-sm text-slate-700">Cliente: {clienteNome || 'Cliente'}</div>
+            <div className="text-sm text-slate-700">Comércio: {clienteNome || 'Comércio'}</div>
           )}
           <div className="mt-3">
             <select value={canal} onChange={(e) => setCanal(e.target.value as 'email' | 'sms' | 'app' | '')} className="w-full px-3 py-2 border border-slate-300 rounded">
               <option value="">Canal</option>
-              <option value="email">E-mail</option>
-              <option value="sms">SMS</option>
+              <option value="email">E-mail (Em breve)</option>
+              <option value="sms">SMS (Em breve)</option>
               <option value="app">App</option>
             </select>
           </div>
         </div>
         <div className="md:col-span-2 bg-white border border-slate-200 rounded-lg flex flex-col">
-          <div className="px-4 py-2 border-b border-slate-200 text-sm text-slate-600">{conversaId ? 'Conversa' : 'Selecione um cliente'}</div>
+          <div className="px-4 py-2 border-b border-slate-200 text-sm text-slate-600">{conversaId ? 'Conversa' : 'Selecione um comércio'}</div>
           <div className="flex-1 overflow-y-auto p-4 space-y-2 scrollbar-modern">
             {loading && <div className="text-slate-600">Carregando...</div>}
             {!loading && mensagens.length === 0 && conversaId && <div className="text-slate-600">Nenhuma mensagem</div>}
