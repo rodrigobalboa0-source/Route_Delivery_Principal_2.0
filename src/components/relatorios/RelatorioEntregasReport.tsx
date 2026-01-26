@@ -314,7 +314,7 @@ export function RelatorioEntregasReport({ onNavigate, userRole }: RelatorioEntre
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow overflow-visible pb-40"> 
+      <div className="bg-white rounded-lg shadow overflow-x-auto pb-80"> 
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
