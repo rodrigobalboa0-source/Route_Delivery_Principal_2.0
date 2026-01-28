@@ -337,7 +337,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
         }
 
         const effectiveRadiusKm = radiusKm ?? 30;
-        // 1. Check if assigned explicitly to me (automatic)
+        
         const { data: assigned } = await supabase
             .from('nova_entrega')
             .select('*')
@@ -647,6 +647,28 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
       alert('Você precisa cadastrar uma foto de perfil antes de ficar online.');
       onNavigate('conta_minha_conta');
       return;
+    }
+
+    if (isOnline) {
+      try {
+        const { count, error } = await supabase
+          .from('nova_entrega')
+          .select('*', { count: 'exact', head: true })
+          .eq('entregador_id', entregadorId)
+          .neq('status', 'entregue')
+          .neq('status', 'cancelada');
+
+        if (error) throw error;
+
+        if (count && count > 0) {
+          alert('Você não pode ficar offline enquanto tiver entregas em andamento. Finalize suas entregas primeiro.');
+          return;
+        }
+      } catch (e) {
+        console.error('Erro ao verificar entregas ativas:', e);
+        alert('Não foi possível verificar suas entregas. Tente novamente.');
+        return;
+      }
     }
 
     const newState = !isOnline;
