@@ -28,6 +28,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
   const [incomingDelivery, setIncomingDelivery] = useState<any>(null);
   const [commerceData, setCommerceData] = useState<{ nome: string, foto: string | null } | null>(null);
   const [deliveryDistance, setDeliveryDistance] = useState<number | null>(null);
+  const [calculatingDistance, setCalculatingDistance] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const lastLocationUpdateRef = useRef<number>(0);
   const [radiusKm, setRadiusKm] = useState<number | null>(null);
@@ -151,14 +152,18 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
   useEffect(() => {
     if (incomingDelivery?.distancia_km !== undefined && incomingDelivery?.distancia_km !== null) {
         setDeliveryDistance(Number(incomingDelivery.distancia_km));
+        setCalculatingDistance(false);
         return;
     }
 
     if (incomingDelivery?.coleta_endereco_texto && incomingDelivery?.entrega_endereco_texto) {
         const calcDist = async () => {
+            setCalculatingDistance(true);
             try {
-                const pickup = await getCoordsFromAddress(incomingDelivery.coleta_endereco_texto);
-                const delivery = await getCoordsFromAddress(incomingDelivery.entrega_endereco_texto);
+                const [pickup, delivery] = await Promise.all([
+                    getCoordsFromAddress(incomingDelivery.coleta_endereco_texto),
+                    getCoordsFromAddress(incomingDelivery.entrega_endereco_texto)
+                ]);
                 
                 if (pickup && delivery) {
                     const dist = getDistanceFromLatLonInKm(pickup[0], pickup[1], delivery[0], delivery[1]);
@@ -168,11 +173,14 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                 }
             } catch (e) {
                 setDeliveryDistance(null);
+            } finally {
+                setCalculatingDistance(false);
             }
         };
         calcDist();
     } else {
         setDeliveryDistance(null);
+        setCalculatingDistance(false);
     }
   }, [incomingDelivery]);
 
@@ -323,6 +331,11 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
     if (!entregadorId) return;
 
     const checkPending = async () => {
+        if (!isOnline) {
+             setIncomingDelivery(null);
+             return;
+        }
+
         const effectiveRadiusKm = radiusKm ?? 30;
         // 1. Check if assigned explicitly to me (automatic)
         const { data: assigned } = await supabase
@@ -398,6 +411,9 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
           table: 'nova_entrega',
         },
         async (payload) => {
+           // Se estiver offline, ignora eventos
+           if (!isOnline) return;
+
            if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
                const newRecord = payload.new;
 
@@ -489,7 +505,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
       clearInterval(intervalId);
       supabase.removeChannel(channel);
     };
-  }, [entregadorId, incomingDelivery?.id, rejectedIds]);
+  }, [entregadorId, incomingDelivery?.id, rejectedIds, isOnline]);
 
   useEffect(() => {
     if (!entregadorId) return;
@@ -711,31 +727,6 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
          <span className="text-lg font-bold text-slate-800 leading-none">R$ {ganhos.toFixed(2)}</span>
       </button>
 
-      {/* Floating Bottom Buttons */}
-      <div className="absolute bottom-6 left-4 right-4 z-10">
-        <div className="grid grid-cols-2 gap-4">
-          <button
-            onClick={() => onNavigate('entregas_disponiveis')}
-            className="flex flex-col items-center justify-center py-3 bg-white/95 backdrop-blur-sm hover:bg-sky-50 border-2 border-sky-100 hover:border-sky-300 rounded-xl transition-all shadow-lg group"
-          >
-            <div className="w-8 h-8 rounded-full bg-sky-100 text-sky-600 flex items-center justify-center group-hover:scale-110 transition-transform mb-1">
-              <MapPin size={18} />
-            </div>
-            <span className="font-semibold text-slate-700 text-sm">Disponíveis</span>
-          </button>
-
-          <button
-            onClick={() => onNavigate('entregas_andamento')}
-            className="flex flex-col items-center justify-center py-3 bg-white/95 backdrop-blur-sm hover:bg-emerald-50 border-2 border-emerald-100 hover:border-emerald-300 rounded-xl transition-all shadow-lg group"
-          >
-            <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform mb-1">
-              <Truck size={18} />
-            </div>
-            <span className="font-semibold text-slate-700 text-sm">Em Andamento</span>
-          </button>
-        </div>
-      </div>
-
        {incomingDelivery && (
          <Modal 
              open={!!incomingDelivery} 
@@ -759,10 +750,14 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                         <h3 className="text-xl font-bold text-gray-900 mb-1">{commerceData.nome}</h3>
                     )}
 
-                    {deliveryDistance !== null && (
+                    {(deliveryDistance !== null || calculatingDistance) && (
                         <div className="mt-2 bg-gray-50 px-3 py-1 rounded-full inline-block border border-gray-200">
                              <span className="text-sm text-gray-500 font-medium">Entrega: </span>
-                             <span className="text-sm font-bold text-sky-600">{deliveryDistance.toFixed(1)} km</span>
+                             {calculatingDistance ? (
+                                 <span className="text-sm font-bold text-slate-400 animate-pulse">Calc...</span>
+                             ) : (
+                                 <span className="text-sm font-bold text-sky-600">{deliveryDistance?.toFixed(1)} km</span>
+                             )}
                         </div>
                     )}
                 </div>

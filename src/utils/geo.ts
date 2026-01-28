@@ -16,15 +16,25 @@ function deg2rad(deg: number) {
   return deg * (Math.PI / 180);
 }
 
+const coordsCache = new Map<string, [number, number]>();
+
 export async function getCoordsFromAddress(address: string): Promise<[number, number] | undefined> {
     if (!address) return undefined;
+    
+    // Check cache first
+    if (coordsCache.has(address)) {
+        return coordsCache.get(address);
+    }
+
     try {
       const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&countrycodes=br`, {
         headers: { 'User-Agent': 'RouteDeliveryApp/1.0' }
       });
       const data = await res.json();
       if (data && data[0]) {
-        return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+        const coords: [number, number] = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+        coordsCache.set(address, coords);
+        return coords;
       }
     } catch (e) {
       console.error('Error fetching coords for address:', address, e);

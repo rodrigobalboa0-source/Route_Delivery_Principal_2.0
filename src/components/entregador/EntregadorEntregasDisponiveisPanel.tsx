@@ -14,6 +14,7 @@ export function EntregadorEntregasDisponiveisPanel() {
   const [distances, setDistances] = useState<Record<string, { toPickup: number, toDelivery: number }>>({});
   const [hiddenIds, setHiddenIds] = useState<string[]>([]);
   const [entregadorId, setEntregadorId] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState(false);
   const [radiusKm, setRadiusKm] = useState<number | null>(null);
   const lastCountRef = useRef(0);
 
@@ -82,11 +83,12 @@ export function EntregadorEntregasDisponiveisPanel() {
             if (user?.email) {
                 const { data } = await supabase
                     .from('entregadores')
-                    .select('id')
+                    .select('id, is_online')
                     .eq('email', user.email)
                     .single();
                 if (data) {
                     setEntregadorId(data.id);
+                    setIsOnline(data.is_online || false);
                 } else {
                     setProfileMissing(true);
                     setLoading(false);
@@ -210,6 +212,27 @@ export function EntregadorEntregasDisponiveisPanel() {
   useEffect(() => {
     if (!entregadorId) return;
 
+    // Monitor status changes (Offline/Online)
+    const statusChannel = supabase
+        .channel('entregador_status_monitor')
+        .on('postgres_changes', {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'entregadores',
+            filter: `id=eq.${entregadorId}`
+        }, (payload) => {
+            if (payload.new) {
+                setIsOnline(payload.new.is_online);
+            }
+        })
+        .subscribe();
+
+    if (!isOnline) {
+        setEntregas([]);
+        setLoading(false);
+        return () => { supabase.removeChannel(statusChannel); };
+    }
+
     fetchEntregas();
     
     // Polling fallback every 5 seconds
@@ -247,8 +270,9 @@ export function EntregadorEntregasDisponiveisPanel() {
     return () => {
       clearInterval(intervalId);
       subscription.unsubscribe();
+      supabase.removeChannel(statusChannel);
     };
-  }, [entregadorId]);
+  }, [entregadorId, isOnline]);
 
   async function fetchEntregas() {
     if (!entregadorId) return;
@@ -360,6 +384,14 @@ export function EntregadorEntregasDisponiveisPanel() {
         </div>
       ) : loading ? (
         <div className="text-center py-8">Carregando...</div>
+      ) : !isOnline ? (
+        <div className="bg-white p-8 rounded-lg shadow-sm text-center text-gray-500 border border-gray-100">
+          <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+             <AlertCircle className="w-8 h-8 text-slate-400" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-700 mb-2">Você está Offline</h3>
+          <p className="text-sm">Fique online para visualizar as entregas disponíveis.</p>
+        </div>
       ) : entregas.filter(filterEntregas).length === 0 ? (
         <div className="bg-white p-8 rounded-lg shadow-sm text-center text-gray-500 border border-gray-100">
           <Package className="w-12 h-12 mx-auto mb-3 text-gray-300" />

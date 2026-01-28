@@ -65,6 +65,7 @@ import { EntregadorPedidosEmAndamentoPanel } from './components/entregador/Entre
 import { EntregadorHomePanel } from './components/entregador/EntregadorHomePanel';
 import { ComercioCreditosPanel } from './components/comercio/ComercioCreditosPanel';
 import { ComercioFaturamentoPanel } from './components/comercio/ComercioFaturamentoPanel';
+import { EntregadorBottomBar } from './components/entregador/EntregadorBottomBar';
 
 function App() {
   const [activeMenu, setActiveMenu] = useState('operations');
@@ -283,7 +284,7 @@ function App() {
         onStartSupport={() => setSupportOpen(true)}
       />
       <main className={`flex-1 overflow-hidden relative z-0 transition-all duration-200 ${sidebarOpen ? 'pl-56' : 'pl-0'}`}>
-        <div className="h-full overflow-y-auto overflow-x-hidden scrollbar-modern pb-[env(safe-area-inset-bottom)]">
+        <div className={`h-full overflow-y-auto overflow-x-hidden scrollbar-modern ${userRole === 'entregador' && activeMenu !== 'home_entregador' ? 'pb-32' : 'pb-[env(safe-area-inset-bottom)]'}`}>
           {activeMenu === 'operations' && <OperationsDashboard />}
           
           {activeMenu === 'cadastro_clientes' && <ClientesPanel initialEditId={menuParams?.editId} />}
@@ -349,6 +350,9 @@ function App() {
       </main>
       <TrainingOverlay open={trainingOpen} onClose={() => setTrainingOpen(false)} goToMenu={(m) => setActiveMenu(m)} userRole={userRole} />
       <SupportChatOverlay open={supportOpen} onClose={() => setSupportOpen(false)} userRole={userRole} />
+      {userRole === 'entregador' && (
+        <EntregadorBottomBar onNavigate={setActiveMenu} activeMenu={activeMenu} />
+      )}
     </div>
   );
 }

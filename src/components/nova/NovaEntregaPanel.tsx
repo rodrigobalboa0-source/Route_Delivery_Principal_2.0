@@ -942,20 +942,49 @@ export function NovaEntregaPanel() {
          if (!isNaN(val) && val > 0) {
              setClientes(prev => prev.map(c => {
                  if (c.id === form.cliente_id) {
-                     return { ...c, saldo_creditos: (c.saldo_creditos || 0) - val };
+                     const novoSaldo = (c.saldo_creditos || 0) - val;
+                     setClientSaldo(novoSaldo); 
+                     return { ...c, saldo_creditos: novoSaldo };
                  }
                  return c;
              }));
          }
       }
-      setClientSaldo(null);
+      
 
       setForm({
-        cliente_id: '', endereco_id: '', tipo_servico_id: '', modal_tipo: '', atribuicao_modo: 'manual', entregador_id: '', observacoes: '',
-        solicitar_comprovante: false, agendar_em: '', valor_manual: false, valor_entrega: '', tipo_cobranca: 'fatura', cobrar_destinatario: false,
-        coleta_usa_endereco_cadastro: false, coleta_contato: '', coleta_telefone: '', coleta_cep: '', coleta_endereco_texto: '', coleta_complemento: '', coleta_observacoes: '',
-        entrega_usa_endereco_cadastro: false, entrega_contato: '', entrega_telefone: '', entrega_codigo_pedido: '', entrega_centro_custo: '', entrega_solicitante: '', entrega_cep: '', entrega_endereco_texto: '', entrega_complemento: '', entrega_observacoes: '',
-        retorno: false, pontos: [],
+        cliente_id: form.cliente_id, 
+        endereco_id: '', 
+        tipo_servico_id: form.tipo_servico_id, 
+        modal_tipo: form.modal_tipo, 
+        atribuicao_modo: 'manual', 
+        entregador_id: '', 
+        observacoes: '',
+        solicitar_comprovante: false, 
+        agendar_em: '', 
+        valor_manual: false, 
+        valor_entrega: '', 
+        tipo_cobranca: 'fatura', 
+        cobrar_destinatario: false,
+        coleta_usa_endereco_cadastro: false, 
+        coleta_contato: '', 
+        coleta_telefone: '', 
+        coleta_cep: '', 
+        coleta_endereco_texto: '', 
+        coleta_complemento: '', 
+        coleta_observacoes: '',
+        entrega_usa_endereco_cadastro: false, 
+        entrega_contato: '', 
+        entrega_telefone: '', 
+        entrega_codigo_pedido: '', 
+        entrega_centro_custo: '', 
+        entrega_solicitante: '', 
+        entrega_cep: '', 
+        entrega_endereco_texto: '', 
+        entrega_complemento: '', 
+        entrega_observacoes: '',
+        retorno: false, 
+        pontos: [],
       });
       setDistanciaKm('');
       setValorDinamico(false);
