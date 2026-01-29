@@ -62,6 +62,7 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
     { id: 'config_fiscal', label: 'Configurações fiscais', icon: FileText },
     { id: 'config_integracoes_externas', label: 'Integrações externas', icon: Layers },
     { id: 'config_integracoes_open_delivery', label: 'Integrações Open Delivery', icon: Layers },
+    { id: 'config_integracao_ifood', label: 'Integração iFood', icon: Layers },
     { id: 'config_operacao', label: 'Configurações de operação', icon: Settings },
   ];
 

@@ -432,7 +432,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         if (isClient) {
             let targetClientId = data?.cliente_id;
             
-            // Fetch client details (address) if we have ID or email
+            
             if (targetClientId || data?.email) {
                 let query = supabase
                     .from('clientes')
