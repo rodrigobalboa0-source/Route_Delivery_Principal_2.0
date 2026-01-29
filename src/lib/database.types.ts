@@ -57,8 +57,6 @@ export interface Database {
           merchant_id: string | null
           client_id: string | null
           client_secret: string | null
-          username: string | null
-          password: string | null
           status: 'ativo' | 'inativo' | 'erro'
           last_synced_at: string | null
           created_at: string
@@ -70,8 +68,6 @@ export interface Database {
           merchant_id?: string | null
           client_id?: string | null
           client_secret?: string | null
-          username?: string | null
-          password?: string | null
           status?: 'ativo' | 'inativo' | 'erro'
           last_synced_at?: string | null
           created_at?: string
@@ -83,8 +79,6 @@ export interface Database {
           merchant_id?: string | null
           client_id?: string | null
           client_secret?: string | null
-          username?: string | null
-          password?: string | null
           status?: 'ativo' | 'inativo' | 'erro'
           last_synced_at?: string | null
           created_at?: string
