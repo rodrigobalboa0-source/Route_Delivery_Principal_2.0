@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
+import { getCoordsFromAddress } from '../../utils/geo';
 import { MapView, MapDeliveryPerson } from '../MapView';
 import { Modal } from '../Modal';
 import type { Database } from '../../lib/database.types';
@@ -431,13 +432,44 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         if (isClient) {
             let targetClientId = data?.cliente_id;
             
-            if (!targetClientId && data?.email) {
-                const { data: clienteData } = await supabase
+            // Fetch client details (address) if we have ID or email
+            if (targetClientId || data?.email) {
+                let query = supabase
                     .from('clientes')
-                    .select('id')
-                    .eq('email', data.email)
-                    .single();
-                if (clienteData) targetClientId = clienteData.id;
+                    .select('id, nome_completo, rua, numero, bairro, cidade, cep');
+                
+                if (targetClientId) {
+                    query = query.eq('id', targetClientId);
+                } else {
+                    query = query.eq('email', data!.email);
+                }
+
+                const { data: clienteData } = await query.single();
+
+                if (clienteData) {
+                    if (!targetClientId) targetClientId = clienteData.id;
+                    
+                    const addressParts = [
+                        clienteData.rua,
+                        clienteData.numero,
+                        clienteData.bairro,
+                        clienteData.cidade,
+                        clienteData.cep
+                    ].filter(Boolean);
+                    
+                    console.log('Comercio address parts:', addressParts);
+
+                    if (addressParts.length > 0) {
+                        const fullAddress = addressParts.join(', ');
+                        getCoordsFromAddress(fullAddress).then(coords => {
+                            console.log('Geocoded coords:', coords);
+                            if (coords) {
+                                setOriginCoords(coords);
+                                setOriginTitle(clienteData.nome_completo || 'Minha Loja');
+                            }
+                        });
+                    }
+                }
             }
 
             if (targetClientId) {
@@ -1153,6 +1185,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             destination={destinationCoords}
             originTitle={originTitle}
             destinationTitle={destinationTitle}
+            originIconType={isComercio ? 'store' : 'truck'}
           />
         </div>
       </div>

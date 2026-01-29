@@ -30,7 +30,8 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
     agencia: '',
     tipo_conta: 'corrente',
     conta: '',
-    digito: ''
+    digito: '',
+    chave_pix: ''
   });
 
   const bancos = [
@@ -104,7 +105,8 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
           agencia: savedData.agencia || '',
           tipo_conta: savedData.tipo_conta || 'corrente',
           conta: savedData.conta || '',
-          digito: savedData.digito || ''
+          digito: savedData.digito || '',
+          chave_pix: savedData.chave_pix || ''
         });
       }
       

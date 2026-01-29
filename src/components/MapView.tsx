@@ -26,9 +26,10 @@ interface MapViewProps {
   route?: Array<[number, number]>;
   originTitle?: string;
   destinationTitle?: string;
+  originIconType?: 'truck' | 'store';
 }
 
-export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [-23.5505, -46.6333], origin, destination, route, originTitle, destinationTitle }: MapViewProps) {
+export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [-23.5505, -46.6333], origin, destination, route, originTitle, destinationTitle, originIconType = 'truck' }: MapViewProps) {
   useEffect(() => {
     console.log('MapView initialized (Leaflet version)');
   }, []);
@@ -334,15 +335,29 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
       return;
     }
 
-    const html = `
-      <div style="position: relative; width: 40px; height: 48px;">
-        <div style="position: absolute; top: 0; left: 0; width: 40px; height: 40px; background: white; border-radius: 50%; border: 3px solid #10b981; box-shadow: 0 4px 6px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: 50;">
+    const truckIcon = `
              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="1" y="3" width="15" height="13"></rect>
                 <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
                 <circle cx="5.5" cy="18.5" r="2.5"></circle>
                 <circle cx="18.5" cy="18.5" r="2.5"></circle>
              </svg>
+    `;
+
+    const storeIcon = `
+             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/>
+                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                <path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/>
+                <path d="M2 7h20"/>
+                <path d="M22 7v3a2 2 0 0 1-2 2v0a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12v0a2 2 0 0 1-2-2V7"/>
+             </svg>
+    `;
+
+    const html = `
+      <div style="position: relative; width: 40px; height: 48px;">
+        <div style="position: absolute; top: 0; left: 0; width: 40px; height: 40px; background: white; border-radius: 50%; border: 3px solid #10b981; box-shadow: 0 4px 6px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: 50;">
+             ${originIconType === 'store' ? storeIcon : truckIcon}
         </div>
         <div style="position: absolute; width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 10px solid #10b981; bottom: 0; left: 50%; transform: translateX(-50%);"></div>
       </div>
@@ -365,7 +380,7 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
            .addTo(map.current);
     }
 
-  }, [origin, mapLoaded, originTitle]);
+  }, [origin, mapLoaded, originTitle, originIconType]);
 
   
   useEffect(() => {
