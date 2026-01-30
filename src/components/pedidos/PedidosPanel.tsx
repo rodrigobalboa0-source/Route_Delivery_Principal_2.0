@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { getCoordsFromAddress } from '../../utils/geo';
 import { MapView, MapDeliveryPerson } from '../MapView';
@@ -858,7 +858,31 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
   useEffect(() => {
     fetchPedidos();
-  }, [filters.cliente_id, filters.origem, filters.de, filters.ate]);
+  }, [fetchPedidos]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('realtime-pedidos-updates')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'pedidos' },
+        () => {
+          fetchPedidos(true);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'nova_entrega' },
+        () => {
+          fetchPedidos(true);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchPedidos]);
 
   useEffect(() => {
     const displayedItems = filters.status === 'todos' 
@@ -923,8 +947,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     setMapDeliveryPersons(mapPersons);
   };
 
-  const fetchPedidos = async () => {
-    setLoadingList(true);
+  const fetchPedidos = useCallback(async (silent = false) => {
+    if (!silent) setLoadingList(true);
     setError(null);
     
     try {
@@ -996,9 +1020,9 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         console.error('Fetch error', e);
         setError(e.message);
     } finally {
-        setLoadingList(false);
+        if (!silent) setLoadingList(false);
     }
-  };
+  }, [filters]);
 
   const handleDelete = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir este pedido?')) return;
