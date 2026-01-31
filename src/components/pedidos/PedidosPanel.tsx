@@ -856,33 +856,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     };
   }, []);
 
-  useEffect(() => {
-    fetchPedidos();
-  }, [fetchPedidos]);
 
-  useEffect(() => {
-    const channel = supabase
-      .channel('realtime-pedidos-updates')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'pedidos' },
-        () => {
-          fetchPedidos(true);
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'nova_entrega' },
-        () => {
-          fetchPedidos(true);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [fetchPedidos]);
 
   useEffect(() => {
     const displayedItems = filters.status === 'todos' 
@@ -1023,6 +997,34 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         if (!silent) setLoadingList(false);
     }
   }, [filters]);
+
+  useEffect(() => {
+    fetchPedidos();
+  }, [fetchPedidos]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('realtime-pedidos-updates')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'pedidos' },
+        () => {
+          fetchPedidos(true);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'nova_entrega' },
+        () => {
+          fetchPedidos(true);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchPedidos]);
 
   const handleDelete = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir este pedido?')) return;
