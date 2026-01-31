@@ -26,16 +26,15 @@ export function IntegracaoPanel() {
     status: 'inativo'
   });
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  
+  // TODO: Substitua pelo seu Client ID do aplicativo RouteDelivery no portal do iFood
+  const IFOOD_APP_CLIENT_ID = 'SEU_CLIENT_ID_DO_APP_AQUI';
 
   const fetchData = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      
       const { data: intData, error: intError } = await supabase
         .from('integracoes_ifood')
         .select('*, clientes(nome_completo)')
@@ -43,7 +42,6 @@ export function IntegracaoPanel() {
 
       if (intError) throw intError;
 
-      
       const { data: cliData, error: cliError } = await supabase
         .from('clientes')
         .select('id, nome_completo')
@@ -62,6 +60,79 @@ export function IntegracaoPanel() {
     }
   };
 
+  const handleAuthCallback = async (code: string, clienteId: string) => {
+      try {
+          setLoading(true);
+          console.log('Processando callback iFood...', { code, clienteId });
+          
+          const { data, error } = await supabase.functions.invoke('ifood-auth', {
+              body: { 
+                  code, 
+                  cliente_id: clienteId,
+                  redirect_uri: window.location.origin + window.location.pathname 
+              }
+          });
+
+          if (error) throw error;
+          if (data?.error) throw new Error(data.error);
+
+          alert('Integração conectada com sucesso!');
+          
+          // Clean URL
+          window.history.replaceState({}, '', window.location.pathname);
+          fetchData();
+      } catch (err: any) {
+          console.error('Erro na autenticação:', err);
+          alert('Falha ao conectar: ' + (err.message || 'Erro desconhecido'));
+          setError('Falha na autenticação iFood: ' + err.message);
+      } finally {
+          setLoading(false);
+      }
+  };
+
+  const handleConnect = (clienteId: string) => {
+      if (IFOOD_APP_CLIENT_ID === 'SEU_CLIENT_ID_DO_APP_AQUI') {
+          alert('Configure o IFOOD_APP_CLIENT_ID no código (IntegracaoPanel.tsx) primeiro.');
+          return;
+      }
+
+      const redirectUri = window.location.origin + window.location.pathname;
+      const scope = 'order,merchant';
+      const authUrl = `https://account.ifood.com.br/auth?client_id=${IFOOD_APP_CLIENT_ID}&response_type=code&scope=${scope}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${clienteId}`;
+      
+      window.location.href = authUrl;
+  };
+
+  useEffect(() => {
+    fetchData();
+    
+    // Check for OAuth callback
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const state = params.get('state'); // We use state to pass cliente_id
+
+    if (code && state) {
+        handleAuthCallback(code, state);
+    }
+  }, []);
+
+  const openModal = (integracao?: Integracao) => {
+    if (integracao) {
+      setEditingIntegracao(integracao);
+      setFormData({
+        cliente_id: integracao.cliente_id,
+        status: integracao.status
+      });
+    } else {
+      setEditingIntegracao(null);
+      setFormData({
+        status: 'inativo',
+        cliente_id: ''
+      });
+    }
+    setIsModalOpen(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -71,26 +142,24 @@ export function IntegracaoPanel() {
       }
 
       if (editingIntegracao) {
+        
         const { error } = await supabase
           .from('integracoes_ifood')
           .update({
-            cliente_id: formData.cliente_id,
-            merchant_id: formData.merchant_id,
-            client_id: formData.client_id,
-            client_secret: formData.client_secret,
             status: formData.status
           })
           .eq('id', editingIntegracao.id);
+        
         if (error) throw error;
+        
+        setIsModalOpen(false);
+        fetchData();
+        alert('Status atualizado com sucesso.');
       } else {
-        const { error } = await supabase
-          .from('integracoes_ifood')
-          .insert(formData as any);
-        if (error) throw error;
+        
+        handleConnect(formData.cliente_id);
       }
       
-      setIsModalOpen(false);
-      fetchData();
     } catch (err: any) {
       console.error('Erro ao salvar:', err);
       alert(err.message || 'Erro ao salvar integração');
@@ -112,34 +181,14 @@ export function IntegracaoPanel() {
     }
   };
 
-  const openModal = (integracao?: Integracao) => {
-    if (integracao) {
-      setEditingIntegracao(integracao);
-      setFormData({
-        cliente_id: integracao.cliente_id,
-        merchant_id: integracao.merchant_id,
-        client_id: integracao.client_id,
-        client_secret: integracao.client_secret,
-        status: integracao.status
-      });
-    } else {
-      setEditingIntegracao(null);
-      setFormData({
-        status: 'inativo',
-        cliente_id: ''
-      });
-    }
-    setIsModalOpen(true);
-  };
-
   if (loading) return <div className="p-8 text-center text-slate-500">Carregando integrações...</div>;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-800">Integração iFood</h2>
-          <p className="text-sm text-slate-500">Gerencie as credenciais de integração para os comércios.</p>
+          <h2 className="text-xl font-bold text-slate-800">Integração iFood (App Distribuído)</h2>
+          <p className="text-sm text-slate-500">Conecte os comércios ao seu aplicativo RouteDelivery via OAuth.</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -199,10 +248,6 @@ export function IntegracaoPanel() {
                 <span className="font-mono">{int.merchant_id || '-'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Client ID:</span>
-                <span className="font-mono truncate max-w-[150px]" title={int.client_id || ''}>{int.client_id || '-'}</span>
-              </div>
-              <div className="flex justify-between">
                 <span className="text-slate-500">Última Sync:</span>
                 <span>{int.last_synced_at ? new Date(int.last_synced_at).toLocaleString() : 'Nunca'}</span>
               </div>
@@ -221,7 +266,7 @@ export function IntegracaoPanel() {
       <Modal
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingIntegracao ? 'Editar Integração' : 'Nova Integração'}
+        title={editingIntegracao ? 'Editar Integração' : 'Conectar com iFood'}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -231,7 +276,7 @@ export function IntegracaoPanel() {
               value={formData.cliente_id || ''}
               onChange={(e) => setFormData(prev => ({ ...prev, cliente_id: e.target.value }))}
               className="w-full border rounded-lg p-2 bg-white"
-              disabled={!!editingIntegracao} // Disable changing commerce on edit to avoid confusion
+              disabled={!!editingIntegracao}
             >
               <option value="">Selecione um comércio...</option>
               {clientes.map(c => (
@@ -240,17 +285,15 @@ export function IntegracaoPanel() {
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Merchant ID</label>
-              <input
-                type="text"
-                value={formData.merchant_id || ''}
-                onChange={(e) => setFormData(prev => ({ ...prev, merchant_id: e.target.value }))}
-                className="w-full border rounded-lg p-2"
-                placeholder="Ex: 12345-..."
-              />
+          {!editingIntegracao && (
+            <div className="bg-blue-50 p-4 rounded-lg text-sm text-blue-700 border border-blue-100">
+                <p className="font-semibold mb-1">Conexão via iFood App</p>
+                <p>Ao clicar em "Conectar com iFood", você será redirecionado para o portal do iFood para autorizar o acesso deste comércio ao aplicativo <strong>RouteDelivery</strong>.</p>
+                <p className="mt-2 text-xs text-blue-600">Certifique-se de estar logado na conta do Portal do iFood correspondente a este comércio (usuário Gestor).</p>
             </div>
+          )}
+
+          {editingIntegracao && (
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
               <select
@@ -263,29 +306,7 @@ export function IntegracaoPanel() {
                 <option value="erro">Erro</option>
               </select>
             </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Client ID</label>
-            <input
-              type="text"
-              value={formData.client_id || ''}
-              onChange={(e) => setFormData(prev => ({ ...prev, client_id: e.target.value }))}
-              className="w-full border rounded-lg p-2 font-mono text-sm"
-              placeholder="Ex: 4f3g..."
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Client Secret</label>
-            <input
-              type="password"
-              value={formData.client_secret || ''}
-              onChange={(e) => setFormData(prev => ({ ...prev, client_secret: e.target.value }))}
-              className="w-full border rounded-lg p-2 font-mono text-sm"
-              placeholder="••••••••"
-            />
-          </div>
+          )}
 
           <div className="pt-4 flex gap-3">
             <button
@@ -297,9 +318,9 @@ export function IntegracaoPanel() {
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium"
             >
-              Salvar
+              {editingIntegracao ? 'Salvar Alterações' : 'Conectar com iFood'}
             </button>
           </div>
         </form>

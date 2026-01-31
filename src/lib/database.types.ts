@@ -55,8 +55,10 @@ export interface Database {
           id: string
           cliente_id: string
           merchant_id: string | null
-          client_id: string | null
-          client_secret: string | null
+          access_token: string | null
+          refresh_token: string | null
+          token_expires_at: string | null
+          authorization_code_used: string | null
           status: 'ativo' | 'inativo' | 'erro'
           last_synced_at: string | null
           created_at: string
@@ -66,8 +68,10 @@ export interface Database {
           id?: string
           cliente_id: string
           merchant_id?: string | null
-          client_id?: string | null
-          client_secret?: string | null
+          access_token?: string | null
+          refresh_token?: string | null
+          token_expires_at?: string | null
+          authorization_code_used?: string | null
           status?: 'ativo' | 'inativo' | 'erro'
           last_synced_at?: string | null
           created_at?: string
@@ -77,8 +81,10 @@ export interface Database {
           id?: string
           cliente_id?: string
           merchant_id?: string | null
-          client_id?: string | null
-          client_secret?: string | null
+          access_token?: string | null
+          refresh_token?: string | null
+          token_expires_at?: string | null
+          authorization_code_used?: string | null
           status?: 'ativo' | 'inativo' | 'erro'
           last_synced_at?: string | null
           created_at?: string
