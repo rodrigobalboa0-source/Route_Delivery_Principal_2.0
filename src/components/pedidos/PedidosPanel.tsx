@@ -1007,10 +1007,10 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         const finalPedidos = [...pedidosList, ...syntheticPedidos];
 
         const finalPedidosSemEntregues = finalPedidos.filter(p => {
-            if (p.status === 'entregue') return false;
+            if (p.status === 'entregue' || p.status === 'cancelado') return false;
             
             const entrega = eMap[p.id];
-            if (entrega && entrega.status === 'entregue') return false;
+            if (entrega && (entrega.status === 'entregue' || entrega.status === 'cancelada')) return false;
             
             return true;
         });
@@ -1038,7 +1038,12 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   }, [filters]);
 
   useEffect(() => {
-    fetchPedidos();
+    
+    const interval = setInterval(() => {
+        fetchPedidos(true);
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, [fetchPedidos]);
 
   useEffect(() => {
@@ -1049,7 +1054,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         { event: '*', schema: 'public', table: 'pedidos' },
         (payload) => {
           console.log('Realtime update (pedidos):', payload);
-          fetchPedidos(true);
+          
+          setTimeout(() => fetchPedidos(true), 500);
         }
       )
       .on(
@@ -1057,7 +1063,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         { event: '*', schema: 'public', table: 'nova_entrega' },
         (payload) => {
           console.log('Realtime update (nova_entrega):', payload);
-          fetchPedidos(true);
+          setTimeout(() => fetchPedidos(true), 500);
         }
       )
       .subscribe();
@@ -1068,26 +1074,28 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   }, [fetchPedidos]);
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir este pedido?')) return;
+    if (!confirm('Tem certeza que deseja cancelar este pedido?')) return;
     
-    
-    const { error: errorEntregaFK } = await supabase.from('nova_entrega').delete().eq('pedido_id', id);
-    if (errorEntregaFK) console.warn('Aviso ao deletar entrega vinculada:', errorEntregaFK);
-
-    const { error: errorEntregaPK } = await supabase.from('nova_entrega').delete().eq('id', id);
-    if (errorEntregaPK) console.warn('Aviso ao deletar entrega direta:', errorEntregaPK);
-    
-    const { error } = await supabase.from('pedidos').delete().eq('id', id);
-    
-    if (error) {
-        console.error('Erro ao excluir pedido:', error);
-        alert('Erro ao excluir pedido');
-        return;
+    try {
+        
+        await supabase.from('pedidos').update({ status: 'cancelado' }).eq('id', id);
+        
+        
+        await supabase.from('nova_entrega').update({ status: 'cancelada' }).eq('pedido_id', id);
+        await supabase.from('nova_entrega').update({ status: 'cancelada' }).eq('id', id);
+        
+        await logAction(id, 'CANCELAR_PEDIDO', 'Pedido cancelado via menu', 
+            { status: 'ativo' }, 
+            { status: 'cancelado' }
+        );
+        
+        fetchPedidos();
+        setOpenMenuId(null);
+        alert('Pedido cancelado com sucesso!');
+    } catch (e) {
+        console.error('Erro ao cancelar pedido:', e);
+        alert('Erro ao cancelar pedido');
     }
-    
-    setAllItems(prev => prev.filter(p => p.id !== id));
-    setItems(prev => prev.filter(p => p.id !== id));
-    setOpenMenuId(null);
   };
 
   const handleOpenAllocation = (pedido: Pedido) => {

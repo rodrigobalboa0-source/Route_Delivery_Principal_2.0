@@ -326,6 +326,17 @@ export function EntregadorPedidosEmAndamentoPanel() {
 
       if (error) throw error;
       
+      
+      if (newStatus === 'entregue') {
+          const entrega = entregas.find(e => e.id === id);
+          if (entrega?.pedido_id) {
+              await supabase
+                  .from('pedidos')
+                  .update({ status: 'entregue' })
+                  .eq('id', entrega.pedido_id);
+          }
+      }
+      
       if (newStatus === 'entregue' || newStatus === 'cancelada') {
         setEntregas(prev => prev.filter(e => e.id !== id));
       } else {
