@@ -401,6 +401,35 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [isAdmin, setIsAdmin] = useState(false);
   const [isComercio, setIsComercio] = useState(false);
   const [allowAlocarComercio, setAllowAlocarComercio] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkAllocation, setIsBulkAllocation] = useState(false);
+
+  const toggleSelection = (id: string) => {
+      const newSet = new Set(selectedIds);
+      if (newSet.has(id)) {
+          newSet.delete(id);
+      } else {
+          newSet.add(id);
+      }
+      setSelectedIds(newSet);
+  };
+
+  const toggleSelectAll = () => {
+      const allSelected = items.length > 0 && items.every(i => selectedIds.has(i.id));
+      if (allSelected) {
+          setSelectedIds(new Set());
+      } else {
+          setSelectedIds(new Set(items.map(i => i.id)));
+      }
+  };
+
+  const handleBulkAllocate = () => {
+    if (selectedIds.size === 0) return;
+    setIsBulkAllocation(true);
+    setSelectedEntregadorId('');
+    setIsAllocationModalOpen(true);
+  };
+
 
   const logAction = async (pedidoId: string, action: string, description: string, oldData?: any, newData?: any) => {
     const entrega = entregasMap[pedidoId];
@@ -951,7 +980,10 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
         entregasList.forEach(e => {
             if (e.pedido_id) {
-                eMap[e.pedido_id] = e;
+                
+                if (!eMap[e.pedido_id]) {
+                    eMap[e.pedido_id] = e;
+                }
             } else {
                 unlinkedEntregas.push(e);
             }
@@ -974,7 +1006,14 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
         const finalPedidos = [...pedidosList, ...syntheticPedidos];
 
-        const finalPedidosSemEntregues = finalPedidos.filter(p => p.status !== 'entregue');
+        const finalPedidosSemEntregues = finalPedidos.filter(p => {
+            if (p.status === 'entregue') return false;
+            
+            const entrega = eMap[p.id];
+            if (entrega && entrega.status === 'entregue') return false;
+            
+            return true;
+        });
 
         
         unlinkedEntregas.forEach(e => {
@@ -1008,14 +1047,16 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'pedidos' },
-        () => {
+        (payload) => {
+          console.log('Realtime update (pedidos):', payload);
           fetchPedidos(true);
         }
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'nova_entrega' },
-        () => {
+        (payload) => {
+          console.log('Realtime update (nova_entrega):', payload);
           fetchPedidos(true);
         }
       )
@@ -1050,6 +1091,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   };
 
   const handleOpenAllocation = (pedido: Pedido) => {
+    setIsBulkAllocation(false);
     const entrega = entregasMap[pedido.id];
     setSelectedPedidoForAllocation(pedido);
     setSelectedEntregadorId(entrega?.entregador_id || '');
@@ -1085,25 +1127,54 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   };
 
   const handleRevertFinalized = async (p: Pedido) => {
-      if (!confirm('Deseja realmente reverter esta entrega finalizada para ativa?')) return;
+      if (!confirm('Deseja realmente cancelar esta entrega finalizada? O valor será estornado para o comércio.')) return;
       
       const entrega = entregasMap[p.id];
-      const newStatus = entrega?.entregador_id ? 'atribuida' : 'criada';
       
       try {
-        await supabase.from('pedidos').update({ status: 'pronto' }).eq('id', p.id);
-        await supabase.from('nova_entrega').update({ status: newStatus }).eq('pedido_id', p.id);
+        await supabase.from('pedidos').update({ status: 'cancelado' }).eq('id', p.id);
         
-        await logAction(p.id, 'REVERTER_FINALIZADA', 'Entrega finalizada revertida para ativa', 
+        if (entrega) {
+            await supabase.from('nova_entrega').update({ status: 'cancelada' }).eq('id', entrega.id);
+
+            if (entrega.cliente_id && entrega.valor_entrega && entrega.valor_entrega > 0) {
+                const { data: cliente } = await supabase
+                    .from('clientes')
+                    .select('saldo_creditos')
+                    .eq('id', entrega.cliente_id)
+                    .single();
+                
+                if (cliente) {
+                    const currentSaldo = cliente.saldo_creditos || 0;
+                    const newSaldo = currentSaldo + entrega.valor_entrega;
+                    
+                    await supabase.from('clientes')
+                        .update({ saldo_creditos: newSaldo })
+                        .eq('id', entrega.cliente_id);
+                        
+                    await supabase.from('creditos_clientes').insert({
+                        cliente_id: entrega.cliente_id,
+                        valor: entrega.valor_entrega,
+                        tipo: 'estorno',
+                        descricao: `Estorno de entrega cancelada #${entrega.id.slice(0, 8)}`,
+                        saldo_anterior: currentSaldo,
+                        saldo_novo: newSaldo
+                    });
+                }
+            }
+        }
+        
+        await logAction(p.id, 'CANCELAR_FINALIZADA', 'Entrega finalizada cancelada e estornada', 
             { pedido_status: p.status, entrega_status: entrega?.status }, 
-            { pedido_status: 'pronto', entrega_status: newStatus }
+            { pedido_status: 'cancelado', entrega_status: 'cancelada' }
         );
         
         fetchPedidos();
         setOpenMenuId(null);
+        alert('Entrega cancelada e valor estornado com sucesso!');
       } catch (e) {
-          console.error('Erro ao reverter entrega:', e);
-          alert('Erro ao reverter entrega');
+          console.error('Erro ao cancelar entrega:', e);
+          alert('Erro ao cancelar entrega');
       }
   };
 
@@ -1132,6 +1203,42 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   };
 
   const handleSaveAllocation = async () => {
+    if (isBulkAllocation) {
+        if (!selectedEntregadorId) {
+            alert('Selecione um entregador');
+            return;
+        }
+
+        try {
+            const promises = Array.from(selectedIds).map(async (pedidoId) => {
+                const entrega = entregasMap[pedidoId];
+                if (!entrega) return;
+
+                await supabase.from('nova_entrega').update({
+                    entregador_id: selectedEntregadorId,
+                    status: 'atribuida'
+                }).eq('id', entrega.id);
+
+                await logAction(pedidoId, 'ALOCAR_ENTREGADOR_EM_MASSA', 
+                    `Alocação em massa: ${selectedEntregadorId}`, 
+                    { status: entrega.status, entregador_id: entrega.entregador_id }, 
+                    { status: 'atribuida', entregador_id: selectedEntregadorId });
+            });
+
+            await Promise.all(promises);
+            
+            setIsAllocationModalOpen(false);
+            setIsBulkAllocation(false);
+            setSelectedIds(new Set());
+            fetchPedidos();
+            alert('Pedidos alocados com sucesso!');
+        } catch (err) {
+            alert('Erro ao alocar pedidos em massa');
+            console.error(err);
+        }
+        return;
+    }
+
     if (!selectedPedidoForAllocation) return;
     const entrega = entregasMap[selectedPedidoForAllocation.id];
     
@@ -1181,13 +1288,32 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       em_preparo: 'bg-yellow-100 text-yellow-700',
       pronto: 'bg-green-100 text-green-700',
       cancelado: 'bg-red-100 text-red-700',
+      cancelada: 'bg-red-100 text-red-700',
       entregue: 'bg-gray-100 text-gray-700',
       atribuida: 'bg-purple-100 text-purple-700',
+      chegou_coleta: 'bg-orange-100 text-orange-700',
       em_rota: 'bg-blue-500 text-white',
+      chegou_entrega: 'bg-teal-500 text-white',
     };
+    
+    const labels: Record<string, string> = {
+        criado: 'CRIADO',
+        criada: 'CRIADA',
+        confirmado: 'CONFIRMADO',
+        em_preparo: 'EM PREPARO',
+        pronto: 'PRONTO',
+        cancelado: 'CANCELADO',
+        cancelada: 'CANCELADA',
+        entregue: 'ENTREGUE',
+        atribuida: 'ATRIBUÍDA',
+        chegou_coleta: 'NA LOJA',
+        em_rota: 'EM ROTA',
+        chegou_entrega: 'NO CLIENTE',
+    };
+
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-semibold ${colors[status] || 'bg-slate-100 text-slate-700'}`}>
-        {status?.toUpperCase()}
+        {labels[status] || status?.toUpperCase()}
       </span>
     );
   };
@@ -1348,11 +1474,45 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       )}
 
       {/* Table */}
+      {!isComercio && selectedIds.size > 0 && (
+        <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-lg flex items-center justify-between shadow-sm animate-in fade-in slide-in-from-top-2">
+            <div className="flex items-center gap-3">
+                <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2 py-1 rounded-full">{selectedIds.size}</span>
+                <span className="text-emerald-900 font-medium text-sm">pedidos selecionados</span>
+            </div>
+            <div className="flex items-center gap-2">
+                <button 
+                    onClick={() => setSelectedIds(new Set())}
+                    className="text-slate-500 hover:text-slate-700 text-sm px-3 py-1.5 font-medium"
+                >
+                    Cancelar
+                </button>
+                <button 
+                    onClick={handleBulkAllocate} 
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm px-4 py-1.5 rounded-lg font-medium shadow-sm flex items-center gap-2 transition-colors"
+                >
+                    <User size={16} />
+                    Alocar para Entregador
+                </button>
+            </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
               <tr>
+                {!isComercio && (
+                <th className="w-12 px-4 py-3 text-center">
+                    <input 
+                        type="checkbox" 
+                        className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
+                        checked={items.length > 0 && items.every(i => selectedIds.has(i.id))}
+                        onChange={toggleSelectAll}
+                    />
+                </th>
+                )}
                 <th className="px-4 py-3">Nº Pedido</th>
                 <th className="px-4 py-3">Cliente</th>
                 <th className="px-4 py-3">Coleta</th>
@@ -1365,9 +1525,9 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loadingList ? (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-500">Carregando pedidos...</td></tr>
+                <tr><td colSpan={!isComercio ? 9 : 8} className="px-4 py-8 text-center text-slate-500">Carregando pedidos...</td></tr>
               ) : items.length === 0 ? (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-500">Nenhum pedido encontrado.</td></tr>
+                <tr><td colSpan={!isComercio ? 9 : 8} className="px-4 py-8 text-center text-slate-500">Nenhum pedido encontrado.</td></tr>
               ) : (
                 items.map(p => {
                     const cliente = clientes.find(c => c.id === p.cliente_id);
@@ -1375,7 +1535,17 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                     const entregador = entrega?.entregador_id ? entregadores[entrega.entregador_id] : null;
 
                     return (
-                        <tr key={p.id} className="hover:bg-slate-50 transition-colors group">
+                        <tr key={p.id} className={`hover:bg-slate-50 transition-colors group ${selectedIds.has(p.id) ? 'bg-emerald-50 hover:bg-emerald-100' : ''}`}>
+                            {!isComercio && (
+                            <td className="px-4 py-3 text-center">
+                                <input 
+                                    type="checkbox" 
+                                    className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
+                                    checked={selectedIds.has(p.id)}
+                                    onChange={() => toggleSelection(p.id)}
+                                />
+                            </td>
+                            )}
                             <td className="px-4 py-3 font-medium text-slate-700">
                                 {p.numero || p.id.slice(0, 6)}
                                 <div className="text-xs text-slate-400">{format(new Date(p.created_at), 'dd/MM HH:mm')}</div>
@@ -1511,14 +1681,18 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       <Modal
         open={isAllocationModalOpen}
         onClose={() => setIsAllocationModalOpen(false)}
-        title="Alocar Entregador"
+        title={isBulkAllocation ? `Alocar ${selectedIds.size} Pedidos` : "Alocar Entregador"}
         onConfirm={handleSaveAllocation}
         confirmText="Confirmar Alocação"
         cancelText="Cancelar"
       >
         <div className="space-y-4">
           <p className="text-sm text-slate-600">
-            Selecione um entregador para o pedido <strong>{selectedPedidoForAllocation?.numero}</strong>
+            {isBulkAllocation ? (
+                <span>Selecione um entregador para os <strong>{selectedIds.size}</strong> pedidos selecionados.</span>
+            ) : (
+                <span>Selecione um entregador para o pedido <strong>{selectedPedidoForAllocation?.numero}</strong></span>
+            )}
           </p>
           
           <div className="space-y-2 max-h-[300px] overflow-y-auto">

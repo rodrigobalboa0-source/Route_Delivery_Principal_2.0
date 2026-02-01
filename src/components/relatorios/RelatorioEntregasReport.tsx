@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Database } from '../../lib/database.types';
 import { Modal } from '../Modal';
-import { MoreVertical, Store, UserCog, Ban, RotateCcw, RefreshCw, MessageSquare, Clock, FileText, CheckCircle, Search, X } from 'lucide-react';
+import { MoreVertical, Store, UserCog, Ban, RotateCcw, RefreshCw, MessageSquare, Clock, FileText, CheckCircle, Search, X, Download } from 'lucide-react';
 import { format } from 'date-fns';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 type Entrega = Database['public']['Tables']['nova_entrega']['Row'] & {
   clientes?: { nome_completo: string } | null;
@@ -187,24 +189,49 @@ export function RelatorioEntregasReport({ onNavigate, userRole }: RelatorioEntre
 
   const handleRevertFinalized = async (e: Entrega) => {
       if (!e.pedido_id) return;
-      if (!confirm('Deseja realmente reverter esta entrega finalizada para ativa?')) return;
-      
-      const newStatus = e.entregador_id ? 'atribuida' : 'criada';
+      if (!confirm('Deseja realmente cancelar esta entrega finalizada? O valor será estornado para o comércio.')) return;
       
       try {
-        await supabase.from('pedidos').update({ status: 'pronto' }).eq('id', e.pedido_id);
-        await supabase.from('nova_entrega').update({ status: newStatus }).eq('id', e.id);
+        await supabase.from('pedidos').update({ status: 'cancelado' }).eq('id', e.pedido_id);
+        await supabase.from('nova_entrega').update({ status: 'cancelada' }).eq('id', e.id);
         
-        await logAction(e.id, 'REVERTER_FINALIZADA', 'Entrega finalizada revertida para ativa', 
+        if (e.cliente_id && e.valor_entrega && e.valor_entrega > 0) {
+            const { data: cliente } = await supabase
+                .from('clientes')
+                .select('saldo_creditos')
+                .eq('id', e.cliente_id)
+                .single();
+            
+            if (cliente) {
+                const currentSaldo = cliente.saldo_creditos || 0;
+                const newSaldo = currentSaldo + e.valor_entrega;
+                
+                await supabase.from('clientes')
+                    .update({ saldo_creditos: newSaldo })
+                    .eq('id', e.cliente_id);
+                    
+                await supabase.from('creditos_clientes').insert({
+                    cliente_id: e.cliente_id,
+                    valor: e.valor_entrega,
+                    tipo: 'estorno',
+                    descricao: `Estorno de entrega cancelada #${e.id.slice(0, 8)}`,
+                    saldo_anterior: currentSaldo,
+                    saldo_novo: newSaldo
+                });
+            }
+        }
+
+        await logAction(e.id, 'CANCELAR_FINALIZADA', 'Entrega finalizada cancelada e estornada', 
             { pedido_status: 'entregue', entrega_status: e.status }, 
-            { pedido_status: 'pronto', entrega_status: newStatus }
+            { pedido_status: 'cancelado', entrega_status: 'cancelada' }
         );
         
         fetchEntregas();
         setOpenMenuId(null);
+        alert('Entrega cancelada e valor estornado com sucesso!');
       } catch (err) {
-          console.error('Erro ao reverter entrega:', err);
-          alert('Erro ao reverter entrega');
+          console.error('Erro ao cancelar entrega:', err);
+          alert('Erro ao cancelar entrega');
       }
   };
 
@@ -274,6 +301,33 @@ export function RelatorioEntregasReport({ onNavigate, userRole }: RelatorioEntre
       setOpenMenuId(null);
   };
 
+  const generatePDF = () => {
+    const doc = new jsPDF();
+    
+    doc.text('Relatório de Entregas', 14, 15);
+    doc.setFontSize(10);
+    doc.text(`Período: ${format(new Date(dataInicio), 'dd/MM/yyyy')} a ${format(new Date(dataFim), 'dd/MM/yyyy')}`, 14, 22);
+
+    const tableData = entregas.map(entrega => [
+        format(new Date(entrega.created_at), 'dd/MM/yyyy HH:mm'),
+        entrega.clientes?.nome_completo || 'N/A',
+        entrega.entregadores?.nome_completo || '-',
+        entrega.entrega_endereco_texto || entrega.entrega_cep || '-',
+        entrega.valor_entrega ? `R$ ${entrega.valor_entrega.toFixed(2)}` : '-',
+        entrega.status?.toUpperCase() || ''
+    ]);
+
+    autoTable(doc, {
+        head: [['Data/Hora', 'Cliente', 'Entregador', 'Endereço', 'Valor', 'Status']],
+        body: tableData,
+        startY: 30,
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [22, 163, 74] }
+    });
+
+    doc.save(`relatorio_entregas_${dataInicio}_${dataFim}.pdf`);
+  };
+
   return (
     <div className="p-6 relative min-h-screen" onClick={() => setOpenMenuId(null)}>
       <h2 className="text-2xl font-bold mb-6">Relatório de Entregas</h2>
@@ -311,6 +365,17 @@ export function RelatorioEntregasReport({ onNavigate, userRole }: RelatorioEntre
             <option value="entregue">Entregue</option>
             <option value="cancelada">Cancelada</option>
           </select>
+        </div>
+        
+        <div className="flex items-end ml-auto">
+            <button 
+                onClick={generatePDF}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded flex items-center gap-2 text-sm font-medium transition-colors"
+                title="Baixar PDF"
+            >
+                <Download size={18} />
+                PDF
+            </button>
         </div>
       </div>
 
