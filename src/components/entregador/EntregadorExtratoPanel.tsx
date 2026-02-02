@@ -135,7 +135,6 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
       const totalGanhos = (entregas || []).reduce((acc, curr) => acc + (curr.valor_entregador || curr.valor_entrega || 0), 0);
       
       // Saldo is Earnings - PAID Withdrawals
-      // Pending withdrawals do not affect saldo yet (visual only)
       const totalPagos = (acertosData || [])
         .filter((a: any) => a.status === 'pago')
         .reduce((acc: number, curr: any) => acc + (Number(curr.valor_pago) || 0), 0);
@@ -206,8 +205,16 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
       alert('Valor inválido');
       return;
     }
-    if (amount > saldo) {
-      alert('Saldo insuficiente');
+
+    // Calcular saldo realmente disponível (Saldo Total - Saques Pendentes)
+    const totalPendente = acertos
+      .filter(a => a.status === 'pendente')
+      .reduce((acc, curr) => acc + (Number(curr.valor_pago) || 0), 0);
+    
+    const saldoDisponivel = saldo - totalPendente;
+
+    if (amount > saldoDisponivel) {
+      alert(`Saldo insuficiente. Você possui R$ ${totalPendente.toFixed(2)} em solicitações pendentes.`);
       return;
     }
 

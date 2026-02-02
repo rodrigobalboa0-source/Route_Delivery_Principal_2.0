@@ -590,6 +590,31 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
       // Se é nova entrega (pool)
       if (incomingDelivery.status === 'criada') {
           try {
+              // 1. Verificar limite de entregas simultâneas
+              const { data: configData } = await supabase
+                .from('configuracoes_comercio')
+                .select('limite_entregas_simultaneas')
+                .limit(1)
+                .single();
+              
+              const limit = configData?.limite_entregas_simultaneas || 10;
+
+              // 2. Contar entregas ativas deste entregador
+              const { count, error: countError } = await supabase
+                .from('nova_entrega')
+                .select('*', { count: 'exact', head: true })
+                .eq('entregador_id', currentEntregadorId)
+                .in('status', ['atribuida', 'chegou_coleta', 'em_rota', 'chegou_entrega']);
+
+              if (countError) throw countError;
+
+              const currentActive = count || 0;
+
+              if (currentActive >= limit) {
+                alert(`Você atingiu o limite de ${limit} entregas simultâneas. Finalize uma entrega atual antes de pegar mais.`);
+                return;
+              }
+
               const { data, error } = await supabase.rpc('aceitar_entrega', {
                   entrega_id: incomingDelivery.id
               });
