@@ -278,6 +278,44 @@ export function EntregadorEntregasDisponiveisPanel() {
     if (!entregadorId) return;
 
     try {
+      
+      const [configResult, countResult] = await Promise.all([
+        supabase
+          .from('configuracoes_comercio')
+          .select('limite_entregas_simultaneas')
+          .limit(1)
+          .single(),
+        supabase
+          .from('nova_entrega')
+          .select('*', { count: 'exact', head: true })
+          .eq('entregador_id', entregadorId)
+          .in('status', ['atribuida', 'chegou_coleta', 'em_rota', 'chegou_entrega'])
+      ]);
+
+      const limit = configResult.data?.limite_entregas_simultaneas || 10;
+      const currentActive = countResult.count || 0;
+
+      
+      const isLocked = localStorage.getItem('delivery_limit_locked') === 'true';
+      let newLockedState = isLocked;
+
+      if (currentActive === 0) {
+        newLockedState = false;
+      } else if (currentActive >= limit) {
+        newLockedState = true;
+      }
+
+      if (newLockedState !== isLocked) {
+        localStorage.setItem('delivery_limit_locked', String(newLockedState));
+      }
+
+      if (newLockedState) {
+        
+        setEntregas([]);
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('nova_entrega')
         .select(`
@@ -310,7 +348,7 @@ export function EntregadorEntregasDisponiveisPanel() {
   async function handleAceitar(id: string) {
     setProcessingId(id);
     try {
-      // 1. Verificar limite de entregas simultâneas
+      
       const { data: configData } = await supabase
         .from('configuracoes_comercio')
         .select('limite_entregas_simultaneas')
@@ -319,7 +357,7 @@ export function EntregadorEntregasDisponiveisPanel() {
       
       const limit = configData?.limite_entregas_simultaneas || 10;
 
-      // 2. Contar entregas ativas deste entregador
+      
       const { count, error: countError } = await supabase
         .from('nova_entrega')
         .select('*', { count: 'exact', head: true })
@@ -330,8 +368,18 @@ export function EntregadorEntregasDisponiveisPanel() {
 
       const currentActive = count || 0;
 
+      const isLocked = localStorage.getItem('delivery_limit_locked') === 'true';
+      if (isLocked) {
+          alert('Você precisa finalizar suas entregas pendentes antes de pegar novas.');
+          setProcessingId(null);
+          setEntregas([]);
+          return;
+      }
+
       if (currentActive >= limit) {
-        alert(`Você atingiu o limite de ${limit} entregas simultâneas. Finalize uma entrega atual antes de pegar mais.`);
+        localStorage.setItem('delivery_limit_locked', 'true');
+        alert(`Você atingiu o limite de ${limit} entregas simultâneas. Finalize todas para pegar mais.`);
+        setEntregas([]);
         setProcessingId(null);
         return;
       }
@@ -341,8 +389,12 @@ export function EntregadorEntregasDisponiveisPanel() {
       if (error) throw error;
       
       if (data && data.success) {
-        
-        setEntregas(prev => prev.filter(e => e.id !== id));
+        if (currentActive + 1 >= limit) {
+            localStorage.setItem('delivery_limit_locked', 'true');
+            setEntregas([]);
+        } else {
+            setEntregas(prev => prev.filter(e => e.id !== id));
+        }
       } else {
         alert(data?.message || 'Erro ao aceitar entrega');
       }
@@ -383,7 +435,7 @@ export function EntregadorEntregasDisponiveisPanel() {
       if (hiddenIds.includes(e.id)) return false;
       if (e.status === 'atribuida' && e.entregador_id === entregadorId) return true;
       
-      // Radius check
+      
       if (radiusKm && distances[e.id]) {
           const dist = distances[e.id].toPickup;
           if (dist && dist > radiusKm) return false;
