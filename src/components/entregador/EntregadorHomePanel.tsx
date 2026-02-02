@@ -122,11 +122,11 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
     if (incomingDelivery) {
         
         const playSound = () => {
-            // Tenta tocar o arquivo de som personalizado
+            
             const audio = new Audio('/notification.mp3');
             audio.play().catch(e => {
                 console.warn('Som personalizado não encontrado ou erro ao tocar, usando fallback:', e);
-                // Fallback: Beep eletrônico caso o arquivo não exista
+                
                 const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
                 const osc = ctx.createOscillator();
                 const gain = ctx.createGain();
@@ -142,7 +142,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
             });
         };
         playSound();
-        interval = setInterval(playSound, 2000); // Toca a cada 2 segundos (ideal para som de 1s)
+        interval = setInterval(playSound, 2000); 
     }
     return () => {
         if (interval) clearInterval(interval);
@@ -353,8 +353,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
              return;
         }
 
-        // 2. Check for pool deliveries (criada)
-        // Fetch more candidates to allow client-side filtering of rejectedIds and radius
+        
         const { data: createdCandidates } = await supabase
             .from('nova_entrega')
             .select('*, pedidos!inner(status)')
@@ -368,7 +367,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
              for (const c of createdCandidates) {
                  if (rejectedIds.includes(c.id)) continue;
 
-                 // Check radius
+                 
                  if (c.coleta_endereco_texto && userLocation) {
                      try {
                          const pickupCoords = await getCoordsFromAddress(c.coleta_endereco_texto);
@@ -411,13 +410,13 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
           table: 'nova_entrega',
         },
         async (payload) => {
-           // Se estiver offline, ignora eventos
+           
            if (!isOnline) return;
 
            if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
                const newRecord = payload.new;
 
-               // VERIFICA SE O PEDIDO ESTÁ PRONTO
+               
                if (newRecord.pedido_id) {
                    const { data: p, error: pError } = await supabase
                        .from('pedidos')
@@ -430,7 +429,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                    }
                    
                    if (!p || p.status !== 'pronto') {
-                       // Se estávamos vendo ela, limpar
+                       
                        if (incomingDelivery?.id === newRecord.id) {
                            setIncomingDelivery(null);
                        }
@@ -440,22 +439,22 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                
                if (rejectedIds.includes(newRecord.id)) return;
 
-               // SE FOI ATRIBUIDA PRA MIM
+               
                if (newRecord.status === 'atribuida' && newRecord.entregador_id === entregadorId) {
                    
                    if (newRecord.atribuicao_modo === 'automatica') {
                        setIncomingDelivery(newRecord);
                    } else {
-                       // Manual assignment usually handled elsewhere, but if I'm on home:
+                       
                        if (incomingDelivery?.id === newRecord.id) {
                            setIncomingDelivery(null);
                        }
                    }
                } 
                
-               // NOVA ENTREGA NO POOL
+              
                else if (newRecord.status === 'criada' && !newRecord.entregador_id) {
-                   // Check radius logic - FAIL OPEN (if error/no coords, show anyway)
+                  
                    const effectiveRadiusKm = radiusKm ?? 30;
                    let inRadius = true;
                    if (newRecord.coleta_endereco_texto && userLocation) {
@@ -475,7 +474,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                              }
                         } catch (e) {
                              console.error('Erro realtime raio:', e);
-                             // Keep inRadius = true on error
+                            
                         }
                    }
                    
@@ -484,14 +483,14 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                    }
                }
                
-               // ATUALIZAÇÃO DA QUE ESTOU VENDO
+               
                else if (incomingDelivery?.id === newRecord.id) {
                    
                    if (newRecord.entregador_id !== entregadorId && newRecord.status !== 'criada') {
                         setIncomingDelivery(null);
                    }
                    
-                   // Alguém pegou
+                   
                    if (incomingDelivery.status === 'criada' && newRecord.status === 'atribuida' && newRecord.entregador_id !== entregadorId) {
                         setIncomingDelivery(null);
                    }
@@ -580,17 +579,17 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
           return;
       }
 
-      // Se já é minha, só fecha o modal (mas deveria navegar)
+      
       if (incomingDelivery.status === 'atribuida' && incomingDelivery.entregador_id === currentEntregadorId) {
           setIncomingDelivery(null);
           onNavigate('entregas_andamento');
           return;
       }
 
-      // Se é nova entrega (pool)
+      
       if (incomingDelivery.status === 'criada') {
           try {
-              // 1. Verificar limite de entregas simultâneas
+             
               const { data: configData } = await supabase
                 .from('configuracoes_comercio')
                 .select('limite_entregas_simultaneas')
@@ -599,7 +598,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
               
               const limit = configData?.limite_entregas_simultaneas || 10;
 
-              // 2. Contar entregas ativas deste entregador
+              
               const { count, error: countError } = await supabase
                 .from('nova_entrega')
                 .select('*', { count: 'exact', head: true })
@@ -621,15 +620,15 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
 
               if (error) throw error;
               
-              // Verifica retorno da function
+              
               if (data && !data.success) {
-                  // Se falhou (ex: outro pegou), lança erro para cair no catch
+                  
                   throw new Error(data.message || 'Erro ao aceitar entrega');
               }
               
               setIncomingDelivery(null);
-              // alert('Entrega aceita com sucesso!'); // Feedback visual rápido
-              onNavigate('entregas_andamento'); // Navega para a tela de pedidos
+              
+              onNavigate('entregas_andamento'); 
           } catch (e: any) {
               console.error(e);
               alert(e.message || 'Não foi possível aceitar a entrega. Talvez outro entregador já tenha pego.');

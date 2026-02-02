@@ -163,9 +163,7 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
 
       alert('Dados bancários salvos com sucesso!');
       setShowBankModal(false);
-      // If we were in the confirmation flow, maybe reopen it? 
-      // User asked: "only when he already has bank data... open confirmation". 
-      // If he just saved, he now has it.
+      
     } catch (error) {
       console.error('Erro ao salvar dados bancários:', error);
       alert('Erro ao salvar dados bancários. Tente novamente.');
@@ -175,13 +173,13 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
   };
 
   const handleWithdrawClick = () => {
-    // Check if bank data is complete (simple check)
+    
     const hasData = bankData.banco && bankData.conta && bankData.nome_titular;
     
     if (hasData) {
       setShowConfirmModal(true);
     } else {
-      // Open bank data form to fill it
+      
       setShowBankModal(true);
     }
   };
