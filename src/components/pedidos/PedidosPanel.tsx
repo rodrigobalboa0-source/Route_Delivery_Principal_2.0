@@ -900,7 +900,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     return c;
   }, [allItems]);
 
-  const onlineEntregadoresCount = availableEntregadores.filter(e => e.status === 'ativo').length;
+  const onlineEntregadoresCount = availableEntregadores.filter(e => e.is_online).length;
   
   const visibleDeliveryPersons = useMemo(() => {
     if (!isComercio) return mapDeliveryPersons;
