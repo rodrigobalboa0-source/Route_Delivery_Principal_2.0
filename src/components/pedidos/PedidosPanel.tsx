@@ -845,37 +845,58 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       .channel('entregadores-location')
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'entregadores' },
+        { event: '*', schema: 'public', table: 'entregadores' },
         (payload) => {
-          const updatedEntregador = payload.new as Entregador;
-          
-          setAvailableEntregadores(prev => 
-            prev.map(e => e.id === updatedEntregador.id ? updatedEntregador : e)
-          );
+          const { eventType, new: newRecord, old: oldRecord } = payload;
 
-          setEntregadores(prev => ({
-            ...prev,
-            [updatedEntregador.id]: updatedEntregador
-          }));
+          if (eventType === 'INSERT' || eventType === 'UPDATE') {
+             const updatedEntregador = newRecord as Entregador;
+             
+             setAvailableEntregadores(prev => {
+                 const exists = prev.some(e => e.id === updatedEntregador.id);
+                 if (exists) {
+                     return prev.map(e => e.id === updatedEntregador.id ? updatedEntregador : e);
+                 }
+                 return [...prev, updatedEntregador];
+             });
 
-          setMapDeliveryPersons(prev => 
-            prev.map(p => {
-              if (p.id === updatedEntregador.id) {
-                return {
-                  ...p,
-                  name: updatedEntregador.nome_completo,
-                  status: updatedEntregador.status === 'ativo' ? 'disponivel' : 'inativo',
-                  is_online: updatedEntregador.is_online || false,
-                  current_latitude: updatedEntregador.current_latitude,
-                  current_longitude: updatedEntregador.current_longitude,
-                  last_location_update: updatedEntregador.last_location_update,
-                  updated_at: updatedEntregador.updated_at,
-                  foto_url: updatedEntregador.foto_url
-                };
-              }
-              return p;
-            })
-          );
+             setEntregadores(prev => ({
+               ...prev,
+               [updatedEntregador.id]: updatedEntregador
+             }));
+
+             setMapDeliveryPersons(prev => {
+               const exists = prev.some(p => p.id === updatedEntregador.id);
+               const mappedPerson: MapDeliveryPerson = {
+                   id: updatedEntregador.id,
+                   name: updatedEntregador.nome_completo,
+                   email: updatedEntregador.email || '',
+                   phone: updatedEntregador.telefone || '',
+                   status: updatedEntregador.status === 'ativo' ? 'disponivel' : 'inativo',
+                   is_online: updatedEntregador.is_online || false,
+                   current_latitude: updatedEntregador.current_latitude,
+                   current_longitude: updatedEntregador.current_longitude,
+                   last_location_update: updatedEntregador.last_location_update,
+                   created_at: updatedEntregador.created_at,
+                   updated_at: updatedEntregador.updated_at,
+                   foto_url: updatedEntregador.foto_url
+               };
+
+               if (exists) {
+                 return prev.map(p => p.id === updatedEntregador.id ? mappedPerson : p);
+               }
+               return [...prev, mappedPerson];
+             });
+          } else if (eventType === 'DELETE') {
+             const deletedId = oldRecord.id;
+             setAvailableEntregadores(prev => prev.filter(e => e.id !== deletedId));
+             setEntregadores(prev => {
+                 const next = { ...prev };
+                 delete next[deletedId];
+                 return next;
+             });
+             setMapDeliveryPersons(prev => prev.filter(p => p.id !== deletedId));
+          }
         }
       )
       .subscribe();

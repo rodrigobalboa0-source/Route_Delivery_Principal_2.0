@@ -27,8 +27,8 @@ export function IntegracaoPanel() {
   });
 
   
-  // TODO: Substitua pelo seu Client ID do aplicativo RouteDelivery no portal do iFood
-  const IFOOD_APP_CLIENT_ID = 'SEU_CLIENT_ID_DO_APP_AQUI';
+  
+  const IFOOD_APP_CLIENT_ID = 'afc43a76-ba7f-49c6-973c-a6fb83b0f8c8';
 
   const fetchData = async () => {
     try {
