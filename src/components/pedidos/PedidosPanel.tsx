@@ -389,7 +389,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [entregadores, setEntregadores] = useState<Record<string, Entregador>>({});
   const [loadingList, setLoadingList] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [filters, setFilters] = useState({ status: 'todos', cliente_id: '', origem: 'todos', de: '', ate: '' });
+  const [filters, setFilters] = useState({ status: 'todos', cliente_id: '', origem: 'todos', de: '', ate: '', cidade: 'todos' });
   const [availableEntregadores, setAvailableEntregadores] = useState<Entregador[]>([]);
   const [mapDeliveryPersons, setMapDeliveryPersons] = useState<MapDeliveryPerson[]>([]);
   
@@ -921,6 +921,11 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     return c;
   }, [allItems]);
 
+  const uniqueCidades = useMemo(() => {
+    const cities = clientes.map(c => c.cidade).filter(Boolean) as string[];
+    return Array.from(new Set(cities)).sort();
+  }, [clientes]);
+
   const onlineEntregadoresCount = availableEntregadores.filter(e => e.is_online).length;
   
   const visibleDeliveryPersons = useMemo(() => {
@@ -984,6 +989,15 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         if (filters.cliente_id) {
             qPedidos = qPedidos.eq('cliente_id', filters.cliente_id);
             qEntregas = qEntregas.eq('cliente_id', filters.cliente_id);
+        } else if (filters.cidade && filters.cidade !== 'todos') {
+            const clientIdsInCity = clientes.filter(c => c.cidade === filters.cidade).map(c => c.id);
+            if (clientIdsInCity.length > 0) {
+                qPedidos = qPedidos.in('cliente_id', clientIdsInCity);
+                qEntregas = qEntregas.in('cliente_id', clientIdsInCity);
+            } else {
+                qPedidos = qPedidos.in('cliente_id', ['00000000-0000-0000-0000-000000000000']);
+                qEntregas = qEntregas.in('cliente_id', ['00000000-0000-0000-0000-000000000000']);
+            }
         }
         if (filters.de) {
              qPedidos = qPedidos.gte('created_at', new Date(filters.de).toISOString());
@@ -1056,7 +1070,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     } finally {
         if (!silent) setLoadingList(false);
     }
-  }, [filters]);
+  }, [filters, clientes]);
 
   useEffect(() => {
     
@@ -1426,7 +1440,18 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       </div>
 
       {/* Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <select 
+                className="bg-white border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-slate-200 outline-none"
+                value={filters.cidade}
+                onChange={e => setFilters({...filters, cidade: e.target.value, cliente_id: ''})}
+            >
+                <option value="todos">Cidade (Todas)</option>
+                {uniqueCidades.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                ))}
+            </select>
+
             {!isComercio && (
             <select 
                 className="bg-white border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-slate-200 outline-none"
@@ -1434,7 +1459,9 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                 onChange={e => setFilters({...filters, cliente_id: e.target.value})}
             >
                 <option value="">Comércio (Todos)</option>
-                {clientes.map(c => (
+                {clientes
+                    .filter(c => filters.cidade === 'todos' || c.cidade === filters.cidade)
+                    .map(c => (
                     <option key={c.id} value={c.id}>{c.nome_completo}</option>
                 ))}
             </select>
