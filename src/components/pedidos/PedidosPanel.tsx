@@ -403,6 +403,17 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [allowAlocarComercio, setAllowAlocarComercio] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isBulkAllocation, setIsBulkAllocation] = useState(false);
+  const [ibgeCities, setIbgeCities] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch('https://servicodados.ibge.gov.br/api/v1/localidades/municipios')
+        .then(res => res.json())
+        .then(data => {
+            const cities = data.map((c: any) => c.nome).sort();
+            setIbgeCities(cities);
+        })
+        .catch(err => console.error('Erro ao buscar cidades do IBGE:', err));
+  }, []);
 
   const toggleSelection = (id: string) => {
       const newSet = new Set(selectedIds);
@@ -922,9 +933,10 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   }, [allItems]);
 
   const uniqueCidades = useMemo(() => {
-    const cities = clientes.map(c => c.cidade).filter(Boolean) as string[];
-    return Array.from(new Set(cities)).sort();
-  }, [clientes]);
+    const dbCities = clientes.map(c => c.cidade).filter(Boolean) as string[];
+    const combined = new Set([...dbCities, ...ibgeCities]);
+    return Array.from(combined).sort();
+  }, [clientes, ibgeCities]);
 
   const onlineEntregadoresCount = availableEntregadores.filter(e => e.is_online).length;
   
