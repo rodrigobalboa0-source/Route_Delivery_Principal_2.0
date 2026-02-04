@@ -5,7 +5,7 @@ import { MapView, MapDeliveryPerson } from '../MapView';
 import { Modal } from '../Modal';
 import type { Database } from '../../lib/database.types';
 import { format } from 'date-fns';
-import { Trash2, User, CheckCircle, Truck, Plus, ArrowRight, MapPin, Settings, Edit, FileText, CheckSquare, Link, Clock, Copy, MoreVertical, X, RefreshCw, Ban, RotateCcw, MessageSquare, UserCog, Store } from 'lucide-react';
+import { Trash2, User, CheckCircle, Truck, Plus, ArrowRight, MapPin, Settings, Edit, FileText, CheckSquare, Link, Clock, Copy, MoreVertical, X, RefreshCw, Ban, RotateCcw, MessageSquare, UserCog, Store, Search } from 'lucide-react';
 
 type Cliente = { 
   id: string; 
@@ -404,6 +404,10 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isBulkAllocation, setIsBulkAllocation] = useState(false);
   const [ibgeCities, setIbgeCities] = useState<string[]>([]);
+  
+  // City Filter Modal State
+  const [cityModalOpen, setCityModalOpen] = useState(false);
+  const [citySearch, setCitySearch] = useState('');
 
   useEffect(() => {
     fetch('https://servicodados.ibge.gov.br/api/v1/localidades/municipios')
@@ -1453,16 +1457,13 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
       {/* Filters */}
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <select 
-                className="bg-white border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-slate-200 outline-none"
-                value={filters.cidade}
-                onChange={e => setFilters({...filters, cidade: e.target.value, cliente_id: ''})}
+            <button 
+                className="bg-white border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-slate-200 outline-none text-left flex justify-between items-center"
+                onClick={() => setCityModalOpen(true)}
             >
-                <option value="todos">Cidade (Todas)</option>
-                {uniqueCidades.map(c => (
-                    <option key={c} value={c}>{c}</option>
-                ))}
-            </select>
+                <span className="truncate block">{filters.cidade === 'todos' ? 'Cidade (Todas)' : filters.cidade}</span>
+                <Search size={16} className="text-slate-400 min-w-[16px]" />
+            </button>
 
             {!isComercio && (
             <select 
@@ -1526,6 +1527,59 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                 placeholder="dd/mm/aaaa"
             />
       </div>
+
+      <Modal
+        open={cityModalOpen}
+        onClose={() => setCityModalOpen(false)}
+        title="Filtrar por Cidade"
+        hideFooter
+      >
+        <div className="space-y-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-3 text-slate-400" size={20} />
+            <input
+              type="text"
+              placeholder="Buscar cidade..."
+              className="w-full pl-10 p-3 border border-slate-200 rounded-lg outline-none focus:border-sky-500"
+              value={citySearch}
+              onChange={e => setCitySearch(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <div className="max-h-60 overflow-y-auto divide-y divide-slate-100">
+            <button
+                onClick={() => {
+                    setFilters({...filters, cidade: 'todos', cliente_id: ''});
+                    setCityModalOpen(false);
+                }}
+                className="w-full text-left p-3 hover:bg-slate-50 transition-colors flex items-center justify-between"
+            >
+                <span className={filters.cidade === 'todos' ? 'font-bold text-sky-600' : 'text-slate-700'}>Cidade (Todas)</span>
+                {filters.cidade === 'todos' && <CheckCircle size={16} className="text-sky-600" />}
+            </button>
+            {uniqueCidades
+                .filter(c => c.toLowerCase().includes(citySearch.toLowerCase()))
+                .map(c => (
+                <button
+                    key={c}
+                    onClick={() => {
+                        setFilters({...filters, cidade: c, cliente_id: ''});
+                        setCityModalOpen(false);
+                    }}
+                    className="w-full text-left p-3 hover:bg-slate-50 transition-colors flex items-center justify-between"
+                >
+                    <span className={filters.cidade === c ? 'font-bold text-sky-600' : 'text-slate-700'}>{c}</span>
+                    {filters.cidade === c && <CheckCircle size={16} className="text-sky-600" />}
+                </button>
+            ))}
+            {uniqueCidades.filter(c => c.toLowerCase().includes(citySearch.toLowerCase())).length === 0 && (
+                <div className="p-4 text-center text-slate-500 text-sm">
+                    Nenhuma cidade encontrada
+                </div>
+            )}
+          </div>
+        </div>
+      </Modal>
 
       {/* Status Counters */}
       {!isComercio && (
