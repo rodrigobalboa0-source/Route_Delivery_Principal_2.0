@@ -1301,6 +1301,8 @@ export interface Database {
           valor_pago: number | null
           status: 'pendente' | 'pago' | null
           pago_em: string | null
+          tipo_saque: 'normal' | 'rapido' | null
+          taxa_aplicada: number | null
           created_at: string
           updated_at: string
         }
@@ -1311,6 +1313,8 @@ export interface Database {
           valor_pago?: number | null
           status?: 'pendente' | 'pago' | null
           pago_em?: string | null
+          tipo_saque?: 'normal' | 'rapido' | null
+          taxa_aplicada?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -1321,6 +1325,8 @@ export interface Database {
           valor_pago?: number | null
           status?: 'pendente' | 'pago' | null
           pago_em?: string | null
+          tipo_saque?: 'normal' | 'rapido' | null
+          taxa_aplicada?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -1812,6 +1818,7 @@ export interface Database {
           tempo_preparo_padrao: number | null
           modo_automatico: boolean | null
           regras_auto_cancelamento: Json | null
+          taxa_saque_rapido: number | null
           created_at: string
           updated_at: string
         }
@@ -1823,6 +1830,7 @@ export interface Database {
           tempo_preparo_padrao?: number | null
           modo_automatico?: boolean | null
           regras_auto_cancelamento?: Json | null
+          taxa_saque_rapido?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -1834,6 +1842,7 @@ export interface Database {
           tempo_preparo_padrao?: number | null
           modo_automatico?: boolean | null
           regras_auto_cancelamento?: Json | null
+          taxa_saque_rapido?: number | null
           created_at?: string
           updated_at?: string
         }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Save, AlertCircle, Clock, DollarSign, Settings } from 'lucide-react';
+import { Save, AlertCircle, Clock, DollarSign, Settings, Zap } from 'lucide-react';
 import { Database } from '../../lib/database.types';
 
 type ConfigOperacao = Database['public']['Tables']['configuracoes_operacao']['Row'];
@@ -32,7 +32,8 @@ export function ConfiguracoesOperacaoPanel() {
               taxa_servico: 0,
               pedido_minimo: 0,
               tempo_preparo_padrao: 30,
-              modo_automatico: false
+              modo_automatico: false,
+              taxa_saque_rapido: 0
             } as any)
             .select()
             .single();
@@ -67,6 +68,7 @@ export function ConfiguracoesOperacaoPanel() {
           pedido_minimo: config.pedido_minimo,
           tempo_preparo_padrao: config.tempo_preparo_padrao,
           modo_automatico: config.modo_automatico,
+          taxa_saque_rapido: config.taxa_saque_rapido,
           updated_at: new Date().toISOString()
         })
         .eq('id', config.id);
@@ -156,6 +158,24 @@ export function ConfiguracoesOperacaoPanel() {
                   onChange={(e) => setConfig({...config, tempo_preparo_padrao: parseInt(e.target.value) || 30})}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
+              </div>
+
+              <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
+                <div className="flex items-center gap-2 mb-2 text-slate-900 font-medium">
+                  <Zap size={18} className="text-sky-600" />
+                  Taxa Saque Rápido (%)
+                </div>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={config.taxa_saque_rapido || 0}
+                  onChange={(e) => setConfig({...config, taxa_saque_rapido: parseFloat(e.target.value) || 0})}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  placeholder="0.00"
+                />
+                <p className="text-xs text-slate-500 mt-1">Porcentagem descontada no saque rápido.</p>
               </div>
             </div>
 

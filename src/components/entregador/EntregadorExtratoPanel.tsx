@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Wallet, ArrowDownUp, X, AlertCircle, CheckCircle } from 'lucide-react';
+import { Wallet, ArrowDownUp, X, AlertCircle, CheckCircle, Zap } from 'lucide-react';
 
 interface EntregadorExtratoPanelProps {
   userId?: string;
@@ -12,15 +12,17 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
   const [loading, setLoading] = useState(true);
   const [saldo, setSaldo] = useState(0);
   
-  // Bank Data Modal State
+  
   const [showBankModal, setShowBankModal] = useState(false);
   const [currentEntregadorId, setCurrentEntregadorId] = useState<string | null>(null);
   const [savingBankData, setSavingBankData] = useState(false);
   
-  // Withdrawal States
+  
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawType, setWithdrawType] = useState<'normal' | 'rapido'>('normal');
+  const [quickWithdrawFee, setQuickWithdrawFee] = useState(0);
   const [submittingWithdraw, setSubmittingWithdraw] = useState(false);
 
   const [bankData, setBankData] = useState({
@@ -49,7 +51,19 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
 
   useEffect(() => {
     fetchExtrato();
+    fetchConfig();
   }, [userId]);
+
+  const fetchConfig = async () => {
+    try {
+      const { data } = await supabase.from('configuracoes_operacao').select('taxa_saque_rapido').single();
+      if (data) {
+        setQuickWithdrawFee(data.taxa_saque_rapido || 0);
+      }
+    } catch (e) {
+      console.error('Erro ao buscar config:', e);
+    }
+  };
 
   useEffect(() => {
     if (!currentEntregadorId) return;
@@ -137,7 +151,7 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
       // Saldo is Earnings - PAID Withdrawals
       const totalPagos = (acertosData || [])
         .filter((a: any) => a.status === 'pago')
-        .reduce((acc: number, curr: any) => acc + (Number(curr.valor_pago) || 0), 0);
+        .reduce((acc: number, curr: any) => acc + (Number(curr.valor_pago) || 0) + (Number(curr.taxa_aplicada) || 0), 0);
         
       setSaldo(totalGanhos - totalPagos);
 
@@ -204,10 +218,19 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
       return;
     }
 
-    // Calcular saldo realmente disponível (Saldo Total - Saques Pendentes)
+    // Calcular taxa se for saque rápido
+    let feeValue = 0;
+    let finalAmount = amount;
+    
+    if (withdrawType === 'rapido' && quickWithdrawFee > 0) {
+      feeValue = amount * (quickWithdrawFee / 100);
+      finalAmount = amount - feeValue;
+    }
+
+    // Calcular saldo realmente disponível (Saldo Total - Saques Pendentes - Taxas Pendentes)
     const totalPendente = acertos
       .filter(a => a.status === 'pendente')
-      .reduce((acc, curr) => acc + (Number(curr.valor_pago) || 0), 0);
+      .reduce((acc, curr) => acc + (Number(curr.valor_pago) || 0) + (Number(curr.taxa_aplicada) || 0), 0);
     
     const saldoDisponivel = saldo - totalPendente;
 
@@ -225,8 +248,10 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
         .insert({
           entregador_id: currentEntregadorId,
           entrega_id: null, 
-          valor_pago: amount,
-          status: 'pendente'
+          valor_pago: finalAmount,
+          status: 'pendente',
+          tipo_saque: withdrawType,
+          taxa_aplicada: feeValue
         } as any);
 
       if (error) throw error;
@@ -346,6 +371,7 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
               <p className="text-sm text-gray-600">
                 Saldo disponível: <span className="font-bold text-emerald-600">R$ {saldo.toFixed(2)}</span>
               </p>
+              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Quanto deseja retirar?</label>
                 <div className="relative">
@@ -362,13 +388,71 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
                     required
                   />
                 </div>
+                <div className="flex justify-end gap-2 pt-2">
+                   <button type="button" onClick={() => setWithdrawAmount(saldo.toFixed(2))} className="text-xs text-sky-600 hover:underline">
+                      Retirar tudo
+                   </button>
+                </div>
               </div>
-              <div className="flex justify-end gap-2 pt-2">
-                 <button type="button" onClick={() => setWithdrawAmount(saldo.toFixed(2))} className="text-xs text-sky-600 hover:underline">
-                    Retirar tudo
-                 </button>
+
+              <div className="space-y-3">
+                <label className="block text-sm font-medium text-gray-700">Tipo de Saque</label>
+                
+                <div 
+                  className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${withdrawType === 'normal' ? 'border-sky-500 bg-sky-50' : 'border-gray-200 hover:border-sky-200'}`}
+                  onClick={() => setWithdrawType('normal')}
+                >
+                  <div className={`mt-0.5 w-4 h-4 rounded-full border flex items-center justify-center ${withdrawType === 'normal' ? 'border-sky-500' : 'border-gray-400'}`}>
+                    {withdrawType === 'normal' && <div className="w-2 h-2 rounded-full bg-sky-500" />}
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-900">Normal</span>
+                    <p className="text-xs text-gray-500">Processamento em até 24h úteis. Sem taxas.</p>
+                  </div>
+                </div>
+
+                <div 
+                  className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${withdrawType === 'rapido' ? 'border-yellow-500 bg-yellow-50' : 'border-gray-200 hover:border-yellow-200'}`}
+                  onClick={() => setWithdrawType('rapido')}
+                >
+                  <div className={`mt-0.5 w-4 h-4 rounded-full border flex items-center justify-center ${withdrawType === 'rapido' ? 'border-yellow-500' : 'border-gray-400'}`}>
+                    {withdrawType === 'rapido' && <div className="w-2 h-2 rounded-full bg-yellow-500" />}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-900">Rápido</span>
+                      <span className="bg-yellow-100 text-yellow-800 text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1">
+                        <Zap size={10} fill="currentColor" /> FLASH
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500">Receba em instantes via PIX.</p>
+                    {withdrawType === 'rapido' && quickWithdrawFee > 0 && (
+                      <div className="mt-2 text-xs text-yellow-700 bg-yellow-100/50 p-2 rounded">
+                        Taxa de <strong>{quickWithdrawFee}%</strong> sobre o valor do saque.
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-              <button type="submit" disabled={submittingWithdraw || Number(withdrawAmount) > saldo || Number(withdrawAmount) <= 0} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-lg transition-colors mt-4 disabled:opacity-50">
+
+              {withdrawType === 'rapido' && withdrawAmount && Number(withdrawAmount) > 0 && quickWithdrawFee > 0 && (
+                <div className="bg-gray-50 p-3 rounded-lg space-y-1 text-sm">
+                  <div className="flex justify-between text-gray-600">
+                    <span>Valor do Saque:</span>
+                    <span>R$ {Number(withdrawAmount).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-red-500">
+                    <span>Taxa ({quickWithdrawFee}%):</span>
+                    <span>- R$ {(Number(withdrawAmount) * (quickWithdrawFee / 100)).toFixed(2)}</span>
+                  </div>
+                  <div className="border-t border-gray-200 pt-1 mt-1 flex justify-between font-bold text-gray-900">
+                    <span>Você recebe:</span>
+                    <span>R$ {(Number(withdrawAmount) * (1 - quickWithdrawFee / 100)).toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
+
+              <button type="submit" disabled={submittingWithdraw || Number(withdrawAmount) > saldo || Number(withdrawAmount) <= 0} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-lg transition-colors mt-2 disabled:opacity-50">
                 {submittingWithdraw ? 'Solicitando...' : 'Confirmar Saque'}
               </button>
             </form>
