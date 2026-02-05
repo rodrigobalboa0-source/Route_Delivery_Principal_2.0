@@ -407,7 +407,7 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
                   </div>
                   <div>
                     <span className="font-medium text-gray-900">Normal</span>
-                    <p className="text-xs text-gray-500">Processamento em até 24h úteis. Sem taxas.</p>
+                    <p className="text-xs text-gray-500">Semanal (cai toda segunda-feira)</p>
                   </div>
                 </div>
 
