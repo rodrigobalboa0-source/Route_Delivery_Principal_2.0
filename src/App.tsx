@@ -33,6 +33,7 @@ import { ComissaoEntregadoresPanel } from './components/financeiro/ComissaoEntre
 import { AcertosEntregadoresPanel } from './components/financeiro/AcertosEntregadoresPanel';
 import { FaturamentoMensalPanel } from './components/financeiro/FaturamentoMensalPanel';
 import { RevisaoAgendamentosPanel } from './components/financeiro/RevisaoAgendamentosPanel';
+import { PendingWithdrawalsModal } from './components/financeiro/PendingWithdrawalsModal';
 import { ClientesAnaliticoReport } from './components/relatorios/ClientesAnaliticoReport';
 import { EntregadoresAnaliticoReport } from './components/relatorios/EntregadoresAnaliticoReport';
 import { RoteirizacaoReport } from './components/relatorios/RoteirizacaoReport';
@@ -81,6 +82,13 @@ function App() {
   const [supportOpen, setSupportOpen] = useState(false);
   const [accountPending, setAccountPending] = useState(false);
   const [isRecoveryMode, setIsRecoveryMode] = useState(false);
+  const [showPendingWithdrawalsModal, setShowPendingWithdrawalsModal] = useState(false);
+
+  useEffect(() => {
+    if (userRole === 'operador') {
+      setShowPendingWithdrawalsModal(true);
+    }
+  }, [userRole]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -255,6 +263,15 @@ function App() {
 
   return (
     <div className="flex flex-col h-[100dvh] w-screen overflow-hidden bg-slate-100">
+      <PendingWithdrawalsModal 
+        isOpen={showPendingWithdrawalsModal} 
+        onClose={() => setShowPendingWithdrawalsModal(false)}
+        onNavigate={() => {
+          setActiveMenu('financeiro_acertos_entregadores');
+          setSidebarOpen(true);
+          setShowPendingWithdrawalsModal(false);
+        }}
+      />
       <NotificationManager userId={userId || ''} userRole={userRole} onNavigate={(menu, params) => { setActiveMenu(menu); setMenuParams(params || null); }} />
       <TopBar
         onMenuToggle={() => setSidebarOpen((v) => !v)}

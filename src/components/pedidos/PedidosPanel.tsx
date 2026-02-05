@@ -405,7 +405,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [isBulkAllocation, setIsBulkAllocation] = useState(false);
   const [ibgeCities, setIbgeCities] = useState<string[]>([]);
   
-  // City Filter Modal State
+  
   const [cityModalOpen, setCityModalOpen] = useState(false);
   const [citySearch, setCitySearch] = useState('');
 
