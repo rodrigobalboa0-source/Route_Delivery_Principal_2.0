@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { Database } from '../lib/database.types';
 import { DollarSign, ShoppingCart, Bike, ChevronLeft, ChevronRight, Download, CheckCircle, XCircle, ListFilter } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, AreaChart, Area } from 'recharts';
 
 type Entrega = Database['public']['Tables']['nova_entrega']['Row'] & {
   clientes?: { nome_completo: string } | null;
@@ -15,6 +16,7 @@ export function FinanceiroDashboard() {
   const [entregas, setEntregas] = useState<Entrega[]>([]);
   const [filteredEntregas, setFilteredEntregas] = useState<Entrega[]>([]);
   const [statusFilter, setStatusFilter] = useState<'todos' | 'finalizados' | 'cancelados'>('todos');
+  const [activeTab, setActiveTab] = useState<'pedidos' | 'dashboard'>('pedidos');
   const [metrics, setMetrics] = useState({
     cobrado: 0,
     repasse: 0,
@@ -28,7 +30,7 @@ export function FinanceiroDashboard() {
     try {
       setLoading(true);
       
-      // Fetch Entregas with relations
+      
       const { data, error } = await supabase
         .from('nova_entrega')
         .select(`
@@ -41,7 +43,7 @@ export function FinanceiroDashboard() {
 
       if (error) throw error;
 
-      const items = (data || []) as any[]; // Cast due to deep join typing complexity
+      const items = (data || []) as any[]; 
       setEntregas(items);
     } catch (err) {
       console.error('Error fetching financeiro data:', err);
@@ -53,7 +55,7 @@ export function FinanceiroDashboard() {
   useEffect(() => {
     fetchData();
 
-    // Real-time subscription
+    
     const sub = supabase
       .channel('financeiro-dashboard')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'nova_entrega' }, fetchData)
@@ -66,7 +68,7 @@ export function FinanceiroDashboard() {
   }, []);
 
   useEffect(() => {
-    // Apply filters and calculate metrics
+    
     let items = [...entregas];
 
     if (statusFilter === 'finalizados') {
@@ -76,9 +78,9 @@ export function FinanceiroDashboard() {
     }
 
     setFilteredEntregas(items);
-    setPage(1); // Reset to first page when filter changes
+    setPage(1); 
 
-    // Calculate Metrics
+    
     let totalCobrado = 0;
     let totalRepasse = 0;
     let totalComissao = 0;
@@ -87,13 +89,13 @@ export function FinanceiroDashboard() {
       const vEntrega = Number(item.valor_entrega || 0);
       const vEntregador = Number(item.valor_entregador || 0);
       
-      // Cobrado: valor_entrega
+      
       totalCobrado += vEntrega;
       
-      // Repasse: valor_entregador (comissão dos entregadores)
+      
       totalRepasse += vEntregador;
       
-      // Comissão: (valor_entrega - valor_entregador) (comissão do app)
+      
       totalComissao += (vEntrega - vEntregador);
     });
 
@@ -105,6 +107,35 @@ export function FinanceiroDashboard() {
     });
 
   }, [entregas, statusFilter]);
+
+  
+  const chartData = useMemo(() => {
+    const data: Record<string, { date: string; cobrado: number; repasse: number; comissao: number }> = {};
+    
+    
+    const sortedItems = [...filteredEntregas].sort((a, b) => 
+      new Date(a.created_at || '').getTime() - new Date(b.created_at || '').getTime()
+    );
+
+    sortedItems.forEach(item => {
+      const dateObj = new Date(item.created_at || '');
+      const date = dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+      
+      if (!data[date]) {
+        data[date] = { date, cobrado: 0, repasse: 0, comissao: 0 };
+      }
+      
+      const vEntrega = Number(item.valor_entrega || 0);
+      const vEntregador = Number(item.valor_entregador || 0);
+      
+      data[date].cobrado += vEntrega;
+      data[date].repasse += vEntregador;
+      data[date].comissao += (vEntrega - vEntregador);
+    });
+
+    
+    return Object.values(data).slice(-30);
+  }, [filteredEntregas]);
 
   const handleExport = () => {
     const csvContent = [
@@ -132,7 +163,7 @@ export function FinanceiroDashboard() {
     document.body.removeChild(link);
   };
 
-  // Pagination
+  
   const totalPages = Math.ceil(filteredEntregas.length / itemsPerPage);
   const currentItems = filteredEntregas.slice((page - 1) * itemsPerPage, page * itemsPerPage);
 
@@ -238,130 +269,203 @@ export function FinanceiroDashboard() {
           </div>
         </div>
 
-        {/* Tabs & Table */}
+        {/* Tabs & Content */}
         <div className="bg-white rounded-lg shadow">
           <div className="border-b border-slate-200 px-6 pt-4 flex gap-6">
-            <button className="pb-3 border-b-2 border-slate-800 font-semibold text-slate-800 text-sm">
+            <button 
+              onClick={() => setActiveTab('pedidos')}
+              className={`pb-3 border-b-2 font-semibold text-sm transition-colors ${
+                activeTab === 'pedidos' 
+                  ? 'border-slate-800 text-slate-800' 
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
               Pedidos
             </button>
-            <button className="pb-3 border-b-2 border-transparent font-medium text-slate-500 hover:text-slate-700 text-sm">
+            <button 
+              onClick={() => setActiveTab('dashboard')}
+              className={`pb-3 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'dashboard'
+                  ? 'border-slate-800 text-slate-800'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
               Dashboard
             </button>
           </div>
           
           <div className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-sm text-slate-600">
-                Mostrando {(page - 1) * itemsPerPage + 1} à {Math.min(page * itemsPerPage, metrics.pedidos)} de {metrics.pedidos} registros
-              </div>
-              <div className="flex gap-2">
-                 <button 
-                  onClick={handleExport}
-                  className="flex items-center gap-2 px-3 py-1.5 border border-slate-300 rounded text-sm text-slate-600 hover:bg-slate-50"
-                >
-                  <Download size={16} />
-                  Exportar
-                </button>
-                <select 
-                  className="px-3 py-1.5 border border-slate-300 rounded text-sm text-slate-600 outline-none focus:ring-1 focus:ring-sky-500"
-                  defaultValue="30"
-                >
-                  <option value="30">30 por página</option>
-                  <option value="50">50 por página</option>
-                  <option value="100">100 por página</option>
-                </select>
-              </div>
-            </div>
+            {activeTab === 'pedidos' ? (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="text-sm text-slate-600">
+                    Mostrando {(page - 1) * itemsPerPage + 1} à {Math.min(page * itemsPerPage, metrics.pedidos)} de {metrics.pedidos} registros
+                  </div>
+                  <div className="flex gap-2">
+                     <button 
+                      onClick={handleExport}
+                      className="flex items-center gap-2 px-3 py-1.5 border border-slate-300 rounded text-sm text-slate-600 hover:bg-slate-50"
+                    >
+                      <Download size={16} />
+                      Exportar
+                    </button>
+                    <select 
+                      className="px-3 py-1.5 border border-slate-300 rounded text-sm text-slate-600 outline-none focus:ring-1 focus:ring-sky-500"
+                      defaultValue="30"
+                    >
+                      <option value="30">30 por página</option>
+                      <option value="50">50 por página</option>
+                      <option value="100">100 por página</option>
+                    </select>
+                  </div>
+                </div>
 
-            <div className="overflow-x-auto border rounded-lg border-slate-200">
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">ID</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Data</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Cliente</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Entregador</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">V. Cobrado</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Repasse</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Comissão</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-slate-200">
-                  {loading ? (
-                    <tr><td colSpan={8} className="px-6 py-4 text-center text-sm text-slate-500">Carregando...</td></tr>
-                  ) : currentItems.length === 0 ? (
-                    <tr><td colSpan={8} className="px-6 py-4 text-center text-sm text-slate-500">Nenhum registro encontrado</td></tr>
-                  ) : (
-                    currentItems.map((item) => (
-                      <tr key={item.id} className="hover:bg-slate-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 font-mono text-xs">{item.id.slice(0, 8)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                          {new Date(item.created_at || '').toLocaleString('pt-BR')}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 font-medium">
-                          {item.clientes?.nome_completo || 'N/A'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                          {item.entregadores?.nome_completo || '-'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 text-green-600 font-medium">
-                          {formatCurrency(item.valor_entrega || 0)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 text-red-600">
-                          {formatCurrency(item.valor_entregador || 0)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 text-orange-600">
-                          {formatCurrency((item.valor_entrega || 0) - (item.valor_entregador || 0))}
-                        </td>
-                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 text-xs font-semibold rounded-full
-                            ${item.status === 'entregue' ? 'bg-green-100 text-green-800' : 
-                              item.status === 'cancelada' ? 'bg-red-100 text-red-800' : 
-                              'bg-yellow-100 text-yellow-800'}`}>
-                            {item.status}
-                          </span>
-                        </td>
+                <div className="overflow-x-auto border rounded-lg border-slate-200">
+                  <table className="min-w-full divide-y divide-slate-200">
+                    <thead className="bg-slate-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">ID</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Data</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Cliente</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Entregador</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">V. Cobrado</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Repasse</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Comissão</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-slate-200">
+                      {loading ? (
+                        <tr><td colSpan={8} className="px-6 py-4 text-center text-sm text-slate-500">Carregando...</td></tr>
+                      ) : currentItems.length === 0 ? (
+                        <tr><td colSpan={8} className="px-6 py-4 text-center text-sm text-slate-500">Nenhum registro encontrado</td></tr>
+                      ) : (
+                        currentItems.map((item) => (
+                          <tr key={item.id} className="hover:bg-slate-50">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 font-mono text-xs">{item.id.slice(0, 8)}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                              {new Date(item.created_at || '').toLocaleString('pt-BR')}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 font-medium">
+                              {item.clientes?.nome_completo || 'N/A'}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                              {item.entregadores?.nome_completo || '-'}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 text-green-600 font-medium">
+                              {formatCurrency(item.valor_entrega || 0)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 text-red-600">
+                              {formatCurrency(item.valor_entregador || 0)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 text-orange-600">
+                              {formatCurrency((item.valor_entrega || 0) - (item.valor_entregador || 0))}
+                            </td>
+                             <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`px-2 py-1 text-xs font-semibold rounded-full
+                                ${item.status === 'entregue' ? 'bg-green-100 text-green-800' : 
+                                  item.status === 'cancelada' ? 'bg-red-100 text-red-800' : 
+                                  'bg-yellow-100 text-yellow-800'}`}>
+                                {item.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
 
-            {/* Pagination */}
-            <div className="flex items-center justify-end gap-2 mt-4">
-              <button 
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="p-1 rounded hover:bg-slate-100 disabled:opacity-50"
-              >
-                <ChevronLeft size={20} className="text-slate-600" />
-              </button>
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                let p = i + 1;
-                if (totalPages > 5 && page > 3) p = page - 2 + i;
-                if (p > totalPages) return null;
-                return (
-                  <button
-                    key={p}
-                    onClick={() => setPage(p)}
-                    className={`w-8 h-8 rounded text-sm font-medium ${
-                      page === p ? 'bg-sky-600 text-white' : 'text-slate-600 hover:bg-slate-100'
-                    }`}
+                {/* Pagination */}
+                <div className="flex items-center justify-end gap-2 mt-4">
+                  <button 
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                    className="p-1 rounded hover:bg-slate-100 disabled:opacity-50"
                   >
-                    {p}
+                    <ChevronLeft size={20} className="text-slate-600" />
                   </button>
-                );
-              })}
-              <button 
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                className="p-1 rounded hover:bg-slate-100 disabled:opacity-50"
-              >
-                <ChevronRight size={20} className="text-slate-600" />
-              </button>
-            </div>
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let p = i + 1;
+                    if (totalPages > 5 && page > 3) p = page - 2 + i;
+                    if (p > totalPages) return null;
+                    return (
+                      <button
+                        key={p}
+                        onClick={() => setPage(p)}
+                        className={`w-8 h-8 rounded text-sm font-medium ${
+                          page === p ? 'bg-sky-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    );
+                  })}
+                  <button 
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                    className="p-1 rounded hover:bg-slate-100 disabled:opacity-50"
+                  >
+                    <ChevronRight size={20} className="text-slate-600" />
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Revenue Chart */}
+                <div className="bg-white p-4 rounded-lg border border-slate-100">
+                  <h3 className="text-lg font-semibold text-slate-800 mb-4">Evolução Financeira (Últimos 30 dias)</h3>
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="colorCobrado" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#22c55e" stopOpacity={0.1}/>
+                            <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
+                          </linearGradient>
+                          <linearGradient id="colorComissao" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#f97316" stopOpacity={0.1}/>
+                            <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <XAxis dataKey="date" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                        <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `R$ ${value}`} />
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                        <Tooltip 
+                          formatter={(value: number) => [`R$ ${value.toFixed(2)}`, '']}
+                          contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                        />
+                        <Legend />
+                        <Area type="monotone" dataKey="cobrado" name="Total Cobrado" stroke="#22c55e" fillOpacity={1} fill="url(#colorCobrado)" strokeWidth={2} />
+                        <Area type="monotone" dataKey="comissao" name="Comissão" stroke="#f97316" fillOpacity={1} fill="url(#colorComissao)" strokeWidth={2} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Costs vs Profit Chart */}
+                <div className="bg-white p-4 rounded-lg border border-slate-100">
+                  <h3 className="text-lg font-semibold text-slate-800 mb-4">Repasse vs Comissão (Diário)</h3>
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                        <XAxis dataKey="date" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                        <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `R$ ${value}`} />
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                        <Tooltip 
+                          formatter={(value: number) => [`R$ ${value.toFixed(2)}`, '']}
+                          cursor={{ fill: '#f1f5f9' }}
+                          contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                        />
+                        <Legend />
+                        <Bar dataKey="repasse" name="Repasse Entregador" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="comissao" name="Comissão App" fill="#f97316" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
