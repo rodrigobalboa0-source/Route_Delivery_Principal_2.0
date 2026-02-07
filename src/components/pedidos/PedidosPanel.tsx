@@ -1017,6 +1017,10 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         let qEntregas = supabase.from('nova_entrega').select('*').order('created_at', { ascending: false });
 
         
+        qPedidos = qPedidos.neq('status', 'entregue').neq('status', 'cancelado');
+        qEntregas = qEntregas.neq('status', 'entregue').neq('status', 'cancelada');
+
+        
         if (filters.cliente_id) {
             qPedidos = qPedidos.eq('cliente_id', filters.cliente_id);
             qEntregas = qEntregas.eq('cliente_id', filters.cliente_id);
@@ -1119,17 +1123,16 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         'postgres_changes',
         { event: '*', schema: 'public', table: 'pedidos' },
         (payload) => {
-          console.log('Realtime update (pedidos):', payload);
           
-          setTimeout(() => fetchPedidos(true), 500);
+          fetchPedidos(true);
         }
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'nova_entrega' },
         (payload) => {
-          console.log('Realtime update (nova_entrega):', payload);
-          setTimeout(() => fetchPedidos(true), 500);
+          
+          fetchPedidos(true);
         }
       )
       .subscribe();
