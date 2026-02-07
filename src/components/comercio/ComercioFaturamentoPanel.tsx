@@ -8,9 +8,42 @@ export function ComercioFaturamentoPanel() {
   const [loading, setLoading] = useState(true);
   const [clientId, setClientId] = useState<string | null>(null);
 
+  const [selectedDate, setSelectedDate] = useState<string>('');
+  const [dailyOrders, setDailyOrders] = useState<any[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(false);
+
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (clientId && selectedDate) {
+        fetchDailyOrders();
+    }
+  }, [clientId, selectedDate]);
+
+  async function fetchDailyOrders() {
+      setLoadingOrders(true);
+      try {
+          const startDate = `${selectedDate}T00:00:00`;
+          const endDate = `${selectedDate}T23:59:59`;
+
+          const { data, error } = await supabase
+              .from('nova_entrega')
+              .select('*')
+              .eq('cliente_id', clientId)
+              .gte('created_at', startDate)
+              .lte('created_at', endDate)
+              .order('created_at', { ascending: false });
+            
+          if (error) throw error;
+          setDailyOrders(data || []);
+      } catch (err) {
+          console.error('Erro ao buscar pedidos do dia:', err);
+      } finally {
+          setLoadingOrders(false);
+      }
+  }
 
   async function fetchData() {
     try {
@@ -158,6 +191,93 @@ export function ComercioFaturamentoPanel() {
                 ))}
                 </tbody>
             </table>
+            </div>
+        )}
+      </div>
+
+      <div className="mt-12 border-t pt-8">
+        <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+            <Calendar className="text-sky-600" />
+            Pedidos por Data
+        </h2>
+        <p className="text-gray-500 mb-6">Selecione uma data para visualizar os pedidos detalhados.</p>
+        
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Selecione a Data</label>
+            <input 
+                type="date" 
+                className="border rounded-lg p-2 w-full md:w-64 focus:ring-2 focus:ring-sky-500 outline-none text-gray-700"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+            />
+        </div>
+
+        {selectedDate && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                {loadingOrders ? (
+                    <div className="p-12 text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-600 mx-auto mb-4"></div>
+                        <span className="text-gray-500">Carregando pedidos...</span>
+                    </div>
+                ) : dailyOrders.length === 0 ? (
+                    <div className="p-12 text-center text-gray-500 bg-gray-50/50">
+                        <p>Nenhum pedido encontrado nesta data.</p>
+                    </div>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead className="bg-gray-50 text-gray-600 text-xs uppercase tracking-wider font-semibold">
+                                <tr>
+                                    <th className="p-4">Hora</th>
+                                    <th className="p-4">ID Pedido</th>
+                                    <th className="p-4">Endereço de Entrega</th>
+                                    <th className="p-4">Status</th>
+                                    <th className="p-4 text-right">Valor Entrega</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {dailyOrders.map(order => (
+                                    <tr key={order.id} className="hover:bg-gray-50 transition-colors">
+                                        <td className="p-4 text-sm text-gray-600 font-medium">
+                                            {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </td>
+                                        <td className="p-4 text-sm text-gray-500 font-mono text-xs">
+                                            {order.pedido_id ? (
+                                                <span title={order.pedido_id}>{order.pedido_id.slice(0, 8)}...</span>
+                                            ) : (
+                                                <span className="text-gray-300">-</span>
+                                            )}
+                                        </td>
+                                        <td className="p-4 text-sm text-gray-700">
+                                            <div className="max-w-md truncate" title={order.entrega_endereco_texto}>
+                                                {order.entrega_endereco_texto || '-'}
+                                            </div>
+                                        </td>
+                                        <td className="p-4">
+                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize border
+                                                ${order.status === 'entregue' ? 'bg-green-50 text-green-700 border-green-200' : 
+                                                  order.status === 'cancelada' ? 'bg-red-50 text-red-700 border-red-200' : 
+                                                  'bg-blue-50 text-blue-700 border-blue-200'}`}>
+                                                {order.status === 'cancelada' ? 'Cancelado' : order.status}
+                                            </span>
+                                        </td>
+                                        <td className="p-4 text-right font-bold text-gray-800">
+                                            R$ {Number(order.valor_entrega || 0).toFixed(2)}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                            <tfoot className="bg-gray-50 font-semibold text-gray-700">
+                                <tr>
+                                    <td colSpan={4} className="p-4 text-right">Total do Dia:</td>
+                                    <td className="p-4 text-right text-sky-700">
+                                        R$ {dailyOrders.reduce((acc, curr) => acc + (Number(curr.valor_entrega) || 0), 0).toFixed(2)}
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                )}
             </div>
         )}
       </div>

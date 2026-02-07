@@ -122,6 +122,21 @@ function PedidoEditForm({ pedido, entrega, onClose, onSave }: { pedido: Pedido, 
 
       if (pError) throw pError;
 
+      // Integration: Notify iFood
+      if (formData.status !== pedido.status) {
+         let action = '';
+         if (formData.status === 'confirmado') action = 'confirm';
+         if (formData.status === 'pronto') action = 'readyToPickup';
+         
+         if (action) {
+             supabase.functions.invoke('ifood-update-status', {
+                 body: { action, orderId: pedido.id }
+             }).then(({ error }) => {
+                 if (error) console.warn('iFood update failed', error);
+             });
+         }
+      }
+
       
       if (entrega) {
         let newEntregaStatus = entregaData.status;

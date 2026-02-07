@@ -74,6 +74,12 @@ export function RelatorioEntregasReport({ onNavigate, userRole }: RelatorioEntre
   });
   const [dataFim, setDataFim] = useState(() => new Date().toISOString().split('T')[0]);
   const [statusFilter, setStatusFilter] = useState<string>('todos');
+  
+  
+  const [clientSearchTerm, setClientSearchTerm] = useState('');
+  const [selectedClient, setSelectedClient] = useState<{id: string, nome_completo: string} | null>(null);
+  const [foundClients, setFoundClients] = useState<{id: string, nome_completo: string}[]>([]);
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
 
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
@@ -91,9 +97,28 @@ export function RelatorioEntregasReport({ onNavigate, userRole }: RelatorioEntre
     }
   }, [userRole]);
 
+  // Search clients effect
+  useEffect(() => {
+    if (clientSearchTerm.length < 3) {
+        setFoundClients([]);
+        setShowClientDropdown(false);
+        return;
+    }
+    const timer = setTimeout(async () => {
+        const { data } = await supabase
+            .from('clientes')
+            .select('id, nome_completo')
+            .ilike('nome_completo', `%${clientSearchTerm}%`)
+            .limit(5);
+        setFoundClients(data || []);
+        setShowClientDropdown(true);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [clientSearchTerm]);
+
   useEffect(() => {
     fetchEntregas();
-  }, [dataInicio, dataFim, statusFilter]);
+  }, [dataInicio, dataFim, statusFilter, selectedClient]);
 
   useEffect(() => {
       if (isAllocationModalOpen) {
@@ -122,6 +147,10 @@ export function RelatorioEntregasReport({ onNavigate, userRole }: RelatorioEntre
 
       if (statusFilter !== 'todos') {
         query = query.eq('status', statusFilter);
+      }
+
+      if (selectedClient) {
+          query = query.eq('cliente_id', selectedClient.id);
       }
 
       const { data, error } = await query;
@@ -301,12 +330,39 @@ export function RelatorioEntregasReport({ onNavigate, userRole }: RelatorioEntre
       setOpenMenuId(null);
   };
 
-  const generatePDF = () => {
+  const generatePDF = async () => {
     const doc = new jsPDF();
     
-    doc.text('Relatório de Entregas', 14, 15);
+    let startY = 30;
+
+    try {
+        const logoUrl = '/Screenshot_20251113_103247-Photoroom.png';
+        const response = await fetch(logoUrl);
+        const blob = await response.blob();
+        const base64 = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(blob);
+            reader.onloadend = () => resolve(reader.result as string);
+        });
+
+        doc.addImage(base64, 'PNG', 14, 10, 35, 12); // Logo
+        startY = 35;
+    } catch (error) {
+        console.error('Erro ao carregar logo:', error);
+    }
+
+    doc.setFontSize(16);
+    doc.text('Relatório de Entregas', 14, startY);
+    
     doc.setFontSize(10);
-    doc.text(`Período: ${format(new Date(dataInicio), 'dd/MM/yyyy')} a ${format(new Date(dataFim), 'dd/MM/yyyy')}`, 14, 22);
+    doc.text(`Período: ${format(new Date(dataInicio), 'dd/MM/yyyy')} a ${format(new Date(dataFim), 'dd/MM/yyyy')}`, 14, startY + 7);
+    
+    if (selectedClient) {
+        doc.text(`Comércio: ${selectedClient.nome_completo}`, 14, startY + 14);
+        startY += 25;
+    } else {
+        startY += 15;
+    }
 
     const tableData = entregas.map(entrega => [
         format(new Date(entrega.created_at), 'dd/MM/yyyy HH:mm'),
@@ -320,7 +376,7 @@ export function RelatorioEntregasReport({ onNavigate, userRole }: RelatorioEntre
     autoTable(doc, {
         head: [['Data/Hora', 'Cliente', 'Entregador', 'Endereço', 'Valor', 'Status']],
         body: tableData,
-        startY: 30,
+        startY: startY,
         styles: { fontSize: 8 },
         headStyles: { fillColor: [22, 163, 74] }
     });
@@ -365,6 +421,55 @@ export function RelatorioEntregasReport({ onNavigate, userRole }: RelatorioEntre
             <option value="entregue">Entregue</option>
             <option value="cancelada">Cancelada</option>
           </select>
+        </div>
+
+        <div className="relative">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Comércio</label>
+            <div className="relative">
+                <input
+                    type="text"
+                    placeholder="Buscar comércio..."
+                    value={selectedClient ? selectedClient.nome_completo : clientSearchTerm}
+                    onChange={(e) => {
+                        setClientSearchTerm(e.target.value);
+                        if (selectedClient) {
+                            setSelectedClient(null);
+                            setClientSearchTerm(e.target.value);
+                        }
+                    }}
+                    className="border rounded p-2 min-w-[200px] pr-8"
+                />
+                {(selectedClient || clientSearchTerm) && (
+                    <button 
+                        onClick={() => {
+                            setSelectedClient(null);
+                            setClientSearchTerm('');
+                            setFoundClients([]);
+                        }}
+                        className="absolute right-2 top-2.5 text-gray-400 hover:text-gray-600"
+                    >
+                        <X size={16} />
+                    </button>
+                )}
+            </div>
+            
+            {showClientDropdown && foundClients.length > 0 && !selectedClient && (
+                <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm">
+                    {foundClients.map((client) => (
+                        <div
+                            key={client.id}
+                            className="cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-sky-50 text-gray-900"
+                            onClick={() => {
+                                setSelectedClient(client);
+                                setClientSearchTerm(''); 
+                                setShowClientDropdown(false);
+                            }}
+                        >
+                            <span className="block truncate">{client.nome_completo}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
         
         <div className="flex items-end ml-auto">

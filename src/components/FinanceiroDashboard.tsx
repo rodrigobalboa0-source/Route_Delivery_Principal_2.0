@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Database } from '../lib/database.types';
-import { DollarSign, ShoppingCart, Bike, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { DollarSign, ShoppingCart, Bike, ChevronLeft, ChevronRight, Download, CheckCircle, XCircle, ListFilter } from 'lucide-react';
 
 type Entrega = Database['public']['Tables']['nova_entrega']['Row'] & {
   clientes?: { nome_completo: string } | null;
@@ -13,10 +13,12 @@ type Entrega = Database['public']['Tables']['nova_entrega']['Row'] & {
 export function FinanceiroDashboard() {
   const [loading, setLoading] = useState(true);
   const [entregas, setEntregas] = useState<Entrega[]>([]);
+  const [filteredEntregas, setFilteredEntregas] = useState<Entrega[]>([]);
+  const [statusFilter, setStatusFilter] = useState<'todos' | 'finalizados' | 'cancelados'>('todos');
   const [metrics, setMetrics] = useState({
     cobrado: 0,
-    custo: 0,
-    vendas: 0,
+    repasse: 0,
+    comissao: 0,
     pedidos: 0,
   });
   const [page, setPage] = useState(1);
@@ -40,31 +42,6 @@ export function FinanceiroDashboard() {
       if (error) throw error;
 
       const items = (data || []) as any[]; // Cast due to deep join typing complexity
-
-      // Calculate Metrics
-      let totalCobrado = 0;
-      let totalCusto = 0;
-      let totalVendas = 0;
-
-      items.forEach(item => {
-        // Cobrado: valor_entrega
-        totalCobrado += Number(item.valor_entrega || 0);
-        
-        // Custo: sum of acertos
-        const custoEntrega = item.acertos?.reduce((acc: number, curr: any) => acc + (Number(curr.valor_pago) || 0), 0) || 0;
-        totalCusto += custoEntrega;
-        
-        // Vendas: valor_mercadoria (new column)
-        totalVendas += Number(item.valor_mercadoria || 0);
-      });
-
-      setMetrics({
-        cobrado: totalCobrado,
-        custo: totalCusto,
-        vendas: totalVendas,
-        pedidos: items.length,
-      });
-
       setEntregas(items);
     } catch (err) {
       console.error('Error fetching financeiro data:', err);
@@ -88,17 +65,58 @@ export function FinanceiroDashboard() {
     };
   }, []);
 
+  useEffect(() => {
+    // Apply filters and calculate metrics
+    let items = [...entregas];
+
+    if (statusFilter === 'finalizados') {
+      items = items.filter(i => i.status === 'entregue');
+    } else if (statusFilter === 'cancelados') {
+      items = items.filter(i => i.status === 'cancelada');
+    }
+
+    setFilteredEntregas(items);
+    setPage(1); // Reset to first page when filter changes
+
+    // Calculate Metrics
+    let totalCobrado = 0;
+    let totalRepasse = 0;
+    let totalComissao = 0;
+
+    items.forEach(item => {
+      const vEntrega = Number(item.valor_entrega || 0);
+      const vEntregador = Number(item.valor_entregador || 0);
+      
+      // Cobrado: valor_entrega
+      totalCobrado += vEntrega;
+      
+      // Repasse: valor_entregador (comissão dos entregadores)
+      totalRepasse += vEntregador;
+      
+      // Comissão: (valor_entrega - valor_entregador) (comissão do app)
+      totalComissao += (vEntrega - vEntregador);
+    });
+
+    setMetrics({
+      cobrado: totalCobrado,
+      repasse: totalRepasse,
+      comissao: totalComissao,
+      pedidos: items.length,
+    });
+
+  }, [entregas, statusFilter]);
+
   const handleExport = () => {
     const csvContent = [
-      ['ID', 'Data', 'Cliente', 'Entregador', 'Valor Cobrado', 'Custo', 'Valor Venda', 'Status'],
-      ...entregas.map(e => [
+      ['ID', 'Data', 'Cliente', 'Entregador', 'Valor Cobrado', 'Repasse', 'Comissao', 'Status'],
+      ...filteredEntregas.map(e => [
         e.id,
         new Date(e.created_at || '').toLocaleDateString('pt-BR'),
         e.clientes?.nome_completo || 'N/A',
         e.entregadores?.nome_completo || '-',
         (e.valor_entrega || 0).toFixed(2),
-        (e.acertos?.reduce((acc: number, curr: any) => acc + (Number(curr.valor_pago) || 0), 0) || 0).toFixed(2),
-        (e.valor_mercadoria || 0).toFixed(2),
+        (e.valor_entregador || 0).toFixed(2),
+        ((e.valor_entrega || 0) - (e.valor_entregador || 0)).toFixed(2),
         e.status
       ])
     ].map(e => e.join(';')).join('\n');
@@ -115,15 +133,54 @@ export function FinanceiroDashboard() {
   };
 
   // Pagination
-  const totalPages = Math.ceil(entregas.length / itemsPerPage);
-  const currentItems = entregas.slice((page - 1) * itemsPerPage, page * itemsPerPage);
+  const totalPages = Math.ceil(filteredEntregas.length / itemsPerPage);
+  const currentItems = filteredEntregas.slice((page - 1) * itemsPerPage, page * itemsPerPage);
 
   const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
   return (
     <div className="h-full flex flex-col bg-slate-50 overflow-hidden">
       <div className="p-6 overflow-y-auto">
-        <h1 className="text-2xl font-bold text-slate-800 mb-6">Financeiro Dashboard</h1>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+          <h1 className="text-2xl font-bold text-slate-800">Financeiro Dashboard</h1>
+          
+          {/* Status Filter */}
+          <div className="flex bg-white rounded-lg shadow-sm p-1 border border-slate-200">
+            <button
+              onClick={() => setStatusFilter('todos')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                statusFilter === 'todos' 
+                  ? 'bg-slate-100 text-slate-800' 
+                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+              }`}
+            >
+              <ListFilter size={16} />
+              Todos
+            </button>
+            <button
+              onClick={() => setStatusFilter('finalizados')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                statusFilter === 'finalizados' 
+                  ? 'bg-green-100 text-green-700' 
+                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+              }`}
+            >
+              <CheckCircle size={16} />
+              Finalizados
+            </button>
+            <button
+              onClick={() => setStatusFilter('cancelados')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                statusFilter === 'cancelados' 
+                  ? 'bg-red-100 text-red-700' 
+                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+              }`}
+            >
+              <XCircle size={16} />
+              Cancelados
+            </button>
+          </div>
+        </div>
 
         {/* Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -141,13 +198,13 @@ export function FinanceiroDashboard() {
             </div>
           </div>
 
-          {/* Valor Total de Custo - Red */}
+          {/* Valor Total Repasse - Red */}
           <div className="bg-white rounded-lg shadow p-4 border-l-4 border-red-500 flex items-start justify-between">
             <div>
-              <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Valor Total de Custo</div>
-              <div className="text-2xl font-bold text-slate-800">{formatCurrency(metrics.custo)}</div>
+              <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Valor Total Repasse</div>
+              <div className="text-2xl font-bold text-slate-800">{formatCurrency(metrics.repasse)}</div>
               <div className="text-xs text-slate-400 mt-1">
-                Valor Médio por Pedido: {metrics.pedidos > 0 ? formatCurrency(metrics.custo / metrics.pedidos) : 'R$ 0,00'}
+                Valor Médio por Pedido: {metrics.pedidos > 0 ? formatCurrency(metrics.repasse / metrics.pedidos) : 'R$ 0,00'}
               </div>
             </div>
             <div className="bg-red-100 p-2 rounded-lg text-red-600">
@@ -155,13 +212,13 @@ export function FinanceiroDashboard() {
             </div>
           </div>
 
-          {/* Valor Total de Vendas - Orange */}
+          {/* Valor Total Comissão - Orange */}
           <div className="bg-white rounded-lg shadow p-4 border-l-4 border-orange-500 flex items-start justify-between">
             <div>
-              <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Valor Total de Vendas</div>
-              <div className="text-2xl font-bold text-slate-800">{formatCurrency(metrics.vendas)}</div>
+              <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Valor Total Comissão</div>
+              <div className="text-2xl font-bold text-slate-800">{formatCurrency(metrics.comissao)}</div>
               <div className="text-xs text-slate-400 mt-1">
-                Ticket Médio: {metrics.pedidos > 0 ? formatCurrency(metrics.vendas / metrics.pedidos) : 'R$ 0,00'}
+                Ticket Médio: {metrics.pedidos > 0 ? formatCurrency(metrics.comissao / metrics.pedidos) : 'R$ 0,00'}
               </div>
             </div>
             <div className="bg-orange-100 p-2 rounded-lg text-orange-600">
@@ -225,8 +282,8 @@ export function FinanceiroDashboard() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Cliente</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Entregador</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">V. Cobrado</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Custo</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">V. Venda</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Repasse</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Comissão</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
                   </tr>
                 </thead>
@@ -252,10 +309,10 @@ export function FinanceiroDashboard() {
                           {formatCurrency(item.valor_entrega || 0)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 text-red-600">
-                          {formatCurrency(item.acertos?.reduce((acc: number, curr: any) => acc + (Number(curr.valor_pago) || 0), 0) || 0)}
+                          {formatCurrency(item.valor_entregador || 0)}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                          {formatCurrency(item.valor_mercadoria || 0)}
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 text-orange-600">
+                          {formatCurrency((item.valor_entrega || 0) - (item.valor_entregador || 0))}
                         </td>
                          <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 py-1 text-xs font-semibold rounded-full

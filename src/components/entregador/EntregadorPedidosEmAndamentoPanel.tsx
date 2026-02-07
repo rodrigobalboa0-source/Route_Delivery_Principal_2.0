@@ -336,6 +336,22 @@ export function EntregadorPedidosEmAndamentoPanel() {
                   .eq('id', entrega.pedido_id);
           }
       }
+
+      // Integration: Notify iFood
+      if (currentEntrega?.pedido_id) {
+          let ifoodAction = '';
+          if (newStatus === 'em_rota') ifoodAction = 'dispatch';
+          // if (newStatus === 'entregue') ifoodAction = 'delivery'; 
+          
+          if (ifoodAction) {
+              // Fire and forget
+              supabase.functions.invoke('ifood-update-status', {
+                  body: { action: ifoodAction, orderId: currentEntrega.pedido_id }
+              }).then(({ error }) => {
+                  if (error) console.warn('Falha ao atualizar iFood:', error);
+              });
+          }
+      }
       
       if (newStatus === 'entregue' || newStatus === 'cancelada') {
         setEntregas(prev => prev.filter(e => e.id !== id));
