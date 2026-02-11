@@ -207,6 +207,69 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
   const handleSubmit = async () => {
     setLoading(true);
     setError(null);
+
+    
+    if (mode === 'public') {
+      const requiredFields = [
+        { key: 'nome_completo', label: 'Nome Completo' },
+        { key: 'cpf', label: 'CPF' },
+        { key: 'telefone', label: 'Telefone' },
+        { key: 'email', label: 'E-mail' },
+        { key: 'senha', label: 'Senha' },
+        { key: 'veiculo_tipo', label: 'Tipo de Veículo' },
+        { key: 'cep', label: 'CEP' },
+        { key: 'rua', label: 'Rua' },
+        { key: 'numero', label: 'Número' },
+        { key: 'bairro', label: 'Bairro' },
+        { key: 'cidade', label: 'Cidade' },
+      ];
+
+      for (const field of requiredFields) {
+        if (!form[field.key as keyof typeof form]) {
+          setError(`O campo ${field.label} é obrigatório.`);
+          setLoading(false);
+          return;
+        }
+      }
+
+      if (form.veiculo_tipo !== 'bike') {
+        if (!form.veiculo_placa) {
+          setError('A Placa do veículo é obrigatória.');
+          setLoading(false);
+          return;
+        }
+        if (!form.veiculo_modelo) {
+          setError('O Modelo do veículo é obrigatório.');
+          setLoading(false);
+          return;
+        }
+      }
+
+      if (!fotoPreview) {
+        setError('A foto de perfil é obrigatória.');
+        setLoading(false);
+        return;
+      }
+      if (!comprovantePreview) {
+        setError('O comprovante de residência é obrigatório.');
+        setLoading(false);
+        return;
+      }
+
+      if (form.veiculo_tipo !== 'bike') {
+        if (!cnhPreview) {
+          setError('A foto da CNH é obrigatória para veículos motorizados.');
+          setLoading(false);
+          return;
+        }
+        if (!motoDocPreview) {
+          setError('O documento do veículo é obrigatório para veículos motorizados.');
+          setLoading(false);
+          return;
+        }
+      }
+    }
+
     const emailKey = (form.email || '').trim().toLowerCase();
     if (mode !== 'public' && emailKey) {
       const { data: exists, error: existsErr } = await supabase.from('entregadores').select('id').ilike('email', emailKey).maybeSingle();
