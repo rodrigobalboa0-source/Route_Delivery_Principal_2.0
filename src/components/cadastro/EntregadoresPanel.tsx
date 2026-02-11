@@ -158,7 +158,34 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
     setError(null);
     const { data, error } = await supabase.from('entregadores').select('*').order('nome_completo');
     if (error) setError(error.message);
-    const list = (data || []) as Entregador[];
+    let list = (data || []) as Entregador[];
+
+    
+    try {
+      const { data: usersData } = await supabase.from('users').select('*').eq('role', 'entregador');
+      if (usersData) {
+        const existingIds = new Set(list.map(e => e.id));
+        const missingUsers = usersData.filter(u => !existingIds.has(u.id));
+        
+        if (missingUsers.length > 0) {
+          const placeholders = missingUsers.map(u => ({
+            id: u.id,
+            nome_completo: u.full_name || u.email?.split('@')[0] || 'Entregador sem nome',
+            email: u.email,
+            status: 'em_analise', 
+            created_at: u.created_at || new Date().toISOString(),
+            cnh_valida: false,
+            tipo_entrega: 'parceiro', 
+            veiculo_tipo: 'moto', 
+          } as unknown as Entregador));
+          
+          list = [...list, ...placeholders];
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching users for sync:', e);
+    }
+
     const byEmail = new Map<string, Entregador>();
     for (const e of list) {
       const key = ((e.email || '').trim().toLowerCase()) || e.id;
@@ -645,9 +672,10 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
         }
       }
     }
-    const res = await (supabase as unknown as { from: (t: string) => { update: (v: unknown) => { eq: (c: string, v: unknown) => Promise<unknown> } } })
+    const res = await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown) => Promise<unknown> } })
       .from('entregadores')
-      .update({
+      .upsert({
+        id: editing.id,
         nome_completo: editForm.nome_completo,
         cpf: editForm.cpf || null,
         rg: editForm.rg || null,
@@ -678,8 +706,7 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
         documento_veiculo_base64: finalMotoBase64 || null,
         restricao_clientes_modo: (editForm as any).restricao_clientes_modo || 'todos',
         clientes_permitidos: (editForm as any).clientes_permitidos || [],
-      })
-      .eq('id', editing.id);
+      });
     const r = res as unknown as { error?: { message?: string } };
     if (r.error?.message) setError(r.error.message);
     setEditing(null);
