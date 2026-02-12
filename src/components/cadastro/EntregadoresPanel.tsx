@@ -76,6 +76,8 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
     restricao_clientes_modo: 'todos',
     clientes_permitidos: [] as string[],
     nova_senha: '',
+    prioridade_busca: false,
+    prioridade_tempo: '',
   });
   const [fotoFile, setFotoFile] = useState<File | null>(null);
   const [cnhFile, setCnhFile] = useState<File | null>(null);
@@ -102,6 +104,8 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
     cnh_valida: false,
     tipo_entrega: '',
     status: 'em_analise',
+    prioridade_busca: false,
+    prioridade_tempo: '',
     cep: '',
     rua: '',
     numero: '',
@@ -357,6 +361,8 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
       cnh_valida: form.cnh_valida,
       tipo_entrega: (form.tipo_entrega || null) as Entregador['tipo_entrega'],
       status: form.status as Entregador['status'],
+      prioridade_busca: (form as any).prioridade_busca,
+      prioridade_tempo: (form as any).prioridade_tempo ? Number((form as any).prioridade_tempo) : 0,
       restricao_clientes_modo: form.restricao_clientes_modo as 'todos' | 'selecionados',
       clientes_permitidos: form.clientes_permitidos,
     };
@@ -515,7 +521,7 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
       }).eq('id', idNew);
     }
 
-    setForm({ nome_completo: '', cpf: '', rg: '', data_nascimento: '', telefone: '', email: '', senha: '', veiculo_tipo: '', veiculo_modelo: '', veiculo_placa: '', veiculo_ano: '', cnh_valida: false, tipo_entrega: '', taxa_entrega: '', status: 'inativo', cep: '', rua: '', numero: '', complemento: '', bairro: '', cidade: '', foto_url: '', foto_base64: '', cnh_foto_url: '', cnh_foto_base64: '', comprovante_residencia_url: '', comprovante_residencia_base64: '', documento_veiculo_url: '', documento_veiculo_base64: '', restricao_clientes_modo: 'todos', clientes_permitidos: [] });
+    setForm({ nome_completo: '', cpf: '', rg: '', data_nascimento: '', telefone: '', email: '', senha: '', veiculo_tipo: '', veiculo_modelo: '', veiculo_placa: '', veiculo_ano: '', cnh_valida: false, tipo_entrega: '', taxa_entrega: '', status: 'inativo', prioridade_busca: false, prioridade_tempo: '', cep: '', rua: '', numero: '', complemento: '', bairro: '', cidade: '', foto_url: '', foto_base64: '', cnh_foto_url: '', cnh_foto_base64: '', comprovante_residencia_url: '', comprovante_residencia_base64: '', documento_veiculo_url: '', documento_veiculo_base64: '', restricao_clientes_modo: 'todos', clientes_permitidos: [] });
     setFotoFile(null);
     setCnhFile(null);
     setComprovanteFile(null);
@@ -596,6 +602,8 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
       restricao_clientes_modo: (c as any).restricao_clientes_modo || 'todos',
       clientes_permitidos: (c as any).clientes_permitidos ? (c as any).clientes_permitidos : [],
       nova_senha: '',
+      prioridade_busca: (c as any).prioridade_busca || false,
+      prioridade_tempo: (c as any).prioridade_tempo ? String((c as any).prioridade_tempo) : '',
     } as any);
     setEditFotoPreview((c as unknown as { foto_url?: string; foto_base64?: string }).foto_url || (c as unknown as { foto_base64?: string }).foto_base64 || '');
     setEditCnhPreview((c as unknown as { cnh_foto_url?: string; cnh_foto_base64?: string }).cnh_foto_url || (c as unknown as { cnh_foto_base64?: string }).cnh_foto_base64 || '');
@@ -769,6 +777,8 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
         documento_veiculo_base64: finalMotoBase64 || null,
         restricao_clientes_modo: (editForm as any).restricao_clientes_modo || 'todos',
         clientes_permitidos: (editForm as any).clientes_permitidos || [],
+        prioridade_busca: (editForm as any).prioridade_busca,
+        prioridade_tempo: (editForm as any).prioridade_tempo ? Number((editForm as any).prioridade_tempo) : 0,
       });
     const r = res as unknown as { error?: { message?: string } };
     if (r.error?.message) setError(r.error.message);
@@ -956,7 +966,39 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
                   <option value="ativo">Ativo</option>
                   <option value="inativo">Inativo</option>
                 </select>
-                <div className="md:col-span-2 border border-slate-200 rounded p-3 mt-2 bg-slate-50">
+                <div className="md:col-span-2 border border-slate-200 rounded p-3 mt-2 bg-indigo-50">
+            <div className="flex items-center gap-2 mb-2">
+              <input 
+                id="prioridade_busca_new" 
+                type="checkbox" 
+                checked={(form as any).prioridade_busca} 
+                onChange={(e) => setForm({ ...form, prioridade_busca: e.target.checked } as any)} 
+                className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+              />
+              <label htmlFor="prioridade_busca_new" className="text-sm font-semibold text-slate-700 cursor-pointer">Prioridade de busca</label>
+            </div>
+            {(form as any).prioridade_busca && (
+              <div className="flex flex-col gap-1 mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                <label className="text-xs text-slate-600">Tempo de prioridade (segundos)</label>
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="number" 
+                    placeholder="Ex: 5" 
+                    value={(form as any).prioridade_tempo} 
+                    onChange={(e) => setForm({ ...form, prioridade_tempo: e.target.value } as any)} 
+                    className="px-3 py-2 border border-slate-300 rounded w-32" 
+                    min="0"
+                  />
+                  <span className="text-xs text-slate-500">segundos</span>
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Quando ativo, este entregador receberá as ofertas de entrega <strong>antes</strong> dos outros entregadores pelo tempo definido.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="md:col-span-2 border border-slate-200 rounded p-3 mt-2 bg-slate-50">
                   <label className="text-sm font-semibold text-slate-700 block mb-2">Permissão de Coleta</label>
                   <div className="flex items-center gap-4 mb-3">
                      <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
@@ -1247,6 +1289,37 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
             <option value="inativo">Inativo</option>
             <option value="em_analise">Em Análise</option>
           </select>
+          <div className="md:col-span-2 border border-slate-200 rounded p-3 mt-2 bg-indigo-50">
+            <div className="flex items-center gap-2 mb-2">
+              <input 
+                id="prioridade_busca_edit" 
+                type="checkbox" 
+                checked={(editForm as any).prioridade_busca} 
+                onChange={(e) => setEditForm({ ...editForm, prioridade_busca: e.target.checked } as any)} 
+                className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+              />
+              <label htmlFor="prioridade_busca_edit" className="text-sm font-semibold text-slate-700 cursor-pointer">Prioridade de busca</label>
+            </div>
+            {(editForm as any).prioridade_busca && (
+              <div className="flex flex-col gap-1 mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                <label className="text-xs text-slate-600">Tempo de prioridade (segundos)</label>
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="number" 
+                    placeholder="Ex: 5" 
+                    value={(editForm as any).prioridade_tempo} 
+                    onChange={(e) => setEditForm({ ...editForm, prioridade_tempo: e.target.value } as any)} 
+                    className="px-3 py-2 border border-slate-300 rounded w-32" 
+                    min="0"
+                  />
+                  <span className="text-xs text-slate-500">segundos</span>
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Quando ativo, este entregador receberá as ofertas de entrega <strong>antes</strong> dos outros entregadores pelo tempo definido.
+                </p>
+              </div>
+            )}
+          </div>
           <div className="md:col-span-2 border border-slate-200 rounded p-3 mt-2 bg-slate-50">
             <label className="text-sm font-semibold text-slate-700 block mb-2">Permissão de Coleta</label>
             <div className="flex items-center gap-4 mb-3">

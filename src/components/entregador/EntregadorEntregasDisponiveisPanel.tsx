@@ -16,7 +16,16 @@ export function EntregadorEntregasDisponiveisPanel() {
   const [entregadorId, setEntregadorId] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(false);
   const [radiusKm, setRadiusKm] = useState<number | null>(null);
+  const [hasPriority, setHasPriority] = useState(false);
+  const [currentTime, setCurrentTime] = useState(Date.now());
   const lastCountRef = useRef(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const [commerceNames, setCommerceNames] = useState<Record<string, string>>({});
 
@@ -83,12 +92,13 @@ export function EntregadorEntregasDisponiveisPanel() {
             if (user?.email) {
                 const { data } = await supabase
                     .from('entregadores')
-                    .select('id, is_online')
+                    .select('id, is_online, prioridade_busca')
                     .eq('email', user.email)
                     .single();
                 if (data) {
                     setEntregadorId(data.id);
                     setIsOnline(data.is_online || false);
+                    setHasPriority(data.prioridade_busca || false);
                 } else {
                     setProfileMissing(true);
                     setLoading(false);
@@ -431,10 +441,15 @@ export function EntregadorEntregasDisponiveisPanel() {
     }
   }
 
-  const filterEntregas = (e: any) => {
+      const filterEntregas = (e: any) => {
       if (hiddenIds.includes(e.id)) return false;
       if (e.status === 'atribuida' && e.entregador_id === entregadorId) return true;
       
+      // Prioridade de busca: se não tenho prioridade, verifico o tempo de liberação
+      if (!hasPriority && e.liberado_em) {
+        const releaseTime = new Date(e.liberado_em).getTime();
+        if (releaseTime > currentTime) return false;
+      }
       
       if (radiusKm && distances[e.id]) {
           const dist = distances[e.id].toPickup;

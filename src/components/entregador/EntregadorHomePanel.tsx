@@ -197,13 +197,13 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
         if (user?.email) {
            const { data } = await supabase
              .from('entregadores')
-             .select('id, foto_url, is_online')
+             .select('id, foto_url, foto_base64, is_online')
              .ilike('email', user.email || '')
              .single();
              
            if (data) {
              setEntregadorId(data.id);
-             setPhotoUrl(data.foto_url);
+             setPhotoUrl(data.foto_url || data.foto_base64);
              setIsOnline(data.is_online || false);
              
              
