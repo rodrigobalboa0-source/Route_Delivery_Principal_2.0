@@ -1,4 +1,4 @@
-import { Map, Users, Wallet, Truck, Layers, MessageSquare, PlusSquare, FileText, LifeBuoy, PlayCircle, BarChart3, Settings, LayoutDashboard, Bell, Trophy, History, MapPin, Home } from 'lucide-react';
+import { Map, Users, Wallet, Truck, Layers, MessageSquare, PlusSquare, FileText, LifeBuoy, PlayCircle, BarChart3, Settings, LayoutDashboard, Bell, Trophy, History, MapPin, Home, Tag } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { APP_VERSION } from '../config';
 
@@ -53,6 +53,7 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
     { id: 'cadastro_preco_dinamico_demanda', label: 'Preço dinâmico (demanda)', icon: Wallet },
     { id: 'cadastro_preco_dinamico_entregador', label: 'Preço dinâmico entregador', icon: Wallet },
     { id: 'cadastro_servicos_opcionais', label: 'Serviços opcionais', icon: Layers },
+    { id: 'cadastro_promocoes', label: 'Promoção', icon: Tag },
   ];
 
   const configuracoesItems = [
@@ -103,6 +104,7 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
   const entregasItems = [
     { id: 'entregas_disponiveis', label: 'Disponíveis', icon: MapPin },
     { id: 'entregas_andamento', label: 'Em andamento', icon: Truck },
+    { id: 'entregas_promocoes', label: 'Promoção', icon: Tag },
   ];
 
   const carteiraItems = [

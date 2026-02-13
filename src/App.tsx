@@ -17,6 +17,7 @@ import { PrecoEsperaPanel } from './components/cadastro/PrecoEsperaPanel';
 import { PrecoDinamicoDemandaPanel } from './components/cadastro/PrecoDinamicoDemandaPanel';
 import { PrecoDinamicoEntregadorPanel } from './components/cadastro/PrecoDinamicoEntregadorPanel';
 import { ServicosOpcionaisPanel } from './components/cadastro/ServicosOpcionaisPanel';
+import { PromocoesPanel } from './components/cadastro/PromocoesPanel';
 import { MensagensEntregadoresPanel } from './components/mensagens/MensagensEntregadoresPanel';
 import { MensagensClientesPanel } from './components/mensagens/MensagensClientesPanel';
 import { HistoricoMensagensPanel } from './components/mensagens/HistoricoMensagensPanel';
@@ -64,6 +65,7 @@ import { EntregadorHistoricoPanel } from './components/entregador/EntregadorHist
 import { EntregadorNotificacoesPanel } from './components/entregador/EntregadorNotificacoesPanel';
 import { EntregadorEntregasDisponiveisPanel } from './components/entregador/EntregadorEntregasDisponiveisPanel';
 import { EntregadorPedidosEmAndamentoPanel } from './components/entregador/EntregadorPedidosEmAndamentoPanel';
+import { PromocoesEntregadorPanel } from './components/entregador/PromocoesEntregadorPanel';
 import { EntregadorHomePanel } from './components/entregador/EntregadorHomePanel';
 import { ComercioCreditosPanel } from './components/comercio/ComercioCreditosPanel';
 import { ComercioFaturamentoPanel } from './components/comercio/ComercioFaturamentoPanel';
@@ -317,6 +319,7 @@ function App() {
           {activeMenu === 'cadastro_preco_dinamico_demanda' && <PrecoDinamicoDemandaPanel />}
           {activeMenu === 'cadastro_preco_dinamico_entregador' && <PrecoDinamicoEntregadorPanel />}
           {activeMenu === 'cadastro_servicos_opcionais' && <ServicosOpcionaisPanel />}
+          {activeMenu === 'cadastro_promocoes' && <PromocoesPanel />}
           {activeMenu === 'mensagens_entregadores' && <MensagensEntregadoresPanel />}
           {activeMenu === 'mensagens_clientes' && <MensagensClientesPanel />}
           {activeMenu === 'mensagens_historico' && <HistoricoMensagensPanel userRole={userRole} onNavigate={setActiveMenu} />}
@@ -360,6 +363,7 @@ function App() {
           {activeMenu === 'home_entregador' && <EntregadorHomePanel onNavigate={setActiveMenu} />}
           {activeMenu === 'entregas_disponiveis' && <EntregadorEntregasDisponiveisPanel />}
           {activeMenu === 'entregas_andamento' && <EntregadorPedidosEmAndamentoPanel />}
+          {activeMenu === 'entregas_promocoes' && <PromocoesEntregadorPanel />}
           {activeMenu === 'carteira_extrato' && <EntregadorExtratoPanel userId={userId} />}
           {activeMenu === 'conta_minha_conta' && <EntregadorMinhaContaPanel />}
           {activeMenu === 'conta_ranking' && <EntregadorRankingPanel />}
