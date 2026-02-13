@@ -14,6 +14,7 @@ export function TopBar({ onMenuToggle, onLogout, activeMenu, userRole, userName 
     if (typeof activeMenu === 'string' && activeMenu.startsWith('operations')) return 'Administrador';
     return 'usuário';
   })();
+  
   return (
     <header className="w-full min-h-[3.5rem] h-auto pt-[env(safe-area-inset-top)] bg-slate-900 text-white flex items-center justify-between px-4 border-b border-slate-800 relative z-40">
       <div className="flex items-center gap-3">
@@ -27,9 +28,9 @@ export function TopBar({ onMenuToggle, onLogout, activeMenu, userRole, userName 
           <span className="block w-5 h-0.5 bg-white" />
         </button>
         <img
-          src="/Screenshot_20251113_103247-Photoroom.png"
+          src={userRole === 'entregador' ? "/iconeentregador.png" : "/Screenshot_20251113_103247-Photoroom.png"}
           alt="RouteDelivery"
-          className="h-12 md:h-16 object-contain"
+          className="h-14 md:h-28 object-contain -my-5 relative z-50"
         />
       </div>
       <div className="flex items-center gap-3">

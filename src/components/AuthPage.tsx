@@ -146,7 +146,7 @@ export function AuthPage({ forceResetMode = false, onResetComplete }: { forceRes
               <img
                 src="/Screenshot_20251113_103247-Photoroom.png"
                 alt="RouteDelivery"
-                className="h-20 md:h-24 object-contain"
+                className="h-28 md:h-48 object-contain"
               />
             </div>
             <h1 className="text-3xl md:text-4xl font-bold">Bem-vindo de volta!</h1>
