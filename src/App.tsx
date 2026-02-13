@@ -54,6 +54,7 @@ import { ConfigFiscalPanel } from './components/configuracoes/ConfigFiscalPanel'
 import { IntegracoesExternasPanel } from './components/configuracoes/IntegracoesExternasPanel';
 import { IntegracoesOpenDeliveryPanel } from './components/configuracoes/IntegracoesOpenDeliveryPanel';
 import { IntegracaoPanel } from './components/configuracoes/IntegracaoPanel';
+import { CardapioWebPanel } from './components/configuracoes/CardapioWebPanel';
 import { ConfiguracoesOperacaoPanel } from './components/configuracoes/ConfiguracoesOperacaoPanel';
 import { FinanceiroDashboard } from './components/FinanceiroDashboard';
 import { NotificationManager } from './components/NotificationManager';
@@ -354,6 +355,7 @@ function App() {
           {activeMenu === 'config_integracoes_externas' && <IntegracoesExternasPanel />}
           {activeMenu === 'config_integracoes_open_delivery' && <IntegracoesOpenDeliveryPanel />}
           {activeMenu === 'config_integracao_ifood' && <IntegracaoPanel />}
+          {activeMenu === 'config_integracao_cardapioweb' && <CardapioWebPanel />}
           {activeMenu === 'config_operacao' && <ConfiguracoesOperacaoPanel />}
           
           {activeMenu === 'comercio_creditos' && <ComercioCreditosPanel />}

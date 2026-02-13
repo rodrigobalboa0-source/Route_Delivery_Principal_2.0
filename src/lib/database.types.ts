@@ -21,6 +21,11 @@ export interface Database {
           valor_total: number | null
           status: 'criado' | 'confirmado' | 'em_preparo' | 'pronto' | 'cancelado' | 'entregue'
           observacoes: string | null
+          entrega_codigo_pedido?: string | null
+          entrega_contato?: string | null
+          entrega_telefone?: string | null
+          valor_entrega?: number | null
+          modal_tipo?: string | null
           created_at: string
         }
         Insert: {
@@ -34,6 +39,11 @@ export interface Database {
           valor_total?: number | null
           status?: 'criado' | 'confirmado' | 'em_preparo' | 'pronto' | 'cancelado' | 'entregue'
           observacoes?: string | null
+          entrega_codigo_pedido?: string | null
+          entrega_contato?: string | null
+          entrega_telefone?: string | null
+          valor_entrega?: number | null
+          modal_tipo?: string | null
           created_at?: string
         }
         Update: {
@@ -47,7 +57,44 @@ export interface Database {
           valor_total?: number | null
           status?: 'criado' | 'confirmado' | 'em_preparo' | 'pronto' | 'cancelado' | 'entregue'
           observacoes?: string | null
+          entrega_codigo_pedido?: string | null
+          entrega_contato?: string | null
+          entrega_telefone?: string | null
+          valor_entrega?: number | null
+          modal_tipo?: string | null
           created_at?: string
+        }
+      }
+      integracoes_cardapioweb: {
+        Row: {
+          id: string
+          cliente_id: string
+          merchant_id: string
+          merchant_secret: string | null
+          status: 'ativo' | 'inativo' | 'erro'
+          last_synced_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          cliente_id: string
+          merchant_id: string
+          merchant_secret?: string | null
+          status?: 'ativo' | 'inativo' | 'erro'
+          last_synced_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          cliente_id?: string
+          merchant_id?: string
+          merchant_secret?: string | null
+          status?: 'ativo' | 'inativo' | 'erro'
+          last_synced_at?: string | null
+          created_at?: string
+          updated_at?: string
         }
       }
       integracoes_ifood: {

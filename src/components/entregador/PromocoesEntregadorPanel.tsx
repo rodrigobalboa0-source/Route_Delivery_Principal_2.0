@@ -66,11 +66,11 @@ export function PromocoesEntregadorPanel() {
         <div className="space-y-6">
           {promocoes.map((promocao) => (
             <div key={promocao.id} className="bg-white rounded-xl overflow-hidden shadow-md border border-slate-100 transform transition-all hover:scale-[1.02]">
-              <div className="aspect-video w-full bg-slate-100 relative">
+              <div className="w-full bg-slate-100 relative">
                 <img 
                   src={promocao.imagem_url} 
                   alt="Promoção" 
-                  className="w-full h-full object-cover"
+                  className="w-full h-auto block"
                   loading="lazy"
                 />
                 <div className="absolute top-2 right-2 bg-amber-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-sm">
