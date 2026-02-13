@@ -13,7 +13,7 @@ type Cliente = {
   nome_completo: string;
 };
 
-const PROJECT_REF = 'mtanrihprbgrrtgwcyia'; // TODO: Get from env if possible
+const PROJECT_REF = 'mtanrihprbgrrtgwcyia'; 
 const WEBHOOK_URL = `https://${PROJECT_REF}.supabase.co/functions/v1/cardapioweb-webhook`;
 
 export function CardapioWebPanel() {

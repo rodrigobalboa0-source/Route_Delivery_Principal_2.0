@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Trash2, Upload, AlertCircle, CheckCircle } from 'lucide-react';
+import { Trash2, Upload, AlertCircle, CheckCircle, Pencil, X } from 'lucide-react';
 
 interface Promocao {
   id: string;
@@ -19,6 +19,7 @@ export function PromocoesPanel() {
   const [imagemPreview, setImagemPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchPromocoes();
@@ -52,9 +53,28 @@ export function PromocoesPanel() {
     }
   };
 
+  const handleEdit = (promocao: Promocao) => {
+    setEditingId(promocao.id);
+    setDescricao(promocao.descricao);
+    setImagemPreview(promocao.imagem_url);
+    setImagemFile(null); // Reset file input, we use existing URL unless changed
+    setError(null);
+    setSuccess(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setDescricao('');
+    setImagemFile(null);
+    setImagemPreview(null);
+    setError(null);
+    setSuccess(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!descricao || !imagemFile) {
+    if (!descricao || (!imagemFile && !editingId)) {
       setError('Por favor, preencha a descrição e selecione uma imagem.');
       return;
     }
@@ -64,27 +84,50 @@ export function PromocoesPanel() {
     setSuccess(null);
 
     try {
-      const fileExt = imagemFile.name.split('.').pop();
-      const fileName = `${Math.random()}.${fileExt}`;
-      const filePath = `${fileName}`;
+      let publicUrl = imagemPreview;
 
-      const { error: uploadError } = await supabase.storage
-        .from('promocoes')
-        .upload(filePath, imagemFile);
+      // Only upload if a new file is selected
+      if (imagemFile) {
+        const fileExt = imagemFile.name.split('.').pop();
+        const fileName = `${Math.random()}.${fileExt}`;
+        const filePath = `${fileName}`;
 
-      if (uploadError) throw uploadError;
+        const { error: uploadError } = await supabase.storage
+          .from('promocoes')
+          .upload(filePath, imagemFile);
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('promocoes')
-        .getPublicUrl(filePath);
+        if (uploadError) throw uploadError;
 
-      const { error: insertError } = await supabase
-        .from('promocoes')
-        .insert([{ descricao, imagem_url: publicUrl, ativa: true }]);
+        const { data } = supabase.storage
+          .from('promocoes')
+          .getPublicUrl(filePath);
+          
+        publicUrl = data.publicUrl;
+      }
 
-      if (insertError) throw insertError;
+      if (editingId) {
+        // Update existing
+        const { error: updateError } = await supabase
+          .from('promocoes')
+          .update({ 
+            descricao, 
+            ...(imagemFile ? { imagem_url: publicUrl } : {}) // Only update image URL if new file uploaded
+          })
+          .eq('id', editingId);
 
-      setSuccess('Promoção cadastrada com sucesso!');
+        if (updateError) throw updateError;
+        setSuccess('Promoção atualizada com sucesso!');
+        setEditingId(null);
+      } else {
+        // Insert new
+        const { error: insertError } = await supabase
+          .from('promocoes')
+          .insert([{ descricao, imagem_url: publicUrl, ativa: true }]);
+
+        if (insertError) throw insertError;
+        setSuccess('Promoção cadastrada com sucesso!');
+      }
+
       setDescricao('');
       setImagemFile(null);
       setImagemPreview(null);
@@ -142,7 +185,19 @@ export function PromocoesPanel() {
       <h1 className="text-2xl font-bold text-slate-800 mb-6">Gerenciar Promoções</h1>
 
       <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200 mb-8">
-        <h2 className="text-lg font-semibold text-slate-700 mb-4">Nova Promoção</h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold text-slate-700">
+            {editingId ? 'Editar Promoção' : 'Nova Promoção'}
+          </h2>
+          {editingId && (
+            <button
+              onClick={handleCancelEdit}
+              className="text-slate-500 hover:text-slate-700 flex items-center gap-1 text-sm"
+            >
+              <X size={16} /> Cancelar Edição
+            </button>
+          )}
+        </div>
         
         {error && (
           <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-md flex items-center gap-2 text-sm">
@@ -197,7 +252,7 @@ export function PromocoesPanel() {
               disabled={uploading}
               className="px-4 py-2 bg-sky-600 text-white rounded-md hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
-              {uploading ? 'Salvando...' : 'Cadastrar Promoção'}
+              {uploading ? 'Salvando...' : (editingId ? 'Atualizar Promoção' : 'Cadastrar Promoção')}
             </button>
           </div>
         </form>
@@ -232,13 +287,22 @@ export function PromocoesPanel() {
                   >
                     {promocao.ativa ? 'Ativa' : 'Inativa'}
                   </button>
-                  <button
-                    onClick={() => handleDelete(promocao.id, promocao.imagem_url)}
-                    className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
-                    title="Excluir"
-                  >
-                    <Trash2 size={18} />
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleEdit(promocao)}
+                      className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
+                      title="Editar"
+                    >
+                      <Pencil size={18} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(promocao.id, promocao.imagem_url)}
+                      className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
+                      title="Excluir"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
