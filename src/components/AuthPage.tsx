@@ -144,7 +144,7 @@ export function AuthPage({ forceResetMode = false, onResetComplete }: { forceRes
             <div className="absolute inset-0 bg-black/20" />
             <div className="flex items-center justify-center mb-6">
               <img
-                src="/Screenshot_20251113_103247-Photoroom.png"
+                src={isNative ? "/iconeentregador.png" : "/Screenshot_20251113_103247-Photoroom.png"}
                 alt="RouteDelivery"
                 className="h-28 md:h-48 object-contain"
               />
