@@ -15,7 +15,8 @@ export function EntregadorRankingPanel() {
       const { data, error } = await supabase
         .from('view_entregador_ranking')
         .select('*')
-        .order('entregas_mes', { ascending: false });
+        .order('entregas_semana', { ascending: false })
+        .limit(10);
 
       if (error) throw error;
       setRanking(data || []);
@@ -30,7 +31,7 @@ export function EntregadorRankingPanel() {
     <div className="p-6 max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold mb-6 flex items-center gap-2">
         <Trophy className="w-6 h-6 text-yellow-500" />
-        Ranking de Entregadores
+        Ranking Semanal de Entregadores
       </h1>
       
       {loading ? (
@@ -42,7 +43,7 @@ export function EntregadorRankingPanel() {
               <tr>
                 <th className="p-4">Posição</th>
                 <th className="p-4">Entregador</th>
-                <th className="p-4 text-center">Entregas (Mês)</th>
+                <th className="p-4 text-center">Entregas (Semana)</th>
                 <th className="p-4 text-center">Avaliação</th>
               </tr>
             </thead>
@@ -65,7 +66,7 @@ export function EntregadorRankingPanel() {
                     <span className="font-medium">{item.nome_completo}</span>
                   </td>
                   <td className="p-4 text-center font-semibold text-blue-600">
-                    {item.entregas_mes}
+                    {item.entregas_semana}
                   </td>
                   <td className="p-4 text-center">
                     <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-bold">
