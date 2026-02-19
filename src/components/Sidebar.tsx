@@ -36,6 +36,7 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
     { id: 'configuracoes', label: 'Configurações', icon: Settings },
     { id: 'carteira', label: 'Carteira', icon: Wallet },
     { id: 'conta', label: 'Conta', icon: Users },
+    { id: 'comercio_notificacoes', label: 'Notificações', icon: Bell },
     { id: 'comercio_creditos', label: 'Créditos', icon: Wallet },
     { id: 'comercio_faturamento', label: 'Faturamento', icon: FileText },
   ];
@@ -141,7 +142,7 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
   }, [forceOpenGroups]);
 
   const visibleMenuItems = ((): { id: string; label: string; icon: any }[] => {
-    if (userRole === 'cliente') return menuItems.filter((m) => ['mensagens', 'pedidos', 'comercio_creditos', 'comercio_faturamento'].includes(m.id));
+    if (userRole === 'cliente') return menuItems.filter((m) => ['mensagens', 'pedidos', 'comercio_notificacoes', 'comercio_creditos', 'comercio_faturamento'].includes(m.id));
     if (userRole === 'entregador') return menuItems.filter((m) => ['home_entregador', 'entregas', 'mensagens', 'carteira', 'conta'].includes(m.id));
 
     return menuItems.filter((m) => !['home_entregador', 'entregas', 'carteira', 'conta', 'comercio_creditos', 'comercio_faturamento'].includes(m.id));

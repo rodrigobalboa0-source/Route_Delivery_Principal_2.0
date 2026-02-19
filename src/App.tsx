@@ -68,6 +68,7 @@ import { EntregadorEntregasDisponiveisPanel } from './components/entregador/Entr
 import { EntregadorPedidosEmAndamentoPanel } from './components/entregador/EntregadorPedidosEmAndamentoPanel';
 import { PromocoesEntregadorPanel } from './components/entregador/PromocoesEntregadorPanel';
 import { EntregadorHomePanel } from './components/entregador/EntregadorHomePanel';
+import { ComercioNotificacoesPanel } from './components/comercio/ComercioNotificacoesPanel';
 import { ComercioCreditosPanel } from './components/comercio/ComercioCreditosPanel';
 import { ComercioFaturamentoPanel } from './components/comercio/ComercioFaturamentoPanel';
 import { EntregadorBottomBar } from './components/entregador/EntregadorBottomBar';
@@ -358,6 +359,7 @@ function App() {
           {activeMenu === 'config_integracao_cardapioweb' && <CardapioWebPanel />}
           {activeMenu === 'config_operacao' && <ConfiguracoesOperacaoPanel />}
           
+          {activeMenu === 'comercio_notificacoes' && <ComercioNotificacoesPanel />}
           {activeMenu === 'comercio_creditos' && <ComercioCreditosPanel />}
           {activeMenu === 'comercio_faturamento' && <ComercioFaturamentoPanel />}
 

@@ -78,7 +78,7 @@ export function IntegracaoPanel() {
 
           alert('Integração conectada com sucesso!');
           
-          // Clean URL
+          
           window.history.replaceState({}, '', window.location.pathname);
           fetchData();
       } catch (err: any) {
@@ -106,10 +106,10 @@ export function IntegracaoPanel() {
   useEffect(() => {
     fetchData();
     
-    // Check for OAuth callback
+    
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
-    const state = params.get('state'); // We use state to pass cliente_id
+    const state = params.get('state');
 
     if (code && state) {
         handleAuthCallback(code, state);
@@ -142,7 +142,6 @@ export function IntegracaoPanel() {
       }
 
       if (editingIntegracao) {
-        
         const { error } = await supabase
           .from('integracoes_ifood')
           .update({
@@ -156,8 +155,18 @@ export function IntegracaoPanel() {
         fetchData();
         alert('Status atualizado com sucesso.');
       } else {
-        
-        handleConnect(formData.cliente_id);
+        const { error } = await supabase
+          .from('integracoes_ifood')
+          .insert({
+            cliente_id: formData.cliente_id,
+            status: 'inativo'
+          });
+
+        if (error) throw error;
+
+        setIsModalOpen(false);
+        fetchData();
+        alert('Solicitação de integração registrada. O comércio verá a notificação em Notificações.');
       }
       
     } catch (err: any) {
@@ -287,9 +296,9 @@ export function IntegracaoPanel() {
 
           {!editingIntegracao && (
             <div className="bg-blue-50 p-4 rounded-lg text-sm text-blue-700 border border-blue-100">
-                <p className="font-semibold mb-1">Conexão via iFood App</p>
-                <p>Ao clicar em "Conectar com iFood", você será redirecionado para o portal do iFood para autorizar o acesso deste comércio ao aplicativo <strong>RouteDelivery</strong>.</p>
-                <p className="mt-2 text-xs text-blue-600">Certifique-se de estar logado na conta do Portal do iFood correspondente a este comércio (usuário Gestor).</p>
+                <p className="font-semibold mb-1">Solicitação de integração</p>
+                <p>Ao salvar, será registrada uma solicitação de integração para este comércio. O responsável do comércio verá um aviso no menu <strong>Notificações</strong> do painel dele e deverá acessar o Portal do Parceiro iFood para autorizar o aplicativo <strong>RouteDelivery</strong>.</p>
+                <p className="mt-2 text-xs text-blue-600">Certifique-se de que o comércio já possui acesso ao Portal do iFood com conta profissional (CNPJ).</p>
             </div>
           )}
 
