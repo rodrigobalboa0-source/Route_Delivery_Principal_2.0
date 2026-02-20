@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Bell, AlertCircle, ExternalLink } from 'lucide-react';
+import { Modal } from '../Modal';
 
 type IntegracaoIfood = {
   id: string;
@@ -14,6 +15,12 @@ export function ComercioNotificacoesPanel() {
   const [integracoes, setIntegracoes] = useState<IntegracaoIfood[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [ifoodModalOpen, setIfoodModalOpen] = useState(false);
+  const [ifoodLoading, setIfoodLoading] = useState(false);
+  const [ifoodUserCode, setIfoodUserCode] = useState<string | null>(null);
+  const [ifoodVerificationUrl, setIfoodVerificationUrl] = useState<string | null>(null);
+  const [ifoodError, setIfoodError] = useState<string | null>(null);
+  const [ifoodAuthCode, setIfoodAuthCode] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -80,6 +87,103 @@ export function ComercioNotificacoesPanel() {
 
   const hasIntegracao = integracoes.length > 0;
   const ultimaIntegracao = integracoes[0] || null;
+
+  async function iniciarAutorizacaoIfood() {
+    if (!clientId) return;
+    try {
+      setIfoodLoading(true);
+      setIfoodError(null);
+      setIfoodUserCode(null);
+      setIfoodVerificationUrl(null);
+
+      const { data, error: fnError } = await supabase.functions.invoke('ifood-auth', {
+        body: {
+          action: 'userCode',
+          cliente_id: clientId
+        }
+      });
+
+      if (fnError) {
+        const message =
+          (data as any)?.error ||
+          (data as any)?.message ||
+          (fnError as any).message ||
+          'Erro ao gerar código de ativação no iFood.';
+      setIfoodError(message);
+        return;
+      }
+
+      if ((data as any)?.error) {
+        setIfoodError((data as any).error);
+        return;
+      }
+
+      const userCode = (data as any).userCode || (data as any).user_code || null;
+      const verificationUrl =
+        (data as any).verificationUrlComplete ||
+        (data as any).verification_url_complete ||
+        null;
+
+      if (!userCode) {
+        setIfoodError('Não foi possível obter o código de ativação do iFood.');
+        return;
+      }
+
+      setIfoodUserCode(userCode);
+      setIfoodVerificationUrl(verificationUrl);
+      setIfoodModalOpen(true);
+    } catch (e: any) {
+      setIfoodError(e.message || 'Erro ao gerar código de ativação no iFood.');
+    } finally {
+      setIfoodLoading(false);
+    }
+  }
+
+  async function concluirAutorizacaoIfood() {
+    if (!clientId) return;
+    if (!ifoodAuthCode.trim()) {
+      setIfoodError('Informe o código de autorização exibido no Portal do iFood.');
+      return;
+    }
+    try {
+      setIfoodLoading(true);
+      setIfoodError(null);
+
+      const redirectUri = window.location.origin + window.location.pathname;
+
+      const { data, error: fnError } = await supabase.functions.invoke('ifood-auth', {
+        body: {
+          action: 'exchange',
+          code: ifoodAuthCode.trim(),
+          cliente_id: clientId,
+          redirect_uri: redirectUri
+        }
+      });
+
+      if (fnError) {
+        const message =
+          (data as any)?.error ||
+          (data as any)?.message ||
+          (fnError as any).message ||
+          'Erro ao finalizar autenticação com iFood.';
+        setIfoodError(message);
+        return;
+      }
+
+      if ((data as any)?.error) {
+        setIfoodError((data as any).error);
+        return;
+      }
+
+      setIfoodModalOpen(false);
+      setIfoodAuthCode('');
+      await fetchData();
+    } catch (e: any) {
+      setIfoodError(e.message || 'Erro ao finalizar autenticação com iFood.');
+    } finally {
+      setIfoodLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (!clientId) return;
@@ -191,6 +295,14 @@ export function ComercioNotificacoesPanel() {
                   Abrir Portal do iFood
                   <ExternalLink className="w-4 h-4" />
                 </a>
+                <button
+                  type="button"
+                  onClick={iniciarAutorizacaoIfood}
+                  disabled={ifoodLoading}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                >
+                  {ifoodLoading ? 'Gerando código...' : 'Autorizar app iFood'}
+                </button>
               </div>
               {ultimaIntegracao && (
                 <div className="mt-3 text-xs text-sky-900/90">
@@ -201,6 +313,78 @@ export function ComercioNotificacoesPanel() {
           </div>
         </div>
       )}
+      <Modal
+        open={ifoodModalOpen}
+        onClose={() => setIfoodModalOpen(false)}
+        title="Autorizar aplicativo iFood"
+      >
+        <div className="space-y-4">
+          {ifoodError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 text-xs">
+              {ifoodError}
+            </div>
+          )}
+
+          <div className="text-sm text-slate-800 space-y-2">
+            <p>
+              Use o código abaixo no Portal do Parceiro iFood em{' '}
+              <span className="font-semibold">Aplicativos → Ativar aplicativo por código</span>.
+            </p>
+            {ifoodUserCode && (
+              <div className="px-3 py-2 rounded-lg bg-slate-900 text-slate-50 font-mono text-lg tracking-widest text-center">
+                {ifoodUserCode}
+              </div>
+            )}
+            {ifoodVerificationUrl && (
+              <a
+                href={ifoodVerificationUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-sky-600 text-white text-xs font-medium hover:bg-sky-700 transition-colors"
+              >
+                Abrir passo a passo no Portal do iFood
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            )}
+            <p className="text-xs text-slate-600 pt-1">
+              Após autorizar o aplicativo, o portal exibirá um{' '}
+              <span className="font-semibold">código de autorização</span>. Cole esse código
+              abaixo para concluir a integração.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-xs font-medium text-slate-700">
+              Código de autorização do Portal do iFood
+            </label>
+            <input
+              type="text"
+              value={ifoodAuthCode}
+              onChange={(e) => setIfoodAuthCode(e.target.value)}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+              placeholder="Ex: ABCD-EFGH"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setIfoodModalOpen(false)}
+              className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm hover:bg-slate-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={concluirAutorizacaoIfood}
+              disabled={ifoodLoading}
+              className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {ifoodLoading ? 'Concluindo...' : 'Concluir autorização'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -60,60 +60,93 @@ export function IntegracaoPanel() {
     }
   };
 
-  const handleAuthCallback = async (code: string, clienteId: string) => {
-      try {
-          setLoading(true);
-          console.log('Processando callback iFood...', { code, clienteId });
-          
-          const { data, error } = await supabase.functions.invoke('ifood-auth', {
-              body: { 
-                  code, 
-                  cliente_id: clienteId,
-                  redirect_uri: window.location.origin + window.location.pathname 
-              }
-          });
-
-          if (error) throw error;
-          if (data?.error) throw new Error(data.error);
-
-          alert('Integração conectada com sucesso!');
-          
-          
-          window.history.replaceState({}, '', window.location.pathname);
-          fetchData();
-      } catch (err: any) {
-          console.error('Erro na autenticação:', err);
-          alert('Falha ao conectar: ' + (err.message || 'Erro desconhecido'));
-          setError('Falha na autenticação iFood: ' + err.message);
-      } finally {
-          setLoading(false);
-      }
-  };
-
   const handleConnect = (clienteId: string) => {
-      if (IFOOD_APP_CLIENT_ID === 'SEU_CLIENT_ID_DO_APP_AQUI') {
-          alert('Configure o IFOOD_APP_CLIENT_ID no código (IntegracaoPanel.tsx) primeiro.');
-          return;
-      }
+    const connect = async () => {
+      try {
+        setLoading(true);
 
-      const redirectUri = window.location.origin + window.location.pathname;
-      const scope = 'order,merchant';
-      const authUrl = `https://account.ifood.com.br/auth?client_id=${IFOOD_APP_CLIENT_ID}&response_type=code&scope=${scope}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${clienteId}`;
-      
-      window.location.href = authUrl;
+        const { data, error } = await supabase.functions.invoke('ifood-auth', {
+          body: {
+            action: 'userCode',
+            cliente_id: clienteId
+          }
+        });
+
+        if (error) {
+          console.error('Erro ifood-auth (userCode):', error, data);
+          const message =
+            (data as any)?.error ||
+            (data as any)?.message ||
+            (error as any).message ||
+            'Erro ao gerar código de ativação no iFood.';
+          throw new Error(message);
+        }
+
+        if ((data as any)?.error) {
+          throw new Error((data as any).error);
+        }
+
+        const userCode = (data as any).userCode || (data as any).user_code;
+        const verificationUrl = (data as any).verificationUrlComplete || (data as any).verification_url_complete;
+
+        if (!userCode) {
+          throw new Error('Não foi possível obter o código de ativação do iFood.');
+        }
+
+        let mensagem = `1) Acesse o Portal do Parceiro iFood e clique em "Ativar aplicativo por código".\n\n2) Informe este código: ${userCode}.\n\n3) Após autorizar o aplicativo, o portal exibirá um "código de autorização".\n\n4) Copie esse código e cole na próxima caixa.`;
+
+        if (verificationUrl) {
+          mensagem = `Você pode acessar diretamente este endereço:\n${verificationUrl}\n\n` + mensagem;
+        }
+
+        alert(mensagem);
+
+        const authCode = window.prompt('Cole aqui o código de autorização exibido no Portal do iFood:');
+        if (!authCode) {
+          return;
+        }
+
+        const redirectUri = window.location.origin + window.location.pathname;
+
+        const { data: exchangeData, error: exchangeError } = await supabase.functions.invoke('ifood-auth', {
+          body: {
+            action: 'exchange',
+            code: authCode.trim(),
+            cliente_id: clienteId,
+            redirect_uri: redirectUri
+          }
+        });
+
+        if (exchangeError) {
+          console.error('Erro ifood-auth (exchange):', exchangeError, exchangeData);
+          const message =
+            (exchangeData as any)?.error ||
+            (exchangeData as any)?.message ||
+            (exchangeError as any).message ||
+            'Erro ao finalizar autenticação com iFood.';
+          throw new Error(message);
+        }
+
+        if ((exchangeData as any)?.error) {
+          throw new Error((exchangeData as any).error);
+        }
+
+        alert('Integração conectada com sucesso!');
+        fetchData();
+      } catch (err: any) {
+        console.error('Erro na conexão iFood:', err);
+        alert(err.message || 'Erro ao conectar com iFood');
+        setError(err.message || 'Erro ao conectar com iFood');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void connect();
   };
 
   useEffect(() => {
     fetchData();
-    
-    
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
-    const state = params.get('state');
-
-    if (code && state) {
-        handleAuthCallback(code, state);
-    }
   }, []);
 
   const openModal = (integracao?: Integracao) => {
