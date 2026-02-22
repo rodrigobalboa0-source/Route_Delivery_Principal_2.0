@@ -6,6 +6,7 @@ import { Modal } from '../Modal';
 import type { Database } from '../../lib/database.types';
 import { format } from 'date-fns';
 import { Trash2, User, CheckCircle, Truck, Plus, ArrowRight, MapPin, Settings, Edit, FileText, CheckSquare, Link, Clock, Copy, MoreVertical, X, RefreshCw, Ban, RotateCcw, MessageSquare, UserCog, Store, Search } from 'lucide-react';
+import { IfoodService } from '../../services/ifoodService';
 
 type Cliente = { 
   id: string; 
@@ -1114,6 +1115,53 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     }, 5000);
 
     return () => clearInterval(interval);
+  }, [fetchPedidos]);
+
+  useEffect(() => {
+    let interval: any = null;
+    let running = false;
+
+    const setupIfoodSync = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('integracoes_ifood')
+          .select('id')
+          .eq('status', 'ativo')
+          .limit(1);
+
+        if (error) {
+          console.error('Erro ao verificar integrações iFood ativas:', error);
+          return;
+        }
+
+        if (!data || data.length === 0) return;
+
+        const runSync = async () => {
+          if (running) return;
+          running = true;
+          try {
+            await IfoodService.syncOrders();
+            await fetchPedidos(true);
+          } catch (e) {
+            console.error('Erro ao sincronizar pedidos iFood:', e);
+          } finally {
+            running = false;
+          }
+        };
+
+        await runSync();
+
+        interval = setInterval(runSync, 15000);
+      } catch (e) {
+        console.error('Erro ao iniciar sincronização iFood automática na tela de pedidos:', e);
+      }
+    };
+
+    setupIfoodSync();
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   }, [fetchPedidos]);
 
   useEffect(() => {
