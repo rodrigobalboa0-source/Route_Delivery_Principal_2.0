@@ -42,7 +42,7 @@ window.onunhandledrejection = function(event) {
 };
 
 try {
-  const isCadastroPage = window.location.pathname === '/cadastro' || window.location.hash === '#cadastro';
+  const isCadastroPage = window.location.pathname === '/cadastro' || ['#cadastro', '#comercio', '#entregador'].includes(window.location.hash);
   const rootElement = document.getElementById('root');
   
   if (!rootElement) {

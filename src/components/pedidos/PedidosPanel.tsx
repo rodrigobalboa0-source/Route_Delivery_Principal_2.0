@@ -1112,7 +1112,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     
     const interval = setInterval(() => {
         fetchPedidos(true);
-    }, 5000);
+    }, 3000);
 
     return () => clearInterval(interval);
   }, [fetchPedidos]);
@@ -1151,7 +1151,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
         await runSync();
 
-        interval = setInterval(runSync, 15000);
+        interval = setInterval(runSync, 3000);
       } catch (e) {
         console.error('Erro ao iniciar sincronização iFood automática na tela de pedidos:', e);
       }

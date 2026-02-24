@@ -1905,6 +1905,38 @@ export interface Database {
           foto_url: string | null
         }[]
       }
+      integracoes_ze: {
+        Row: {
+          id: string
+          cliente_id: string
+          merchant_id: string
+          api_key: string | null
+          status: 'ativo' | 'inativo' | 'erro'
+          last_synced_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          cliente_id: string
+          merchant_id: string
+          api_key?: string | null
+          status?: 'ativo' | 'inativo' | 'erro'
+          last_synced_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          cliente_id?: string
+          merchant_id?: string
+          api_key?: string | null
+          status?: 'ativo' | 'inativo' | 'erro'
+          last_synced_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
   }
 }

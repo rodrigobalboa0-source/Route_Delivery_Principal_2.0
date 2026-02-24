@@ -2,8 +2,18 @@ import { useState } from 'react';
 import { ClientesPanel } from './cadastro/ClientesPanel';
 import { EntregadoresPanel } from './cadastro/EntregadoresPanel';
 
-export function Cadastro({ onBack, darkMode = false }: { onBack?: () => void; darkMode?: boolean }) {
-  const [tipo, setTipo] = useState<'cliente' | 'entregador' | ''>('');
+export function Cadastro({ onBack, darkMode = false, initialType }: { onBack?: () => void; darkMode?: boolean; initialType?: 'cliente' | 'entregador' | '' }) {
+  const getInitialType = () => {
+    if (initialType) return initialType;
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash;
+      if (hash === '#comercio') return 'cliente';
+      if (hash === '#entregador') return 'entregador';
+    }
+    return '';
+  };
+
+  const [tipo, setTipo] = useState<'cliente' | 'entregador' | ''>(getInitialType());
   const isNative = window.Capacitor?.isNativePlatform();
   return (
     <div className={`min-h-screen flex items-center justify-center ${darkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>

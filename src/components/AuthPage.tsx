@@ -11,6 +11,7 @@ export function AuthPage({ forceResetMode = false, onResetComplete }: { forceRes
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [signupOpen, setSignupOpen] = useState(false);
+  const [signupType, setSignupType] = useState<'cliente' | 'entregador' | ''>('');
   
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
   const [resetPasswordMode, setResetPasswordMode] = useState(forceResetMode);
@@ -112,12 +113,13 @@ export function AuthPage({ forceResetMode = false, onResetComplete }: { forceRes
     }
   };
 
-  const handleSignUpStart = () => {
+  const handleSignUpStart = (type: 'comercio' | 'entregador') => {
     if (isNative) {
+      setSignupType(type === 'comercio' ? 'cliente' : 'entregador');
       setSignupOpen(true);
       setError(null);
     } else {
-      window.open('/#cadastro', '_blank');
+      window.open(`/#${type}`, '_blank');
     }
   };
 
@@ -297,9 +299,13 @@ export function AuthPage({ forceResetMode = false, onResetComplete }: { forceRes
                 >
                   {loading ? 'Entrando...' : 'Entrar'}
                 </button>
-                <div className="text-xs text-slate-600 text-center">
-                  Novo por aqui?{' '}
-                  <button onClick={handleSignUpStart} className="text-sky-600 hover:underline">Criar uma conta</button>
+                <div className="text-xs text-slate-600 text-center flex flex-col items-center gap-2 mt-4">
+                  <span>Novo por aqui?</span>
+                  <div className="flex gap-4">
+                    <button onClick={() => handleSignUpStart('comercio')} className="text-sky-600 hover:underline font-medium">Cadastrar Comércio</button>
+                    <span className="text-slate-300">|</span>
+                    <button onClick={() => handleSignUpStart('entregador')} className="text-sky-600 hover:underline font-medium">Cadastrar Entregador</button>
+                  </div>
                 </div>
               </div>
             )}
@@ -308,7 +314,7 @@ export function AuthPage({ forceResetMode = false, onResetComplete }: { forceRes
       </div>
       {signupOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900">
-          <Cadastro onBack={() => setSignupOpen(false)} darkMode={true} />
+          <Cadastro onBack={() => setSignupOpen(false)} darkMode={true} initialType={signupType} />
         </div>
       )}
     </div>
