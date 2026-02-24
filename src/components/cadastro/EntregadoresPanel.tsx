@@ -203,7 +203,7 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
       const { data: usersAdmin } = await (supabase as unknown as { from: (t: string) => { select: (s: string) => { eq: (c: string, v: string) => Promise<{ data?: { email?: string; role?: string }[] }> } } }).from('users').select('email, role').eq('role', 'operador');
       const opSet = new Set(((usersAdmin || []) as { email?: string; role?: string }[]).map((u) => (u.email || '').trim().toLowerCase()));
       dedup = dedup.filter((e) => !opSet.has(((e.email || '').trim().toLowerCase())));
-    } catch { /* ignore */ }
+    } catch {}
     setEntregadores(dedup);
     setLoading(false);
   };
@@ -1409,7 +1409,7 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
             <div className="p-6 bg-slate-50/30 max-h-[70vh] overflow-y-auto">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 
-                {/* Nome do Titular */}
+                {}
                 <div className="bg-white border border-slate-200 rounded-lg p-3 relative group hover:border-sky-300 transition-colors md:col-span-2">
                   <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">Nome do Titular</span>
                   <div className="flex items-center justify-between">
@@ -1424,7 +1424,7 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
                   </div>
                 </div>
 
-                {/* CPF/CNPJ */}
+                {}
                 <div className="bg-white border border-slate-200 rounded-lg p-3 relative group hover:border-sky-300 transition-colors">
                   <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">CPF/CNPJ</span>
                   <div className="flex items-center justify-between">
@@ -1439,7 +1439,7 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
                   </div>
                 </div>
 
-                {/* Banco */}
+                {}
                 <div className="bg-white border border-slate-200 rounded-lg p-3 relative group hover:border-sky-300 transition-colors">
                   <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">Banco</span>
                   <div className="flex items-center justify-between">
@@ -1454,7 +1454,7 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
                   </div>
                 </div>
 
-                {/* Agência */}
+                {}
                 <div className="bg-white border border-slate-200 rounded-lg p-3 relative group hover:border-sky-300 transition-colors">
                   <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">Agência</span>
                   <div className="flex items-center justify-between">
@@ -1469,7 +1469,7 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
                   </div>
                 </div>
 
-                {/* Conta */}
+                {}
                 <div className="bg-white border border-slate-200 rounded-lg p-3 relative group hover:border-sky-300 transition-colors">
                   <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">Conta</span>
                   <div className="flex items-center justify-between">
@@ -1486,7 +1486,7 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
                   </div>
                 </div>
 
-                {/* Tipo de Conta */}
+                {}
                 <div className="bg-white border border-slate-200 rounded-lg p-3 relative group hover:border-sky-300 transition-colors">
                   <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">Tipo de Conta</span>
                   <div className="flex items-center justify-between">
@@ -1496,7 +1496,7 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
                   </div>
                 </div>
 
-                {/* Chave PIX */}
+                {}
                 <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 relative group hover:border-emerald-400 transition-colors md:col-span-2">
                   <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wider block mb-1 flex items-center gap-1">
                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>

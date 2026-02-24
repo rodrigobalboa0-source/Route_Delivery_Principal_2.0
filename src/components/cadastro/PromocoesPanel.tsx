@@ -57,7 +57,7 @@ export function PromocoesPanel() {
     setEditingId(promocao.id);
     setDescricao(promocao.descricao);
     setImagemPreview(promocao.imagem_url);
-    setImagemFile(null); // Reset file input, we use existing URL unless changed
+    setImagemFile(null); 
     setError(null);
     setSuccess(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -86,7 +86,7 @@ export function PromocoesPanel() {
     try {
       let publicUrl = imagemPreview;
 
-      // Only upload if a new file is selected
+      
       if (imagemFile) {
         const fileExt = imagemFile.name.split('.').pop();
         const fileName = `${Math.random()}.${fileExt}`;
@@ -106,12 +106,12 @@ export function PromocoesPanel() {
       }
 
       if (editingId) {
-        // Update existing
+        
         const { error: updateError } = await supabase
           .from('promocoes')
           .update({ 
             descricao, 
-            ...(imagemFile ? { imagem_url: publicUrl } : {}) // Only update image URL if new file uploaded
+            ...(imagemFile ? { imagem_url: publicUrl } : {}) 
           })
           .eq('id', editingId);
 
@@ -119,7 +119,7 @@ export function PromocoesPanel() {
         setSuccess('Promoção atualizada com sucesso!');
         setEditingId(null);
       } else {
-        // Insert new
+        
         const { error: insertError } = await supabase
           .from('promocoes')
           .insert([{ descricao, imagem_url: publicUrl, ativa: true }]);
@@ -144,8 +144,7 @@ export function PromocoesPanel() {
     if (!window.confirm('Tem certeza que deseja excluir esta promoção?')) return;
 
     try {
-      // Extract file path from URL if needed, usually safer to just delete record and let storage handle orphan or manually delete
-      // Here assuming simple delete from DB first
+      
       const { error: deleteError } = await supabase
         .from('promocoes')
         .delete()
@@ -153,9 +152,6 @@ export function PromocoesPanel() {
 
       if (deleteError) throw deleteError;
       
-      // Optional: Delete from storage if needed
-      // const path = imagemUrl.split('/').pop();
-      // await supabase.storage.from('promocoes').remove([path]);
 
       setPromocoes(promocoes.filter(p => p.id !== id));
     } catch (err: any) {

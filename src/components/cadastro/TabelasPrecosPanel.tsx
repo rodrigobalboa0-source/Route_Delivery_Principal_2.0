@@ -32,7 +32,7 @@ function TabelaPrecosDetalhe({ tabela, onBack }: { tabela: TabelaPreco; onBack: 
     const km = parseFloat(novoKm.replace(',', '.'));
     if (isNaN(km)) return;
 
-    // Check if exists
+  
     if (faixas.some(f => f.km_ate === km)) {
       alert('Já existe uma faixa com essa quilometragem.');
       return;
@@ -61,7 +61,7 @@ function TabelaPrecosDetalhe({ tabela, onBack }: { tabela: TabelaPreco; onBack: 
     if (error) {
       console.error(error);
     } else {
-        // Update local state to reflect change without full reload
+        
         setFaixas(prev => prev.map(f => f.id === id ? { ...f, valor } : f));
     }
   };

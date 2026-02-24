@@ -1236,7 +1236,7 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
           </div>
         </div>
 
-        {/* Precificação por Modal */}
+        {}
         <div className="mt-4 bg-sky-50 border border-sky-100 p-4 rounded-lg">
           <div className="mb-3 text-sm text-sky-800">
             Configure o tipo de precificação personalizada para o cliente. É necessário já ter a precificação cadastrada.
