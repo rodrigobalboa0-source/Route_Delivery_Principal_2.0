@@ -596,10 +596,9 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
           lead_por: extras.lead_por || prev.lead_por,
           franquia: extras.franquia || prev.franquia,
           hub: extras.hub || prev.hub,
-          // Do not overwrite foto_url/base64 from extras if they exist in root, 
-          // or if they are empty in extras. Prioritize root columns.
+          
         }));
-        // Only override preview if root was empty and extras has something (legacy fallback)
+        
         if (!c.foto_url && !c.foto_base64) {
            if (extras.foto_url) setEditFotoPreview(extras.foto_url);
            if (extras.foto_base64) setEditFotoPreview(extras.foto_base64);
