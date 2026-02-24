@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ClientesPanel } from './cadastro/ClientesPanel';
 import { EntregadoresPanel } from './cadastro/EntregadoresPanel';
 
@@ -15,6 +15,17 @@ export function Cadastro({ onBack, darkMode = false, initialType }: { onBack?: (
 
   const [tipo, setTipo] = useState<'cliente' | 'entregador' | ''>(getInitialType());
   const isNative = window.Capacitor?.isNativePlatform();
+
+  useEffect(() => {
+    if (!isNative && typeof window !== 'undefined') {
+      if (tipo === 'cliente') {
+        window.history.replaceState(null, '', '#comercio');
+      } else if (tipo === 'entregador') {
+        window.history.replaceState(null, '', '#entregador');
+      }
+    }
+  }, [tipo, isNative]);
+  
   return (
     <div className={`min-h-screen flex items-center justify-center ${darkMode ? 'bg-slate-900' : 'bg-slate-100'}`}>
       <div className="w-full max-w-5xl bg-white rounded-2xl shadow border border-slate-200 overflow-hidden">
