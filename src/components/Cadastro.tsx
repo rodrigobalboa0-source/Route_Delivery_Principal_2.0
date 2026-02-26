@@ -35,8 +35,12 @@ export function Cadastro({ onBack, darkMode = false, initialType }: { onBack?: (
             <div className="flex items-center gap-3">
               <img src="/Screenshot_20251113_103247-Photoroom.png" alt="RouteDelivery" className="h-12 md:h-14 object-contain" />
               <div>
-                <div className="text-2xl md:text-3xl font-bold">Criar conta</div>
-                <div className="text-sm md:text-base text-slate-100">Selecione o tipo e preencha o cadastro completo</div>
+                <div className="text-2xl md:text-3xl font-bold">
+                  {tipo === 'cliente' ? 'Cadastro Comércio' : tipo === 'entregador' ? 'Cadastro Entregador' : 'Criar conta'}
+                </div>
+                <div className="text-sm md:text-base text-slate-100">
+                  {tipo ? 'Preencha o formulário abaixo' : 'Selecione o tipo de conta para continuar'}
+                </div>
               </div>
             </div>
             {onBack ? (
@@ -45,6 +49,7 @@ export function Cadastro({ onBack, darkMode = false, initialType }: { onBack?: (
               <a href="/" className="text-sm md:text-base text-sky-200 hover:text-white">Voltar</a>
             )}
           </div>
+          {!tipo && (
           <div className="relative z-10 mt-5 flex gap-3">
             {!isNative && (
               <button
@@ -61,6 +66,7 @@ export function Cadastro({ onBack, darkMode = false, initialType }: { onBack?: (
               Entregador
             </button>
           </div>
+          )}
         </div>
         <div className="p-2">
           {tipo === 'cliente' && <ClientesPanel mode="public" />}
