@@ -22,6 +22,7 @@ export function AuthPage({ forceResetMode = false, onResetComplete }: { forceRes
   const [accountPending, setAccountPending] = useState(false);
 
   const isNative = window.Capacitor?.isNativePlatform();
+  const isComercioLogin = typeof window !== 'undefined' && window.location.pathname === '/comercio';
 
   useEffect(() => {
     if (forceResetMode) {
@@ -151,8 +152,12 @@ export function AuthPage({ forceResetMode = false, onResetComplete }: { forceRes
                 className="h-28 md:h-48 object-contain"
               />
             </div>
-            <h1 className="text-3xl md:text-4xl font-bold">Bem-vindo de volta!</h1>
-            <p className="mt-2 text-slate-100">Acesse sua conta para continuar</p>
+            <h1 className="text-3xl md:text-4xl font-bold">
+              {isComercioLogin ? 'Acesso para Comércios' : 'Bem-vindo de volta!'}
+            </h1>
+            <p className="mt-2 text-slate-100">
+              {isComercioLogin ? 'Gerencie seus pedidos e entregas' : 'Acesse sua conta para continuar'}
+            </p>
           </div>
           <div className="p-8 md:p-10">
             <h2 className="text-2xl font-semibold text-slate-900 mb-6">

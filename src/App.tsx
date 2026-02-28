@@ -83,6 +83,7 @@ function App() {
   const [userRole, setUserRole] = useState<'operador' | 'cliente' | 'entregador' | 'loading'>('loading');
   const [menuParams, setMenuParams] = useState<any>(null);
   const roleResolvedRef = useRef(false);
+  const resolvedUidRef = useRef<string | null>(null);
   const [trainingOpen, setTrainingOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
   const [accountPending, setAccountPending] = useState(false);
@@ -116,7 +117,7 @@ function App() {
 
   const resolveRole = async (uid: string, emailRaw: string) => {
     setUserId(uid);
-    if (roleResolvedRef.current) return;
+    if (roleResolvedRef.current && resolvedUidRef.current === uid) return;
     const email = (emailRaw || '').trim().toLowerCase();
 
     const { data: uData } = await supabase.from('users').select('role, full_name, email').eq('id', uid).maybeSingle();
@@ -125,6 +126,7 @@ function App() {
     if (role === 'admin' || role === 'operador') {
       setUserRole('operador');
       roleResolvedRef.current = true;
+      resolvedUidRef.current = uid;
       try { localStorage.removeItem('cliente_context'); localStorage.removeItem('entregador_context'); } catch (e) { void e; }
       return;
     }
@@ -135,6 +137,7 @@ function App() {
         setUserRole('cliente');
         setActiveMenu('pedidos');
         roleResolvedRef.current = true;
+        resolvedUidRef.current = uid;
         try {
           const cid = ((c as { id?: string } | null)?.id) || '';
           const cnome = ((c as { nome_completo?: string } | null)?.nome_completo) || '';
@@ -149,10 +152,11 @@ function App() {
       if ((eData as { id?: string } | null)?.id) {
         const eStatus = (eData as { status?: string } | null)?.status;
         setAccountPending(eStatus !== 'ativo');
-
+        
         setUserRole('entregador');
         setActiveMenu('home_entregador');
         roleResolvedRef.current = true;
+        resolvedUidRef.current = uid;
         try {
           const eid = ((eData as { id?: string } | null)?.id) || '';
           const enome = ((eData as { nome_completo?: string } | null)?.nome_completo) || '';
@@ -169,6 +173,7 @@ function App() {
       setUserRole('cliente');
       setActiveMenu('pedidos');
       roleResolvedRef.current = true;
+      resolvedUidRef.current = uid;
       try {
         const cid2 = ((c2 as { id?: string } | null)?.id) || '';
         const cnome2 = ((c2 as { nome_completo?: string } | null)?.nome_completo) || '';
@@ -187,6 +192,7 @@ function App() {
       setUserRole('entregador');
       setActiveMenu('home_entregador'); 
       roleResolvedRef.current = true;
+      resolvedUidRef.current = uid;
       try {
         const eid2 = ((e2 as { id?: string } | null)?.id) || '';
         const enome2 = ((e2 as { nome_completo?: string } | null)?.nome_completo) || '';
@@ -200,6 +206,7 @@ function App() {
     setActiveMenu('carteira_extrato');
     setAccountPending(true);
     roleResolvedRef.current = true;
+    resolvedUidRef.current = uid;
     try { localStorage.removeItem('entregador_context'); } catch (e) { void e; }
   };
 
@@ -260,6 +267,11 @@ function App() {
         </div>
       </div>
     );
+  }
+
+  const isComercioRoute = typeof window !== 'undefined' && window.location.pathname === '/comercio';
+  if (isComercioRoute && userRole !== 'cliente') {
+    return <AuthPage />;
   }
 
   if (accountPending) {
