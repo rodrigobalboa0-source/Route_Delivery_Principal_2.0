@@ -211,7 +211,7 @@ function App() {
   };
 
   useEffect(() => {
-    // Check for hash parameters indicating a recovery flow
+    
     const hash = window.location.hash;
     if (hash && hash.includes('type=recovery')) {
       setIsRecoveryMode(true);
@@ -270,8 +270,66 @@ function App() {
   }
 
   const isComercioRoute = typeof window !== 'undefined' && window.location.pathname === '/comercio';
+  
   if (isComercioRoute && userRole !== 'cliente') {
+    // Se estiver logado como admin ou entregador, bloqueia
+    if (userRole === 'operador' || userRole === 'admin' || userRole === 'entregador') {
+      return (
+        <div className="flex flex-col items-center justify-center h-screen bg-slate-100 p-4 text-center">
+          <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full">
+            <h1 className="text-xl font-bold text-slate-900 mb-2">Acesso Restrito</h1>
+            <p className="text-slate-600 mb-6">
+              Esta área é exclusiva para Comércios. <br/>
+              Você está logado como {userRole === 'entregador' ? 'Entregador' : 'Administrador'}.
+            </p>
+            <div className="space-y-3">
+              <button 
+                onClick={() => window.location.href = '/'}
+                className="w-full py-2 px-4 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-medium"
+              >
+                Ir para Painel Principal
+              </button>
+              <button 
+                onClick={handleLogout}
+                className="w-full py-2 px-4 border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-lg font-medium"
+              >
+                Sair da conta
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    // Se não estiver logado, mostra login
     return <AuthPage />;
+  }
+
+  if (!isComercioRoute && userRole === 'cliente') {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-slate-100 p-4 text-center">
+        <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full">
+          <h1 className="text-xl font-bold text-slate-900 mb-2">Acesso Restrito</h1>
+          <p className="text-slate-600 mb-6">
+            Esta área é exclusiva para Administradores. <br/>
+            Para acessar o painel do comércio, utilize o link correto.
+          </p>
+          <div className="space-y-3">
+            <button 
+              onClick={() => window.location.href = '/comercio'}
+              className="w-full py-2 px-4 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-medium"
+            >
+              Ir para Acesso Comércio
+            </button>
+            <button 
+              onClick={handleLogout}
+              className="w-full py-2 px-4 border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-lg font-medium"
+            >
+              Sair da conta
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (accountPending) {

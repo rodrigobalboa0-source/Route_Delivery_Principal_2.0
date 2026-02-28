@@ -16,6 +16,14 @@ export function FinanceiroDashboard() {
   const [entregas, setEntregas] = useState<Entrega[]>([]);
   const [filteredEntregas, setFilteredEntregas] = useState<Entrega[]>([]);
   const [statusFilter, setStatusFilter] = useState<'todos' | 'finalizados' | 'cancelados'>('todos');
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
+  });
+  const [endDate, setEndDate] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0];
+  });
   const [activeTab, setActiveTab] = useState<'pedidos' | 'dashboard'>('pedidos');
   const [metrics, setMetrics] = useState({
     cobrado: 0,
@@ -77,6 +85,13 @@ export function FinanceiroDashboard() {
       items = items.filter(i => i.status === 'cancelada');
     }
 
+    if (startDate) {
+      items = items.filter(i => (i.created_at || '').substring(0, 10) >= startDate);
+    }
+    if (endDate) {
+      items = items.filter(i => (i.created_at || '').substring(0, 10) <= endDate);
+    }
+
     setFilteredEntregas(items);
     setPage(1); 
 
@@ -106,7 +121,7 @@ export function FinanceiroDashboard() {
       pedidos: items.length,
     });
 
-  }, [entregas, statusFilter]);
+  }, [entregas, statusFilter, startDate, endDate]);
 
   
   const chartData = useMemo(() => {
@@ -174,6 +189,22 @@ export function FinanceiroDashboard() {
       <div className="p-6 overflow-y-auto">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <h1 className="text-2xl font-bold text-slate-800">Financeiro Dashboard</h1>
+          
+          <div className="flex gap-2">
+            <input 
+              type="date" 
+              value={startDate} 
+              onChange={(e) => setStartDate(e.target.value)} 
+              className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm"
+            />
+            <span className="self-center text-slate-500">-</span>
+            <input 
+              type="date" 
+              value={endDate} 
+              onChange={(e) => setEndDate(e.target.value)} 
+              className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm"
+            />
+          </div>
           
           {/* Status Filter */}
           <div className="flex bg-white rounded-lg shadow-sm p-1 border border-slate-200">

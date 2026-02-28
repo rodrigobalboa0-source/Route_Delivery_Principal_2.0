@@ -308,8 +308,12 @@ export function AuthPage({ forceResetMode = false, onResetComplete }: { forceRes
                   <span>Novo por aqui?</span>
                   <div className="flex gap-4">
                     <button onClick={() => handleSignUpStart('comercio')} className="text-sky-600 hover:underline font-medium">Cadastrar Comércio</button>
-                    <span className="text-slate-300">|</span>
-                    <button onClick={() => handleSignUpStart('entregador')} className="text-sky-600 hover:underline font-medium">Cadastrar Entregador</button>
+                    {!isComercioLogin && (
+                      <>
+                        <span className="text-slate-300">|</span>
+                        <button onClick={() => handleSignUpStart('entregador')} className="text-sky-600 hover:underline font-medium">Cadastrar Entregador</button>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

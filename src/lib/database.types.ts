@@ -272,6 +272,16 @@ export interface Database {
           saldo_creditos?: number
           created_at: string
           updated_at: string
+          modo_faturamento?: string
+          faturamento_periodo?: string
+          faturamento_vencimento_dias?: number
+          faturamento_tipo_cobranca?: string
+          faturamento_adicional_1?: number
+          faturamento_adicional_2?: number
+          faturamento_cobrar_taxas_sem_entregas?: boolean
+          faturamento_instrucoes?: string
+          faturamento_observacoes?: string
+          faturamento_emails?: string[]
         }
         Insert: {
           id?: string
@@ -295,6 +305,16 @@ export interface Database {
           saldo_creditos?: number
           created_at: string
           updated_at?: string
+          modo_faturamento?: string
+          faturamento_periodo?: string
+          faturamento_vencimento_dias?: number
+          faturamento_tipo_cobranca?: string
+          faturamento_adicional_1?: number
+          faturamento_adicional_2?: number
+          faturamento_cobrar_taxas_sem_entregas?: boolean
+          faturamento_instrucoes?: string
+          faturamento_observacoes?: string
+          faturamento_emails?: string[]
         }
         Update: {
           id?: string
@@ -318,6 +338,16 @@ export interface Database {
           saldo_creditos?: number
           created_at?: string
           updated_at?: string
+          modo_faturamento?: string
+          faturamento_periodo?: string
+          faturamento_vencimento_dias?: number
+          faturamento_tipo_cobranca?: string
+          faturamento_adicional_1?: number
+          faturamento_adicional_2?: number
+          faturamento_cobrar_taxas_sem_entregas?: boolean
+          faturamento_instrucoes?: string
+          faturamento_observacoes?: string
+          faturamento_emails?: string[]
         }
       }
       creditos_clientes: {

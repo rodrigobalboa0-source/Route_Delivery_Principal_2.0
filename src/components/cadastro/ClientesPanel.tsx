@@ -45,6 +45,17 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
     email: '',
     metodo_pagamento_preferido: '',
     observacoes: '',
+    modo_faturamento: 'credito',
+    faturamento_periodo: 'quinzenal',
+    faturamento_vencimento_dias: '3',
+    faturamento_tipo_cobranca: 'Por Entregas',
+    faturamento_adicional_1: '',
+    faturamento_adicional_2: '',
+    faturamento_cobrar_taxas_sem_entregas: false,
+    faturamento_instrucoes: '',
+    faturamento_observacoes: '',
+    faturamento_emails: [] as string[],
+    faturamento_email_input: '',
     segmento: '',
     data_inicio: '',
     razao_social: '',
@@ -78,6 +89,17 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
     senha: '',
     metodo_pagamento_preferido: '',
     observacoes: '',
+    modo_faturamento: 'credito',
+    faturamento_periodo: 'quinzenal',
+    faturamento_vencimento_dias: '3',
+    faturamento_tipo_cobranca: 'Por Entregas',
+    faturamento_adicional_1: '',
+    faturamento_adicional_2: '',
+    faturamento_cobrar_taxas_sem_entregas: false,
+    faturamento_instrucoes: '',
+    faturamento_observacoes: '',
+    faturamento_emails: [] as string[],
+    faturamento_email_input: '',
     segmento: '',
     data_inicio: '',
     razao_social: '',
@@ -559,6 +581,17 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
       email: c.email || '',
       metodo_pagamento_preferido: c.metodo_pagamento_preferido || '',
       observacoes: c.observacoes || '',
+      modo_faturamento: c.modo_faturamento || 'credito',
+      faturamento_periodo: c.faturamento_periodo || 'quinzenal',
+      faturamento_vencimento_dias: String(c.faturamento_vencimento_dias || '3'),
+      faturamento_tipo_cobranca: c.faturamento_tipo_cobranca || 'Por Entregas',
+      faturamento_adicional_1: String(c.faturamento_adicional_1 || ''),
+      faturamento_adicional_2: String(c.faturamento_adicional_2 || ''),
+      faturamento_cobrar_taxas_sem_entregas: c.faturamento_cobrar_taxas_sem_entregas || false,
+      faturamento_instrucoes: c.faturamento_instrucoes || '',
+      faturamento_observacoes: c.faturamento_observacoes || '',
+      faturamento_emails: c.faturamento_emails || [],
+      faturamento_email_input: '',
       segmento: '',
       data_inicio: '',
       razao_social: '',
@@ -728,6 +761,16 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
         foto_url: finalEditFotoUrl || null,
         foto_base64: finalEditFotoBase64 || null,
         precificacao_config: editForm.precificacao_config,
+        modo_faturamento: editForm.modo_faturamento,
+        faturamento_periodo: editForm.faturamento_periodo,
+        faturamento_vencimento_dias: Number(editForm.faturamento_vencimento_dias) || 3,
+        faturamento_tipo_cobranca: editForm.faturamento_tipo_cobranca,
+        faturamento_adicional_1: Number(editForm.faturamento_adicional_1) || 0,
+        faturamento_adicional_2: Number(editForm.faturamento_adicional_2) || 0,
+        faturamento_cobrar_taxas_sem_entregas: editForm.faturamento_cobrar_taxas_sem_entregas,
+        faturamento_instrucoes: editForm.faturamento_instrucoes,
+        faturamento_observacoes: editForm.faturamento_observacoes,
+        faturamento_emails: editForm.faturamento_emails,
         ...primaryAddressUpdate,
       })
       .eq('id', editing.id);
@@ -1186,6 +1229,145 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
             <label className="text-xs text-slate-700">Método de pagamento preferido</label>
             <input value={editForm.metodo_pagamento_preferido} onChange={(e) => setEditForm({ ...editForm, metodo_pagamento_preferido: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
           </div>
+
+          <div className="md:col-span-2 border-t border-slate-200 pt-4 mt-2">
+             <div className="text-sm font-medium text-slate-900 mb-3">Configuração Financeira</div>
+          </div>
+          
+          <div>
+            <label className="text-xs text-slate-700 font-medium">Modo de Operação</label>
+            <select 
+               value={(editForm as any).modo_faturamento} 
+               onChange={(e) => setEditForm({ ...editForm, modo_faturamento: e.target.value } as any)} 
+               className="w-full px-3 py-2 border border-slate-300 rounded"
+            >
+               <option value="credito">Pré-pago (Crédito)</option>
+               <option value="faturamento">Pós-pago (Faturamento)</option>
+            </select>
+          </div>
+
+          {(editForm as any).modo_faturamento === 'faturamento' && (
+            <>
+               <div>
+                  <label className="text-xs text-slate-700">Período de Faturamento</label>
+                  <select 
+                     value={(editForm as any).faturamento_periodo} 
+                     onChange={(e) => setEditForm({ ...editForm, faturamento_periodo: e.target.value } as any)} 
+                     className="w-full px-3 py-2 border border-slate-300 rounded"
+                  >
+                     <option value="semanal">Semanal</option>
+                     <option value="quinzenal">Quinzenal</option>
+                     <option value="mensal">Mensal</option>
+                  </select>
+               </div>
+               <div>
+                  <label className="text-xs text-slate-700">Vencimento (dias após fechamento)</label>
+                  <input 
+                     type="number" 
+                     value={(editForm as any).faturamento_vencimento_dias} 
+                     onChange={(e) => setEditForm({ ...editForm, faturamento_vencimento_dias: e.target.value } as any)} 
+                     className="w-full px-3 py-2 border border-slate-300 rounded" 
+                  />
+               </div>
+               <div>
+                  <label className="text-xs text-slate-700">Tipo de Cobrança</label>
+                  <select 
+                     value={(editForm as any).faturamento_tipo_cobranca} 
+                     onChange={(e) => setEditForm({ ...editForm, faturamento_tipo_cobranca: e.target.value } as any)} 
+                     className="w-full px-3 py-2 border border-slate-300 rounded"
+                  >
+                     <option value="Por Entregas">Por Entregas Realizadas</option>
+                     <option value="Fixo">Valor Fixo Mensal</option>
+                  </select>
+               </div>
+               <div>
+                  <label className="text-xs text-slate-700">Taxa Adicional 1 (R$)</label>
+                  <input 
+                     type="number" step="0.01"
+                     value={(editForm as any).faturamento_adicional_1} 
+                     onChange={(e) => setEditForm({ ...editForm, faturamento_adicional_1: e.target.value } as any)} 
+                     className="w-full px-3 py-2 border border-slate-300 rounded" 
+                  />
+               </div>
+               <div>
+                  <label className="text-xs text-slate-700">Taxa Adicional 2 (R$)</label>
+                  <input 
+                     type="number" step="0.01"
+                     value={(editForm as any).faturamento_adicional_2} 
+                     onChange={(e) => setEditForm({ ...editForm, faturamento_adicional_2: e.target.value } as any)} 
+                     className="w-full px-3 py-2 border border-slate-300 rounded" 
+                  />
+               </div>
+               <div className="flex items-center gap-2 mt-6">
+                  <input 
+                     type="checkbox" 
+                     checked={(editForm as any).faturamento_cobrar_taxas_sem_entregas} 
+                     onChange={(e) => setEditForm({ ...editForm, faturamento_cobrar_taxas_sem_entregas: e.target.checked } as any)} 
+                     className="rounded border-slate-300"
+                  />
+                  <label className="text-xs text-slate-700">Cobrar taxas mesmo sem entregas</label>
+               </div>
+               <div className="md:col-span-2">
+                  <label className="text-xs text-slate-700">Instruções de Pagamento</label>
+                  <textarea 
+                     rows={2}
+                     value={(editForm as any).faturamento_instrucoes} 
+                     onChange={(e) => setEditForm({ ...editForm, faturamento_instrucoes: e.target.value } as any)} 
+                     className="w-full px-3 py-2 border border-slate-300 rounded" 
+                  />
+               </div>
+               <div className="md:col-span-2">
+                  <label className="text-xs text-slate-700">Observações do Faturamento</label>
+                  <textarea 
+                     rows={2}
+                     value={(editForm as any).faturamento_observacoes} 
+                     onChange={(e) => setEditForm({ ...editForm, faturamento_observacoes: e.target.value } as any)} 
+                     className="w-full px-3 py-2 border border-slate-300 rounded" 
+                  />
+               </div>
+               <div className="md:col-span-2">
+                  <label className="text-xs text-slate-700">E-mails para Faturamento</label>
+                  <div className="flex gap-2 mb-2">
+                     <input 
+                        type="email" 
+                        placeholder="Adicionar e-mail"
+                        value={(editForm as any).faturamento_email_input || ''}
+                        onChange={(e) => setEditForm({ ...editForm, faturamento_email_input: e.target.value } as any)}
+                        className="flex-1 px-3 py-2 border border-slate-300 rounded"
+                     />
+                     <button 
+                        onClick={() => {
+                           const email = ((editForm as any).faturamento_email_input || '').trim();
+                           if (email) {
+                              setEditForm(prev => ({
+                                 ...prev,
+                                 faturamento_emails: [...(prev as any).faturamento_emails, email],
+                                 faturamento_email_input: ''
+                              } as any));
+                           }
+                        }}
+                        className="px-3 py-2 bg-slate-200 rounded text-slate-700 text-sm"
+                     >Adicionar</button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                     {((editForm as any).faturamento_emails || []).map((email: string, idx: number) => (
+                        <div key={idx} className="bg-slate-100 px-2 py-1 rounded border border-slate-200 flex items-center gap-2 text-xs">
+                           {email}
+                           <button 
+                              onClick={() => {
+                                 setEditForm(prev => ({
+                                    ...prev,
+                                    faturamento_emails: (prev as any).faturamento_emails.filter((_: any, i: number) => i !== idx)
+                                 } as any));
+                              }}
+                              className="text-red-500 font-bold"
+                           >×</button>
+                        </div>
+                     ))}
+                  </div>
+               </div>
+            </>
+          )}
           <div className="md:col-span-2">
             <label className="text-xs text-slate-700">Observações</label>
             <textarea value={editForm.observacoes} onChange={(e) => setEditForm({ ...editForm, observacoes: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />

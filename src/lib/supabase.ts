@@ -16,5 +16,9 @@ export const supabase = createClient<Database>(SUPABASE_URL || 'https://placehol
   auth: {
     persistSession: true,
     autoRefreshToken: true,
+    
+    storageKey: typeof window !== 'undefined' && window.location.pathname.startsWith('/comercio') 
+      ? 'sb-comercio-token' 
+      : 'sb-admin-token',
   },
 });
