@@ -120,7 +120,14 @@ export function ContasReceberPanel() {
     
     setLoadingSubmit(true);
     try {
-      
+      // 1. Remove first from contas_receber to avoid FK constraint on faturamento_clientes
+      const { error: deleteError } = await supabase
+        .from('contas_receber')
+        .delete()
+        .eq('id', conta.id);
+
+      if (deleteError) throw deleteError;
+
       if (conta.fatura_id) {
         
         const { error: updateError } = await supabase
@@ -138,14 +145,6 @@ export function ContasReceberPanel() {
 
         if (invoiceError) throw invoiceError;
       }
-
-      
-      const { error: deleteError } = await supabase
-        .from('contas_receber')
-        .delete()
-        .eq('id', conta.id);
-
-      if (deleteError) throw deleteError;
 
       await fetchAll();
     } catch (err: any) {
