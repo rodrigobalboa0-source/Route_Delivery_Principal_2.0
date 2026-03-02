@@ -1017,9 +1017,17 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         let qPedidos = supabase.from('pedidos').select('*').order('created_at', { ascending: false });
         let qEntregas = supabase.from('nova_entrega').select('*').order('created_at', { ascending: false });
 
-        
-        qPedidos = qPedidos.neq('status', 'entregue').neq('status', 'cancelado');
-        qEntregas = qEntregas.neq('status', 'entregue').neq('status', 'cancelada');
+        const isStatusFilter = filters.status !== 'todos';
+        const isCityFilter = filters.cidade !== 'todos';
+        const isDateFilter = !!filters.de;
+        const isClientFilter = filters.cliente_id !== '' && !isComercio;
+        const isOriginFilter = filters.origem !== 'todos';
+        const hasActiveFilters = isStatusFilter || isCityFilter || isDateFilter || isClientFilter || isOriginFilter;
+
+        if (!hasActiveFilters) {
+            qPedidos = qPedidos.neq('status', 'entregue').neq('status', 'cancelado');
+            qEntregas = qEntregas.neq('status', 'entregue').neq('status', 'cancelada');
+        }
 
         
         if (filters.cliente_id) {
@@ -1078,6 +1086,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         const finalPedidos = [...pedidosList, ...syntheticPedidos];
 
         const finalPedidosSemEntregues = finalPedidos.filter(p => {
+            if (hasActiveFilters) return true;
+
             if (p.status === 'entregue' || p.status === 'cancelado') return false;
             
             const entrega = eMap[p.id];
@@ -1106,7 +1116,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     } finally {
         if (!silent) setLoadingList(false);
     }
-  }, [filters, clientes]);
+  }, [filters, clientes, isComercio]);
 
   useEffect(() => {
     

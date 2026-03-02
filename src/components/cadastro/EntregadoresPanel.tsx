@@ -44,6 +44,8 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
     ativo: false,
     inativo: false
   });
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{ id: string; name: string } | null>(null);
+
   const toggleStatus = (st: string) => {
     setExpandedStatus(prev => ({ ...prev, [st]: !prev[st] }));
   };
@@ -318,14 +320,29 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
           },
         });
         if (signUpError) {
-          let msg = signUpError.message;
-          if (msg.includes('over_email_send_rate_limit')) {
+          const err = signUpError as unknown as { message?: string; status?: number };
+          const status = err?.status;
+          const rawMsg = err?.message || 'Falha ao criar acesso de login';
+          let msg = rawMsg;
+
+          
+          const isDuplicateEmail = /duplicate key value .*users_email(_partial)?_key/i.test(rawMsg) || 
+                                   /duplicate key value .*users_email/i.test(rawMsg) || 
+                                   (status === 500 && rawMsg.includes('Database error saving new user'));
+                                   
+          const isUserAlreadyExists = (status === 422 && /user already/i.test(rawMsg)) || isDuplicateEmail;
+
+          if (isUserAlreadyExists) {
+            msg = 'Este e-mail já está registrado no sistema. Se você já possui uma conta (como cliente ou administrador), use outro e-mail.';
+          } else if (msg.includes('over_email_send_rate_limit')) {
             msg = 'Muitas tentativas de cadastro. Por favor, aguarde alguns minutos e tente novamente.';
           } else if (msg.toLowerCase().includes('only request this after 15 seconds')) {
             msg = 'Aguarde 15 segundos para tentar novamente.';
           } else if (msg.includes('User already registered')) {
             msg = 'E-mail já cadastrado.';
           }
+          
+          console.error('SignUp Error:', signUpError);
           setError(msg);
           setLoading(false);
           return;
@@ -534,8 +551,9 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
     await fetchEntregadores();
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir este entregador?')) return;
+  const confirmDelete = async () => {
+    if (!deleteConfirmation) return;
+    const { id } = deleteConfirmation;
 
     try {
       setLoading(true);
@@ -570,6 +588,7 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
         } catch (e) { void e; }
       }
       alert('Entregador excluído com sucesso!');
+      setDeleteConfirmation(null);
     } catch (error: any) {
       console.error('Erro ao excluir entregador:', error);
       alert(`Erro ao excluir entregador: ${error.message || 'Erro desconhecido'}`);
@@ -577,6 +596,10 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
       setLoading(false);
       await fetchEntregadores();
     }
+  };
+
+  const handleDelete = (id: string, name: string) => {
+    setDeleteConfirmation({ id, name });
   };
 
   const openEdit = (c: Entregador) => {
@@ -1259,7 +1282,7 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
                                       >
                                         Dados Bancários
                                       </button>
-                                      <button onClick={() => handleDelete(c.id)} className="text-xs font-medium text-red-600 hover:text-red-700 flex items-center gap-1 transition-colors">
+                                      <button onClick={() => handleDelete(c.id, c.nome_completo || '')} className="text-xs font-medium text-red-600 hover:text-red-700 flex items-center gap-1 transition-colors">
                                         Excluir
                                       </button>
                                    </div>
@@ -1569,6 +1592,20 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
           </div>
         </div>
       )}
+
+      <Modal
+        open={Boolean(deleteConfirmation)}
+        title="Confirmar Exclusão"
+        onClose={() => setDeleteConfirmation(null)}
+        onConfirm={confirmDelete}
+        confirmText="Excluir"
+        cancelText="Cancelar"
+        confirmDisabled={loading}
+      >
+        <div className="text-sm text-slate-700">
+          Tem certeza que deseja excluir o entregador <strong>{deleteConfirmation?.name}</strong>? Esta ação não pode ser desfeita.
+        </div>
+      </Modal>
   </div>
 );
 }
