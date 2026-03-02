@@ -406,8 +406,8 @@ function App() {
           {activeMenu === 'financeiro_credito_clientes' && <CreditoClientesPanel />}
           {activeMenu === 'financeiro_comissao_entregadores' && <ComissaoEntregadoresPanel />}
           {activeMenu === 'financeiro_acertos_entregadores' && <AcertosEntregadoresPanel />}
-          {activeMenu === 'financeiro_faturamento_mensal' && <FaturamentoMensalPanel />}
-          {activeMenu === 'financeiro_revisao_agendamentos' && <RevisaoAgendamentosPanel />}
+           {activeMenu === 'financeiro_faturamento_mensal' && <FaturamentoMensalPanel onNavigate={(menu) => setActiveMenu(menu)} />}
+           {activeMenu === 'financeiro_revisao_agendamentos' && <RevisaoAgendamentosPanel />}
           {activeMenu === 'relatorios_clientes_analitico' && <ClientesAnaliticoReport />}
           {activeMenu === 'relatorios_entregadores_analitico' && <EntregadoresAnaliticoReport />}
           {activeMenu === 'relatorios_roteirizacao' && <RoteirizacaoReport />}

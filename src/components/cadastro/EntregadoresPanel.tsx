@@ -135,6 +135,7 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
   const [showBankModal, setShowBankModal] = useState(false);
   const [selectedBankData, setSelectedBankData] = useState<any | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     if (mode !== 'public') {
@@ -534,10 +535,19 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
   };
 
   const handleDelete = async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir este entregador?')) return;
+
     try {
+      setLoading(true);
       const { data: row } = await supabase.from('entregadores').select('email').eq('id', id).maybeSingle();
       const email = ((row as { email?: string } | null)?.email || '').trim().toLowerCase();
-      await supabase.from('entregadores').delete().eq('id', id);
+      
+      const { error: deleteError } = await supabase.from('entregadores').delete().eq('id', id);
+      
+      if (deleteError) {
+        throw deleteError;
+      }
+
       if (email) {
         await (supabase as unknown as { from: (t: string) => { delete: () => { ilike: (c: string, v: string) => Promise<unknown> } } })
           .from('users')
@@ -559,7 +569,12 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
           }
         } catch (e) { void e; }
       }
+      alert('Entregador excluído com sucesso!');
+    } catch (error: any) {
+      console.error('Erro ao excluir entregador:', error);
+      alert(`Erro ao excluir entregador: ${error.message || 'Erro desconhecido'}`);
     } finally {
+      setLoading(false);
       await fetchEntregadores();
     }
   };
@@ -1147,7 +1162,22 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
 
       {mode !== 'public' && (
         <div className="mt-6">
-          <div className="text-sm font-semibold text-slate-700 mb-4">Gestão de Entregadores</div>
+          <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
+            <div className="text-sm font-semibold text-slate-700">Gestão de Entregadores</div>
+            <div className="w-full md:w-auto relative">
+              <input
+                type="text"
+                placeholder="Buscar entregador (nome, email, cpf...)"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full md:w-64 px-3 py-2 pl-9 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+              />
+              <svg className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+          </div>
+
           {loading ? (
             <div className="p-4 text-slate-600 bg-white border border-slate-200 rounded-lg">Carregando...</div>
           ) : (
@@ -1158,10 +1188,21 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
                 { key: 'inativo', label: 'Inativos', bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-800' }
               ].map(group => {
                  const items = entregadores.filter(e => {
-                    if (group.key === 'em_analise') return e.status === 'em_analise' || !e.status;
-                    return e.status === group.key;
+                    const matchesStatus = group.key === 'em_analise' ? (e.status === 'em_analise' || !e.status) : e.status === group.key;
+                    if (!matchesStatus) return false;
+                    if (!searchTerm) return true;
+                    
+                    const term = searchTerm.toLowerCase();
+                    const termNums = term.replace(/\D/g, '');
+                    
+                    const matchName = e.nome_completo && e.nome_completo.toLowerCase().includes(term);
+                    const matchEmail = e.email && e.email.toLowerCase().includes(term);
+                    const matchCpf = termNums.length > 0 && e.cpf && e.cpf.replace(/\D/g, '').includes(termNums);
+                    
+                    return matchName || matchEmail || matchCpf;
                  });
-                 const isOpen = expandedStatus[group.key];
+                  const hasSearch = searchTerm.trim().length > 0;
+                  const isOpen = hasSearch ? items.length > 0 : expandedStatus[group.key];
                  
                  return (
                    <div key={group.key} className={`border rounded-lg ${group.border} bg-white overflow-hidden shadow-sm`}>

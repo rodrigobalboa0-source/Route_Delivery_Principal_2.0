@@ -396,6 +396,8 @@ export interface Database {
           vencimento: string | null
           link_boleto: string | null
           descricao: string | null
+          observacoes: string | null
+          instrucoes: string | null
           created_at: string
         }
         Insert: {
@@ -408,6 +410,8 @@ export interface Database {
           vencimento?: string | null
           link_boleto?: string | null
           descricao?: string | null
+          observacoes?: string | null
+          instrucoes?: string | null
           created_at?: string
         }
         Update: {
@@ -420,6 +424,8 @@ export interface Database {
           vencimento?: string | null
           link_boleto?: string | null
           descricao?: string | null
+          observacoes?: string | null
+          instrucoes?: string | null
           created_at?: string
         }
       }
@@ -1282,6 +1288,7 @@ export interface Database {
           retorno: boolean | null
           pontos_adicionais: unknown | null
           status: 'criada' | 'atribuida' | 'em_rota' | 'entregue' | 'cancelada' | null
+          fatura_cliente_id: string | null
           created_at: string
           updated_at: string
         }
@@ -1324,6 +1331,7 @@ export interface Database {
           retorno?: boolean | null
           pontos_adicionais?: unknown | null
           status?: 'criada' | 'atribuida' | 'em_rota' | 'entregue' | 'cancelada' | null
+          fatura_cliente_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1366,6 +1374,7 @@ export interface Database {
           retorno?: boolean | null
           pontos_adicionais?: unknown | null
           status?: 'criada' | 'atribuida' | 'em_rota' | 'entregue' | 'cancelada' | null
+          fatura_cliente_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1487,6 +1496,7 @@ export interface Database {
           vencimento: string | null
           status: 'pendente' | 'recebido' | 'atrasado' | null
           recebido_em: string | null
+          fatura_id: string | null
           created_at: string
           updated_at: string
         }
@@ -1498,6 +1508,7 @@ export interface Database {
           vencimento?: string | null
           status?: 'pendente' | 'recebido' | 'atrasado' | null
           recebido_em?: string | null
+          fatura_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1509,6 +1520,7 @@ export interface Database {
           vencimento?: string | null
           status?: 'pendente' | 'recebido' | 'atrasado' | null
           recebido_em?: string | null
+          fatura_id?: string | null
           created_at?: string
           updated_at?: string
         }
