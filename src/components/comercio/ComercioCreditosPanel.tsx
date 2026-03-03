@@ -10,6 +10,7 @@ export function ComercioCreditosPanel() {
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saldo, setSaldo] = useState(0);
+  const [modoFaturamento, setModoFaturamento] = useState<string>('credito');
   const [clientId, setClientId] = useState<string | null>(null);
   
   
@@ -133,12 +134,13 @@ export function ComercioCreditosPanel() {
       
       const { data: cliente, error: clienteError } = await supabase
         .from('clientes')
-        .select('saldo_creditos')
+        .select('saldo_creditos, modo_faturamento')
         .eq('id', targetClientId)
         .single();
 
       if (clienteError) throw clienteError;
       setSaldo(cliente.saldo_creditos || 0);
+      setModoFaturamento(cliente.modo_faturamento || 'credito');
 
       
       const { data: historyData, error: historyError } = await supabase
@@ -221,12 +223,14 @@ export function ComercioCreditosPanel() {
         </div>
         
         {}
+        {modoFaturamento !== 'faturamento' && (
         <button 
           onClick={() => setShowRequestModal(true)}
           className="px-6 py-2.5 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors font-medium shadow-sm hover:shadow flex items-center gap-2"
         >
           Solicitar Créditos
         </button>
+        )}
       </div>
       
       {}
@@ -277,6 +281,7 @@ export function ComercioCreditosPanel() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        {modoFaturamento !== 'faturamento' && (
         <div className="bg-gradient-to-br from-sky-500 to-sky-600 p-6 rounded-xl shadow-lg text-white">
             <h2 className="text-sky-100 text-sm font-medium uppercase tracking-wider mb-2">Saldo Disponível</h2>
             <div className="text-4xl font-bold">R$ {saldo.toFixed(2)}</div>
@@ -284,7 +289,9 @@ export function ComercioCreditosPanel() {
                 Atualizado agora
             </p>
         </div>
+        )}
 
+        {modoFaturamento !== 'faturamento' && (
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center">
             <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 bg-green-100 rounded-lg text-green-600">
@@ -296,13 +303,14 @@ export function ComercioCreditosPanel() {
                 R$ {history.filter(h => h.tipo === 'compra' || h.tipo === 'ajuste').reduce((acc, curr) => acc + Number(curr.valor), 0).toFixed(2)}
             </div>
         </div>
+        )}
 
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center">
             <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 bg-orange-100 rounded-lg text-orange-600">
                     <ArrowDownLeft size={20} />
                 </div>
-                <span className="text-gray-500 font-medium">Total Utilizado</span>
+                <span className="text-gray-500 font-medium">{modoFaturamento === 'faturamento' ? 'Total Faturado' : 'Total Utilizado'}</span>
             </div>
             <div className="text-2xl font-bold text-gray-800">
                 R$ {Math.abs(history.filter(h => h.tipo === 'uso').reduce((acc, curr) => acc + Number(curr.valor), 0)).toFixed(2)}

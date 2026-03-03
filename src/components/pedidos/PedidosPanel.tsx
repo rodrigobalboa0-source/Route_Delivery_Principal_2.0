@@ -1466,6 +1466,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       <div className="bg-white p-1 rounded-lg shadow-sm border border-slate-200">
         <div className="h-[400px] bg-slate-100 rounded-lg overflow-hidden relative">
           <MapView 
+            center={[-22.9099, -47.0626]}
             deliveryPersons={visibleDeliveryPersons || []} 
             selectedEntregadorId={mapSelectedEntregadorId}
             origin={originCoords}

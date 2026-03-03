@@ -15,7 +15,7 @@ export function OperationsDashboard() {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedEntregadorId, setSelectedEntregadorId] = useState<string | undefined>(undefined);
-  const [mapCenter, setMapCenter] = useState<[number, number]>([-23.5505, -46.6333]);
+  const [mapCenter, setMapCenter] = useState<[number, number]>([-22.9099, -47.0626]);
   const [storeLocation, setStoreLocation] = useState<[number, number] | undefined>(undefined);
 
   useEffect(() => {

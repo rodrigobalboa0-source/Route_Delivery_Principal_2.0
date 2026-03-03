@@ -560,34 +560,56 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
       const { data: row } = await supabase.from('entregadores').select('email').eq('id', id).maybeSingle();
       const email = ((row as { email?: string } | null)?.email || '').trim().toLowerCase();
       
+      
+      if (email) {
+        try {
+          
+          const response = await fetch(`${SUPABASE_URL}/functions/v1/delete-auth-user-by-email`, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json', 
+              apikey: SUPABASE_ANON_KEY, 
+              Authorization: `Bearer ${SUPABASE_ANON_KEY}` 
+            },
+            body: JSON.stringify({ email }),
+          });
+          
+          if (!response.ok) {
+            console.warn('Falha ao deletar usuário do Auth via Edge Function:', await response.text());
+          }
+        } catch (e) {
+          console.error('Erro ao chamar Edge Function:', e);
+        }
+
+        
+        const { error: userError } = await supabase
+          .rpc('delete_user_by_email_case_insensitive', { email_input: email });
+          
+        if (userError) {
+          console.warn('Erro ao deletar de public.users via RPC:', userError);
+          
+          await supabase.from('users').delete().eq('email', email);
+        }
+      }
+
+      
       const { error: deleteError } = await supabase.from('entregadores').delete().eq('id', id);
       
       if (deleteError) {
         throw deleteError;
       }
 
-      if (email) {
-        await (supabase as unknown as { from: (t: string) => { delete: () => { ilike: (c: string, v: string) => Promise<unknown> } } })
-          .from('users')
-          .delete()
-          .ilike('email', email);
-        try {
-          await fetch(`${SUPABASE_URL}/functions/v1/delete-auth-user-by-email`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
-            body: JSON.stringify({ email }),
-          });
-        } catch (e) { void e; }
-        try {
-          const { data: session } = await supabase.auth.getSession();
-          const currentEmail = (session.session?.user?.email || '').trim().toLowerCase();
-          if (currentEmail && currentEmail === email) {
-            await supabase.auth.signOut();
-            try { localStorage.removeItem('entregador_context'); } catch (e) { void e; }
-          }
-        } catch (e) { void e; }
-      }
-      alert('Entregador excluído com sucesso!');
+      // Se o usuário deletado for o próprio logado
+      try {
+        const { data: session } = await supabase.auth.getSession();
+        const currentEmail = (session.session?.user?.email || '').trim().toLowerCase();
+        if (currentEmail && email && currentEmail === email) {
+          await supabase.auth.signOut();
+          try { localStorage.removeItem('entregador_context'); } catch (e) { void e; }
+        }
+      } catch (e) { void e; }
+
+      alert('Entregador e acessos excluídos com sucesso!');
       setDeleteConfirmation(null);
     } catch (error: any) {
       console.error('Erro ao excluir entregador:', error);

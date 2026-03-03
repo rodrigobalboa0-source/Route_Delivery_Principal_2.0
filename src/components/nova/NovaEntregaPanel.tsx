@@ -145,6 +145,7 @@ export function NovaEntregaPanel() {
   const [error, setError] = useState<string | null>(null);
   const [isComercio, setIsComercio] = useState(false);
   const [clientSaldo, setClientSaldo] = useState<number | null>(null);
+  const [clientModoFaturamento, setClientModoFaturamento] = useState<string>('credito');
 
   const [distanciaKm, setDistanciaKm] = useState<string>('');
   const [calculatingDistance, setCalculatingDistance] = useState(false);
@@ -597,6 +598,7 @@ export function NovaEntregaPanel() {
                   finalClientes = [matched];
                   setForm(prev => ({ ...prev, cliente_id: matched.id }));
                   setClientSaldo(matched.saldo_creditos);
+                  setClientModoFaturamento(matched.modo_faturamento || 'credito');
               } else {
                   finalClientes = [];
               }
@@ -754,7 +756,7 @@ export function NovaEntregaPanel() {
       return;
     }
 
-    if (isComercio && clientSaldo !== null) {
+    if (isComercio && clientSaldo !== null && clientModoFaturamento !== 'faturamento') {
         const total = form.valor_entrega ? parseFloat(form.valor_entrega.replace(',', '.')) : 0;
         if (!isNaN(total) && total > 0 && clientSaldo < total) {
              setError(`Saldo insuficiente para realizar esta entrega. Seu saldo: R$ ${clientSaldo.toFixed(2)}. Valor da entrega: R$ ${total.toFixed(2)}.`);
@@ -1004,7 +1006,7 @@ export function NovaEntregaPanel() {
     <div className="p-6">
       <h2 className="text-lg font-semibold text-slate-900 mb-4">Criar nova entrega</h2>
       
-      {clientSaldo !== null && (
+      {clientSaldo !== null && clientModoFaturamento !== 'faturamento' && (
           <div className={`mb-4 p-3 rounded-lg border ${
               (form.valor_entrega && parseFloat(form.valor_entrega.replace(',', '.') || '0') > clientSaldo) 
               ? 'bg-red-50 border-red-200 text-red-700' 
@@ -1023,6 +1025,7 @@ export function NovaEntregaPanel() {
             setForm({ ...form, cliente_id: val, endereco_id: '' });
             const selected = clientes.find(c => c.id === val);
             setClientSaldo(selected && selected.saldo_creditos !== undefined ? selected.saldo_creditos : null);
+            setClientModoFaturamento(selected && selected.modo_faturamento ? selected.modo_faturamento : 'credito');
           }} className="px-3 py-2 border border-slate-300 rounded">
             <option value="">Cliente</option>
             {clientes.map((c) => (

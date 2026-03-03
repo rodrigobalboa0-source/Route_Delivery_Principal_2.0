@@ -1,6 +1,6 @@
 {
-  "event_message": "POST | 500 | 191.59.99.213 | 9d61364d1f3a1225 | https://mtanrihprbgrrtgwcyia.supabase.co/auth/v1/signup | Mozilla/5.0 (Linux; Android 15; RMX3941 Build/AP3A.240617.008; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/145.0.7632.79 Mobile Safari/537.36",
-  "id": "8e49dd4f-57c8-41ae-8868-21d972839c56",
+  "event_message": "POST | 500 | 177.57.16.74 | 9d64be2ed81b572a | https://mtanrihprbgrrtgwcyia.supabase.co/auth/v1/signup | Mozilla/5.0 (Linux; Android 15; RMX3941 Build/AP3A.240617.008; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/145.0.7632.79 Mobile Safari/537.36",
+  "id": "b8635f31-50c3-43b4-b67a-43d77cefebff",
   "metadata": [
     {
       "load_balancer_experimental_routing": null,
@@ -8,33 +8,33 @@
       "load_balancer_redirect_identifier": null,
       "logflare_worker": [
         {
-          "worker_id": "H83GQ1"
+          "worker_id": "360MZ9"
         }
       ],
       "request": [
         {
           "cf": [
             {
-              "asOrganization": "CLARO S.A.",
-              "asn": 4230,
+              "asOrganization": "Claro S/A",
+              "asn": 22085,
               "botManagement": [
                 {
                   "corporateProxy": false,
                   "detectionIds": [],
-                  "ja3Hash": "0be03487782277342e74fc5969c0ead4",
-                  "ja4": "t13d1517h2_8daaf6152771_b6f405a00624",
+                  "ja3Hash": "7c6280ea4ab16c9f47b7191096c71759",
+                  "ja4": "q13d0311h3_55b375c5d22e_653d80c3fe9d",
                   "ja4Signals": [
                     {
-                      "browser_ratio_1h": 0.91047018766403,
-                      "cache_ratio_1h": 0.25386837124825,
-                      "h2h3_ratio_1h": 0.9108567237854,
-                      "heuristic_ratio_1h": 0.0013249947223812,
-                      "ips_quantile_1h": 0.99998873472214,
-                      "ips_rank_1h": 6,
-                      "paths_rank_1h": 4,
-                      "reqs_quantile_1h": 0.99999248981476,
+                      "browser_ratio_1h": 0.91215217113495,
+                      "cache_ratio_1h": 0.5514794588089,
+                      "h2h3_ratio_1h": 0.99999970197678,
+                      "heuristic_ratio_1h": 0.0036028283648193,
+                      "ips_quantile_1h": 0.99999505281448,
+                      "ips_rank_1h": 4,
+                      "paths_rank_1h": 3,
+                      "reqs_quantile_1h": 0.99999505281448,
                       "reqs_rank_1h": 4,
-                      "uas_rank_1h": 7
+                      "uas_rank_1h": 4
                     }
                   ],
                   "jsDetection": [
@@ -42,20 +42,20 @@
                       "passed": false
                     }
                   ],
-                  "score": 98,
+                  "score": 99,
                   "staticResource": false,
                   "verifiedBot": false
                 }
               ],
               "city": "Campinas",
               "clientAcceptEncoding": "gzip, deflate, br",
-              "clientTcpRtt": 31,
-              "clientTrustScore": 98,
+              "clientTcpRtt": null,
+              "clientTrustScore": 99,
               "colo": "GRU",
               "continent": "SA",
               "country": "BR",
               "edgeRequestKeepAliveStatus": 1,
-              "httpProtocol": "HTTP/2",
+              "httpProtocol": "HTTP/3",
               "isEUCountry": null,
               "latitude": "-22.90556",
               "longitude": "-47.06083",
@@ -63,7 +63,7 @@
               "postalCode": "13000-000",
               "region": "São Paulo",
               "regionCode": "SP",
-              "requestPriority": "weight=220;exclusive=1",
+              "requestPriority": null,
               "timezone": "America/Sao_Paulo",
               "tlsCipher": "AEAD-AES128-GCM-SHA256",
               "tlsClientAuth": [
@@ -73,17 +73,17 @@
                   "certVerified": "NONE"
                 }
               ],
-              "tlsClientCiphersSha1": "pdGcErBTDt22TM3jTvj6A2k54tY=",
-              "tlsClientExtensionsSha1": "xF0j3piB0G3TzLv7OdW7+JwC1g0=",
-              "tlsClientExtensionsSha1Le": "i6DSLOuh/ODNxA5rGIA10A/FDsI=",
-              "tlsClientHelloLength": "2036",
-              "tlsClientRandom": "ZdGjtawIlHxJvO3wqKCbvhCLVVGlsM2NF+qJ9UAmvNo=",
+              "tlsClientCiphersSha1": "3HTt3+R/6BL3zeALJDSq0pR1yOQ=",
+              "tlsClientExtensionsSha1": "kmWxlqUVh14t9xphhEKtCqWhnMM=",
+              "tlsClientExtensionsSha1Le": "5ICdrZoSiFEW4oBjWoDqgv8/f+0=",
+              "tlsClientHelloLength": "1805",
+              "tlsClientRandom": "t6pHFljR8FjVPFWtRhH8YMBXBFtAWZNFYQK1fP9tvdc=",
               "tlsExportedAuthenticator": [
                 {
-                  "clientFinished": "ba836054558ba122714acd042522b037387078bf1af0a6ca02d7f608dce5bf5c",
-                  "clientHandshake": "6ebb14d175f408b467a58e4fedaa7519cfe31f2859ccbb7a8da2cf774979299e",
-                  "serverFinished": "1ceeeaa59f26245f95cda201967c987656d34bef87a834540997e53c9ac7e74b",
-                  "serverHandshake": "2bc0b33523aae6e46db10ab0d202797865cbf9d39985723f02e673eaf7a4ef9d"
+                  "clientFinished": "9815717eeda13ff3235ea4209e2516475c60748312304a643dd1eb7cc4d1bd0a",
+                  "clientHandshake": "4c765d4c86f731e5947576c88f76605749b508927f255ab8d48ecefd9ba05442",
+                  "serverFinished": "280c0fbc2588a03b3aaec77ebf06f3130b30d96e908c5bb40f26496b615e1594",
+                  "serverHandshake": "eb14717b2fa54730bab48a85d8fb207ea4fcc9415c11ababba3db1594bb6251e"
                 }
               ],
               "tlsVersion": "TLSv1.3",
@@ -94,9 +94,9 @@
             {
               "accept": "*/*",
               "cf_cache_status": null,
-              "cf_connecting_ip": "191.59.99.213",
+              "cf_connecting_ip": "177.57.16.74",
               "cf_ipcountry": "BR",
-              "cf_ray": "9d61364d1f3a1225",
+              "cf_ray": "9d64be2ed81b572a",
               "content_length": "203",
               "content_location": null,
               "content_range": null,
@@ -116,7 +116,7 @@
               "x_forwarded_user_agent": null,
               "x_kong_proxy_latency": null,
               "x_kong_upstream_latency": null,
-              "x_real_ip": "191.59.99.213"
+              "x_real_ip": "177.57.16.74"
             }
           ],
           "host": "mtanrihprbgrrtgwcyia.supabase.co",
@@ -175,27 +175,27 @@
           "headers": [
             {
               "cf_cache_status": "DYNAMIC",
-              "cf_ray": "9d61364d23581225-GRU",
+              "cf_ray": "9d64be2ee407572a-GRU",
               "content_length": "72",
               "content_location": null,
               "content_range": null,
               "content_type": "application/json",
-              "date": "Mon, 02 Mar 2026 14:50:08 GMT",
+              "date": "Tue, 03 Mar 2026 01:07:11 GMT",
               "proxy_status": null,
               "sb_gateway_mode": null,
               "sb_gateway_version": "1",
-              "sb_request_id": "019caf07-2c32-701d-83a7-206f1cbbde1d",
+              "sb_request_id": "019cb13c-194c-7d87-8039-713def608038",
               "transfer_encoding": null,
               "x_kong_proxy_latency": null,
               "x_kong_upstream_latency": null,
               "x_sb_error_code": "unexpected_failure"
             }
           ],
-          "origin_time": 152,
+          "origin_time": 103,
           "status_code": 500
         }
       ]
     }
   ],
-  "timestamp": 1772463008818000
+  "timestamp": 1772500031820000
 }

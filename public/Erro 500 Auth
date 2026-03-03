@@ -1,6 +1,6 @@
 {
-  "event_message": "{\"component\":\"api\",\"error\":\"failed to close prepared statement: ERROR: current transaction is aborted, commands ignored until end of transaction block (SQLSTATE 25P02): ERROR: duplicate key value violates unique constraint \\\"users_email_partial_key\\\" (SQLSTATE 23505)\",\"level\":\"error\",\"method\":\"POST\",\"msg\":\"500: Database error saving new user\",\"path\":\"/signup\",\"referer\":\"https://route-delivery.vercel.app/\",\"remote_addr\":\"191.59.99.213\",\"request_id\":\"9d613898168e010a-GRU\",\"time\":\"2026-03-02T14:51:42Z\"}",
-  "id": "a3b6b55c-aeac-4868-9d46-2807da59d15e",
+  "event_message": "{\"component\":\"api\",\"error\":\"failed to close prepared statement: ERROR: current transaction is aborted, commands ignored until end of transaction block (SQLSTATE 25P02): ERROR: duplicate key value violates unique constraint \\\"users_email_partial_key\\\" (SQLSTATE 23505)\",\"level\":\"error\",\"method\":\"POST\",\"msg\":\"500: Database error saving new user\",\"path\":\"/signup\",\"referer\":\"https://route-delivery.vercel.app/\",\"remote_addr\":\"177.57.16.74\",\"request_id\":\"9d64be2ee407572a-GRU\",\"time\":\"2026-03-03T01:07:11Z\"}",
+  "id": "d6359865-3a8b-4027-b46a-b412b9f2c607",
   "metadata": [
     {
       "host": "db-mtanrihprbgrrtgwcyia",
@@ -8,7 +8,7 @@
       "component": "api",
       "_SYSTEMD_CGROUP": null,
       "grant_type": null,
-      "request_id": "9d613898168e010a-GRU",
+      "request_id": "9d64be2ee407572a-GRU",
       "mail_from": null,
       "message": null,
       "_SOURCE_REALTIME_TIMESTAMP": null,
@@ -70,7 +70,7 @@
       "method": "POST",
       "limit_max_idle_conns": null,
       "CODE_FILE": null,
-      "remote_addr": "191.59.99.213",
+      "remote_addr": "177.57.16.74",
       "provider": null,
       "_SYSTEMD_UNIT": null,
       "issuer": null,
@@ -109,5 +109,5 @@
       "project": null
     }
   ],
-  "timestamp": 1772463102000000
+  "timestamp": 1772500031000000
 }
