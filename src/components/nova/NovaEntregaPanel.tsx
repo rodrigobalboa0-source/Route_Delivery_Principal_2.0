@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
+import { getCoordsFromAddress, getDrivingRouteDistance } from '../../utils/geo';
 import type { Database } from '../../lib/database.types';
 
 type Cliente = Database['public']['Tables']['clientes']['Row'];
@@ -157,8 +158,7 @@ export function NovaEntregaPanel() {
   const [activeDynamicRules, setActiveDynamicRules] = useState<{ name: string; value: number }[]>([]);
   const [dynamicDriverRules, setDynamicDriverRules] = useState<DynamicDriverRule[]>([]);
   const [faixasPreco, setFaixasPreco] = useState<FaixaPreco[]>([]);
-  const coordsCache = useRef<Map<string, { lat: number; lon: number }>>(new Map());
-
+  const coordsCache = useRef<Map<string, { lat: number; lon: number }>>(new Map()); // Kept for backward compatibility if needed, but unused now
   const [driverValueDisplay, setDriverValueDisplay] = useState<string>('0.00');
   const [driverReturnDisplay, setDriverReturnDisplay] = useState<string | null>(null);
 
@@ -183,6 +183,7 @@ export function NovaEntregaPanel() {
     coleta_endereco_texto: '',
     coleta_complemento: '',
     coleta_observacoes: '',
+    coleta_numero: '',
     entrega_usa_endereco_cadastro: false,
     entrega_contato: '',
     entrega_telefone: '',
@@ -191,10 +192,11 @@ export function NovaEntregaPanel() {
     entrega_solicitante: '',
     entrega_cep: '',
     entrega_endereco_texto: '',
+    entrega_numero: '',
     entrega_complemento: '',
     entrega_observacoes: '',
     retorno: false,
-    pontos: [] as Array<{ contato: string; telefone: string; cep: string; endereco_texto: string; complemento: string; observacoes: string }>,
+    pontos: [] as Array<{ contato: string; telefone: string; cep: string; endereco_texto: string; numero: string; complemento: string; observacoes: string }>,
   });
 
   useEffect(() => {
@@ -234,7 +236,7 @@ export function NovaEntregaPanel() {
         const table = tabelasComissoes.find(t => {
             let ids = t.cliente_ids;
             
-            // Robust parsing for ids
+            
             if (typeof ids === 'string') {
                 try {
                     const parsed = JSON.parse(ids);
@@ -245,16 +247,16 @@ export function NovaEntregaPanel() {
             }
 
             if (Array.isArray(ids)) {
-                // Robust comparison: check for string equality, case-insensitive, trimmed
+                
                 const targetId = String(form.cliente_id).trim().toLowerCase();
                 const match = (ids as any[]).some(id => String(id).trim().toLowerCase() === targetId);
                 
-                // Detailed logging for debugging
+                
                 if (match) {
                     console.log('Match found in table:', t.nome);
                 } else {
-                    // Only log mismatches if we are debugging specific tables to avoid spam
-                    // console.log(`No match in table ${t.nome}. Target: ${targetId}, IDs:`, ids);
+                    
+                    
                 }
                 
                 return match;
@@ -305,7 +307,7 @@ export function NovaEntregaPanel() {
             }
           }
 
-          const enderecoTexto = [rua, numero, bairro, cidade]
+          const enderecoTexto = [rua, bairro, cidade]
             .filter(Boolean)
             .join(', ');
 
@@ -314,6 +316,7 @@ export function NovaEntregaPanel() {
               ...next,
               coleta_cep: cep || '',
               coleta_endereco_texto: enderecoTexto,
+              coleta_numero: numero || '',
               coleta_complemento: complemento || '',
               coleta_contato: cliente.nome_completo,
               coleta_telefone: cliente.telefone || '',
@@ -324,6 +327,7 @@ export function NovaEntregaPanel() {
               ...next,
               entrega_cep: cep || '',
               entrega_endereco_texto: enderecoTexto,
+              entrega_numero: numero || '',
               entrega_complemento: complemento || '',
               entrega_contato: cliente.nome_completo,
               entrega_telefone: cliente.telefone || '',
@@ -380,56 +384,41 @@ export function NovaEntregaPanel() {
     return deg * (Math.PI / 180);
   };
 
-  const getCoordsFromAddress = async (address: string) => {
-    
-    const match = address.match(/(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
-    if (match) {
-      return { lat: parseFloat(match[1]), lon: parseFloat(match[2]) };
-    }
-    
-    if (coordsCache.current.has(address)) {
-      return coordsCache.current.get(address) || null;
-    }
-    
-    if (address.length > 5) {
-      try {
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&viewbox=-47.25,-22.70,-46.80,-23.10`, {
-          headers: {
-            'User-Agent': 'RouteDeliveryApp/1.0'
-          }
-        });
-        const data = await response.json();
-        if (data && data.length > 0) {
-          const res = { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
-          coordsCache.current.set(address, res);
-          return res;
-        }
-      } catch (error) {
-        console.error("Geocoding error:", error);
-      }
-    }
-    return null;
-  };
-
   useEffect(() => {
     const updateDistance = async () => {
       if (!form.coleta_endereco_texto || !form.entrega_endereco_texto) return;
 
       setCalculatingDistance(true);
       
-      const startCoords = await getCoordsFromAddress(form.coleta_endereco_texto);
-      const endCoords = await getCoordsFromAddress(form.entrega_endereco_texto);
+      const coletaFull = form.coleta_numero ? `${form.coleta_endereco_texto}, ${form.coleta_numero}` : form.coleta_endereco_texto;
+      const entregaFull = form.entrega_numero ? `${form.entrega_endereco_texto}, ${form.entrega_numero}` : form.entrega_endereco_texto;
+
+      const startCoords = await getCoordsFromAddress(coletaFull);
+      const endCoords = await getCoordsFromAddress(entregaFull);
 
       if (startCoords && endCoords) {
-        let totalDist = calculateDistance(startCoords.lat, startCoords.lon, endCoords.lat, endCoords.lon);
-        
-        let currentCoords = endCoords;
+        const points = [];
+        points.push({lat: startCoords[0], lon: startCoords[1]});
+
         for (const ponto of form.pontos) {
-          const pointCoords = await getCoordsFromAddress(ponto.endereco_texto || '');
+          const pontoFull = ponto.numero ? `${ponto.endereco_texto}, ${ponto.numero}` : ponto.endereco_texto;
+          const pointCoords = await getCoordsFromAddress(pontoFull || '');
           if (pointCoords) {
-             totalDist += calculateDistance(currentCoords.lat, currentCoords.lon, pointCoords.lat, pointCoords.lon);
-             currentCoords = pointCoords;
+             points.push({lat: pointCoords[0], lon: pointCoords[1]});
           }
+        }
+        points.push({lat: endCoords[0], lon: endCoords[1]});
+
+        
+        let totalDist = await getDrivingRouteDistance(points);
+
+        
+        if (totalDist === null) {
+            console.log("OSRM failed, falling back to Haversine");
+            totalDist = 0;
+            for (let i = 0; i < points.length - 1; i++) {
+                totalDist += calculateDistance(points[i].lat, points[i].lon, points[i+1].lat, points[i+1].lon);
+            }
         }
 
         setDistanciaKm(totalDist.toFixed(2));
@@ -442,7 +431,7 @@ export function NovaEntregaPanel() {
     }, 500);
 
     return () => clearTimeout(timeoutId);
-  }, [form.coleta_endereco_texto, form.entrega_endereco_texto, form.pontos]);
+  }, [form.coleta_endereco_texto, form.coleta_numero, form.entrega_endereco_texto, form.entrega_numero, form.pontos]);
 
   useEffect(() => {
     calculatePrice();
@@ -793,7 +782,7 @@ export function NovaEntregaPanel() {
       setDynamicDriverRules(freshDriverRules);
     } catch (e) {}
 
-    // Ensure commission data is present (Fix for race condition)
+    
     let effectiveFaixasComissoes = faixasComissoes;
     let effectiveSelectedTable = selectedComissaoTable;
 
@@ -838,14 +827,14 @@ export function NovaEntregaPanel() {
       form.pontos.length,
       entregadorEscolhido,
       freshDriverRules,
-      effectiveFaixasComissoes, // Pass as override
-      effectiveSelectedTable || undefined // Pass as override
+      effectiveFaixasComissoes, 
+      effectiveSelectedTable || undefined 
     );
     const parsedDriverValue = parseFloat(driverValueStr);
     const driverValue = isNaN(parsedDriverValue) ? 0 : parsedDriverValue;
 
     if (driverValue === 0 && effectiveSelectedTable) {
-         // Only warn if a table was found but calculation resulted in 0 (meaning maybe ranges don't cover this KM)
+         
          const confirmed = confirm('Atenção: O valor da comissão do entregador foi calculado como R$ 0,00. Deseja continuar mesmo assim?');
          if (!confirmed) {
              setLoading(false);
@@ -869,7 +858,7 @@ export function NovaEntregaPanel() {
           endereco_id: form.endereco_id || null,
           numero: form.entrega_codigo_pedido || null,
           item_descricao: null,
-          endereco_texto: form.entrega_endereco_texto || null,
+          endereco_texto: form.entrega_numero ? `${form.entrega_endereco_texto}, ${form.entrega_numero}` : (form.entrega_endereco_texto || null),
           origem: 'manual',
           valor_total: (valorTotal && !isNaN(valorTotal)) ? valorTotal : null,
           status: 'criado',
@@ -915,7 +904,7 @@ export function NovaEntregaPanel() {
         coleta_contato: form.coleta_contato || null,
         coleta_telefone: form.coleta_telefone || null,
         coleta_cep: form.coleta_cep || null,
-        coleta_endereco_texto: form.coleta_endereco_texto || null,
+        coleta_endereco_texto: form.coleta_numero ? `${form.coleta_endereco_texto}, ${form.coleta_numero}` : (form.coleta_endereco_texto || null),
         coleta_complemento: form.coleta_complemento || null,
         coleta_observacoes: form.coleta_observacoes || null,
         entrega_usa_endereco_cadastro: form.entrega_usa_endereco_cadastro,
@@ -925,7 +914,7 @@ export function NovaEntregaPanel() {
         entrega_centro_custo: form.entrega_centro_custo || null,
         entrega_solicitante: form.entrega_solicitante || null,
         entrega_cep: form.entrega_cep || null,
-        entrega_endereco_texto: form.entrega_endereco_texto || null,
+        entrega_endereco_texto: form.entrega_numero ? `${form.entrega_endereco_texto}, ${form.entrega_numero}` : (form.entrega_endereco_texto || null),
         entrega_complemento: form.entrega_complemento || null,
         entrega_observacoes: form.entrega_observacoes || null,
         retorno: form.retorno,
@@ -973,6 +962,7 @@ export function NovaEntregaPanel() {
         coleta_telefone: '', 
         coleta_cep: '', 
         coleta_endereco_texto: '', 
+        coleta_numero: '',
         coleta_complemento: '', 
         coleta_observacoes: '',
         entrega_usa_endereco_cadastro: false, 
@@ -983,6 +973,7 @@ export function NovaEntregaPanel() {
         entrega_solicitante: '', 
         entrega_cep: '', 
         entrega_endereco_texto: '', 
+        entrega_numero: '',
         entrega_complemento: '', 
         entrega_observacoes: '',
         retorno: false, 
@@ -1075,8 +1066,9 @@ export function NovaEntregaPanel() {
             onChange={(val) => setForm({ ...form, coleta_endereco_texto: val })}
             containerClassName="md:col-span-2"
           />
+          <input placeholder="Nº" value={form.coleta_numero} onChange={(e) => setForm({ ...form, coleta_numero: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
           <input placeholder="Complemento" value={form.coleta_complemento} onChange={(e) => setForm({ ...form, coleta_complemento: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-          <input placeholder="Observações (Coleta)" value={form.coleta_observacoes} onChange={(e) => setForm({ ...form, coleta_observacoes: e.target.value })} className="px-3 py-2 border border-slate-300 rounded md:col-span-3" />
+          <input placeholder="Observações (Coleta)" value={form.coleta_observacoes} onChange={(e) => setForm({ ...form, coleta_observacoes: e.target.value })} className="px-3 py-2 border border-slate-300 rounded md:col-span-2" />
         </div>
       </div>
 
@@ -1099,8 +1091,9 @@ export function NovaEntregaPanel() {
             onChange={(val) => setForm({ ...form, entrega_endereco_texto: val })}
             containerClassName="md:col-span-2"
           />
+          <input placeholder="Nº" value={form.entrega_numero} onChange={(e) => setForm({ ...form, entrega_numero: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
           <input placeholder="Complemento" value={form.entrega_complemento} onChange={(e) => setForm({ ...form, entrega_complemento: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-          <input placeholder="Observações (Entrega)" value={form.entrega_observacoes} onChange={(e) => setForm({ ...form, entrega_observacoes: e.target.value })} className="px-3 py-2 border border-slate-300 rounded md:col-span-3" />
+          <input placeholder="Observações (Entrega)" value={form.entrega_observacoes} onChange={(e) => setForm({ ...form, entrega_observacoes: e.target.value })} className="px-3 py-2 border border-slate-300 rounded md:col-span-2" />
         </div>
       </div>
 
@@ -1108,7 +1101,7 @@ export function NovaEntregaPanel() {
         <div className="flex items-center justify-between">
           <div className="text-sm font-semibold text-slate-900">Serviços Opcionais</div>
           <div className="flex items-center gap-3">
-            <button onClick={() => setForm({ ...form, pontos: [...form.pontos, { contato: '', telefone: '', cep: '', endereco_texto: '', complemento: '', observacoes: '' }] })} className="px-3 py-2 rounded bg-green-600 text-white text-sm">Adicionar Ponto +</button>
+            <button onClick={() => setForm({ ...form, pontos: [...form.pontos, { contato: '', telefone: '', cep: '', endereco_texto: '', numero: '', complemento: '', observacoes: '' }] })} className="px-3 py-2 rounded bg-green-600 text-white text-sm">Adicionar Ponto +</button>
             <div className="flex items-center gap-2">
               <input id="retorno" type="checkbox" checked={form.retorno} onChange={(e) => setForm({ ...form, retorno: e.target.checked })} />
               <label htmlFor="retorno" className="text-sm text-slate-700">Adicionar Retorno</label>
@@ -1130,8 +1123,9 @@ export function NovaEntregaPanel() {
                   onChange={(val) => { const arr = [...form.pontos]; arr[idx] = { ...arr[idx], endereco_texto: val }; setForm({ ...form, pontos: arr }); }}
                   containerClassName="md:col-span-2"
                 />
+                <input placeholder="Nº" value={p.numero} onChange={(e) => { const v = e.target.value; const arr = [...form.pontos]; arr[idx] = { ...arr[idx], numero: v }; setForm({ ...form, pontos: arr }); }} className="px-3 py-2 border border-slate-300 rounded" />
                 <input placeholder="Complemento" value={p.complemento} onChange={(e) => { const v = e.target.value; const arr = [...form.pontos]; arr[idx] = { ...arr[idx], complemento: v }; setForm({ ...form, pontos: arr }); }} className="px-3 py-2 border border-slate-300 rounded" />
-                <input placeholder="Observações" value={p.observacoes} onChange={(e) => { const v = e.target.value; const arr = [...form.pontos]; arr[idx] = { ...arr[idx], observacoes: v }; setForm({ ...form, pontos: arr }); }} className="px-3 py-2 border border-slate-300 rounded md:col-span-3" />
+                <input placeholder="Observações" value={p.observacoes} onChange={(e) => { const v = e.target.value; const arr = [...form.pontos]; arr[idx] = { ...arr[idx], observacoes: v }; setForm({ ...form, pontos: arr }); }} className="px-3 py-2 border border-slate-300 rounded md:col-span-2" />
                 <div className="md:col-span-3">
                   <button onClick={() => { const arr = [...form.pontos]; arr.splice(idx, 1); setForm({ ...form, pontos: arr }); }} className="px-3 py-2 rounded bg-red-600 text-white text-sm">Remover</button>
                 </div>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
-import { getCoordsFromAddress } from '../../utils/geo';
+import { getCoordsFromAddress, getDrivingRouteDistance, getDistanceFromLatLonInKm } from '../../utils/geo';
 import { MapView, MapDeliveryPerson } from '../MapView';
 import { Modal } from '../Modal';
 import type { Database } from '../../lib/database.types';
@@ -43,7 +43,7 @@ function AddressAutocomplete({ value, onChange, placeholder, containerClassName 
     const timer = setTimeout(async () => {
       if (value.length > 4 && showSuggestions) {
         try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(value)}&addressdetails=1&limit=5&countrycodes=br`, {
+          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(value)}&addressdetails=1&limit=5&countrycodes=br&viewbox=-47.25,-22.70,-46.80,-23.10&bounded=1`, {
             headers: { 'User-Agent': 'RouteDeliveryApp/1.0' }
           });
           const data = await res.json();
@@ -123,7 +123,7 @@ function PedidoEditForm({ pedido, entrega, onClose, onSave }: { pedido: Pedido, 
 
       if (pError) throw pError;
 
-      // Integration: Notify iFood
+      
       if (formData.status !== pedido.status) {
          let action = '';
          if (formData.status === 'confirmado') action = 'confirm';
@@ -425,7 +425,41 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [cityModalOpen, setCityModalOpen] = useState(false);
   const [citySearch, setCitySearch] = useState('');
 
+  
+  const [quickAddress, setQuickAddress] = useState('');
+  const [quickNumber, setQuickNumber] = useState('');
+  const [quickPaymentMethod, setQuickPaymentMethod] = useState('Dinheiro');
+  const [quickRetorno, setQuickRetorno] = useState(false);
+  const [comercioAddress, setComercioAddress] = useState('');
+  const [quickLoading, setQuickLoading] = useState(false);
+
+  
+  const [quickContact, setQuickContact] = useState('');
+  const [quickPhone, setQuickPhone] = useState('');
+  const [quickComplement, setQuickComplement] = useState('');
+  const [quickDistance, setQuickDistance] = useState<number | null>(null);
+  const [quickPrice, setQuickPrice] = useState<number>(0);
+  
+  
+  const [pricingTables, setPricingTables] = useState<any[]>([]);
+  const [pricingRanges, setPricingRanges] = useState<any[]>([]);
+  const [clientPricingConfig, setClientPricingConfig] = useState<any[]>([]);
+  const [selectedTabelaId, setSelectedTabelaId] = useState<string | null>(null);
+  const [pricePerPoint, setPricePerPoint] = useState(0);
+  const [pricingMode, setPricingMode] = useState<'Distância' | 'Fixo' | 'Zerar'>('Distância');
+
   useEffect(() => {
+    
+    const fetchPricing = async () => {
+        const [tp, tpf] = await Promise.all([
+            supabase.from('tabelas_precos').select('*'),
+            supabase.from('tabelas_precos_faixas').select('*')
+        ]);
+        if (tp.data) setPricingTables(tp.data);
+        if (tpf.data) setPricingRanges(tpf.data);
+    };
+    fetchPricing();
+
     fetch('https://servicodados.ibge.gov.br/api/v1/localidades/municipios')
         .then(res => res.json())
         .then(data => {
@@ -496,7 +530,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             if (targetClientId || data?.email) {
                 let query = supabase
                     .from('clientes')
-                    .select('id, nome_completo, rua, numero, bairro, cidade, cep');
+                    .select('id, nome_completo, rua, numero, bairro, cidade, cep, precificacao_config, telefone');
                 
                 if (targetClientId) {
                     query = query.eq('id', targetClientId);
@@ -509,6 +543,31 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                 if (clienteData) {
                     if (!targetClientId) targetClientId = clienteData.id;
                     
+                    
+                    if (clienteData.precificacao_config) {
+                        setClientPricingConfig(clienteData.precificacao_config as any);
+                        
+                        
+                        const configs = clienteData.precificacao_config as any[];
+                        const config = configs.find((c: any) => c.modal === 'moto') || configs[0];
+                        
+                        if (config) {
+                            setPricingMode(config.tipo_precificacao);
+                            if (config.tipo_precificacao === 'Fixo') {
+                                setPricePerPoint(Number(config.preco_ponto) || 0);
+                            } else if (config.tipo_precificacao === 'Distância') {
+                                setPricePerPoint(0);
+                                if (config.tabela_id) {
+                                    setSelectedTabelaId(config.tabela_id);
+                                }
+                            }
+                        }
+                    }
+
+                    
+                    if (clienteData.nome_completo) setQuickContact(clienteData.nome_completo);
+                    if (clienteData.telefone) setQuickPhone(clienteData.telefone);
+
                     const addressParts = [
                         clienteData.rua,
                         clienteData.numero,
@@ -521,6 +580,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
                     if (addressParts.length > 0) {
                         const fullAddress = addressParts.join(', ');
+                        setComercioAddress(fullAddress);
                         getCoordsFromAddress(fullAddress).then(coords => {
                             console.log('Geocoded coords:', coords);
                             if (coords) {
@@ -789,20 +849,77 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     setOpenMenuId(null); 
   };
 
-  const getCoordsFromAddress = async (address: string): Promise<[number, number] | null> => {
-    try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&countrycodes=br`, {
-        headers: { 'User-Agent': 'RouteDeliveryApp/1.0' }
-      });
-      const data = await res.json();
-      if (data && data.length > 0) {
-        return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
-      }
-    } catch (e) {
-      console.error('Geocoding error', e);
-    }
-    return null;
-  };
+  useEffect(() => {
+    const updatePrice = async () => {
+        if (!quickAddress || !originCoords) return;
+        
+        const fullAddress = quickNumber ? `${quickAddress}, ${quickNumber}` : quickAddress;
+        const destCoords = await getCoordsFromAddress(fullAddress);
+        if (destCoords) {
+            
+            const points = [
+                { lat: originCoords[0], lon: originCoords[1] },
+                { lat: destCoords[0], lon: destCoords[1] }
+            ];
+            
+            let dist: number | null = await getDrivingRouteDistance(points);
+            
+            if (dist === null) {
+                
+                dist = getDistanceFromLatLonInKm(originCoords[0], originCoords[1], destCoords[0], destCoords[1]);
+            }
+            
+            setQuickDistance(parseFloat(dist.toFixed(2)));
+            
+            
+            let price = 0;
+            if (pricingMode === 'Fixo') {
+                price = pricePerPoint * 2; 
+            } else if (pricingMode === 'Zerar') {
+                price = 0;
+            } else if (pricingMode === 'Distância' && selectedTabelaId) {
+                 const tabela = pricingTables.find(t => t.id === selectedTabelaId);
+                 if (tabela) {
+                     
+                     const ranges = pricingRanges.filter(f => f.tabela_id === selectedTabelaId).sort((a,b) => a.km_ate - b.km_ate);
+                     const faixa = ranges.find(f => f.km_ate >= dist);
+                     
+                     if (faixa) {
+                         price = faixa.valor;
+                     } else {
+                         
+                         const lastFaixa = ranges[ranges.length - 1];
+                         if (lastFaixa) {
+                             const extraKm = dist - lastFaixa.km_ate;
+                             price = lastFaixa.valor + (extraKm * (tabela.km_adicional || 0));
+                         }
+                     }
+                     if (tabela.valor_minimo && price < tabela.valor_minimo) price = tabela.valor_minimo;
+                 }
+            }
+            
+            
+            if (quickRetorno) {
+                 const tabela = pricingTables.find(t => t.id === selectedTabelaId);
+                 if (tabela && tabela.valor_retorno) {
+                      const tipo = (tabela.tipo_retorno || '').trim().toLowerCase();
+                      if (tipo === 'percentual' || tipo === 'porcentagem') {
+                          price += price * (tabela.valor_retorno / 100);
+                      } else {
+                          price += tabela.valor_retorno;
+                      }
+                 } else {
+                      price = price * 1.20;
+                 }
+            }
+            
+            setQuickPrice(price);
+        }
+    };
+    
+    const timer = setTimeout(updatePrice, 1000);
+    return () => clearTimeout(timer);
+  }, [quickAddress, quickNumber, quickRetorno, originCoords, pricingMode, selectedTabelaId, pricingTables, pricingRanges, pricePerPoint]);
 
   const handleViewMap = async (pedido: Pedido) => {
     
@@ -1415,6 +1532,91 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     }
   };
 
+  const handleQuickCreate = async () => {
+    if (!quickAddress) {
+        alert('Por favor, informe o endereço de entrega.');
+        return;
+    }
+
+    const fullAddress = quickNumber ? `${quickAddress}, ${quickNumber}` : quickAddress;
+
+    if (!comercioAddress) {
+        alert('Endereço do comércio não encontrado. Verifique seu cadastro.');
+        return;
+    }
+
+    setQuickLoading(true);
+
+    try {
+        const clienteId = filters.cliente_id;
+            if (!clienteId) throw new Error('Cliente não identificado');
+
+            
+            const valorEntrega = quickPrice;
+
+            
+            const { data: pData, error: pError } = await supabase
+                .from('pedidos')
+                .insert({
+                    cliente_id: clienteId,
+                    endereco_texto: fullAddress,
+                    origem: 'manual',
+                    valor_total: valorEntrega,
+                    status: 'criado',
+                observacoes: `Pedido Rápido - Pagamento: ${quickPaymentMethod} - Contato: ${quickContact} ${quickPhone ? `(${quickPhone})` : ''}`
+            })
+            .select()
+            .single();
+
+        if (pError) throw pError;
+
+        
+        const { error: eError } = await supabase
+            .from('nova_entrega')
+            .insert({
+                pedido_id: pData.id,
+                cliente_id: clienteId,
+                status: 'criada',
+                coleta_endereco_texto: comercioAddress,
+                entrega_endereco_texto: fullAddress,
+                entrega_contato: quickContact,
+                entrega_telefone: quickPhone,
+                entrega_complemento: quickComplement,
+                distancia_km: quickDistance,
+                valor_entrega: valorEntrega,
+                retorno: quickRetorno,
+                atribuicao_modo: 'manual',
+                tipo_cobranca: 'fatura',
+                cobrar_destinatario: false
+            });
+
+        if (eError) throw eError;
+
+        alert('Pedido criado com sucesso!');
+        setQuickAddress('');
+        setQuickNumber('');
+    
+    
+    setQuickPaymentMethod('Dinheiro');
+    setQuickRetorno(false);
+
+        
+        setQuickContact('');
+        setQuickPhone('');
+        setQuickComplement('');
+        setQuickDistance(0);
+        setQuickPrice(0);
+        
+        fetchPedidos();
+
+    } catch (e: any) {
+        console.error('Erro ao criar pedido rápido:', e);
+        alert('Erro ao criar pedido: ' + e.message);
+    } finally {
+        setQuickLoading(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     const colors: Record<string, string> = {
       criado: 'bg-slate-100 text-slate-700',
@@ -1461,6 +1663,136 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
           <h2 className="text-xl font-bold text-slate-800">Pedidos • Acompanhamento</h2>
         </div>
       </div>
+
+      {/* Quick Launch Bar (Comercio Only) */}
+      {isComercio && (
+        <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 animate-in fade-in slide-in-from-top-4">
+            <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <div className="bg-sky-100 p-2 rounded-lg text-sky-600">
+                    <Store size={20} />
+                </div>
+                Lançamento Rápido
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                {/* Row 1 */}
+                <div className="md:col-span-4">
+                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Endereço de Entrega</label>
+                    <AddressAutocomplete 
+                        value={quickAddress}
+                        onChange={setQuickAddress}
+                        placeholder="Rua, Bairro..."
+                        containerClassName="w-full"
+                    />
+                </div>
+
+                <div className="md:col-span-1">
+                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Número</label>
+                    <input 
+                        type="text"
+                        value={quickNumber}
+                        onChange={e => setQuickNumber(e.target.value)}
+                        placeholder="Nº"
+                        className="w-full px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-sky-500 outline-none transition-all"
+                    />
+                </div>
+
+                <div className="md:col-span-2">
+                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Complemento</label>
+                    <input 
+                        type="text"
+                        value={quickComplement}
+                        onChange={e => setQuickComplement(e.target.value)}
+                        placeholder="Apto, Bloco..."
+                        className="w-full px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-sky-500 outline-none transition-all"
+                    />
+                </div>
+
+                <div className="md:col-span-3">
+                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Nome Contato</label>
+                    <input 
+                        type="text"
+                        value={quickContact}
+                        onChange={e => setQuickContact(e.target.value)}
+                        placeholder="Nome do cliente"
+                        className="w-full px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-sky-500 outline-none transition-all"
+                    />
+                </div>
+
+                <div className="md:col-span-2">
+                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Telefone</label>
+                    <input 
+                        type="text"
+                        value={quickPhone}
+                        onChange={e => setQuickPhone(e.target.value)}
+                        placeholder="(00) 00000-0000"
+                        className="w-full px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-sky-500 outline-none transition-all"
+                    />
+                </div>
+
+                {/* Row 2 */}
+                <div className="md:col-span-4">
+                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">
+                        Valor Entrega {quickDistance > 0 && <span className="text-sky-600 font-normal">({quickDistance} km)</span>}
+                    </label>
+                    <div className="relative">
+                        <span className="absolute left-3 top-2.5 text-slate-400 text-sm">R$</span>
+                        <input 
+                            type="text"
+                            value={quickPrice.toFixed(2).replace('.', ',')}
+                            readOnly
+                            className="w-full pl-8 pr-3 py-2 border border-slate-200 bg-slate-50 rounded text-slate-600 font-bold outline-none cursor-not-allowed"
+                        />
+                    </div>
+                </div>
+
+                <div className="md:col-span-4">
+                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Pagamento</label>
+                    <select 
+                        value={quickPaymentMethod}
+                        onChange={e => setQuickPaymentMethod(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-sky-500 outline-none bg-white h-[42px]"
+                    >
+                        <option value="Dinheiro">Dinheiro</option>
+                        <option value="Cartão">Cartão</option>
+                        <option value="Pix">Pix</option>
+                        <option value="Online">Online</option>
+                    </select>
+                </div>
+
+                <div className="md:col-span-4 flex justify-end pb-0">
+                    <button 
+                        onClick={handleQuickCreate}
+                        disabled={quickLoading}
+                        className="w-full h-[42px] bg-sky-600 hover:bg-sky-700 text-white font-bold rounded transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Lançar Pedido"
+                    >
+                        {quickLoading ? <RefreshCw className="animate-spin" size={20} /> : <>Lançar Pedido <Plus size={20} /></>}
+                    </button>
+                </div>
+            </div>
+            
+            <div className="mt-3 flex items-center gap-4">
+                 <label className="flex items-center gap-2 cursor-pointer select-none group">
+                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${quickRetorno ? 'bg-sky-600 border-sky-600' : 'border-slate-300 bg-white group-hover:border-sky-400'}`}>
+                        {quickRetorno && <CheckSquare size={14} className="text-white" />}
+                    </div>
+                    <input 
+                        type="checkbox"
+                        checked={quickRetorno}
+                        onChange={e => setQuickRetorno(e.target.checked)}
+                        className="hidden"
+                    />
+                    <span className="text-sm text-slate-600 font-medium group-hover:text-sky-600 transition-colors">Adicionar Retorno</span>
+                </label>
+                
+                <div className="text-xs text-slate-400 ml-auto flex items-center gap-1">
+                    <MapPin size={12} />
+                    Origem: {comercioAddress || 'Carregando...'}
+                </div>
+            </div>
+        </div>
+      )}
 
       {/* Map View */}
       <div className="bg-white p-1 rounded-lg shadow-sm border border-slate-200">
