@@ -565,9 +565,6 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                     }
 
                     
-                    if (clienteData.nome_completo) setQuickContact(clienteData.nome_completo);
-                    if (clienteData.telefone) setQuickPhone(clienteData.telefone);
-
                     const addressParts = [
                         clienteData.rua,
                         clienteData.numero,
@@ -849,8 +846,9 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     setOpenMenuId(null); 
   };
 
+  
   useEffect(() => {
-    const updatePrice = async () => {
+    const calculateDistance = async () => {
         if (!quickAddress || !originCoords) return;
         
         const fullAddress = quickNumber ? `${quickAddress}, ${quickNumber}` : quickAddress;
@@ -870,56 +868,72 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             }
             
             setQuickDistance(parseFloat(dist.toFixed(2)));
-            
-            
-            let price = 0;
-            if (pricingMode === 'Fixo') {
-                price = pricePerPoint * 2; 
-            } else if (pricingMode === 'Zerar') {
-                price = 0;
-            } else if (pricingMode === 'Distância' && selectedTabelaId) {
-                 const tabela = pricingTables.find(t => t.id === selectedTabelaId);
-                 if (tabela) {
-                     
-                     const ranges = pricingRanges.filter(f => f.tabela_id === selectedTabelaId).sort((a,b) => a.km_ate - b.km_ate);
-                     const faixa = ranges.find(f => f.km_ate >= dist);
-                     
-                     if (faixa) {
-                         price = faixa.valor;
-                     } else {
-                         
-                         const lastFaixa = ranges[ranges.length - 1];
-                         if (lastFaixa) {
-                             const extraKm = dist - lastFaixa.km_ate;
-                             price = lastFaixa.valor + (extraKm * (tabela.km_adicional || 0));
-                         }
-                     }
-                     if (tabela.valor_minimo && price < tabela.valor_minimo) price = tabela.valor_minimo;
-                 }
-            }
-            
-            
-            if (quickRetorno) {
-                 const tabela = pricingTables.find(t => t.id === selectedTabelaId);
-                 if (tabela && tabela.valor_retorno) {
-                      const tipo = (tabela.tipo_retorno || '').trim().toLowerCase();
-                      if (tipo === 'percentual' || tipo === 'porcentagem') {
-                          price += price * (tabela.valor_retorno / 100);
-                      } else {
-                          price += tabela.valor_retorno;
-                      }
-                 } else {
-                      price = price * 1.20;
-                 }
-            }
-            
-            setQuickPrice(price);
         }
     };
     
-    const timer = setTimeout(updatePrice, 1000);
+    const timer = setTimeout(calculateDistance, 1000);
     return () => clearTimeout(timer);
-  }, [quickAddress, quickNumber, quickRetorno, originCoords, pricingMode, selectedTabelaId, pricingTables, pricingRanges, pricePerPoint]);
+  }, [quickAddress, quickNumber, originCoords]);
+
+  // Effect to calculate PRICE (Immediate)
+  useEffect(() => {
+    const calculatePrice = () => {
+        const dist = quickDistance;
+        
+        let price = 0;
+        if (pricingMode === 'Fixo') {
+            price = pricePerPoint * 2; 
+        } else if (pricingMode === 'Zerar') {
+            price = 0;
+        } else if (pricingMode === 'Distância' && selectedTabelaId) {
+             const tabela = pricingTables.find(t => t.id === selectedTabelaId);
+             if (tabela) {
+                 
+                 const ranges = pricingRanges.filter(f => f.tabela_id === selectedTabelaId).sort((a,b) => a.km_ate - b.km_ate);
+                 const faixa = ranges.find(f => f.km_ate >= dist);
+                 
+                 if (faixa) {
+                     price = faixa.valor;
+                 } else {
+                     
+                     const lastFaixa = ranges[ranges.length - 1];
+                     if (lastFaixa) {
+                         const extraKm = dist - lastFaixa.km_ate;
+                         price = lastFaixa.valor + (extraKm * (tabela.km_adicional || 0));
+                     }
+                 }
+                 if (tabela.valor_minimo && price < tabela.valor_minimo) price = tabela.valor_minimo;
+             }
+        }
+        
+        if (quickRetorno) {
+             const tabela = pricingTables.find(t => String(t.id) === String(selectedTabelaId));
+             let applied = false;
+             
+             if (tabela) {
+                  const valorRetorno = Number(tabela.valor_retorno);
+                  
+                  if (!isNaN(valorRetorno) && valorRetorno > 0) {
+                      const tipo = (tabela.tipo_retorno || '').trim().toLowerCase();
+                      if (tipo === 'percentual' || tipo === 'porcentagem') {
+                          price += price * (valorRetorno / 100);
+                      } else {
+                          price += valorRetorno;
+                      }
+                      applied = true;
+                  }
+             }
+             
+             if (!applied) {
+                  price = price * 1.20;
+             }
+        }
+        
+        setQuickPrice(price);
+    };
+
+    calculatePrice();
+  }, [quickDistance, quickRetorno, pricingMode, selectedTabelaId, pricingTables, pricingRanges, pricePerPoint]);
 
   const handleViewMap = async (pedido: Pedido) => {
     
@@ -1709,7 +1723,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                 </div>
 
                 <div className="md:col-span-3">
-                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Nome Contato</label>
+                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Nome do Cliente</label>
                     <input 
                         type="text"
                         value={quickContact}
