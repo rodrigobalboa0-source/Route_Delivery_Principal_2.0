@@ -417,6 +417,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [isAdmin, setIsAdmin] = useState(false);
   const [isComercio, setIsComercio] = useState(false);
   const [allowAlocarComercio, setAllowAlocarComercio] = useState(false);
+  const [allowPedidoPronto, setAllowPedidoPronto] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isBulkAllocation, setIsBulkAllocation] = useState(false);
   const [ibgeCities, setIbgeCities] = useState<string[]>([]);
@@ -443,6 +444,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   
   const [pricingTables, setPricingTables] = useState<any[]>([]);
   const [pricingRanges, setPricingRanges] = useState<any[]>([]);
+  const [dynamicRules, setDynamicRules] = useState<any[]>([]);
+  const [activeDynamicRule, setActiveDynamicRule] = useState<any | null>(null);
   const [clientPricingConfig, setClientPricingConfig] = useState<any[]>([]);
   const [selectedTabelaId, setSelectedTabelaId] = useState<string | null>(null);
   const [pricePerPoint, setPricePerPoint] = useState(0);
@@ -451,12 +454,14 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   useEffect(() => {
     
     const fetchPricing = async () => {
-        const [tp, tpf] = await Promise.all([
+        const [tp, tpf, dr] = await Promise.all([
             supabase.from('tabelas_precos').select('*'),
-            supabase.from('tabelas_precos_faixas').select('*')
+            supabase.from('tabelas_precos_faixas').select('*'),
+            supabase.from('preco_dinamico_demanda').select('*').eq('ativo', true)
         ]);
         if (tp.data) setPricingTables(tp.data);
         if (tpf.data) setPricingRanges(tpf.data);
+        if (dr.data) setDynamicRules(dr.data);
     };
     fetchPricing();
 
@@ -583,6 +588,10 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                             if (coords) {
                                 setOriginCoords(coords);
                                 setOriginTitle(clienteData.nome_completo || 'Minha Loja');
+                                
+                                
+                                setCommerceDefaultCoords(coords);
+                                setCommerceDefaultTitle(clienteData.nome_completo || 'Minha Loja');
                             }
                         });
                     }
@@ -597,9 +606,12 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       loadUserRole();
       
       
-      supabase.from('configuracoes_comercio').select('permitir_alocar_entregador').maybeSingle().then(({ data }) => {
+      supabase.from('configuracoes_comercio').select('permitir_alocar_entregador, permitir_pedido_pronto').maybeSingle().then(({ data }) => {
           if (data) {
               setAllowAlocarComercio(data.permitir_alocar_entregador);
+              if (data.permitir_pedido_pronto !== undefined) {
+                  setAllowPedidoPronto(data.permitir_pedido_pronto);
+              }
           }
       });
     }
@@ -613,6 +625,9 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [originTitle, setOriginTitle] = useState<string>('');
   const [destinationTitle, setDestinationTitle] = useState<string>('');
   
+  
+  const [commerceDefaultCoords, setCommerceDefaultCoords] = useState<[number, number] | undefined>(undefined);
+  const [commerceDefaultTitle, setCommerceDefaultTitle] = useState<string>('');
   
   const [menuPos, setMenuPos] = useState<{top?: number, bottom?: number, left: number} | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -928,12 +943,44 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                   price = price * 1.20;
              }
         }
+
+        // Apply Dynamic Pricing Rules
+        let appliedRule = null;
+        if (dynamicRules.length > 0) {
+            const now = new Date();
+            const daysMap = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
+            const currentDay = daysMap[now.getDay()];
+            const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+            // Find applicable rule with highest priority (or just first match)
+            for (const rule of dynamicRules) {
+                if (!rule.dias_semana || !rule.dias_semana.includes(currentDay)) continue;
+
+                const [startH, startM] = (rule.hora_inicio || '00:00').split(':').map(Number);
+                const [endH, endM] = (rule.hora_fim || '23:59').split(':').map(Number);
+                
+                const startMinutes = startH * 60 + startM;
+                const endMinutes = endH * 60 + endM;
+
+                if (currentMinutes >= startMinutes && currentMinutes <= endMinutes) {
+                    // Rule matches
+                    if (rule.tipo_acrescimo === 'percentual') {
+                        price += price * (rule.valor_acrescimo / 100);
+                    } else {
+                        price += rule.valor_acrescimo;
+                    }
+                    appliedRule = rule;
+                    break; // Apply only one rule (first match)
+                }
+            }
+        }
+        setActiveDynamicRule(appliedRule);
         
         setQuickPrice(price);
     };
 
     calculatePrice();
-  }, [quickDistance, quickRetorno, pricingMode, selectedTabelaId, pricingTables, pricingRanges, pricePerPoint]);
+  }, [quickDistance, quickRetorno, pricingMode, selectedTabelaId, pricingTables, pricingRanges, pricePerPoint, dynamicRules]);
 
   const handleViewMap = async (pedido: Pedido) => {
     
@@ -965,16 +1012,22 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       }
     } else {
         
-        const cliente = clientes.find(c => c.id === pedido.cliente_id);
-        if (cliente) {
-             const address = [cliente.rua, cliente.numero, cliente.bairro, cliente.cidade].filter(Boolean).join(', ');
-             if (address) {
-                 setOriginTitle(cliente.nome_completo);
-                 const coords = await getCoordsFromAddress(address);
-                 if (coords && isValidCoords(coords)) {
-                    setOriginCoords(coords);
+        // If is commerce and has default coords, use them directly
+        if (isComercio && commerceDefaultCoords) {
+             setOriginTitle(commerceDefaultTitle);
+             setOriginCoords(commerceDefaultCoords);
+        } else {
+            const cliente = clientes.find(c => c.id === pedido.cliente_id);
+            if (cliente) {
+                 const address = [cliente.rua, cliente.numero, cliente.bairro, cliente.cidade].filter(Boolean).join(', ');
+                 if (address) {
+                     setOriginTitle(cliente.nome_completo);
+                     const coords = await getCoordsFromAddress(address);
+                     if (coords && isValidCoords(coords)) {
+                        setOriginCoords(coords);
+                     }
                  }
-             }
+            }
         }
     }
 
@@ -1758,6 +1811,17 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                             className="w-full pl-8 pr-3 py-2 border border-slate-200 bg-slate-50 rounded text-slate-600 font-bold outline-none cursor-not-allowed"
                         />
                     </div>
+                    {activeDynamicRule && (
+                        <div className="text-xs text-amber-600 font-bold mt-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1">
+                            <span>⚡</span>
+                            <span>{activeDynamicRule.nome}:</span>
+                            <span>
+                                {activeDynamicRule.tipo_acrescimo === 'percentual' 
+                                    ? `+${activeDynamicRule.valor_acrescimo}%` 
+                                    : `+R$ ${activeDynamicRule.valor_acrescimo.toFixed(2)}`}
+                            </span>
+                        </div>
+                    )}
                 </div>
 
                 <div className="md:col-span-4">
@@ -2178,7 +2242,9 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                      <>
                         <button onClick={() => handleEdit(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2"><Edit size={16}/> Editar</button>
                         <button onClick={() => handleDetails(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2"><FileText size={16}/> Detalhes</button>
+                        {(!isComercio || allowPedidoPronto) && (
                         <button onClick={() => handleSetReady(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2"><CheckSquare size={16}/> Pronto</button>
+                        )}
                         {isAdmin && p.status !== 'entregue' && p.status !== 'cancelado' && (
                           <button
                             onClick={() => handleFinalizePedido(p)}

@@ -96,6 +96,17 @@ function App() {
     }
   }, [userRole]);
 
+  useEffect(() => {
+    if (activeMenu) {
+      localStorage.setItem('last_active_menu', activeMenu);
+    }
+    if (menuParams) {
+      localStorage.setItem('last_menu_params', JSON.stringify(menuParams));
+    } else {
+      localStorage.removeItem('last_menu_params');
+    }
+  }, [activeMenu, menuParams]);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setAuthenticated(false);
@@ -111,12 +122,28 @@ function App() {
           localStorage.removeItem(k);
         }
       }
+      localStorage.removeItem('last_active_menu');
+      localStorage.removeItem('last_menu_params');
     } catch (e) { void e; }
     window.location.href = '/';
   };
 
   const resolveRole = async (uid: string, emailRaw: string) => {
     setUserId(uid);
+
+    const setInitialMenu = (defaultMenu: string) => {
+      const persisted = localStorage.getItem('last_active_menu');
+      if (persisted) {
+        setActiveMenu(persisted);
+        const params = localStorage.getItem('last_menu_params');
+        if (params) {
+          try { setMenuParams(JSON.parse(params)); } catch (e) {}
+        }
+      } else {
+        setActiveMenu(defaultMenu);
+      }
+    };
+
     if (roleResolvedRef.current && resolvedUidRef.current === uid) return;
     const email = (emailRaw || '').trim().toLowerCase();
 
@@ -125,6 +152,7 @@ function App() {
 
     if (role === 'admin' || role === 'operador') {
       setUserRole('operador');
+      setInitialMenu('operations');
       roleResolvedRef.current = true;
       resolvedUidRef.current = uid;
       try { localStorage.removeItem('cliente_context'); localStorage.removeItem('entregador_context'); } catch (e) { void e; }
@@ -135,7 +163,7 @@ function App() {
       const { data: c } = await supabase.from('clientes').select('id, nome_completo').ilike('email', email).maybeSingle();
       if ((c as { id?: string } | null)?.id) {
         setUserRole('cliente');
-        setActiveMenu('pedidos');
+        setInitialMenu('pedidos');
         roleResolvedRef.current = true;
         resolvedUidRef.current = uid;
         try {
@@ -154,7 +182,7 @@ function App() {
         setAccountPending(eStatus !== 'ativo');
         
         setUserRole('entregador');
-        setActiveMenu('home_entregador');
+        setInitialMenu('home_entregador');
         roleResolvedRef.current = true;
         resolvedUidRef.current = uid;
         try {
@@ -171,7 +199,7 @@ function App() {
       const nome = userName || email;
       await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown, o?: unknown) => Promise<unknown> } }).from('users').upsert({ id: uid, full_name: nome, email, role: 'cliente' });
       setUserRole('cliente');
-      setActiveMenu('pedidos');
+      setInitialMenu('pedidos');
       roleResolvedRef.current = true;
       resolvedUidRef.current = uid;
       try {
@@ -190,7 +218,7 @@ function App() {
 
       await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown, o?: unknown) => Promise<unknown> } }).from('users').upsert({ id: uid, full_name: nome, email, role: 'entregador' });
       setUserRole('entregador');
-      setActiveMenu('home_entregador'); 
+      setInitialMenu('home_entregador'); 
       roleResolvedRef.current = true;
       resolvedUidRef.current = uid;
       try {
@@ -203,7 +231,7 @@ function App() {
 
     console.warn('Falha ao identificar perfil. Atribuindo papel de entregador por segurança.');
     setUserRole('entregador');
-    setActiveMenu('carteira_extrato');
+    setInitialMenu('carteira_extrato');
     setAccountPending(true);
     roleResolvedRef.current = true;
     resolvedUidRef.current = uid;
@@ -351,8 +379,12 @@ function App() {
       <TopBar
         onMenuToggle={() => setSidebarOpen((v) => !v)}
         onLogout={handleLogout}
+        onNavigate={(menu) => {
+          setActiveMenu(menu);
+          setMenuParams(null);
+        }}
         activeMenu={activeMenu}
-        userRole={userRole}
+        userRole={userRole as 'operador' | 'cliente' | 'entregador'}
         userName={userName}
       />
       <Sidebar

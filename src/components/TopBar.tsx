@@ -1,12 +1,13 @@
 interface TopBarProps {
   onMenuToggle: () => void;
   onLogout: () => void;
+  onNavigate: (menu: string) => void;
   activeMenu: string;
   userRole: 'operador' | 'cliente' | 'entregador';
   userName?: string;
 }
 
-export function TopBar({ onMenuToggle, onLogout, activeMenu, userRole, userName }: TopBarProps) {
+export function TopBar({ onMenuToggle, onLogout, onNavigate, activeMenu, userRole, userName }: TopBarProps) {
   const fallback = (() => {
     if (userRole === 'operador') return 'Administrador';
     if (userRole === 'cliente') return 'Cliente';
@@ -14,6 +15,16 @@ export function TopBar({ onMenuToggle, onLogout, activeMenu, userRole, userName 
     if (typeof activeMenu === 'string' && activeMenu.startsWith('operations')) return 'Administrador';
     return 'usuário';
   })();
+
+  const handleLogoClick = () => {
+    if (userRole === 'operador') {
+      onNavigate('operations');
+    } else if (userRole === 'cliente') {
+      onNavigate('pedidos');
+    } else if (userRole === 'entregador') {
+      onNavigate('home_entregador');
+    }
+  };
   
   return (
     <header className="w-full min-h-[3.5rem] h-auto pt-[env(safe-area-inset-top)] bg-slate-900 text-white flex items-center justify-between px-4 border-b border-slate-800 relative z-40">
@@ -27,11 +38,13 @@ export function TopBar({ onMenuToggle, onLogout, activeMenu, userRole, userName 
           <span className="block w-5 h-0.5 bg-white mb-1" />
           <span className="block w-5 h-0.5 bg-white" />
         </button>
-        <img
-          src={userRole === 'entregador' ? "/iconeentregador.png" : "/Screenshot_20251113_103247-Photoroom.png"}
-          alt="RouteDelivery"
-          className="h-14 md:h-28 object-contain -my-5 relative z-50"
-        />
+        <button onClick={handleLogoClick} className="focus:outline-none">
+          <img
+            src={userRole === 'entregador' ? "/iconeentregador.png" : "/Screenshot_20251113_103247-Photoroom.png"}
+            alt="RouteDelivery"
+            className="h-14 md:h-28 object-contain -my-5 relative z-50 cursor-pointer"
+          />
+        </button>
       </div>
       <div className="flex items-center gap-3">
         <div className="text-sm text-slate-300">{`Olá, ${userName || fallback}`}</div>

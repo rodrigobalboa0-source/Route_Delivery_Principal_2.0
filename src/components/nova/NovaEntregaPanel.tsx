@@ -745,10 +745,18 @@ export function NovaEntregaPanel() {
       return;
     }
 
-    if (isComercio && clientSaldo !== null && clientModoFaturamento !== 'faturamento') {
+    // Get fresh client data to avoid stale state issues
+    const currentClient = clientes.find(c => c.id === form.cliente_id);
+    const mode = (currentClient?.modo_faturamento || '').toLowerCase().trim();
+    // Include all variations of faturamento/pos-pago including accents
+    const isFaturado = mode === 'faturamento' || mode === 'faturado' || mode === 'pos-pago' || mode === 'pós-pago';
+
+    // Check for balance only if NOT in faturamento mode
+    // We use currentClient.saldo_creditos instead of clientSaldo state to be safe
+    if (isComercio && currentClient && currentClient.saldo_creditos !== null && !isFaturado) {
         const total = form.valor_entrega ? parseFloat(form.valor_entrega.replace(',', '.')) : 0;
-        if (!isNaN(total) && total > 0 && clientSaldo < total) {
-             setError(`Saldo insuficiente para realizar esta entrega. Seu saldo: R$ ${clientSaldo.toFixed(2)}. Valor da entrega: R$ ${total.toFixed(2)}.`);
+        if (!isNaN(total) && total > 0 && (currentClient.saldo_creditos || 0) < total) {
+             setError(`Saldo insuficiente para realizar esta entrega. Seu saldo: R$ ${(currentClient.saldo_creditos || 0).toFixed(2)}. Valor da entrega: R$ ${total.toFixed(2)}.`);
              return;
         }
     }
@@ -931,14 +939,22 @@ export function NovaEntregaPanel() {
       if (form.cliente_id && form.valor_entrega) {
          const val = parseFloat(form.valor_entrega.replace(',', '.'));
          if (!isNaN(val) && val > 0) {
-             setClientes(prev => prev.map(c => {
-                 if (c.id === form.cliente_id) {
-                     const novoSaldo = (c.saldo_creditos || 0) - val;
-                     setClientSaldo(novoSaldo); 
-                     return { ...c, saldo_creditos: novoSaldo };
-                 }
-                 return c;
-             }));
+             // Only deduct from balance if not faturado
+             // Re-evaluate mode to be consistent with the check above
+             const currentClient = clientes.find(c => c.id === form.cliente_id);
+             const mode = (currentClient?.modo_faturamento || '').toLowerCase().trim();
+             const isFaturado = mode === 'faturamento' || mode === 'faturado' || mode === 'pos-pago' || mode === 'pós-pago';
+             
+             if (!isFaturado) {
+                 setClientes(prev => prev.map(c => {
+                     if (c.id === form.cliente_id) {
+                         const novoSaldo = (c.saldo_creditos || 0) - val;
+                         setClientSaldo(novoSaldo); 
+                         return { ...c, saldo_creditos: novoSaldo };
+                     }
+                     return c;
+                 }));
+             }
          }
       }
       

@@ -1703,6 +1703,8 @@ export interface Database {
           raio_busca_entregador: number
           tempo_aceite_pedido: number
           permissoes_padrao_cliente: string[] | null
+          permitir_alocar_entregador: boolean
+          permitir_pedido_pronto: boolean
           created_at: string
           updated_at: string
         }
@@ -1714,6 +1716,8 @@ export interface Database {
           raio_busca_entregador?: number
           tempo_aceite_pedido?: number
           permissoes_padrao_cliente?: string[] | null
+          permitir_alocar_entregador?: boolean
+          permitir_pedido_pronto?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -1725,6 +1729,8 @@ export interface Database {
           raio_busca_entregador?: number
           tempo_aceite_pedido?: number
           permissoes_padrao_cliente?: string[] | null
+          permitir_alocar_entregador?: boolean
+          permitir_pedido_pronto?: boolean
           created_at?: string
           updated_at?: string
         }
