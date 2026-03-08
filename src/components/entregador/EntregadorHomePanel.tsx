@@ -353,7 +353,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
              return;
         }
 
-        // Check limit before looking for pool deliveries
+        
         const { data: configData } = await supabase.from('configuracoes_comercio').select('limite_entregas_simultaneas').limit(1).single();
         const limit = configData?.limite_entregas_simultaneas || 10;
         
@@ -365,7 +365,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
             
         const currentActive = count || 0;
         
-        // Lógica de histerese: Se atingir o limite, bloqueia até zerar tudo
+        
         const isLocked = localStorage.getItem('delivery_limit_locked') === 'true';
         let newLockedState = isLocked;
 
@@ -486,7 +486,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
               
                else if (newRecord.status === 'criada' && !newRecord.entregador_id) {
                   
-                   // Check limit
+                   
                    const { data: configData } = await supabase.from('configuracoes_comercio').select('limite_entregas_simultaneas').limit(1).single();
                    const limit = configData?.limite_entregas_simultaneas || 10;
                    const { count } = await supabase
@@ -496,7 +496,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                         .in('status', ['atribuida', 'chegou_coleta', 'em_rota', 'chegou_entrega']);
                    
                    const currentActive = count || 0;
-                   // Lógica de histerese: Se atingir o limite, bloqueia até zerar tudo
+                   
                    const isLocked = localStorage.getItem('delivery_limit_locked') === 'true';
                    let newLockedState = isLocked;
 
@@ -842,88 +842,101 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
       </button>
 
        {incomingDelivery && (
-         <Modal 
-             open={!!incomingDelivery} 
-             onClose={() => {}} 
-             title=""
-             hideFooter={true}
-         >
-            <div className="flex flex-col gap-4 items-center p-4">
-               <div className={`w-20 h-20 rounded-full flex items-center justify-center overflow-hidden border-4 ${incomingDelivery.status === 'criada' ? 'border-sky-100' : 'border-green-100'}`}>
-                    {commerceData?.foto ? (
-                         <img src={commerceData.foto} alt={commerceData.nome} className="w-full h-full object-cover" />
-                    ) : (
-                        <div className={`w-full h-full flex items-center justify-center ${incomingDelivery.status === 'criada' ? 'bg-sky-100 text-sky-600' : 'bg-green-100 text-green-600'}`}>
-                            <Truck size={32} />
-                        </div>
-                    )}
-                </div>
-                
-                <div className="text-center">
-                    {commerceData?.nome && (
-                        <h3 className="text-xl font-bold text-gray-900 mb-1">{commerceData.nome}</h3>
-                    )}
-
-                    {(deliveryDistance !== null || calculatingDistance) && (
-                        <div className="mt-2 bg-gray-50 px-3 py-1 rounded-full inline-block border border-gray-200">
-                             <span className="text-sm text-gray-500 font-medium">Entrega: </span>
-                             {calculatingDistance ? (
-                                 <span className="text-sm font-bold text-slate-400 animate-pulse">Calc...</span>
-                             ) : (
-                                 <span className="text-sm font-bold text-sky-600">{deliveryDistance?.toFixed(1)} km</span>
-                             )}
-                        </div>
-                    )}
-                </div>
-
-                <div className="w-full bg-gray-50 p-3 rounded-lg border border-gray-100 text-sm">
-                    <p className="font-semibold text-gray-700 mb-1">Retirada:</p>
-                    <p className="text-gray-600 mb-2">{incomingDelivery.coleta_endereco_texto}</p>
-                    
-                    <p className="font-semibold text-gray-700 mb-1">Entrega:</p>
-                    <p className="text-gray-600">{incomingDelivery.entrega_endereco_texto}</p>
-
-                    <div className="mt-3 pt-3 border-t border-gray-200 flex flex-col gap-2">
-                        <div className="flex justify-between items-center">
-                             <span className="font-bold text-gray-700">Valor:</span>
-                             <span className="font-bold text-green-600 text-lg">
-                                R$ {(incomingDelivery.valor_entregador ?? incomingDelivery.valor_entrega ?? 0).toFixed(2)}
-                             </span>
-                        </div>
-                        {incomingDelivery.opcionais?.driver_bonuses && Array.isArray(incomingDelivery.opcionais.driver_bonuses) && (
-                            <div className="flex flex-col items-end gap-1">
-                                {incomingDelivery.opcionais.driver_bonuses.map((bonus: any, idx: number) => {
-                                    const isReturn = bonus.description && bonus.description.toLowerCase().includes('retorno');
-                                    return (
-                                    <div key={idx} className="text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-100 flex items-center gap-1">
-                                        <span className="text-[10px] text-green-600 opacity-75">{isReturn ? 'Com retorno' : bonus.description}</span>
+         <div className="fixed inset-0 z-[60] flex flex-col justify-end md:items-center md:justify-center bg-black/40 backdrop-blur-sm">
+            <div className="bg-white w-full md:w-[400px] md:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden pb-8 md:pb-0">
+                <div className="p-4 max-h-[85vh] overflow-y-auto">
+                   <div className="flex flex-col gap-4 items-center">
+                       {/* Header with image and name */}
+                       <div className="flex items-center gap-3 w-full border-b border-slate-100 pb-3">
+                           <div className={`w-12 h-12 min-w-[3rem] rounded-full flex items-center justify-center overflow-hidden border-2 ${incomingDelivery.status === 'criada' ? 'border-sky-100' : 'border-green-100'}`}>
+                                {commerceData?.foto ? (
+                                     <img src={commerceData.foto} alt={commerceData.nome} className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className={`w-full h-full flex items-center justify-center ${incomingDelivery.status === 'criada' ? 'bg-sky-100 text-sky-600' : 'bg-green-100 text-green-600'}`}>
+                                        <Truck size={20} />
                                     </div>
-                                    );
-                                })}
+                                )}
                             </div>
-                        )}
-                    </div>
-                </div>
+                            <div className="flex-1 min-w-0">
+                                {commerceData?.nome && (
+                                    <h3 className="text-lg font-bold text-gray-900 truncate">{commerceData.nome}</h3>
+                                )}
+                                {(deliveryDistance !== null || calculatingDistance) && (
+                                     <div className="flex items-center gap-1">
+                                         <span className="text-xs text-gray-500 font-medium">Distância:</span>
+                                         {calculatingDistance ? (
+                                             <span className="text-xs font-bold text-slate-400 animate-pulse">...</span>
+                                         ) : (
+                                             <span className="text-xs font-bold text-sky-600">{deliveryDistance?.toFixed(1)} km</span>
+                                         )}
+                                     </div>
+                                )}
+                            </div>
+                            <div className="flex flex-col items-end">
+                                <span className="text-[10px] text-gray-500 font-bold uppercase">Valor</span>
+                                <span className="font-bold text-green-600 text-lg leading-none">
+                                    R$ {(incomingDelivery.valor_entregador ?? 0).toFixed(2)}
+                                </span>
+                            </div>
+                       </div>
 
-                <div className="flex gap-3 w-full mt-2">
-                    <button
-                        onClick={handleRecusar}
-                        className="flex-1 bg-red-100 hover:bg-red-200 text-red-700 font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors"
-                    >
-                        <XCircle size={20} />
-                        {incomingDelivery.status === 'criada' ? 'Rejeitar' : 'Recusar'}
-                    </button>
-                    <button
-                        onClick={handleAceitar}
-                        className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-lg shadow-green-200"
-                    >
-                        <CheckCircle size={20} />
-                        {incomingDelivery.status === 'criada' ? 'Pegar Entrega' : 'Aceitar'}
-                    </button>
+                       {/* Addresses */}
+                       <div className="w-full space-y-3">
+                            <div className="flex gap-3">
+                                <div className="flex flex-col items-center gap-1 pt-1">
+                                    <div className="w-2 h-2 rounded-full bg-slate-300"></div>
+                                    <div className="w-0.5 h-full bg-slate-200 min-h-[20px]"></div>
+                                    <div className="w-2 h-2 rounded-full bg-sky-500"></div>
+                                </div>
+                                <div className="flex-1 space-y-3">
+                                    <div>
+                                        <p className="text-[10px] font-bold text-gray-400 uppercase">Retirada</p>
+                                        <p className="text-sm text-gray-700 leading-snug">{incomingDelivery.coleta_endereco_texto}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-bold text-gray-400 uppercase">Entrega</p>
+                                        <p className="text-sm text-gray-700 leading-snug">{incomingDelivery.entrega_endereco_texto}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Bonuses */}
+                            {incomingDelivery.opcionais?.driver_bonuses && Array.isArray(incomingDelivery.opcionais.driver_bonuses) && incomingDelivery.opcionais.driver_bonuses.length > 0 && (
+                                <div className="flex flex-wrap justify-end gap-1 pt-2 border-t border-slate-50">
+                                    {incomingDelivery.opcionais.driver_bonuses.map((bonus: any, idx: number) => {
+                                        const isReturn = bonus.description && bonus.description.toLowerCase().includes('retorno');
+                                        return (
+                                        <div key={idx} className="text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-100 flex items-center gap-1">
+                                            <span className="text-[10px] text-green-600 font-medium">{isReturn ? 'Com retorno' : bonus.description}</span>
+                                        </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                       </div>
+
+                       {/* Actions */}
+                        <div className="flex gap-3 w-full pt-2">
+                            <button
+                                onClick={handleRecusar}
+                                className="flex-1 bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors"
+                            >
+                                <XCircle size={20} />
+                                {incomingDelivery.status === 'criada' ? 'Rejeitar' : 'Recusar'}
+                            </button>
+                            <button
+                                onClick={handleAceitar}
+                                className="flex-[2] bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg shadow-green-200"
+                            >
+                                <CheckCircle size={20} />
+                                {incomingDelivery.status === 'criada' ? 'Pegar Entrega' : 'Aceitar'}
+                            </button>
+                        </div>
+                   </div>
                 </div>
             </div>
-        </Modal>
-      )}
+         </div>
+       )}
     </div>
   );
 }
