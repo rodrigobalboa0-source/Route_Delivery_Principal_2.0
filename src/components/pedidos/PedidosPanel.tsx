@@ -1812,13 +1812,9 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                         />
                     </div>
                     {activeDynamicRule && (
-                        <div className="text-xs text-amber-600 font-bold mt-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1">
-                            <span>⚡</span>
-                            <span>{activeDynamicRule.nome}:</span>
-                            <span>
-                                {activeDynamicRule.tipo_acrescimo === 'percentual' 
-                                    ? `+${activeDynamicRule.valor_acrescimo}%` 
-                                    : `+R$ ${activeDynamicRule.valor_acrescimo.toFixed(2)}`}
+                        <div className="mt-1 animate-in fade-in slide-in-from-top-1">
+                            <span className="block text-xs text-amber-600 font-bold">
+                                {activeDynamicRule.nome}
                             </span>
                         </div>
                     )}
