@@ -75,7 +75,7 @@ import { ComercioFaturamentoPanel } from './components/comercio/ComercioFaturame
 import { EntregadorBottomBar } from './components/entregador/EntregadorBottomBar';
 
 function App() {
-  const [activeMenu, setActiveMenu] = useState('operations');
+  const [activeMenu, setActiveMenu] = useState(() => localStorage.getItem('last_active_menu') || 'operations');
   const [authenticated, setAuthenticated] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userName, setUserName] = useState<string | undefined>(undefined);
@@ -89,6 +89,7 @@ function App() {
   const [accountPending, setAccountPending] = useState(false);
   const [isRecoveryMode, setIsRecoveryMode] = useState(false);
   const [showPendingWithdrawalsModal, setShowPendingWithdrawalsModal] = useState(false);
+  const isMenuRestored = useRef(false);
 
   useEffect(() => {
     if (userRole === 'operador') {
@@ -97,12 +98,12 @@ function App() {
   }, [userRole]);
 
   useEffect(() => {
-    if (activeMenu) {
+    if (activeMenu && isMenuRestored.current) {
       localStorage.setItem('last_active_menu', activeMenu);
     }
-    if (menuParams) {
+    if (menuParams && isMenuRestored.current) {
       localStorage.setItem('last_menu_params', JSON.stringify(menuParams));
-    } else {
+    } else if (isMenuRestored.current) {
       localStorage.removeItem('last_menu_params');
     }
   }, [activeMenu, menuParams]);
@@ -131,17 +132,58 @@ function App() {
   const resolveRole = async (uid: string, emailRaw: string) => {
     setUserId(uid);
 
-    const setInitialMenu = (defaultMenu: string) => {
+    const setInitialMenu = (resolvedRole: string, defaultMenu: string) => {
       const persisted = localStorage.getItem('last_active_menu');
+      console.log('Resolving Initial Menu. Role:', resolvedRole, 'Default:', defaultMenu, 'Persisted:', persisted);
+      
       if (persisted) {
-        setActiveMenu(persisted);
-        const params = localStorage.getItem('last_menu_params');
-        if (params) {
-          try { setMenuParams(JSON.parse(params)); } catch (e) {}
+        const isValidForRole = (role: string, menu: string) => {
+          if (role === 'operador' || role === 'admin') return true;
+          
+          if (role === 'cliente') {
+             
+             const allowed = [
+               'pedidos', 'financeiro_dashboard', 'financeiro_contas_receber', 
+               'financeiro_contas_pagar', 'financeiro_emissao_notas', 
+               'financeiro_emissao_recibos', 'financeiro_credito_clientes', 
+               'relatorios_entregas', 'relatorios_notas_fiscais', 
+               'config_comercio', 'config_customizacao', 'config_acesso', 
+               'config_fiscal', 'config_integracoes_externas', 
+               'config_integracoes_open_delivery', 'config_integracao_ifood', 
+               'config_integracao_cardapioweb', 'config_integracao_ze_delivery', 
+               'config_operacao', 'comercio_notificacoes', 'comercio_creditos', 
+               'comercio_faturamento'
+             ];
+             return allowed.includes(menu) || menu.startsWith('mensagens');
+          }
+          
+          if (role === 'entregador') {
+             const allowed = [
+               'home_entregador', 'entregas_disponiveis', 'entregas_andamento', 
+               'entregas_promocoes', 'carteira_extrato', 'conta_minha_conta', 
+               'conta_ranking', 'conta_historico', 'conta_notificacoes'
+             ];
+             return allowed.includes(menu) || menu.startsWith('mensagens');
+          }
+          return false;
+        };
+
+        if (persisted && isValidForRole(resolvedRole, persisted)) {
+           console.log('Restoring menu:', persisted);
+           setActiveMenu(persisted);
+           const params = localStorage.getItem('last_menu_params');
+           if (params) {
+             try { setMenuParams(JSON.parse(params)); } catch (e) {}
+           }
+        } else {
+           console.log('Falling back to default:', defaultMenu);
+           setActiveMenu(defaultMenu);
         }
       } else {
+        console.log('No persisted menu. Using default:', defaultMenu);
         setActiveMenu(defaultMenu);
       }
+      isMenuRestored.current = true;
     };
 
     if (roleResolvedRef.current && resolvedUidRef.current === uid) return;
@@ -152,7 +194,7 @@ function App() {
 
     if (role === 'admin' || role === 'operador') {
       setUserRole('operador');
-      setInitialMenu('operations');
+      setInitialMenu('operador', 'operations');
       roleResolvedRef.current = true;
       resolvedUidRef.current = uid;
       try { localStorage.removeItem('cliente_context'); localStorage.removeItem('entregador_context'); } catch (e) { void e; }
@@ -163,7 +205,7 @@ function App() {
       const { data: c } = await supabase.from('clientes').select('id, nome_completo').ilike('email', email).maybeSingle();
       if ((c as { id?: string } | null)?.id) {
         setUserRole('cliente');
-        setInitialMenu('pedidos');
+        setInitialMenu('cliente', 'pedidos');
         roleResolvedRef.current = true;
         resolvedUidRef.current = uid;
         try {
@@ -182,7 +224,7 @@ function App() {
         setAccountPending(eStatus !== 'ativo');
         
         setUserRole('entregador');
-        setInitialMenu('home_entregador');
+        setInitialMenu('entregador', 'home_entregador');
         roleResolvedRef.current = true;
         resolvedUidRef.current = uid;
         try {
@@ -196,10 +238,10 @@ function App() {
 
     const { data: c2 } = await supabase.from('clientes').select('id, nome_completo').ilike('email', email).maybeSingle();
     if ((c2 as { id?: string } | null)?.id) {
-      const nome = userName || email;
+      const nome = (c2 as { nome_completo?: string } | null)?.nome_completo || userName || email;
       await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown, o?: unknown) => Promise<unknown> } }).from('users').upsert({ id: uid, full_name: nome, email, role: 'cliente' });
       setUserRole('cliente');
-      setInitialMenu('pedidos');
+      setInitialMenu('cliente', 'pedidos');
       roleResolvedRef.current = true;
       resolvedUidRef.current = uid;
       try {
@@ -212,13 +254,13 @@ function App() {
 
     const { data: e2 } = await supabase.from('entregadores').select('id, nome_completo, status').ilike('email', email).maybeSingle();
     if ((e2 as { id?: string } | null)?.id) {
-      const nome = userName || email;
+      const nome = (e2 as { nome_completo?: string } | null)?.nome_completo || userName || email;
       const eStatus = (e2 as { status?: string } | null)?.status;
       setAccountPending(eStatus !== 'ativo');
 
       await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown, o?: unknown) => Promise<unknown> } }).from('users').upsert({ id: uid, full_name: nome, email, role: 'entregador' });
       setUserRole('entregador');
-      setInitialMenu('home_entregador'); 
+      setInitialMenu('entregador', 'home_entregador'); 
       roleResolvedRef.current = true;
       resolvedUidRef.current = uid;
       try {
@@ -231,7 +273,7 @@ function App() {
 
     console.warn('Falha ao identificar perfil. Atribuindo papel de entregador por segurança.');
     setUserRole('entregador');
-    setInitialMenu('carteira_extrato');
+    setInitialMenu('entregador', 'carteira_extrato');
     setAccountPending(true);
     roleResolvedRef.current = true;
     resolvedUidRef.current = uid;

@@ -445,7 +445,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [pricingTables, setPricingTables] = useState<any[]>([]);
   const [pricingRanges, setPricingRanges] = useState<any[]>([]);
   const [dynamicRules, setDynamicRules] = useState<any[]>([]);
-  const [activeDynamicRule, setActiveDynamicRule] = useState<any | null>(null);
+  const [activeDynamicRules, setActiveDynamicRules] = useState<{ name: string; value: number }[]>([]);
   const [clientPricingConfig, setClientPricingConfig] = useState<any[]>([]);
   const [selectedTabelaId, setSelectedTabelaId] = useState<string | null>(null);
   const [pricePerPoint, setPricePerPoint] = useState(0);
@@ -457,7 +457,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         const [tp, tpf, dr] = await Promise.all([
             supabase.from('tabelas_precos').select('*'),
             supabase.from('tabelas_precos_faixas').select('*'),
-            supabase.from('preco_dinamico_demanda').select('*').eq('ativo', true)
+            supabase.from('preco_dinamico_demanda').select('*').eq('ativa', true)
         ]);
         if (tp.data) setPricingTables(tp.data);
         if (tpf.data) setPricingRanges(tpf.data);
@@ -890,11 +890,17 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     return () => clearTimeout(timer);
   }, [quickAddress, quickNumber, originCoords]);
 
-  // Effect to calculate PRICE (Immediate)
+  
   useEffect(() => {
     const calculatePrice = () => {
         const dist = quickDistance;
         
+        if (!dist || dist <= 0) {
+            setQuickPrice(0);
+            setActiveDynamicRules([]);
+            return;
+        }
+
         let price = 0;
         if (pricingMode === 'Fixo') {
             price = pricePerPoint * 2; 
@@ -945,36 +951,27 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         }
 
         // Apply Dynamic Pricing Rules
-        let appliedRule = null;
+        const activeRules: { name: string; value: number }[] = [];
         if (dynamicRules.length > 0) {
-            const now = new Date();
-            const daysMap = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
-            const currentDay = daysMap[now.getDay()];
-            const currentMinutes = now.getHours() * 60 + now.getMinutes();
-
-            // Find applicable rule with highest priority (or just first match)
-            for (const rule of dynamicRules) {
-                if (!rule.dias_semana || !rule.dias_semana.includes(currentDay)) continue;
-
-                const [startH, startM] = (rule.hora_inicio || '00:00').split(':').map(Number);
-                const [endH, endM] = (rule.hora_fim || '23:59').split(':').map(Number);
+            dynamicRules.forEach(rule => {
+                if (!rule.ativa) return;
                 
-                const startMinutes = startH * 60 + startM;
-                const endMinutes = endH * 60 + endM;
-
-                if (currentMinutes >= startMinutes && currentMinutes <= endMinutes) {
-                    // Rule matches
-                    if (rule.tipo_acrescimo === 'percentual') {
-                        price += price * (rule.valor_acrescimo / 100);
-                    } else {
-                        price += rule.valor_acrescimo;
-                    }
-                    appliedRule = rule;
-                    break; // Apply only one rule (first match)
+                let addedValue = 0;
+                if (rule.criterio === 'MULTIPLICADOR' && rule.multiplicador) {
+                   const increase = price * (rule.multiplicador - 1);
+                   addedValue = increase;
+                   price *= rule.multiplicador;
+                } else if (rule.criterio === 'TAXA_FIXA' && rule.multiplicador) {
+                   addedValue = rule.multiplicador;
+                   price += rule.multiplicador;
                 }
-            }
+
+                if (addedValue > 0) {
+                  activeRules.push({ name: rule.nome || 'Regra Dinâmica', value: addedValue });
+                }
+            });
         }
-        setActiveDynamicRule(appliedRule);
+        setActiveDynamicRules(activeRules);
         
         setQuickPrice(price);
     };
@@ -1811,11 +1808,13 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                             className="w-full pl-8 pr-3 py-2 border border-slate-200 bg-slate-50 rounded text-slate-600 font-bold outline-none cursor-not-allowed"
                         />
                     </div>
-                    {activeDynamicRule && (
+                    {activeDynamicRules.length > 0 && (
                         <div className="mt-1 animate-in fade-in slide-in-from-top-1">
-                            <span className="block text-xs text-amber-600 font-bold">
-                                {activeDynamicRule.nome}
-                            </span>
+                            {activeDynamicRules.map((rule, idx) => (
+                                <span key={idx} className="block text-xs text-amber-600 font-bold">
+                                    {rule.name}
+                                </span>
+                            ))}
                         </div>
                     )}
                 </div>
@@ -2119,6 +2118,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                 </th>
                 )}
                 <th className="px-4 py-3">Nº Pedido</th>
+                <th className="px-4 py-3">Comércio</th>
                 <th className="px-4 py-3">Cliente</th>
                 <th className="px-4 py-3">Coleta</th>
                 <th className="px-4 py-3">Entrega</th>
@@ -2156,8 +2156,12 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                                 <div className="text-xs text-slate-400">{format(new Date(p.created_at), 'dd/MM HH:mm')}</div>
                             </td>
                             <td className="px-4 py-3">
-                                <div className="font-medium text-slate-800">{cliente?.nome_completo || 'Cliente Desconhecido'}</div>
+                                <div className="font-medium text-slate-800">{cliente?.nome_completo || 'Comércio Desconhecido'}</div>
                                 <div className="text-xs text-slate-500">{cliente?.telefone}</div>
+                            </td>
+                            <td className="px-4 py-3">
+                                <div className="font-medium text-slate-800">{entrega?.entrega_contato || 'Cliente Desconhecido'}</div>
+                                <div className="text-xs text-slate-500">{entrega?.entrega_telefone}</div>
                             </td>
                             <td className="px-4 py-3 max-w-[200px] truncate" title={getColetaAddress(p)}>
                                 {getColetaAddress(p)}
