@@ -457,11 +457,17 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         const [tp, tpf, dr] = await Promise.all([
             supabase.from('tabelas_precos').select('*'),
             supabase.from('tabelas_precos_faixas').select('*'),
-            supabase.from('preco_dinamico_demanda').select('*').eq('ativa', true)
+            supabase.from('preco_dinamico_demanda').select('*')
         ]);
         if (tp.data) setPricingTables(tp.data);
         if (tpf.data) setPricingRanges(tpf.data);
-        if (dr.data) setDynamicRules(dr.data);
+        if (dr.data) {
+            setDynamicRules(dr.data);
+            
+        }
+        if (dr.error) {
+            console.error('Error fetching dynamic rules:', dr.error);
+        }
     };
     fetchPricing();
 
@@ -891,93 +897,98 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   }, [quickAddress, quickNumber, originCoords]);
 
   
-  useEffect(() => {
-    const calculatePrice = () => {
-        const dist = quickDistance;
-        
-        if (!dist || dist <= 0) {
-            setQuickPrice(0);
-            setActiveDynamicRules([]);
-            return;
-        }
+    useEffect(() => {
+        // Filter active rules first
+        const activeRules = dynamicRules.filter(r => r.ativa);
 
-        let price = 0;
-        if (pricingMode === 'Fixo') {
-            price = pricePerPoint * 2; 
-        } else if (pricingMode === 'Zerar') {
-            price = 0;
-        } else if (pricingMode === 'Distância' && selectedTabelaId) {
-             const tabela = pricingTables.find(t => t.id === selectedTabelaId);
-             if (tabela) {
-                 
-                 const ranges = pricingRanges.filter(f => f.tabela_id === selectedTabelaId).sort((a,b) => a.km_ate - b.km_ate);
-                 const faixa = ranges.find(f => f.km_ate >= dist);
-                 
-                 if (faixa) {
-                     price = faixa.valor;
-                 } else {
+        // Prepare initial active rules list (for display when no price calculated)
+        const currentActiveRules = activeRules.map(rule => ({
+            name: rule.nome || 'Regra Dinâmica',
+            value: 0
+        }));
+
+        const calculatePrice = () => {
+            const dist = quickDistance;
+            
+            // If no distance, show active rules but zero price
+            if (!dist || dist <= 0) {
+                setQuickPrice(0);
+                setActiveDynamicRules(currentActiveRules);
+                return;
+            }
+
+            let price = 0;
+            // Base price calculation
+            if (pricingMode === 'Fixo') {
+                price = pricePerPoint * 2; 
+            } else if (pricingMode === 'Zerar') {
+                price = 0;
+            } else if (pricingMode === 'Distância' && selectedTabelaId) {
+                 const tabela = pricingTables.find(t => t.id === selectedTabelaId);
+                 if (tabela) {
+                     const ranges = pricingRanges.filter(f => f.tabela_id === selectedTabelaId).sort((a,b) => a.km_ate - b.km_ate);
+                     const faixa = ranges.find(f => f.km_ate >= dist);
                      
-                     const lastFaixa = ranges[ranges.length - 1];
-                     if (lastFaixa) {
-                         const extraKm = dist - lastFaixa.km_ate;
-                         price = lastFaixa.valor + (extraKm * (tabela.km_adicional || 0));
+                     if (faixa) {
+                         price = faixa.valor;
+                     } else {
+                         const lastFaixa = ranges[ranges.length - 1];
+                         if (lastFaixa) {
+                             const extraKm = dist - lastFaixa.km_ate;
+                             price = lastFaixa.valor + (extraKm * (tabela.km_adicional || 0));
+                         }
                      }
+                     if (tabela.valor_minimo && price < tabela.valor_minimo) price = tabela.valor_minimo;
                  }
-                 if (tabela.valor_minimo && price < tabela.valor_minimo) price = tabela.valor_minimo;
-             }
-        }
-        
-        if (quickRetorno) {
-             const tabela = pricingTables.find(t => String(t.id) === String(selectedTabelaId));
-             let applied = false;
-             
-             if (tabela) {
-                  const valorRetorno = Number(tabela.valor_retorno);
-                  
-                  if (!isNaN(valorRetorno) && valorRetorno > 0) {
-                      const tipo = (tabela.tipo_retorno || '').trim().toLowerCase();
-                      if (tipo === 'percentual' || tipo === 'porcentagem') {
-                          price += price * (valorRetorno / 100);
-                      } else {
-                          price += valorRetorno;
+            }
+            
+            // Return trip calculation
+            if (quickRetorno) {
+                 const tabela = pricingTables.find(t => String(t.id) === String(selectedTabelaId));
+                 let applied = false;
+                 if (tabela) {
+                      const valorRetorno = Number(tabela.valor_retorno);
+                      if (!isNaN(valorRetorno) && valorRetorno > 0) {
+                          const tipo = (tabela.tipo_retorno || '').trim().toLowerCase();
+                          if (tipo === 'percentual' || tipo === 'porcentagem') {
+                              price += price * (valorRetorno / 100);
+                          } else {
+                              price += valorRetorno;
+                          }
+                          applied = true;
                       }
-                      applied = true;
-                  }
-             }
-             
-             if (!applied) {
-                  price = price * 1.20;
-             }
-        }
+                 }
+                 if (!applied) {
+                      price = price * 1.20;
+                 }
+            }
 
-        // Apply Dynamic Pricing Rules
-        const activeRules: { name: string; value: number }[] = [];
-        if (dynamicRules.length > 0) {
-            dynamicRules.forEach(rule => {
-                if (!rule.ativa) return;
-                
-                let addedValue = 0;
-                if (rule.criterio === 'MULTIPLICADOR' && rule.multiplicador) {
-                   const increase = price * (rule.multiplicador - 1);
-                   addedValue = increase;
-                   price *= rule.multiplicador;
-                } else if (rule.criterio === 'TAXA_FIXA' && rule.multiplicador) {
-                   addedValue = rule.multiplicador;
-                   price += rule.multiplicador;
-                }
-
-                if (addedValue > 0) {
-                  activeRules.push({ name: rule.nome || 'Regra Dinâmica', value: addedValue });
-                }
-            });
-        }
-        setActiveDynamicRules(activeRules);
-        
-        setQuickPrice(price);
-    };
-
-    calculatePrice();
-  }, [quickDistance, quickRetorno, pricingMode, selectedTabelaId, pricingTables, pricingRanges, pricePerPoint, dynamicRules]);
+            // Apply Dynamic Pricing Rules
+            const calculatedActiveRules: { name: string; value: number }[] = [];
+            if (activeRules.length > 0) {
+                activeRules.forEach(rule => {
+                    let addedValue = 0;
+                    const criterio = (rule.criterio || '').toUpperCase();
+                    
+                    if (criterio === 'MULTIPLICADOR' && rule.multiplicador) {
+                       const increase = price * (rule.multiplicador - 1);
+                       addedValue = increase;
+                       price *= rule.multiplicador;
+                    } else if (criterio === 'TAXA_FIXA' && rule.multiplicador) {
+                       addedValue = rule.multiplicador;
+                       price += rule.multiplicador;
+                    }
+    
+                    calculatedActiveRules.push({ name: rule.nome || 'Regra Dinâmica', value: addedValue });
+                });
+            }
+            
+            setActiveDynamicRules(calculatedActiveRules);
+            setQuickPrice(price);
+        };
+    
+        calculatePrice();
+      }, [quickDistance, quickRetorno, pricingMode, selectedTabelaId, pricingTables, pricingRanges, pricePerPoint, dynamicRules]);
 
   const handleViewMap = async (pedido: Pedido) => {
     
@@ -1809,9 +1820,9 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                         />
                     </div>
                     {activeDynamicRules.length > 0 && (
-                        <div className="mt-1 animate-in fade-in slide-in-from-top-1">
+                        <div className="mt-1">
                             {activeDynamicRules.map((rule, idx) => (
-                                <span key={idx} className="block text-xs text-amber-600 font-bold">
+                                <span key={idx} className="text-[10px] text-amber-600 font-bold block">
                                     {rule.name}
                                 </span>
                             ))}

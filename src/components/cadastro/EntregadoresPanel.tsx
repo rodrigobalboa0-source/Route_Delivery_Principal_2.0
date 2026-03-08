@@ -168,8 +168,46 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
     let list = (data || []) as Entregador[];
 
     
-    
-    setEntregadores(list);
+    try {
+      const { data: usersData } = await supabase.from('users').select('*').eq('role', 'entregador');
+      if (usersData) {
+        const existingIds = new Set(list.map(e => e.id));
+        const missingUsers = usersData.filter(u => !existingIds.has(u.id));
+        
+        if (missingUsers.length > 0) {
+          const placeholders = missingUsers.map(u => ({
+            id: u.id,
+            nome_completo: u.full_name || u.email?.split('@')[0] || 'Entregador sem nome',
+            email: u.email,
+            status: 'em_analise', 
+            created_at: u.created_at || new Date().toISOString(),
+            cnh_valida: false,
+            tipo_entrega: 'parceiro', 
+            veiculo_tipo: 'moto', 
+          } as unknown as Entregador));
+          
+          list = [...list, ...placeholders];
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching users for sync:', e);
+    }
+
+    const byEmail = new Map<string, Entregador>();
+    for (const e of list) {
+      const key = ((e.email || '').trim().toLowerCase()) || e.id;
+      if (!byEmail.has(key)) byEmail.set(key, e);
+    }
+    let dedup = Array.from(byEmail.values());
+    try {
+      const { data: admins } = await supabase.from('contas_gerenciais').select('email_acesso');
+      const adminSet = new Set((admins || []).map((a: { email_acesso?: string | null }) => (a.email_acesso || '').trim().toLowerCase()));
+      dedup = dedup.filter((e) => !adminSet.has(((e.email || '').trim().toLowerCase())));
+      const { data: usersAdmin } = await (supabase as unknown as { from: (t: string) => { select: (s: string) => { eq: (c: string, v: string) => Promise<{ data?: { email?: string; role?: string }[] }> } } }).from('users').select('email, role').eq('role', 'operador');
+      const opSet = new Set(((usersAdmin || []) as { email?: string; role?: string }[]).map((u) => (u.email || '').trim().toLowerCase()));
+      dedup = dedup.filter((e) => !opSet.has(((e.email || '').trim().toLowerCase())));
+    } catch {}
+    setEntregadores(dedup);
     setLoading(false);
   };
 
