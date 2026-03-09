@@ -842,60 +842,60 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
       </button>
 
        {incomingDelivery && (
-         <div className="fixed inset-0 z-[60] flex flex-col justify-end md:items-center md:justify-center bg-black/40 backdrop-blur-sm">
-            <div className="bg-white w-full md:w-[400px] md:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden pb-8 md:pb-0">
-                <div className="p-4 max-h-[85vh] overflow-y-auto">
-                   <div className="flex flex-col gap-4 items-center">
+         <div className="fixed inset-0 z-[9999] flex flex-col justify-end md:items-center md:justify-center bg-black/50 backdrop-blur-sm p-0 md:p-4">
+            <div className="bg-white w-full md:w-[450px] md:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in slide-in-from-bottom duration-300">
+                <div className="p-5 overflow-y-auto pb-[calc(2rem+env(safe-area-inset-bottom))] md:pb-5">
+                   <div className="flex flex-col gap-5">
                        {/* Header with image and name */}
-                       <div className="flex items-center gap-3 w-full border-b border-slate-100 pb-3">
-                           <div className={`w-12 h-12 min-w-[3rem] rounded-full flex items-center justify-center overflow-hidden border-2 ${incomingDelivery.status === 'criada' ? 'border-sky-100' : 'border-green-100'}`}>
+                       <div className="flex items-center gap-3 w-full border-b border-slate-100 pb-4">
+                           <div className={`w-14 h-14 min-w-[3.5rem] rounded-full flex items-center justify-center overflow-hidden border-2 shadow-sm ${incomingDelivery.status === 'criada' ? 'border-sky-100' : 'border-green-100'}`}>
                                 {commerceData?.foto ? (
                                      <img src={commerceData.foto} alt={commerceData.nome} className="w-full h-full object-cover" />
                                 ) : (
-                                    <div className={`w-full h-full flex items-center justify-center ${incomingDelivery.status === 'criada' ? 'bg-sky-100 text-sky-600' : 'bg-green-100 text-green-600'}`}>
-                                        <Truck size={20} />
+                                    <div className={`w-full h-full flex items-center justify-center ${incomingDelivery.status === 'criada' ? 'bg-sky-50 text-sky-600' : 'bg-green-50 text-green-600'}`}>
+                                        <Truck size={24} />
                                     </div>
                                 )}
                             </div>
                             <div className="flex-1 min-w-0">
                                 {commerceData?.nome && (
-                                    <h3 className="text-lg font-bold text-gray-900 truncate">{commerceData.nome}</h3>
+                                    <h3 className="text-lg font-bold text-slate-800 truncate leading-tight">{commerceData.nome}</h3>
                                 )}
                                 {(deliveryDistance !== null || calculatingDistance) && (
-                                     <div className="flex items-center gap-1">
-                                         <span className="text-xs text-gray-500 font-medium">Distância:</span>
+                                     <div className="flex items-center gap-1 mt-0.5">
+                                         <span className="text-xs text-slate-500 font-medium">Distância:</span>
                                          {calculatingDistance ? (
                                              <span className="text-xs font-bold text-slate-400 animate-pulse">...</span>
                                          ) : (
-                                             <span className="text-xs font-bold text-sky-600">{deliveryDistance?.toFixed(1)} km</span>
+                                             <span className="text-xs font-bold text-sky-600 bg-sky-50 px-1.5 py-0.5 rounded-full">{deliveryDistance?.toFixed(1)} km</span>
                                          )}
                                      </div>
                                 )}
                             </div>
-                            <div className="flex flex-col items-end">
-                                <span className="text-[10px] text-gray-500 font-bold uppercase">Valor</span>
-                                <span className="font-bold text-green-600 text-lg leading-none">
+                            <div className="flex flex-col items-end bg-green-50 px-3 py-1.5 rounded-lg border border-green-100 shadow-sm">
+                                <span className="text-[10px] text-green-700 font-bold uppercase tracking-wide">Você recebe</span>
+                                <span className="font-extrabold text-green-700 text-2xl leading-none">
                                     R$ {(incomingDelivery.valor_entregador ?? 0).toFixed(2)}
                                 </span>
                             </div>
                        </div>
 
                        {/* Addresses */}
-                       <div className="w-full space-y-3">
+                       <div className="w-full space-y-4">
                             <div className="flex gap-3">
-                                <div className="flex flex-col items-center gap-1 pt-1">
-                                    <div className="w-2 h-2 rounded-full bg-slate-300"></div>
-                                    <div className="w-0.5 h-full bg-slate-200 min-h-[20px]"></div>
-                                    <div className="w-2 h-2 rounded-full bg-sky-500"></div>
+                                <div className="flex flex-col items-center gap-1 pt-1.5">
+                                    <div className="w-2.5 h-2.5 rounded-full bg-slate-300 ring-4 ring-slate-50"></div>
+                                    <div className="w-0.5 h-full bg-slate-200 min-h-[30px]"></div>
+                                    <div className="w-2.5 h-2.5 rounded-full bg-sky-500 ring-4 ring-sky-50"></div>
                                 </div>
-                                <div className="flex-1 space-y-3">
+                                <div className="flex-1 space-y-4">
                                     <div>
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase">Retirada</p>
-                                        <p className="text-sm text-gray-700 leading-snug">{incomingDelivery.coleta_endereco_texto}</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Retirada</p>
+                                        <p className="text-sm font-medium text-slate-700 leading-snug">{incomingDelivery.coleta_endereco_texto}</p>
                                     </div>
                                     <div>
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase">Entrega</p>
-                                        <p className="text-sm text-gray-700 leading-snug">{incomingDelivery.entrega_endereco_texto}</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Entrega</p>
+                                        <p className="text-sm font-medium text-slate-700 leading-snug">{incomingDelivery.entrega_endereco_texto}</p>
                                     </div>
                                 </div>
                             </div>

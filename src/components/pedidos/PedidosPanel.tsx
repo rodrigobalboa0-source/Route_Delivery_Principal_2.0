@@ -440,10 +440,13 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [quickComplement, setQuickComplement] = useState('');
   const [quickDistance, setQuickDistance] = useState<number | null>(null);
   const [quickPrice, setQuickPrice] = useState<number>(0);
+  const [quickDriverPrice, setQuickDriverPrice] = useState<number>(0);
   
   
   const [pricingTables, setPricingTables] = useState<any[]>([]);
   const [pricingRanges, setPricingRanges] = useState<any[]>([]);
+  const [commissionTables, setCommissionTables] = useState<any[]>([]);
+  const [commissionRanges, setCommissionRanges] = useState<any[]>([]);
   const [dynamicRules, setDynamicRules] = useState<any[]>([]);
   const [activeDynamicRules, setActiveDynamicRules] = useState<{ name: string; value: number }[]>([]);
   const [clientPricingConfig, setClientPricingConfig] = useState<any[]>([]);
@@ -454,13 +457,17 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   useEffect(() => {
     
     const fetchPricing = async () => {
-        const [tp, tpf, dr] = await Promise.all([
+        const [tp, tpf, dr, tc, tcf] = await Promise.all([
             supabase.from('tabelas_precos').select('*'),
             supabase.from('tabelas_precos_faixas').select('*'),
-            supabase.from('preco_dinamico_demanda').select('*')
+            supabase.from('preco_dinamico_demanda').select('*'),
+            supabase.from('tabelas_comissoes').select('*'),
+            supabase.from('tabelas_comissoes_faixas').select('*')
         ]);
         if (tp.data) setPricingTables(tp.data);
         if (tpf.data) setPricingRanges(tpf.data);
+        if (tc.data) setCommissionTables(tc.data);
+        if (tcf.data) setCommissionRanges(tcf.data);
         if (dr.data) {
             setDynamicRules(dr.data);
             
@@ -985,10 +992,54 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             
             setActiveDynamicRules(calculatedActiveRules);
             setQuickPrice(price);
+
+            // Calculate Driver Commission
+            let driverPrice = 0;
+            const clienteId = filters.cliente_id;
+            
+            if (clienteId && dist && dist > 0) {
+                 const table = commissionTables.find(t => {
+                    let ids = t.cliente_ids;
+                    if (typeof ids === 'string') {
+                        try { const parsed = JSON.parse(ids); if (Array.isArray(parsed)) ids = parsed; } catch (e) {}
+                    }
+                    if (Array.isArray(ids)) {
+                        return ids.some((id: any) => String(id).trim().toLowerCase() === String(clienteId).trim().toLowerCase());
+                    }
+                    return false;
+                 });
+
+                 if (table) {
+                     const ranges = commissionRanges.filter(f => f.tabela_id === table.id).sort((a,b) => a.km_ate - b.km_ate);
+                     const faixa = ranges.find(f => f.km_ate >= dist);
+                     if (faixa) {
+                         driverPrice = faixa.valor;
+                     } else {
+                         const lastFaixa = ranges[ranges.length - 1];
+                         if (lastFaixa) driverPrice = lastFaixa.valor;
+                     }
+                     
+                     // Points logic (quick orders usually have 1 delivery point)
+                     if (table.valor_por_ponto && table.valor_por_ponto > 0) {
+                         driverPrice += table.valor_por_ponto; 
+                     }
+
+                     // Return logic for driver
+                     if (quickRetorno && table.valor_retorno && table.valor_retorno > 0) {
+                          const tipo = (table.tipo_retorno || '').trim().toLowerCase();
+                          if (tipo === 'percentual' || tipo === 'porcentagem') {
+                              driverPrice += driverPrice * (table.valor_retorno / 100);
+                          } else {
+                              driverPrice += table.valor_retorno;
+                          }
+                     }
+                 }
+            }
+            setQuickDriverPrice(driverPrice);
         };
     
         calculatePrice();
-      }, [quickDistance, quickRetorno, pricingMode, selectedTabelaId, pricingTables, pricingRanges, pricePerPoint, dynamicRules]);
+      }, [quickDistance, quickRetorno, pricingMode, selectedTabelaId, pricingTables, pricingRanges, pricePerPoint, dynamicRules, filters.cliente_id, commissionTables, commissionRanges]);
 
   const handleViewMap = async (pedido: Pedido) => {
     
@@ -1659,6 +1710,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                 entrega_complemento: quickComplement,
                 distancia_km: quickDistance,
                 valor_entrega: valorEntrega,
+                valor_entregador: quickDriverPrice,
                 retorno: quickRetorno,
                 atribuicao_modo: 'manual',
                 tipo_cobranca: 'fatura',
