@@ -767,14 +767,13 @@ export function NovaEntregaPanel() {
       return;
     }
 
-    // Get fresh client data to avoid stale state issues
+    
     const currentClient = clientes.find(c => c.id === form.cliente_id);
     const mode = (currentClient?.modo_faturamento || '').toLowerCase().trim();
-    // Include all variations of faturamento/pos-pago including accents
+    
     const isFaturado = mode === 'faturamento' || mode === 'faturado' || mode === 'pos-pago' || mode === 'pós-pago';
 
-    // Check for balance only if NOT in faturamento mode
-    // We use currentClient.saldo_creditos instead of clientSaldo state to be safe
+    
     if (isComercio && currentClient && currentClient.saldo_creditos !== null && !isFaturado) {
         const total = form.valor_entrega ? parseFloat(form.valor_entrega.replace(',', '.')) : 0;
         if (!isNaN(total) && total > 0 && (currentClient.saldo_creditos || 0) < total) {
@@ -881,6 +880,9 @@ export function NovaEntregaPanel() {
       const valorTotal = form.valor_entrega ? Number(form.valor_entrega.replace(',', '.')) : null;
       console.log('Tentando criar pedido para cliente:', form.cliente_id, 'Valor:', valorTotal);
 
+      const faturado = isFaturamentoMode(clientModoFaturamento);
+      const valorTotalParaPedido = faturado ? 0 : ((valorTotal && !isNaN(valorTotal)) ? valorTotal : null);
+
       const { data: pData, error: pError } = await supabase
         .from('pedidos')
         .insert({
@@ -890,7 +892,7 @@ export function NovaEntregaPanel() {
           item_descricao: null,
           endereco_texto: form.entrega_numero ? `${form.entrega_endereco_texto}, ${form.entrega_numero}` : (form.entrega_endereco_texto || null),
           origem: 'manual',
-          valor_total: (valorTotal && !isNaN(valorTotal)) ? valorTotal : null,
+          valor_total: valorTotalParaPedido,
           status: 'criado',
           observacoes: form.observacoes || null,
         })
@@ -906,6 +908,14 @@ export function NovaEntregaPanel() {
       
       console.log('Pedido criado com sucesso:', pData);
       if (pData) pedidoId = pData.id;
+
+      if (faturado && pData?.id && valorTotal && !isNaN(valorTotal)) {
+        try {
+          await supabase.from('pedidos').update({ valor_total: valorTotal }).eq('id', pData.id);
+        } catch (e) {
+          void e;
+        }
+      }
     } catch (err) {
       console.error("Erro ao tentar criar pedido:", err);
       setError("Erro inesperado ao criar pedido. Verifique o console.");
@@ -961,8 +971,7 @@ export function NovaEntregaPanel() {
       if (form.cliente_id && form.valor_entrega) {
          const val = parseFloat(form.valor_entrega.replace(',', '.'));
          if (!isNaN(val) && val > 0) {
-             // Only deduct from balance if not faturado
-             // Re-evaluate mode to be consistent with the check above
+             
              const currentClient = clientes.find(c => c.id === form.cliente_id);
              const mode = (currentClient?.modo_faturamento || '').toLowerCase().trim();
              const isFaturado = mode === 'faturamento' || mode === 'faturado' || mode === 'pos-pago' || mode === 'pós-pago';

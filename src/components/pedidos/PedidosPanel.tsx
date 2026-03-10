@@ -1714,6 +1714,29 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             
             const valorEntrega = quickPrice;
 
+            const normalizeBillingMode = (mode: unknown) => {
+                if (typeof mode !== 'string') return '';
+                return mode
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .toLowerCase()
+                    .trim();
+            };
+
+            const isFaturamentoMode = (mode: unknown) => {
+                const m = normalizeBillingMode(mode);
+                return m === 'faturamento' || m === 'faturado' || m === 'pos-pago' || m === 'pos pago' || m === 'pós-pago' || m === 'pós pago';
+            };
+
+            const { data: clienteBillingData } = await supabase
+                .from('clientes')
+                .select('modo_faturamento')
+                .eq('id', clienteId)
+                .maybeSingle();
+
+            const faturado = isFaturamentoMode(clienteBillingData?.modo_faturamento);
+            const valorTotalPedido = faturado ? 0 : valorEntrega;
+
             
             const { data: pData, error: pError } = await supabase
                 .from('pedidos')
@@ -1721,7 +1744,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                     cliente_id: clienteId,
                     endereco_texto: fullAddress,
                     origem: 'manual',
-                    valor_total: valorEntrega,
+                    valor_total: valorTotalPedido,
                     status: 'criado',
                 observacoes: `Pedido Rápido - Pagamento: ${quickPaymentMethod} - Contato: ${quickContact} ${quickPhone ? `(${quickPhone})` : ''}`
             })
@@ -1752,6 +1775,14 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             });
 
         if (eError) throw eError;
+
+        if (faturado) {
+            try {
+                await supabase.from('pedidos').update({ valor_total: valorEntrega }).eq('id', pData.id);
+            } catch (e) {
+                void e;
+            }
+        }
 
         alert('Pedido criado com sucesso!');
         setQuickAddress('');
