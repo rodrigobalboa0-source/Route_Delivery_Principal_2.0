@@ -234,6 +234,19 @@ export function NovaEntregaPanel() {
   }, [selectedTabelaId]);
 
   useEffect(() => {
+    if (pricingMode === 'Fixo' || pricingMode === 'Zerar') return;
+    if (!tabelasPrecos || tabelasPrecos.length === 0) return;
+
+    const currentValid =
+      selectedTabelaId &&
+      tabelasPrecos.some((t) => String(t.id) === String(selectedTabelaId));
+
+    if (!currentValid) {
+      setSelectedTabelaId(String(tabelasPrecos[0].id));
+    }
+  }, [pricingMode, selectedTabelaId, tabelasPrecos]);
+
+  useEffect(() => {
     const loadComissaoRules = async () => {
         if (!form.cliente_id || tabelasComissoes.length === 0) {
             setFaixasComissoes([]);

@@ -490,6 +490,19 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         .catch(err => console.error('Erro ao buscar cidades do IBGE:', err));
   }, []);
 
+  useEffect(() => {
+    if (pricingMode !== 'Distância') return;
+    if (!pricingTables || pricingTables.length === 0) return;
+
+    const currentValid =
+      selectedTabelaId &&
+      pricingTables.some((t) => String(t.id) === String(selectedTabelaId));
+
+    if (!currentValid) {
+      setSelectedTabelaId(String(pricingTables[0].id));
+    }
+  }, [pricingMode, pricingTables, selectedTabelaId]);
+
   const toggleSelection = (id: string) => {
       const newSet = new Set(selectedIds);
       if (newSet.has(id)) {

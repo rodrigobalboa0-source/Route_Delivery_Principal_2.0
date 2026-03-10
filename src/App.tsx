@@ -4,6 +4,7 @@ import { OperationsDashboard } from './components/OperationsDashboard';
 import { AuthPage } from './components/AuthPage';
 import { AccountUnderAnalysis } from './components/AccountUnderAnalysis';
 import { supabase } from './lib/supabase';
+import { Geolocation } from '@capacitor/geolocation';
 import { TopBar } from './components/TopBar';
 import { ClientesPanel } from './components/cadastro/ClientesPanel';
 import { ContasPanel } from './components/cadastro/ContasPanel';
@@ -90,12 +91,130 @@ function App() {
   const [isRecoveryMode, setIsRecoveryMode] = useState(false);
   const [showPendingWithdrawalsModal, setShowPendingWithdrawalsModal] = useState(false);
   const isMenuRestored = useRef(false);
+  const entregadorHeartbeatOnlineRef = useRef(false);
+  const entregadorHeartbeatInFlightRef = useRef(false);
+  const entregadorLastHeartbeatRef = useRef(0);
+  const entregadorLocationRef = useRef<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
     if (userRole === 'operador') {
       setShowPendingWithdrawalsModal(true);
     }
   }, [userRole]);
+
+  useEffect(() => {
+    if (!authenticated || userRole !== 'entregador') return;
+
+    let watchId: string | null = null;
+    let intervalId: number | null = null;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let canceled = false;
+
+    const start = async () => {
+      let entregadorIdFromContext: string | null = null;
+      try {
+        const raw = localStorage.getItem('entregador_context');
+        const parsed = raw ? (JSON.parse(raw) as { id?: string } | null) : null;
+        entregadorIdFromContext = parsed?.id || null;
+      } catch (e) {
+        void e;
+      }
+
+      if (!entregadorIdFromContext) return;
+
+      try {
+        const { data } = await supabase
+          .from('entregadores')
+          .select('is_online')
+          .eq('id', entregadorIdFromContext)
+          .maybeSingle();
+        if (!canceled) entregadorHeartbeatOnlineRef.current = Boolean((data as { is_online?: boolean } | null)?.is_online);
+      } catch (e) {
+        void e;
+      }
+
+      channel = supabase
+        .channel('entregador_heartbeat_online_status')
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'entregadores',
+            filter: `id=eq.${entregadorIdFromContext}`,
+          },
+          (payload) => {
+            if (payload.new) {
+              entregadorHeartbeatOnlineRef.current = Boolean((payload.new as { is_online?: boolean }).is_online);
+            }
+          }
+        )
+        .subscribe();
+
+      try {
+        let perm = await Geolocation.checkPermissions();
+        if (perm.location !== 'granted') perm = await Geolocation.requestPermissions();
+        if (perm.location === 'granted') {
+          watchId = await Geolocation.watchPosition(
+            {
+              enableHighAccuracy: true,
+              timeout: 10000,
+            },
+            (position) => {
+              if (!position) return;
+              entregadorLocationRef.current = {
+                lat: position.coords.latitude,
+                lng: position.coords.longitude,
+              };
+            }
+          );
+        }
+      } catch (e) {
+        void e;
+      }
+
+      intervalId = window.setInterval(async () => {
+        if (canceled) return;
+        if (!entregadorHeartbeatOnlineRef.current) return;
+        if (entregadorHeartbeatInFlightRef.current) return;
+
+        const now = Date.now();
+        if (now - entregadorLastHeartbeatRef.current < 9000) return;
+
+        entregadorHeartbeatInFlightRef.current = true;
+        try {
+          const payload: Record<string, unknown> = {
+            last_location_update: new Date().toISOString(),
+            is_online: true,
+          };
+
+          const loc = entregadorLocationRef.current;
+          if (loc) {
+            payload.current_latitude = loc.lat;
+            payload.current_longitude = loc.lng;
+          }
+
+          await supabase.from('entregadores').update(payload).eq('id', entregadorIdFromContext);
+          entregadorLastHeartbeatRef.current = now;
+        } catch (e) {
+          void e;
+        } finally {
+          entregadorHeartbeatInFlightRef.current = false;
+        }
+      }, 2000);
+    };
+
+    start();
+
+    return () => {
+      canceled = true;
+      if (intervalId) window.clearInterval(intervalId);
+      if (watchId) {
+        Geolocation.clearWatch({ id: watchId });
+      }
+      if (channel) supabase.removeChannel(channel);
+    };
+  }, [authenticated, userRole]);
 
   useEffect(() => {
     if (activeMenu && isMenuRestored.current) {
