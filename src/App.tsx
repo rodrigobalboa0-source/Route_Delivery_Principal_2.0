@@ -343,7 +343,7 @@ function App() {
   
   if (isComercioRoute && userRole !== 'cliente') {
     // Se estiver logado como admin ou entregador, bloqueia
-    if (userRole === 'operador' || userRole === 'admin' || userRole === 'entregador') {
+    if (userRole === 'operador' || userRole === 'entregador') {
       return (
         <div className="flex flex-col items-center justify-center h-screen bg-slate-100 p-4 text-center">
           <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full">
@@ -417,7 +417,7 @@ function App() {
           setShowPendingWithdrawalsModal(false);
         }}
       />
-      <NotificationManager userId={userId || ''} userRole={userRole} onNavigate={(menu, params) => { setActiveMenu(menu); setMenuParams(params || null); }} />
+      <NotificationManager userId={userId || ''} userRole={userRole} onNavigate={(menu: string, params?: any) => { setActiveMenu(menu); setMenuParams(params || null); }} />
       <TopBar
         onMenuToggle={() => setSidebarOpen((v) => !v)}
         onLogout={handleLogout}
@@ -431,7 +431,7 @@ function App() {
       />
       <Sidebar
         activeMenu={activeMenu}
-        onMenuChange={(menu, params) => {
+        onMenuChange={(menu: string, params?: any) => {
           setActiveMenu(menu);
           setMenuParams(params || null);
           setSidebarOpen(true);

@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { MapView, MapDeliveryPerson } from '../MapView';
 import { MapPin, Truck, Home, Power, CheckCircle, XCircle } from 'lucide-react';
 import { Database } from '../../lib/database.types';
@@ -91,9 +92,10 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                     return;
                 }
                 if (data) {
+                    const d = data as unknown as { nome_completo?: string | null; foto_url?: string | null };
                     setCommerceData({
-                        nome: data.nome_completo,
-                        foto: data.foto_url
+                        nome: d.nome_completo || '',
+                        foto: d.foto_url || null
                     });
                 }
             });
@@ -841,10 +843,10 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
          <span className="text-lg font-bold text-slate-800 leading-none">R$ {ganhos.toFixed(2)}</span>
       </button>
 
-       {incomingDelivery && (
-         <div className="fixed inset-0 z-[9999] flex flex-col justify-end md:items-center md:justify-center bg-black/50 backdrop-blur-sm p-0 md:p-4">
-            <div className="bg-white w-full md:w-[450px] md:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in slide-in-from-bottom duration-300">
-                <div className="p-5 overflow-y-auto pb-[calc(2rem+env(safe-area-inset-bottom))] md:pb-5">
+       {incomingDelivery && createPortal(
+         <div className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" style={{ zIndex: 2147483647 }}>
+            <div className="bg-white w-full max-w-[450px] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in slide-in-from-bottom duration-300">
+                <div className="p-5 overflow-y-auto">
                    <div className="flex flex-col gap-5">
                        {/* Header with image and name */}
                        <div className="flex items-center gap-3 w-full border-b border-slate-100 pb-4">
@@ -936,7 +938,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                 </div>
             </div>
          </div>
-       )}
+       , document.body)}
     </div>
   );
 }

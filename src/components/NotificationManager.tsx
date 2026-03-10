@@ -9,7 +9,7 @@ import { getCoordsFromAddress, getDistanceFromLatLonInKm } from '../utils/geo';
 interface NotificationManagerProps {
   userId: string;
   userRole: string;
-  onNavigate?: (menu: string) => void;
+  onNavigate?: (menu: string, params?: any) => void;
 }
 
 export function NotificationManager({ userId, userRole, onNavigate }: NotificationManagerProps) {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../lib/supabase';
 import type { Database } from '../../lib/database.types';
-import { CreditCard, X } from 'lucide-react';
+import { CreditCard, X, Check, Copy } from 'lucide-react';
 
 type Acerto = any;
 type Entregador = Database['public']['Tables']['entregadores']['Row'];

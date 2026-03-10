@@ -15,6 +15,7 @@ type LeafletMap = {
   setView: (latlng: [number, number], zoom: number) => void;
   addLayer: (layer: any) => void;
   removeLayer: (layer: any) => void;
+  invalidateSize: () => void;
 };
 
 interface MapViewProps {

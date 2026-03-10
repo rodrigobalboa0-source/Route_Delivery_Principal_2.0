@@ -20,6 +20,7 @@ type CSVRow = {
   veiculo_ano?: string
   cnh_valida?: string | boolean
   tipo_entrega?: 'proprio' | 'terceirizado' | 'parceiro' | ''
+  taxa_entrega?: string
   status?: 'ativo' | 'inativo' | 'em_analise' | ''
   cep?: string
   rua?: string
@@ -105,6 +106,7 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
     veiculo_ano: '',
     cnh_valida: false,
     tipo_entrega: '',
+    taxa_entrega: '',
     status: 'em_analise',
     prioridade_busca: false,
     prioridade_tempo: '',

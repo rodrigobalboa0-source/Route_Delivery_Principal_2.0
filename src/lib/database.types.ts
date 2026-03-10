@@ -27,6 +27,7 @@ export interface Database {
           valor_entrega?: number | null
           modal_tipo?: string | null
           created_at: string
+          updated_at: string
         }
         Insert: {
           id?: string
@@ -45,6 +46,7 @@ export interface Database {
           valor_entrega?: number | null
           modal_tipo?: string | null
           created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
@@ -63,6 +65,7 @@ export interface Database {
           valor_entrega?: number | null
           modal_tipo?: string | null
           created_at?: string
+          updated_at?: string
         }
       }
       integracoes_cardapioweb: {
@@ -132,6 +135,38 @@ export interface Database {
           refresh_token?: string | null
           token_expires_at?: string | null
           authorization_code_used?: string | null
+          status?: 'ativo' | 'inativo' | 'erro'
+          last_synced_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      integracoes_ze: {
+        Row: {
+          id: string
+          cliente_id: string
+          merchant_id: string
+          api_key: string | null
+          status: 'ativo' | 'inativo' | 'erro'
+          last_synced_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          cliente_id: string
+          merchant_id: string
+          api_key?: string | null
+          status?: 'ativo' | 'inativo' | 'erro'
+          last_synced_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          cliente_id?: string
+          merchant_id?: string
+          api_key?: string | null
           status?: 'ativo' | 'inativo' | 'erro'
           last_synced_at?: string | null
           created_at?: string
@@ -221,6 +256,38 @@ export interface Database {
           started_at?: string | null
           completed_at?: string | null
           cliente_id?: string | null
+        }
+      }
+      delivery_logs: {
+        Row: {
+          id: string
+          delivery_id: string | null
+          action: string
+          description: string | null
+          old_data: Json | null
+          new_data: Json | null
+          created_at: string
+          created_by: string | null
+        }
+        Insert: {
+          id?: string
+          delivery_id?: string | null
+          action: string
+          description?: string | null
+          old_data?: Json | null
+          new_data?: Json | null
+          created_at?: string
+          created_by?: string | null
+        }
+        Update: {
+          id?: string
+          delivery_id?: string | null
+          action?: string
+          description?: string | null
+          old_data?: Json | null
+          new_data?: Json | null
+          created_at?: string
+          created_by?: string | null
         }
       }
       users: {
@@ -546,6 +613,10 @@ export interface Database {
           data_nascimento: string | null
           telefone: string | null
           email: string | null
+          is_online: boolean
+          current_latitude: number | null
+          current_longitude: number | null
+          last_location_update: string | null
           cep: string | null
           rua: string | null
           numero: string | null
@@ -559,7 +630,7 @@ export interface Database {
           cnh_valida: boolean | null
           tipo_entrega: 'proprio' | 'terceirizado' | 'parceiro' | null
           taxa_entrega: number | null
-          status: 'ativo' | 'inativo'
+          status: 'ativo' | 'inativo' | 'em_analise'
           foto_url: string | null
           foto_base64: string | null
           cnh_foto_url: string | null
@@ -582,6 +653,10 @@ export interface Database {
           data_nascimento?: string | null
           telefone?: string | null
           email?: string | null
+          is_online?: boolean
+          current_latitude?: number | null
+          current_longitude?: number | null
+          last_location_update?: string | null
           cep?: string | null
           rua?: string | null
           numero?: string | null
@@ -595,7 +670,7 @@ export interface Database {
           cnh_valida?: boolean | null
           tipo_entrega?: 'proprio' | 'terceirizado' | 'parceiro' | null
           taxa_entrega?: number | null
-          status?: 'ativo' | 'inativo'
+          status?: 'ativo' | 'inativo' | 'em_analise'
           foto_url?: string | null
           foto_base64?: string | null
           cnh_foto_url?: string | null
@@ -606,6 +681,7 @@ export interface Database {
           documento_veiculo_base64?: string | null
           restricao_clientes_modo?: 'todos' | 'selecionados' | null
           clientes_permitidos?: Json | null
+          dados_bancarios?: Json | null
           created_at?: string
           updated_at?: string
         }
@@ -617,6 +693,10 @@ export interface Database {
           data_nascimento?: string | null
           telefone?: string | null
           email?: string | null
+          is_online?: boolean
+          current_latitude?: number | null
+          current_longitude?: number | null
+          last_location_update?: string | null
           cep?: string | null
           rua?: string | null
           numero?: string | null
@@ -630,7 +710,7 @@ export interface Database {
           cnh_valida?: boolean | null
           tipo_entrega?: 'proprio' | 'terceirizado' | 'parceiro' | null
           taxa_entrega?: number | null
-          status?: 'ativo' | 'inativo'
+          status?: 'ativo' | 'inativo' | 'em_analise'
           foto_url?: string | null
           foto_base64?: string | null
           cnh_foto_url?: string | null
@@ -639,6 +719,7 @@ export interface Database {
           comprovante_residencia_base64?: string | null
           restricao_clientes_modo?: 'todos' | 'selecionados' | null
           clientes_permitidos?: Json | null
+          dados_bancarios?: Json | null
           created_at?: string
           updated_at?: string
         }
@@ -1266,6 +1347,7 @@ export interface Database {
           valor_manual: boolean | null
           valor_entrega: number | null
           valor_entregador: number | null
+          valor_mercadoria: number | null
           tipo_cobranca: 'fatura' | 'avista' | 'pix' | 'cartao' | null
           cobrar_destinatario: boolean | null
           coleta_usa_endereco_cadastro: boolean | null
@@ -1556,35 +1638,6 @@ export interface Database {
           valor_corrigido?: number | null
           status?: 'pendente' | 'corrigido' | null
           revisado_em?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-      }
-      creditos_clientes: {
-        Row: {
-          id: string
-          cliente_id: string
-          valor: number | null
-          motivo: string | null
-          status: 'disponivel' | 'utilizado' | 'expirado' | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          cliente_id: string
-          valor?: number | null
-          motivo?: string | null
-          status?: 'disponivel' | 'utilizado' | 'expirado' | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          cliente_id?: string
-          valor?: number | null
-          motivo?: string | null
-          status?: 'disponivel' | 'utilizado' | 'expirado' | null
           created_at?: string
           updated_at?: string
         }

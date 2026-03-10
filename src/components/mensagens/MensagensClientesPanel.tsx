@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import type { Database } from '../../lib/database.types';
 
 type Cliente = { id: string; nome_completo: string };
 type MsgThread = Database['public']['Tables']['conversa_mensagens']['Row'];
@@ -59,7 +60,7 @@ export function MensagensClientesPanel() {
         `)
         .eq('entregador_id', entregadorId)
         .in('status', ['criada', 'atribuida', 'em_rota']);
-      const rows = (data || []) as Array<{ cliente_id: string; clientes: { id: string; nome_completo: string | null } | null }>;
+      const rows = (data || []) as unknown as Array<{ cliente_id: string; clientes: { id: string; nome_completo: string | null } | null }>;
       const seen = new Set<string>();
       const list: Cliente[] = [];
       for (const row of rows) {

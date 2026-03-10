@@ -5,7 +5,9 @@ export class IfoodService {
     console.log('Starting iFood sync (Edge Function)...');
     
     try {
-      const { data, error } = await supabase.functions.invoke('ifood-sync');
+      const { data, error } = await supabase.functions.invoke('ifood-sync', {
+        body: { mode: 'manual' }
+      });
 
       if (error) throw error;
       

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ClientesPanel } from './cadastro/ClientesPanel';
 import { EntregadoresPanel } from './cadastro/EntregadoresPanel';
+import { Capacitor } from '@capacitor/core';
 
 export function Cadastro({ onBack, darkMode = false, initialType }: { onBack?: () => void; darkMode?: boolean; initialType?: 'cliente' | 'entregador' | '' }) {
   const getInitialType = () => {
@@ -14,7 +15,7 @@ export function Cadastro({ onBack, darkMode = false, initialType }: { onBack?: (
   };
 
   const [tipo, setTipo] = useState<'cliente' | 'entregador' | ''>(getInitialType());
-  const isNative = window.Capacitor?.isNativePlatform();
+  const isNative = Capacitor.isNativePlatform();
 
   useEffect(() => {
     if (!isNative && typeof window !== 'undefined') {

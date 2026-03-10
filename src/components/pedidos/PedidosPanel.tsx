@@ -11,6 +11,7 @@ import { IfoodService } from '../../services/ifoodService';
 type Cliente = { 
   id: string; 
   nome_completo: string;
+  telefone?: string | null;
   rua?: string;
   numero?: string;
   bairro?: string;
@@ -127,7 +128,9 @@ function PedidoEditForm({ pedido, entrega, onClose, onSave }: { pedido: Pedido, 
       if (formData.status !== pedido.status) {
          let action = '';
          if (formData.status === 'confirmado') action = 'confirm';
+         if (formData.status === 'em_preparo') action = 'startPreparation';
          if (formData.status === 'pronto') action = 'readyToPickup';
+         if (formData.status === 'cancelado') action = 'requestCancellation';
          
          if (action) {
              supabase.functions.invoke('ifood-update-status', {
@@ -143,7 +146,6 @@ function PedidoEditForm({ pedido, entrega, onClose, onSave }: { pedido: Pedido, 
         let newEntregaStatus = entregaData.status;
         
         
-        if (formData.status === 'em_rota') newEntregaStatus = 'em_rota';
         if (formData.status === 'entregue') newEntregaStatus = 'entregue';
         if (formData.status === 'cancelado') newEntregaStatus = 'cancelada';
 
@@ -439,6 +441,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [quickPhone, setQuickPhone] = useState('');
   const [quickComplement, setQuickComplement] = useState('');
   const [quickDistance, setQuickDistance] = useState<number | null>(null);
+  const [quickDistanceLoading, setQuickDistanceLoading] = useState(false);
   const [quickPrice, setQuickPrice] = useState<number>(0);
   const [quickDriverPrice, setQuickDriverPrice] = useState<number>(0);
   
@@ -877,31 +880,48 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   
   useEffect(() => {
     const calculateDistance = async () => {
-        if (!quickAddress || !originCoords) return;
-        
-        const fullAddress = quickNumber ? `${quickAddress}, ${quickNumber}` : quickAddress;
-        const destCoords = await getCoordsFromAddress(fullAddress);
-        if (destCoords) {
-            
+        if (!quickAddress) return;
+
+        setQuickDistanceLoading(true);
+
+        try {
+            const fullAddress = quickNumber ? `${quickAddress}, ${quickNumber}` : quickAddress;
+
+            let origin = commerceDefaultCoords ?? originCoords;
+            if (!origin && comercioAddress) {
+                const coords = await getCoordsFromAddress(comercioAddress);
+                if (coords) {
+                    origin = coords;
+                    setCommerceDefaultCoords(coords);
+                }
+            }
+
+            if (!origin) return;
+
+            const destCoords = await getCoordsFromAddress(fullAddress);
+            if (!destCoords) return;
+
             const points = [
-                { lat: originCoords[0], lon: originCoords[1] },
+                { lat: origin[0], lon: origin[1] },
                 { lat: destCoords[0], lon: destCoords[1] }
             ];
-            
+
             let dist: number | null = await getDrivingRouteDistance(points);
-            
             if (dist === null) {
-                
-                dist = getDistanceFromLatLonInKm(originCoords[0], originCoords[1], destCoords[0], destCoords[1]);
+                dist = getDistanceFromLatLonInKm(origin[0], origin[1], destCoords[0], destCoords[1]);
             }
-            
-            setQuickDistance(parseFloat(dist.toFixed(2)));
+
+            if (dist !== null && !Number.isNaN(dist) && dist > 0) {
+                setQuickDistance(parseFloat(dist.toFixed(2)));
+            }
+        } finally {
+            setQuickDistanceLoading(false);
         }
     };
     
-    const timer = setTimeout(calculateDistance, 1000);
+    const timer = setTimeout(calculateDistance, 400);
     return () => clearTimeout(timer);
-  }, [quickAddress, quickNumber, originCoords]);
+  }, [quickAddress, quickNumber, originCoords, commerceDefaultCoords, comercioAddress]);
 
   
     useEffect(() => {
@@ -1217,7 +1237,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   }, [isComercio, mapDeliveryPersons, entregasMap]);
 
   const fetchClientes = async () => {
-    const { data, error } = await supabase.from('clientes').select('id, nome_completo, rua, numero, bairro, cidade, cep').order('nome_completo');
+    const { data, error } = await supabase.from('clientes').select('id, nome_completo, telefone, rua, numero, bairro, cidade, cep').order('nome_completo');
     if (error) setError(error.message);
     setClientes(((data || []) as Cliente[]));
   };
@@ -1323,7 +1343,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             valor_total: e.valor_entrega,
             status: (e.status as any) || 'criado', 
             observacoes: e.observacoes,
-            created_at: e.created_at
+            created_at: e.created_at,
+            updated_at: e.updated_at
         }));
 
         const finalPedidos = [...pedidosList, ...syntheticPedidos];
@@ -1404,7 +1425,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
         await runSync();
 
-        interval = setInterval(runSync, 3000);
+        interval = setInterval(runSync, 30000);
       } catch (e) {
         console.error('Erro ao iniciar sincronização iFood automática na tela de pedidos:', e);
       }
@@ -1860,7 +1881,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                 {/* Row 2 */}
                 <div className="md:col-span-4">
                     <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">
-                        Valor Entrega {quickDistance > 0 && <span className="text-sky-600 font-normal">({quickDistance} km)</span>}
+                        Valor Entrega {quickDistance > 0 ? <span className="text-sky-600 font-normal">({quickDistance} km)</span> : quickDistanceLoading ? <span className="text-slate-400 font-normal">(calculando...)</span> : null}
                     </label>
                     <div className="relative">
                         <span className="absolute left-3 top-2.5 text-slate-400 text-sm">R$</span>

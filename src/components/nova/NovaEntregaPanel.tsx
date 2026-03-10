@@ -735,7 +735,7 @@ export function NovaEntregaPanel() {
              }
              
              if (bonus > 0) {
-                 breakdown.push({ description: r.nome || 'Bônus Dinâmico', value: bonus });
+                breakdown.push({ description: r.observacao || 'Bônus Dinâmico', value: bonus });
              }
            }
          });

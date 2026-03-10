@@ -29,7 +29,7 @@ export function MensagensEntregadoresPanel() {
           `)
           .eq('cliente_id', clienteId)
           .in('status', ['criada', 'atribuida', 'em_rota']);
-        const rows = (data || []) as Array<{ entregador_id: string; entregadores: { id: string; nome_completo: string | null } | null }>;
+        const rows = (data || []) as unknown as Array<{ entregador_id: string; entregadores: { id: string; nome_completo: string | null } | null }>;
         const seen = new Set<string>();
         const list: Entregador[] = [];
         for (const row of rows) {

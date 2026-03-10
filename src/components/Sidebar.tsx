@@ -4,7 +4,7 @@ import { APP_VERSION } from '../config';
 
 interface SidebarProps {
   activeMenu: string;
-  onMenuChange: (menu: string) => void;
+  onMenuChange: (menu: string, params?: any) => void;
   isOpen: boolean;
   onClose: () => void;
   userRole: 'operador' | 'cliente' | 'entregador';

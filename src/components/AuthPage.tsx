@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { Cadastro } from './Cadastro';
 import { AccountUnderAnalysis } from './AccountUnderAnalysis';
 import { Lock, Key, Eye, EyeOff, CheckCircle, Mail, ArrowLeft } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
 
 export function AuthPage({ forceResetMode = false, onResetComplete }: { forceResetMode?: boolean; onResetComplete?: () => void }) {
   const [email, setEmail] = useState('');
@@ -21,7 +22,7 @@ export function AuthPage({ forceResetMode = false, onResetComplete }: { forceRes
   const [resetMessage, setResetMessage] = useState('');
   const [accountPending, setAccountPending] = useState(false);
 
-  const isNative = window.Capacitor?.isNativePlatform();
+  const isNative = Capacitor.isNativePlatform();
   const isComercioLogin = typeof window !== 'undefined' && window.location.pathname === '/comercio';
 
   useEffect(() => {

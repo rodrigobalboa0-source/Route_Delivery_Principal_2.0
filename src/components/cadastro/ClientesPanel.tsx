@@ -255,7 +255,7 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
       }
     }
 
-    const primaryAddress = hasEnderecoAtual ? enderecoAtual : (enderecos.length > 0 ? enderecos[0] : {});
+    const primaryAddress: EnderecoInsert | null = hasEnderecoAtual ? enderecoAtual : (enderecos.length > 0 ? enderecos[0] : null);
 
     const res = await sbInsert('clientes', {
       ...(authUserId ? { id: authUserId } : {}),
@@ -277,13 +277,13 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
       franquia: form.franquia || null,
       hub: form.hub || null,
       precificacao_config: form.precificacao_config,
-      cep: primaryAddress.cep || null,
-      rua: primaryAddress.rua || null,
-      numero: primaryAddress.numero || null,
-      complemento: primaryAddress.complemento || null,
-      bairro: primaryAddress.bairro || null,
-      cidade: primaryAddress.cidade || null,
-      referencia_entrega: primaryAddress.referencia_entrega || null,
+      cep: primaryAddress?.cep || null,
+      rua: primaryAddress?.rua || null,
+      numero: primaryAddress?.numero || null,
+      complemento: primaryAddress?.complemento || null,
+      bairro: primaryAddress?.bairro || null,
+      cidade: primaryAddress?.cidade || null,
+      referencia_entrega: primaryAddress?.referencia_entrega || null,
     });
     const r = res as unknown as { data?: { id?: string }; error?: { message?: string } };
     if (r.error?.message) {
@@ -414,13 +414,13 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
         foto_url: form.foto_url,
         foto_base64: form.foto_base64,
         endereco: {
-          cep: primaryAddress.cep,
-          rua: primaryAddress.rua,
-          numero: primaryAddress.numero,
-          complemento: primaryAddress.complemento,
-          bairro: primaryAddress.bairro,
-          cidade: primaryAddress.cidade,
-          referencia_entrega: primaryAddress.referencia_entrega,
+          cep: primaryAddress?.cep,
+          rua: primaryAddress?.rua,
+          numero: primaryAddress?.numero,
+          complemento: primaryAddress?.complemento,
+          bairro: primaryAddress?.bairro,
+          cidade: primaryAddress?.cidade,
+          referencia_entrega: primaryAddress?.referencia_entrega,
         },
       };
       const mergedObs = JSON.stringify({ extras, observacoes: form.observacoes || '' });
@@ -430,7 +430,40 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
         .eq('id', cid);
       void e;
     }
-    setForm({ nome_completo: '', cpf: '', data_nascimento: '', telefone: '', email: '', senha: '', metodo_pagamento_preferido: '', observacoes: '', segmento: '', data_inicio: '', razao_social: '', nome_fantasia: '', cadastro_via: '', tipo_documento: 'cnpj', cnpj: '', lead_por: '', franquia: '', hub: '', foto_url: '', foto_base64: '', precificacao_config: [] });
+    setForm({
+      nome_completo: '',
+      cpf: '',
+      data_nascimento: '',
+      telefone: '',
+      email: '',
+      senha: '',
+      metodo_pagamento_preferido: '',
+      observacoes: '',
+      modo_faturamento: 'credito',
+      faturamento_periodo: 'quinzenal',
+      faturamento_vencimento_dias: '3',
+      faturamento_tipo_cobranca: 'Por Entregas',
+      faturamento_adicional_1: '',
+      faturamento_adicional_2: '',
+      faturamento_cobrar_taxas_sem_entregas: false,
+      faturamento_instrucoes: '',
+      faturamento_observacoes: '',
+      faturamento_emails: [],
+      faturamento_email_input: '',
+      segmento: '',
+      data_inicio: '',
+      razao_social: '',
+      nome_fantasia: '',
+      cadastro_via: '',
+      tipo_documento: 'cnpj',
+      cnpj: '',
+      lead_por: '',
+      franquia: '',
+      hub: '',
+      foto_url: '',
+      foto_base64: '',
+      precificacao_config: [],
+    });
     setFotoFile(null);
     setFotoPreview('');
     setEnderecos([]);
@@ -604,6 +637,7 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
       hub: '',
       foto_url: c.foto_url || '',
       foto_base64: c.foto_base64 || '',
+      nova_senha: '',
       precificacao_config: pConfig,
     });
     

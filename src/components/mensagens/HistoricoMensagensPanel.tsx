@@ -6,11 +6,12 @@ type Msg = Database['public']['Tables']['conversa_mensagens']['Row'];
 type Conversa = Database['public']['Tables']['conversas']['Row'];
 
 interface HistoricoMensagensPanelProps {
+  onNavigate?: (menu: string, params?: any) => void;
   userRole?: 'operador' | 'cliente' | 'entregador' | 'loading';
   userId?: string;
 }
 
-export function HistoricoMensagensPanel({ userRole }: HistoricoMensagensPanelProps) {
+export function HistoricoMensagensPanel({ userRole, onNavigate }: HistoricoMensagensPanelProps) {
   const [threads, setThreads] = useState<Msg[]>([]);
   const [conversas, setConversas] = useState<Record<string, Pick<Conversa, 'id' | 'tipo_alvo' | 'alvo_id'>>>({});
   const [loadingList, setLoadingList] = useState(false);
