@@ -26,6 +26,15 @@ interface AddressSuggestion {
   display_name: string;
 }
 
+function normalizeBillingMode(mode: string | null | undefined) {
+  return (mode || '').toLowerCase().trim();
+}
+
+function isFaturamentoMode(mode: string | null | undefined) {
+  const m = normalizeBillingMode(mode);
+  return m === 'faturamento' || m === 'faturado' || m === 'pos-pago' || m === 'pós-pago' || m === 'pos pago' || m === 'pós pago';
+}
+
 function AddressAutocomplete({ value, onChange, placeholder, containerClassName }: { value: string, onChange: (val: string) => void, placeholder: string, containerClassName?: string }) {
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -1013,7 +1022,7 @@ export function NovaEntregaPanel() {
     <div className="p-6">
       <h2 className="text-lg font-semibold text-slate-900 mb-4">Criar nova entrega</h2>
       
-      {clientSaldo !== null && clientModoFaturamento !== 'faturamento' && (
+      {clientSaldo !== null && !isFaturamentoMode(clientModoFaturamento) && (
           <div className={`mb-4 p-3 rounded-lg border ${
               (form.valor_entrega && parseFloat(form.valor_entrega.replace(',', '.') || '0') > clientSaldo) 
               ? 'bg-red-50 border-red-200 text-red-700' 

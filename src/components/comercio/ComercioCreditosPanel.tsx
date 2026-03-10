@@ -5,6 +5,15 @@ import QRCode from 'qrcode';
 import { generatePixPayload } from '../../lib/pix';
 import { ADMIN_PIX_KEY, ADMIN_PIX_NAME, ADMIN_PIX_CITY } from '../../config/admin';
 
+function normalizeBillingMode(mode: string | null | undefined) {
+  return (mode || '').toLowerCase().trim();
+}
+
+function isFaturamentoMode(mode: string | null | undefined) {
+  const m = normalizeBillingMode(mode);
+  return m === 'faturamento' || m === 'faturado' || m === 'pos-pago' || m === 'pós-pago' || m === 'pos pago' || m === 'pós pago';
+}
+
 export function ComercioCreditosPanel() {
   const [history, setHistory] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
@@ -223,7 +232,7 @@ export function ComercioCreditosPanel() {
         </div>
         
         {}
-        {modoFaturamento !== 'faturamento' && (
+        {!isFaturamentoMode(modoFaturamento) && (
         <button 
           onClick={() => setShowRequestModal(true)}
           className="px-6 py-2.5 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors font-medium shadow-sm hover:shadow flex items-center gap-2"
@@ -281,7 +290,7 @@ export function ComercioCreditosPanel() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        {modoFaturamento !== 'faturamento' && (
+        {!isFaturamentoMode(modoFaturamento) && (
         <div className="bg-gradient-to-br from-sky-500 to-sky-600 p-6 rounded-xl shadow-lg text-white">
             <h2 className="text-sky-100 text-sm font-medium uppercase tracking-wider mb-2">Saldo Disponível</h2>
             <div className="text-4xl font-bold">R$ {saldo.toFixed(2)}</div>
@@ -291,7 +300,7 @@ export function ComercioCreditosPanel() {
         </div>
         )}
 
-        {modoFaturamento !== 'faturamento' && (
+        {!isFaturamentoMode(modoFaturamento) && (
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center">
             <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 bg-green-100 rounded-lg text-green-600">
@@ -310,7 +319,7 @@ export function ComercioCreditosPanel() {
                 <div className="p-2 bg-orange-100 rounded-lg text-orange-600">
                     <ArrowDownLeft size={20} />
                 </div>
-                <span className="text-gray-500 font-medium">{modoFaturamento === 'faturamento' ? 'Total Faturado' : 'Total Utilizado'}</span>
+                <span className="text-gray-500 font-medium">{isFaturamentoMode(modoFaturamento) ? 'Total Faturado' : 'Total Utilizado'}</span>
             </div>
             <div className="text-2xl font-bold text-gray-800">
                 R$ {Math.abs(history.filter(h => h.tipo === 'uso').reduce((acc, curr) => acc + Number(curr.valor), 0)).toFixed(2)}
