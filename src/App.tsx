@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { Sidebar } from './components/Sidebar';
-import { OperationsDashboard } from './components/OperationsDashboard';
 import { AuthPage } from './components/AuthPage';
 import { AccountUnderAnalysis } from './components/AccountUnderAnalysis';
 import { supabase } from './lib/supabase';
@@ -76,7 +75,7 @@ import { ComercioFaturamentoPanel } from './components/comercio/ComercioFaturame
 import { EntregadorBottomBar } from './components/entregador/EntregadorBottomBar';
 
 function App() {
-  const [activeMenu, setActiveMenu] = useState(() => localStorage.getItem('last_active_menu') || 'operations');
+  const [activeMenu, setActiveMenu] = useState(() => localStorage.getItem('last_active_menu') || 'pedidos');
   const [authenticated, setAuthenticated] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userName, setUserName] = useState<string | undefined>(undefined);
@@ -232,7 +231,7 @@ function App() {
     setAuthenticated(false);
     setUserName(undefined);
     setUserRole('loading');
-    setActiveMenu('operations');
+    setActiveMenu('pedidos');
     setAccountPending(false);
     setIsRecoveryMode(false);
     try {
@@ -257,7 +256,7 @@ function App() {
       
       if (persisted) {
         const isValidForRole = (role: string, menu: string) => {
-          if (role === 'operador' || role === 'admin') return true;
+          if (role === 'operador' || role === 'admin') return menu !== 'operations';
           
           if (role === 'cliente') {
              
@@ -313,7 +312,7 @@ function App() {
 
     if (role === 'admin' || role === 'operador') {
       setUserRole('operador');
-      setInitialMenu('operador', 'operations');
+      setInitialMenu('operador', 'pedidos');
       roleResolvedRef.current = true;
       resolvedUidRef.current = uid;
       try { localStorage.removeItem('cliente_context'); localStorage.removeItem('entregador_context'); } catch (e) { void e; }
@@ -544,7 +543,6 @@ function App() {
           setActiveMenu(menu);
           setMenuParams(null);
         }}
-        activeMenu={activeMenu}
         userRole={userRole as 'operador' | 'cliente' | 'entregador'}
         userName={userName}
       />
@@ -571,8 +569,6 @@ function App() {
       />
       <main className={`flex-1 overflow-hidden relative z-0 transition-all duration-200 ${sidebarOpen ? 'pl-56' : 'pl-0'}`}>
         <div className={`h-full overflow-y-auto overflow-x-hidden scrollbar-modern ${userRole === 'entregador' && activeMenu !== 'home_entregador' ? 'pb-32' : 'pb-[env(safe-area-inset-bottom)]'}`}>
-          {activeMenu === 'operations' && <OperationsDashboard />}
-          
           {activeMenu === 'cadastro_clientes' && <ClientesPanel initialEditId={menuParams?.editId} />}
           {activeMenu === 'cadastro_contas' && <ContasPanel />}
           {activeMenu === 'cadastro_entregadores' && <EntregadoresPanel initialEditId={menuParams?.editId} />}

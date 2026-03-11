@@ -11,7 +11,6 @@ export function TrainingOverlay({ open, onClose, goToMenu, userRole }: TrainingO
   type Step = { id: string; title: string; desc: string; menu: string; submenu?: string; preview?: string[]; anchorId?: string };
   const allSteps: Step[] = [
     
-    { id: 'operations', title: 'Menu de Operações', desc: 'Painel em tempo real para acompanhar entregadores e status.', menu: 'Menu de Operações' },
     { id: 'pedidos', title: 'Pedidos • Acompanhamento', desc: 'Acompanhe pedidos e entregadores com filtros e mapa. Selecione um pedido e um entregador para ver a rota e o status.', menu: 'Pedidos', preview: ['Filtrar por status, origem, cliente e período', 'Selecionar pedido e entregador', 'Acompanhar rota e destino no mapa'] },
     { id: 'cadastro_clientes', title: 'Cadastro • Comércio', desc: 'Cadastre e edite informações do comércio e endereços.', menu: 'Cadastro', submenu: 'Comércio', preview: ['Cadastrar comércio', 'Editar dados', 'Gerenciar endereços'] },
     { id: 'cadastro_entregadores', title: 'Cadastro • Entregadores', desc: 'Inclua e edite entregadores para operações.', menu: 'Cadastro', submenu: 'Entregadores', preview: ['Cadastrar entregador', 'Editar perfil', 'Ativar/Inativar'] },

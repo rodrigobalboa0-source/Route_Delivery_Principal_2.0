@@ -1,4 +1,4 @@
-import { Map, Users, Wallet, Truck, Layers, MessageSquare, PlusSquare, FileText, LifeBuoy, PlayCircle, BarChart3, Settings, LayoutDashboard, Bell, Trophy, History, MapPin, Home, Tag } from 'lucide-react';
+import { Users, Wallet, Truck, Layers, MessageSquare, PlusSquare, FileText, LifeBuoy, PlayCircle, BarChart3, Settings, LayoutDashboard, Bell, Trophy, History, MapPin, Home, Tag } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { APP_VERSION } from '../config';
 
@@ -25,7 +25,6 @@ interface SidebarProps {
 export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, onStartTraining, trainingActive, forceOpenGroups, onStartSupport }: SidebarProps) {
   const menuItems = [
     { id: 'home_entregador', label: 'Home', icon: Home },
-    { id: 'operations', label: 'Menu de Operações', icon: Map },
     { id: 'pedidos', label: 'Pedidos', icon: FileText },
     { id: 'cadastro', label: 'Cadastro', icon: Layers },
     { id: 'entregas', label: 'Entregas', icon: Truck },

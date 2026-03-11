@@ -2,23 +2,21 @@ interface TopBarProps {
   onMenuToggle: () => void;
   onLogout: () => void;
   onNavigate: (menu: string) => void;
-  activeMenu: string;
   userRole: 'operador' | 'cliente' | 'entregador';
   userName?: string;
 }
 
-export function TopBar({ onMenuToggle, onLogout, onNavigate, activeMenu, userRole, userName }: TopBarProps) {
+export function TopBar({ onMenuToggle, onLogout, onNavigate, userRole, userName }: TopBarProps) {
   const fallback = (() => {
     if (userRole === 'operador') return 'Administrador';
     if (userRole === 'cliente') return 'Cliente';
     if (userRole === 'entregador') return 'Entregador';
-    if (typeof activeMenu === 'string' && activeMenu.startsWith('operations')) return 'Administrador';
     return 'usuário';
   })();
 
   const handleLogoClick = () => {
     if (userRole === 'operador') {
-      onNavigate('operations');
+      onNavigate('pedidos');
     } else if (userRole === 'cliente') {
       onNavigate('pedidos');
     } else if (userRole === 'entregador') {
