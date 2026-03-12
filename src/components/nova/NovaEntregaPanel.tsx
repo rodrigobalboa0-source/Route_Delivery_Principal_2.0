@@ -880,8 +880,7 @@ export function NovaEntregaPanel() {
       const valorTotal = form.valor_entrega ? Number(form.valor_entrega.replace(',', '.')) : null;
       console.log('Tentando criar pedido para cliente:', form.cliente_id, 'Valor:', valorTotal);
 
-      const faturado = isFaturamentoMode(clientModoFaturamento);
-      const valorTotalParaPedido = faturado ? 0 : ((valorTotal && !isNaN(valorTotal)) ? valorTotal : null);
+      const valorTotalParaPedido = (valorTotal && !isNaN(valorTotal)) ? valorTotal : null;
 
       const { data: pData, error: pError } = await supabase
         .from('pedidos')
@@ -908,14 +907,6 @@ export function NovaEntregaPanel() {
       
       console.log('Pedido criado com sucesso:', pData);
       if (pData) pedidoId = pData.id;
-
-      if (faturado && pData?.id && valorTotal && !isNaN(valorTotal)) {
-        try {
-          await supabase.from('pedidos').update({ valor_total: valorTotal }).eq('id', pData.id);
-        } catch (e) {
-          void e;
-        }
-      }
     } catch (err) {
       console.error("Erro ao tentar criar pedido:", err);
       setError("Erro inesperado ao criar pedido. Verifique o console.");

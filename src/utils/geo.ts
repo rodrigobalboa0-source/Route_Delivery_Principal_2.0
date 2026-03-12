@@ -18,6 +18,25 @@ function deg2rad(deg: number) {
 
 const coordsCache = new Map<string, [number, number]>();
 
+function normalizeAddressKey(address: string) {
+  return address
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+async function fetchWithTimeout(url: string, timeoutMs: number) {
+  const controller = new AbortController();
+  const timeoutId = globalThis.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    globalThis.clearTimeout(timeoutId);
+  }
+}
+
 export async function getCoordsFromAddress(address: string): Promise<[number, number] | undefined> {
     if (!address) return undefined;
     
@@ -27,19 +46,21 @@ export async function getCoordsFromAddress(address: string): Promise<[number, nu
       return [parseFloat(match[1]), parseFloat(match[2])];
     }
 
+    const key = normalizeAddressKey(address);
+    if (!key) return undefined;
+
     
-    if (coordsCache.has(address)) {
-        return coordsCache.get(address);
+    if (coordsCache.has(key)) {
+        return coordsCache.get(key);
     }
 
     try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&countrycodes=br&viewbox=-47.25,-22.70,-46.80,-23.10&bounded=1`, {
-        headers: { 'User-Agent': 'RouteDeliveryApp/1.0' }
-      });
+      const res = await fetchWithTimeout(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&countrycodes=br&viewbox=-47.25,-22.70,-46.80,-23.10&bounded=1`, 12000);
+      if (!res.ok) return undefined;
       const data = await res.json();
       if (data && data[0]) {
         const coords: [number, number] = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
-        coordsCache.set(address, coords);
+        coordsCache.set(key, coords);
         return coords;
       }
     } catch (e) {
@@ -54,7 +75,8 @@ export async function getDrivingRouteDistance(coords: {lat: number, lon: number}
     const coordString = coords.map(c => `${c.lon},${c.lat}`).join(';');
     
     const url = `https://router.project-osrm.org/route/v1/driving/${coordString}?overview=false&alternatives=true&steps=false`;
-    const response = await fetch(url);
+    const response = await fetchWithTimeout(url, 12000);
+    if (!response.ok) return null;
     const data = await response.json();
     
     if (data.code === 'Ok' && data.routes && data.routes.length > 0) {

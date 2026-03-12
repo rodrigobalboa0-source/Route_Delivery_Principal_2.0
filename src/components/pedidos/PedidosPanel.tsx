@@ -444,6 +444,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [quickDistanceLoading, setQuickDistanceLoading] = useState(false);
   const [quickPrice, setQuickPrice] = useState<number>(0);
   const [quickDriverPrice, setQuickDriverPrice] = useState<number>(0);
+  const quickDistanceCalcIdRef = useRef(0);
   
   
   const [pricingTables, setPricingTables] = useState<any[]>([]);
@@ -892,9 +893,15 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
   
   useEffect(() => {
+    const calcId = ++quickDistanceCalcIdRef.current;
     const calculateDistance = async () => {
-        if (!quickAddress) return;
+        if (!quickAddress) {
+            setQuickDistance(null);
+            setQuickDistanceLoading(false);
+            return;
+        }
 
+        setQuickDistance(null);
         setQuickDistanceLoading(true);
 
         try {
@@ -903,6 +910,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             let origin = commerceDefaultCoords ?? originCoords;
             if (!origin && comercioAddress) {
                 const coords = await getCoordsFromAddress(comercioAddress);
+                if (quickDistanceCalcIdRef.current !== calcId) return;
                 if (coords) {
                     origin = coords;
                     setCommerceDefaultCoords(coords);
@@ -912,6 +920,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             if (!origin) return;
 
             const destCoords = await getCoordsFromAddress(fullAddress);
+            if (quickDistanceCalcIdRef.current !== calcId) return;
             if (!destCoords) return;
 
             const points = [
@@ -920,6 +929,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             ];
 
             let dist: number | null = await getDrivingRouteDistance(points);
+            if (quickDistanceCalcIdRef.current !== calcId) return;
             if (dist === null) {
                 dist = getDistanceFromLatLonInKm(origin[0], origin[1], destCoords[0], destCoords[1]);
             }
@@ -927,8 +937,12 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             if (dist !== null && !Number.isNaN(dist) && dist > 0) {
                 setQuickDistance(parseFloat(dist.toFixed(2)));
             }
+        } catch (e) {
+            void e;
         } finally {
-            setQuickDistanceLoading(false);
+            if (quickDistanceCalcIdRef.current === calcId) {
+                setQuickDistanceLoading(false);
+            }
         }
     };
     
@@ -1713,29 +1727,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
             
             const valorEntrega = quickPrice;
-
-            const normalizeBillingMode = (mode: unknown) => {
-                if (typeof mode !== 'string') return '';
-                return mode
-                    .normalize('NFD')
-                    .replace(/[\u0300-\u036f]/g, '')
-                    .toLowerCase()
-                    .trim();
-            };
-
-            const isFaturamentoMode = (mode: unknown) => {
-                const m = normalizeBillingMode(mode);
-                return m === 'faturamento' || m === 'faturado' || m === 'pos-pago' || m === 'pos pago' || m === 'pós-pago' || m === 'pós pago';
-            };
-
-            const { data: clienteBillingData } = await supabase
-                .from('clientes')
-                .select('modo_faturamento')
-                .eq('id', clienteId)
-                .maybeSingle();
-
-            const faturado = isFaturamentoMode(clienteBillingData?.modo_faturamento);
-            const valorTotalPedido = faturado ? 0 : valorEntrega;
+            let createdPedidoId: string | null = null;
 
             
             const { data: pData, error: pError } = await supabase
@@ -1744,7 +1736,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                     cliente_id: clienteId,
                     endereco_texto: fullAddress,
                     origem: 'manual',
-                    valor_total: valorTotalPedido,
+                    valor_total: valorEntrega,
                     status: 'criado',
                 observacoes: `Pedido Rápido - Pagamento: ${quickPaymentMethod} - Contato: ${quickContact} ${quickPhone ? `(${quickPhone})` : ''}`
             })
@@ -1752,6 +1744,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             .single();
 
         if (pError) throw pError;
+        createdPedidoId = pData.id;
 
         
         const { error: eError } = await supabase
@@ -1774,14 +1767,15 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                 cobrar_destinatario: false
             });
 
-        if (eError) throw eError;
-
-        if (faturado) {
-            try {
-                await supabase.from('pedidos').update({ valor_total: valorEntrega }).eq('id', pData.id);
-            } catch (e) {
-                void e;
+        if (eError) {
+            if (createdPedidoId) {
+                try {
+                    await supabase.from('pedidos').delete().eq('id', createdPedidoId);
+                } catch (e) {
+                    void e;
+                }
             }
+            throw eError;
         }
 
         alert('Pedido criado com sucesso!');
