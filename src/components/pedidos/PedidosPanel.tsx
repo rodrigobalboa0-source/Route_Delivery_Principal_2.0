@@ -952,10 +952,10 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
   
     useEffect(() => {
-        // Filter active rules first
+        
         const activeRules = dynamicRules.filter(r => r.ativa);
 
-        // Prepare initial active rules list (for display when no price calculated)
+        
         const currentActiveRules = activeRules.map(rule => ({
             name: rule.nome || 'Regra Dinâmica',
             value: 0
@@ -964,23 +964,32 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         const calculatePrice = () => {
             const dist = quickDistance;
             
-            // If no distance, show active rules but zero price
-            if (!dist || dist <= 0) {
-                setQuickPrice(0);
-                setActiveDynamicRules(currentActiveRules);
-                return;
-            }
-
             let price = 0;
-            // Base price calculation
+            
             if (pricingMode === 'Fixo') {
                 price = pricePerPoint * 2; 
             } else if (pricingMode === 'Zerar') {
                 price = 0;
             } else if (pricingMode === 'Distância' && selectedTabelaId) {
-                 const tabela = pricingTables.find(t => t.id === selectedTabelaId);
+                 const tabela = pricingTables.find(t => String(t.id) === String(selectedTabelaId));
                  if (tabela) {
-                     const ranges = pricingRanges.filter(f => f.tabela_id === selectedTabelaId).sort((a,b) => a.km_ate - b.km_ate);
+                     const ranges = pricingRanges
+                       .filter(f => String(f.tabela_id) === String(selectedTabelaId))
+                       .sort((a,b) => a.km_ate - b.km_ate);
+                     if (!dist || dist <= 0) {
+                         const fallback =
+                            (Number(tabela.valor_minimo) > 0 ? Number(tabela.valor_minimo) : 0) ||
+                            (ranges.length > 0 && Number(ranges[0].valor) > 0 ? Number(ranges[0].valor) : 0);
+
+                         if (quickAddress.trim() && fallback > 0) {
+                             price = fallback;
+                             if (tabela.valor_minimo && price < tabela.valor_minimo) price = tabela.valor_minimo;
+                         } else {
+                             setActiveDynamicRules(currentActiveRules);
+                             return;
+                         }
+                    } else {
+
                      const faixa = ranges.find(f => f.km_ate >= dist);
                      
                      if (faixa) {
@@ -993,10 +1002,11 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                          }
                      }
                      if (tabela.valor_minimo && price < tabela.valor_minimo) price = tabela.valor_minimo;
+                    }
                  }
             }
             
-            // Return trip calculation
+            
             if (quickRetorno) {
                  const tabela = pricingTables.find(t => String(t.id) === String(selectedTabelaId));
                  let applied = false;
@@ -1017,7 +1027,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                  }
             }
 
-            // Apply Dynamic Pricing Rules
+            
             const calculatedActiveRules: { name: string; value: number }[] = [];
             if (activeRules.length > 0) {
                 activeRules.forEach(rule => {
@@ -1040,7 +1050,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             setActiveDynamicRules(calculatedActiveRules);
             setQuickPrice(price);
 
-            // Calculate Driver Commission
+            
             let driverPrice = 0;
             const clienteId = filters.cliente_id;
             
@@ -1066,12 +1076,12 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                          if (lastFaixa) driverPrice = lastFaixa.valor;
                      }
                      
-                     // Points logic (quick orders usually have 1 delivery point)
+                     
                      if (table.valor_por_ponto && table.valor_por_ponto > 0) {
                          driverPrice += table.valor_por_ponto; 
                      }
 
-                     // Return logic for driver
+                     
                      if (quickRetorno && table.valor_retorno && table.valor_retorno > 0) {
                           const tipo = (table.tipo_retorno || '').trim().toLowerCase();
                           if (tipo === 'percentual' || tipo === 'porcentagem') {
@@ -1118,7 +1128,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       }
     } else {
         
-        // If is commerce and has default coords, use them directly
+        
         if (isComercio && commerceDefaultCoords) {
              setOriginTitle(commerceDefaultTitle);
              setOriginCoords(commerceDefaultCoords);

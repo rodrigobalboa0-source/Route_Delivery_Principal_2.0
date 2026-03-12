@@ -55,11 +55,21 @@ export async function getCoordsFromAddress(address: string): Promise<[number, nu
     }
 
     try {
-      const res = await fetchWithTimeout(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&countrycodes=br&viewbox=-47.25,-22.70,-46.80,-23.10&bounded=1`, 12000);
-      if (!res.ok) return undefined;
-      const data = await res.json();
-      if (data && data[0]) {
-        const coords: [number, number] = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+      const boundedUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&countrycodes=br&viewbox=-47.25,-22.70,-46.80,-23.10&bounded=1`;
+      const unboundedUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&countrycodes=br`;
+
+      const tryFetch = async (url: string) => {
+        const res = await fetchWithTimeout(url, 12000);
+        if (!res.ok) return undefined;
+        const data = await res.json();
+        if (data && data[0]) {
+          return [parseFloat(data[0].lat), parseFloat(data[0].lon)] as [number, number];
+        }
+        return undefined;
+      };
+
+      const coords = (await tryFetch(boundedUrl)) ?? (await tryFetch(unboundedUrl));
+      if (coords) {
         coordsCache.set(key, coords);
         return coords;
       }
