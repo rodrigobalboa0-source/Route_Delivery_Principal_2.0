@@ -34,9 +34,11 @@ interface PedidosPanelProps {
 
 interface AddressSuggestion {
   display_name: string;
+  lat?: string;
+  lon?: string;
 }
 
-function AddressAutocomplete({ value, onChange, placeholder, containerClassName }: { value: string, onChange: (val: string) => void, placeholder: string, containerClassName?: string }) {
+function AddressAutocomplete({ value, onChange, placeholder, containerClassName, onSelectCoords }: { value: string, onChange: (val: string) => void, placeholder: string, containerClassName?: string, onSelectCoords?: (coords: [number, number] | undefined) => void }) {
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
@@ -63,7 +65,7 @@ function AddressAutocomplete({ value, onChange, placeholder, containerClassName 
     <div className={`relative ${containerClassName || ''}`}>
       <input
         value={value}
-        onChange={(e) => { onChange(e.target.value); setShowSuggestions(true); }}
+        onChange={(e) => { onSelectCoords?.(undefined); onChange(e.target.value); setShowSuggestions(true); }}
         onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
         placeholder={placeholder}
         className="w-full border rounded p-2"
@@ -74,6 +76,11 @@ function AddressAutocomplete({ value, onChange, placeholder, containerClassName 
             <li key={i} className="px-3 py-2 hover:bg-slate-50 cursor-pointer text-sm text-slate-700"
                 onMouseDown={() => {
                   onChange(s.display_name);
+                  if (onSelectCoords) {
+                    const lat = Number(s.lat);
+                    const lon = Number(s.lon);
+                    onSelectCoords(!Number.isNaN(lat) && !Number.isNaN(lon) ? [lat, lon] : undefined);
+                  }
                   setShowSuggestions(false);
                 }}>
               {s.display_name}
@@ -444,6 +451,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [quickDistanceLoading, setQuickDistanceLoading] = useState(false);
   const [quickPrice, setQuickPrice] = useState<number>(0);
   const [quickDriverPrice, setQuickDriverPrice] = useState<number>(0);
+  const [quickDestinationCoords, setQuickDestinationCoords] = useState<[number, number] | undefined>(undefined);
   const quickDistanceCalcIdRef = useRef(0);
   
   
@@ -919,7 +927,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
             if (!origin) return;
 
-            const destCoords = await getCoordsFromAddress(fullAddress);
+            const destCoords = quickDestinationCoords ?? await getCoordsFromAddress(fullAddress);
             if (quickDistanceCalcIdRef.current !== calcId) return;
             if (!destCoords) return;
 
@@ -948,18 +956,12 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     
     const timer = setTimeout(calculateDistance, 400);
     return () => clearTimeout(timer);
-  }, [quickAddress, quickNumber, originCoords, commerceDefaultCoords, comercioAddress]);
+  }, [quickAddress, quickNumber, originCoords, commerceDefaultCoords, comercioAddress, quickDestinationCoords]);
 
   
     useEffect(() => {
         
         const activeRules = dynamicRules.filter(r => r.ativa);
-
-        
-        const currentActiveRules = activeRules.map(rule => ({
-            name: rule.nome || 'Regra Dinâmica',
-            value: 0
-        }));
 
         const calculatePrice = () => {
             const dist = quickDistance;
@@ -981,27 +983,26 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                             (Number(tabela.valor_minimo) > 0 ? Number(tabela.valor_minimo) : 0) ||
                             (ranges.length > 0 && Number(ranges[0].valor) > 0 ? Number(ranges[0].valor) : 0);
 
-                         if (quickAddress.trim() && fallback > 0) {
+                         if (fallback > 0) {
                              price = fallback;
-                             if (tabela.valor_minimo && price < tabela.valor_minimo) price = tabela.valor_minimo;
-                         } else {
-                             setActiveDynamicRules(currentActiveRules);
-                             return;
+                             const min = Number(tabela.valor_minimo);
+                             if (!isNaN(min) && min > 0 && price < min) price = min;
                          }
                     } else {
 
                      const faixa = ranges.find(f => f.km_ate >= dist);
                      
                      if (faixa) {
-                         price = faixa.valor;
+                         price = Number(faixa.valor);
                      } else {
                          const lastFaixa = ranges[ranges.length - 1];
                          if (lastFaixa) {
-                             const extraKm = dist - lastFaixa.km_ate;
-                             price = lastFaixa.valor + (extraKm * (tabela.km_adicional || 0));
+                             const extraKm = dist - Number(lastFaixa.km_ate);
+                             price = Number(lastFaixa.valor) + (extraKm * Number(tabela.km_adicional || 0));
                          }
                      }
-                     if (tabela.valor_minimo && price < tabela.valor_minimo) price = tabela.valor_minimo;
+                     const min = Number(tabela.valor_minimo);
+                     if (!isNaN(min) && min > 0 && price < min) price = min;
                     }
                  }
             }
@@ -1048,7 +1049,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             }
             
             setActiveDynamicRules(calculatedActiveRules);
-            setQuickPrice(price);
+            setQuickPrice(!isNaN(price) && price > 0 ? price : 0);
 
             
             let driverPrice = 0;
@@ -1070,24 +1071,24 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                      const ranges = commissionRanges.filter(f => f.tabela_id === table.id).sort((a,b) => a.km_ate - b.km_ate);
                      const faixa = ranges.find(f => f.km_ate >= dist);
                      if (faixa) {
-                         driverPrice = faixa.valor;
+                         driverPrice = Number(faixa.valor);
                      } else {
                          const lastFaixa = ranges[ranges.length - 1];
-                         if (lastFaixa) driverPrice = lastFaixa.valor;
+                         if (lastFaixa) driverPrice = Number(lastFaixa.valor);
                      }
                      
                      
                      if (table.valor_por_ponto && table.valor_por_ponto > 0) {
-                         driverPrice += table.valor_por_ponto; 
+                         driverPrice += Number(table.valor_por_ponto); 
                      }
 
                      
                      if (quickRetorno && table.valor_retorno && table.valor_retorno > 0) {
                           const tipo = (table.tipo_retorno || '').trim().toLowerCase();
                           if (tipo === 'percentual' || tipo === 'porcentagem') {
-                              driverPrice += driverPrice * (table.valor_retorno / 100);
+                              driverPrice += driverPrice * (Number(table.valor_retorno) / 100);
                           } else {
-                              driverPrice += table.valor_retorno;
+                              driverPrice += Number(table.valor_retorno);
                           }
                      }
                  }
@@ -1096,7 +1097,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         };
     
         calculatePrice();
-      }, [quickDistance, quickRetorno, pricingMode, selectedTabelaId, pricingTables, pricingRanges, pricePerPoint, dynamicRules, filters.cliente_id, commissionTables, commissionRanges]);
+      }, [quickAddress, quickNumber, quickDistance, quickRetorno, pricingMode, selectedTabelaId, pricingTables, pricingRanges, pricePerPoint, dynamicRules, filters.cliente_id, commissionTables, commissionRanges]);
 
   const handleViewMap = async (pedido: Pedido) => {
     
@@ -1877,6 +1878,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                     <AddressAutocomplete 
                         value={quickAddress}
                         onChange={setQuickAddress}
+                        onSelectCoords={setQuickDestinationCoords}
                         placeholder="Rua, Bairro..."
                         containerClassName="w-full"
                     />

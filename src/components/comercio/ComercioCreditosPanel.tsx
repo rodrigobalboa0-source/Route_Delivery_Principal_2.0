@@ -6,12 +6,18 @@ import { generatePixPayload } from '../../lib/pix';
 import { ADMIN_PIX_KEY, ADMIN_PIX_NAME, ADMIN_PIX_CITY } from '../../config/admin';
 
 function normalizeBillingMode(mode: string | null | undefined) {
-  return (mode || '').toLowerCase().trim();
+  return (mode || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ');
 }
 
 function isFaturamentoMode(mode: string | null | undefined) {
   const m = normalizeBillingMode(mode);
-  return m === 'faturamento' || m === 'faturado' || m === 'pos-pago' || m === 'pós-pago' || m === 'pos pago' || m === 'pós pago';
+  if (!m) return false;
+  return m.includes('fatur') || m.includes('pospago') || m.includes('pos-pago') || m.includes('pos pago');
 }
 
 export function ComercioCreditosPanel() {

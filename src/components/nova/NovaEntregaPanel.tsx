@@ -27,12 +27,36 @@ interface AddressSuggestion {
 }
 
 function normalizeBillingMode(mode: string | null | undefined) {
-  return (mode || '').toLowerCase().trim();
+  return (mode || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ');
 }
 
 function isFaturamentoMode(mode: string | null | undefined) {
   const m = normalizeBillingMode(mode);
-  return m === 'faturamento' || m === 'faturado' || m === 'pos-pago' || m === 'pós-pago' || m === 'pos pago' || m === 'pós pago';
+  if (!m) return false;
+  return m.includes('fatur') || m.includes('pospago') || m.includes('pos-pago') || m.includes('pos pago');
+}
+
+function isClientFaturamento(client: Cliente | null | undefined) {
+  if (!client) return false;
+
+  if (isFaturamentoMode(client.modo_faturamento)) return true;
+
+  if (client.faturamento_periodo) return true;
+  if (client.faturamento_vencimento_dias !== null && client.faturamento_vencimento_dias !== undefined) return true;
+  if (client.faturamento_tipo_cobranca) return true;
+  if (client.faturamento_adicional_1 !== null && client.faturamento_adicional_1 !== undefined) return true;
+  if (client.faturamento_adicional_2 !== null && client.faturamento_adicional_2 !== undefined) return true;
+  if (client.faturamento_cobrar_taxas_sem_entregas !== null && client.faturamento_cobrar_taxas_sem_entregas !== undefined) return true;
+  if (client.faturamento_instrucoes) return true;
+  if (client.faturamento_observacoes) return true;
+  if (client.faturamento_emails && client.faturamento_emails.length > 0) return true;
+
+  return false;
 }
 
 function AddressAutocomplete({ value, onChange, placeholder, containerClassName }: { value: string, onChange: (val: string) => void, placeholder: string, containerClassName?: string }) {
@@ -155,7 +179,6 @@ export function NovaEntregaPanel() {
   const [error, setError] = useState<string | null>(null);
   const [isComercio, setIsComercio] = useState(false);
   const [clientSaldo, setClientSaldo] = useState<number | null>(null);
-  const [clientModoFaturamento, setClientModoFaturamento] = useState<string>('credito');
 
   const [distanciaKm, setDistanciaKm] = useState<string>('');
   const [calculatingDistance, setCalculatingDistance] = useState(false);
@@ -609,7 +632,6 @@ export function NovaEntregaPanel() {
                   finalClientes = [matched];
                   setForm(prev => ({ ...prev, cliente_id: matched.id }));
                   setClientSaldo(matched.saldo_creditos);
-                  setClientModoFaturamento(matched.modo_faturamento || 'credito');
               } else {
                   finalClientes = [];
               }
@@ -769,9 +791,7 @@ export function NovaEntregaPanel() {
 
     
     const currentClient = clientes.find(c => c.id === form.cliente_id);
-    const mode = (currentClient?.modo_faturamento || '').toLowerCase().trim();
-    
-    const isFaturado = mode === 'faturamento' || mode === 'faturado' || mode === 'pos-pago' || mode === 'pós-pago';
+    const isFaturado = isClientFaturamento(currentClient);
 
     
     if (isComercio && currentClient && currentClient.saldo_creditos !== null && !isFaturado) {
@@ -964,8 +984,7 @@ export function NovaEntregaPanel() {
          if (!isNaN(val) && val > 0) {
              
              const currentClient = clientes.find(c => c.id === form.cliente_id);
-             const mode = (currentClient?.modo_faturamento || '').toLowerCase().trim();
-             const isFaturado = mode === 'faturamento' || mode === 'faturado' || mode === 'pos-pago' || mode === 'pós-pago';
+             const isFaturado = isClientFaturamento(currentClient);
              
              if (!isFaturado) {
                  setClientes(prev => prev.map(c => {
@@ -1035,7 +1054,7 @@ export function NovaEntregaPanel() {
     <div className="p-6">
       <h2 className="text-lg font-semibold text-slate-900 mb-4">Criar nova entrega</h2>
       
-      {clientSaldo !== null && !isFaturamentoMode(clientModoFaturamento) && (
+      {clientSaldo !== null && !isClientFaturamento(clientes.find(c => c.id === form.cliente_id)) && (
           <div className={`mb-4 p-3 rounded-lg border ${
               (form.valor_entrega && parseFloat(form.valor_entrega.replace(',', '.') || '0') > clientSaldo) 
               ? 'bg-red-50 border-red-200 text-red-700' 
@@ -1054,7 +1073,6 @@ export function NovaEntregaPanel() {
             setForm({ ...form, cliente_id: val, endereco_id: '' });
             const selected = clientes.find(c => c.id === val);
             setClientSaldo(selected && selected.saldo_creditos !== undefined ? selected.saldo_creditos : null);
-            setClientModoFaturamento(selected && selected.modo_faturamento ? selected.modo_faturamento : 'credito');
           }} className="px-3 py-2 border border-slate-300 rounded">
             <option value="">Cliente</option>
             {clientes.map((c) => (
@@ -1197,7 +1215,7 @@ export function NovaEntregaPanel() {
            </div>
         )}
 
-        {clientSaldo !== null && (
+        {clientSaldo !== null && !isClientFaturamento(clientes.find(c => c.id === form.cliente_id)) && (
             <div className={`mb-4 p-3 rounded-lg border ${
                 (form.valor_entrega && parseFloat(form.valor_entrega.replace(',', '.')) > clientSaldo) 
                 ? 'bg-red-50 border-red-200 text-red-700' 
