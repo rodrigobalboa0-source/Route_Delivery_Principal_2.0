@@ -426,7 +426,6 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [isAdmin, setIsAdmin] = useState(false);
   const [isComercio, setIsComercio] = useState(false);
   const [allowAlocarComercio, setAllowAlocarComercio] = useState(false);
-  const [allowPedidoPronto, setAllowPedidoPronto] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isBulkAllocation, setIsBulkAllocation] = useState(false);
   const [ibgeCities, setIbgeCities] = useState<string[]>([]);
@@ -644,12 +643,9 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       loadUserRole();
       
       
-      supabase.from('configuracoes_comercio').select('permitir_alocar_entregador, permitir_pedido_pronto').maybeSingle().then(({ data }) => {
+      supabase.from('configuracoes_comercio').select('permitir_alocar_entregador').maybeSingle().then(({ data }) => {
           if (data) {
               setAllowAlocarComercio(data.permitir_alocar_entregador);
-              if (data.permitir_pedido_pronto !== undefined) {
-                  setAllowPedidoPronto(data.permitir_pedido_pronto);
-              }
           }
       });
     }
@@ -2376,7 +2372,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                      <>
                         <button onClick={() => handleEdit(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2"><Edit size={16}/> Editar</button>
                         <button onClick={() => handleDetails(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2"><FileText size={16}/> Detalhes</button>
-                        {(!isComercio || allowPedidoPronto) && (
+                        {(isAdmin || isComercio) && (
                         <button onClick={() => handleSetReady(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2"><CheckSquare size={16}/> Pronto</button>
                         )}
                         {isAdmin && p.status !== 'entregue' && p.status !== 'cancelado' && (
