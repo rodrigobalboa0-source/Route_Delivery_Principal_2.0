@@ -796,83 +796,121 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   useEffect(() => {
     if (userId) {
       const loadUserRole = async () => {
-        const { data } = await supabase.from('users').select('role, cliente_id, email').eq('id', userId).single();
-        
-        const isClient = data?.role === 'cliente';
-        
-        if (isClient) {
-            let targetClientId = data?.cliente_id;
-            
-            
-            if (targetClientId || data?.email) {
-                let query = supabase
-                    .from('clientes')
-                    .select('id, nome_completo, rua, numero, bairro, cidade, cep, precificacao_config, telefone');
-                
-                if (targetClientId) {
-                    query = query.eq('id', targetClientId);
-                } else {
-                    query = query.eq('email', data!.email);
-                }
+        const getUserRow = async (id: string) => {
+          try {
+            const { data } = await supabase.from('users').select('role, cliente_id, email').eq('id', id).maybeSingle();
+            return data ?? null;
+          } catch (e) {
+            void e;
+            return null;
+          }
+        };
 
-                const { data: clienteData } = await query.single();
+        const userRow = (await getUserRow(userId)) ?? null;
+        const isClient = userRow?.role === 'cliente' || normalizedUserRole === 'cliente';
 
-                if (clienteData) {
-                    if (!targetClientId) targetClientId = clienteData.id;
-                    
-                    
-                    if (clienteData.precificacao_config) {
-                        setClientPricingConfig(clienteData.precificacao_config as any);
-                        
-                        
-                        const configs = clienteData.precificacao_config as any[];
-                        const config = configs.find((c: any) => c.modal === 'moto') || configs[0];
-                        
-                        if (config) {
-                            setPricingMode(config.tipo_precificacao);
-                            if (config.tipo_precificacao === 'Fixo') {
-                                setPricePerPoint(Number(config.preco_ponto) || 0);
-                            } else if (config.tipo_precificacao === 'Distância') {
-                                setPricePerPoint(0);
-                                if (config.tabela_id) {
-                                    setSelectedTabelaId(config.tabela_id);
-                                }
-                            }
-                        }
-                    }
+        if (!isClient) return;
 
-                    
-                    const addressParts = [
-                        clienteData.rua,
-                        clienteData.numero,
-                        clienteData.bairro,
-                        clienteData.cidade,
-                        clienteData.cep
-                    ].filter(Boolean);
-                    
-                    console.log('Comercio address parts:', addressParts);
+        let targetClientId: string | null = userRow?.cliente_id ?? null;
+        let targetEmail: string | null = (userRow?.email || '').trim() || null;
 
-                    if (addressParts.length > 0) {
-                        const fullAddress = addressParts.join(', ');
-                        setComercioAddress(fullAddress);
-                        getCoordsFromAddress(fullAddress).then(coords => {
-                            console.log('Geocoded coords:', coords);
-                            if (coords) {
-                                setOriginCoords(coords);
-                                setOriginTitle(clienteData.nome_completo || 'Minha Loja');
-                                
-                                
-                                setCommerceDefaultCoords(coords);
-                                setCommerceDefaultTitle(clienteData.nome_completo || 'Minha Loja');
-                            }
-                        });
-                    }
-                }
+        if (!targetEmail || !targetClientId) {
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+              targetEmail = targetEmail ?? (user.email?.trim() || null);
+              if (!targetClientId) {
+                const row = await getUserRow(user.id);
+                targetClientId = row?.cliente_id ?? targetClientId;
+                targetEmail = row?.email?.trim() || targetEmail;
+              }
             }
+          } catch (e) {
+            void e;
+          }
+        }
 
-            if (targetClientId) {
-                setFilters(prev => ({ ...prev, cliente_id: targetClientId }));
+        const selectCliente = async (by: { id?: string; email?: string }) => {
+          let q = supabase
+            .from('clientes')
+            .select('id, nome_completo, rua, numero, bairro, cidade, cep, precificacao_config, telefone');
+
+          if (by.id) q = q.eq('id', by.id);
+          if (!by.id && by.email) q = q.ilike('email', by.email.trim().toLowerCase());
+
+          const { data } = await q.maybeSingle();
+          return data ?? null;
+        };
+
+        let clienteData: any | null = null;
+        if (targetClientId) {
+          clienteData = await selectCliente({ id: targetClientId });
+        }
+        if (!clienteData && targetEmail) {
+          clienteData = await selectCliente({ email: targetEmail });
+          if (clienteData && !targetClientId) targetClientId = clienteData.id;
+        }
+
+        if (targetClientId) {
+          setFilters(prev => ({ ...prev, cliente_id: targetClientId }));
+        }
+
+        if (!clienteData) return;
+
+        if (clienteData.precificacao_config) {
+          setClientPricingConfig(clienteData.precificacao_config as any);
+
+          const configs = clienteData.precificacao_config as any[];
+          const config = configs.find((c: any) => c.modal === 'moto') || configs[0];
+
+          if (config) {
+            setPricingMode(config.tipo_precificacao);
+            if (config.tipo_precificacao === 'Fixo') {
+              setPricePerPoint(Number(config.preco_ponto) || 0);
+            } else if (config.tipo_precificacao === 'Distância') {
+              setPricePerPoint(0);
+              if (config.tabela_id) {
+                setSelectedTabelaId(config.tabela_id);
+              }
             }
+          }
+        }
+
+        const hasBaseAddress = !!(clienteData.rua && clienteData.cidade);
+        let fallbackAddr: any | null = null;
+        if (!hasBaseAddress && (targetClientId || clienteData.id)) {
+          const cid = String(targetClientId || clienteData.id);
+          const { data } = await supabase
+            .from('cliente_enderecos')
+            .select('rua, numero, bairro, cidade, cep')
+            .eq('cliente_id', cid)
+            .order('created_at', { ascending: false })
+            .limit(1);
+          fallbackAddr = Array.isArray(data) && data.length > 0 ? data[0] : null;
+        }
+
+        const addressParts = [
+          (fallbackAddr?.rua || clienteData.rua) ?? null,
+          (fallbackAddr?.numero || clienteData.numero) ?? null,
+          (fallbackAddr?.bairro || clienteData.bairro) ?? null,
+          (fallbackAddr?.cidade || clienteData.cidade) ?? null,
+          (fallbackAddr?.cep || clienteData.cep) ?? null,
+        ].filter(Boolean);
+
+        if (addressParts.length > 0) {
+          const fullAddress = addressParts.join(', ');
+          setComercioAddress(fullAddress);
+          const coords = await getCoordsFromAddress(fullAddress);
+          if (coords) {
+            setOriginCoords(coords);
+            setOriginTitle(clienteData.nome_completo || 'Minha Loja');
+            setCommerceDefaultCoords(coords);
+            setCommerceDefaultTitle(clienteData.nome_completo || 'Minha Loja');
+          } else {
+            setCommerceDefaultTitle(clienteData.nome_completo || 'Minha Loja');
+          }
+        } else {
+          setCommerceDefaultTitle(clienteData.nome_completo || 'Minha Loja');
         }
       };
       loadUserRole();
@@ -884,7 +922,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
           }
       });
     }
-  }, [userId]);
+  }, [userId, normalizedUserRole]);
 
   
   const [mapSelectedEntregadorId, setMapSelectedEntregadorId] = useState('');
@@ -1361,21 +1399,41 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     } else {
         
         
-        if (isComercio && commerceDefaultCoords) {
-             setOriginTitle(commerceDefaultTitle);
-             setOriginCoords(commerceDefaultCoords);
-        } else {
-            const cliente = clientes.find(c => c.id === pedido.cliente_id);
-            if (cliente) {
-                 const address = [cliente.rua, cliente.numero, cliente.bairro, cliente.cidade].filter(Boolean).join(', ');
-                 if (address) {
-                     setOriginTitle(cliente.nome_completo);
-                     const coords = await getCoordsFromAddress(address);
-                     if (coords && isValidCoords(coords)) {
-                        setOriginCoords(coords);
-                     }
-                 }
+        if (isComercio) {
+          if (commerceDefaultCoords) {
+            setOriginTitle(commerceDefaultTitle);
+            setOriginCoords(commerceDefaultCoords);
+          } else if (comercioAddress) {
+            setOriginTitle(commerceDefaultTitle || 'Minha Loja');
+            const coords = await getCoordsFromAddress(comercioAddress);
+            if (coords && isValidCoords(coords)) {
+              setOriginCoords(coords);
+              setCommerceDefaultCoords(coords);
             }
+          }
+        } else {
+          const cliente = clientes.find(c => c.id === pedido.cliente_id);
+          if (cliente) {
+            let address = [cliente.rua, cliente.numero, cliente.bairro, cliente.cidade].filter(Boolean).join(', ');
+            if (!address) {
+              const { data } = await supabase
+                .from('cliente_enderecos')
+                .select('rua, numero, bairro, cidade')
+                .eq('cliente_id', cliente.id)
+                .order('created_at', { ascending: false })
+                .limit(1);
+              const row = Array.isArray(data) && data.length > 0 ? data[0] : null;
+              address = [row?.rua, row?.numero, row?.bairro, row?.cidade].filter(Boolean).join(', ');
+            }
+
+            if (address) {
+              setOriginTitle(cliente.nome_completo);
+              const coords = await getCoordsFromAddress(address);
+              if (coords && isValidCoords(coords)) {
+                setOriginCoords(coords);
+              }
+            }
+          }
         }
     }
 

@@ -920,18 +920,44 @@ export function NovaEntregaPanel() {
      
       const { data: { user } } = await userPromise;
       if (user) {
-          const { data: uData } = await supabase.from('users').select('role').eq('id', user.id).maybeSingle();
-          if (uData?.role === 'cliente') {
+          const { data: uData } = await supabase
+            .from('users')
+            .select('role, cliente_id, email')
+            .eq('id', user.id)
+            .maybeSingle();
+
+          const isClientByRole = uData?.role === 'cliente';
+          const userEmail = (uData?.email || user.email || '').trim().toLowerCase();
+          const targetClientId = (uData?.cliente_id || '').trim();
+
+          if (isClientByRole || userEmail || targetClientId) {
+            let matched: Cliente | undefined;
+
+            if (targetClientId) {
+              matched = finalClientes.find((cli) => String(cli.id) === String(targetClientId));
+            }
+
+            if (!matched && userEmail) {
+              matched = finalClientes.find((cli) => (cli.email || '').trim().toLowerCase() === userEmail);
+            }
+
+            if (!matched && (targetClientId || userEmail)) {
+              const q = supabase.from('clientes').select('*');
+              const { data: direct } = targetClientId
+                ? await q.eq('id', targetClientId).maybeSingle()
+                : await q.ilike('email', userEmail).maybeSingle();
+              if (direct) matched = direct as Cliente;
+            }
+
+            if (matched) {
               setIsComercio(true);
-              const userEmail = user.email?.trim().toLowerCase();
-              const matched = finalClientes.find(cli => cli.email?.trim().toLowerCase() === userEmail);
-              if (matched) {
-                  finalClientes = [matched];
-                  setForm(prev => ({ ...prev, cliente_id: matched.id }));
-                  setClientSaldo(matched.saldo_creditos);
-              } else {
-                  finalClientes = [];
-              }
+              finalClientes = [matched];
+              setForm(prev => ({ ...prev, cliente_id: matched.id }));
+              setClientSaldo(matched.saldo_creditos);
+            } else if (isClientByRole) {
+              setIsComercio(true);
+              finalClientes = [];
+            }
           }
       }
 
