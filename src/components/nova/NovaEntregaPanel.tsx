@@ -24,6 +24,8 @@ type TabelaPreco = Database['public']['Tables']['tabelas_precos']['Row'];
 
 interface AddressSuggestion {
   display_name: string;
+  lat?: string;
+  lon?: string;
 }
 
 function normalizeBillingMode(mode: string | null | undefined) {
@@ -59,7 +61,7 @@ function isClientFaturamento(client: Cliente | null | undefined) {
   return false;
 }
 
-function AddressAutocomplete({ value, onChange, placeholder, containerClassName }: { value: string, onChange: (val: string) => void, placeholder: string, containerClassName?: string }) {
+function AddressAutocomplete({ value, onChange, placeholder, containerClassName, onSelectCoords }: { value: string, onChange: (val: string) => void, placeholder: string, containerClassName?: string, onSelectCoords?: (coords: [number, number] | undefined) => void }) {
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
@@ -82,9 +84,7 @@ function AddressAutocomplete({ value, onChange, placeholder, containerClassName 
              userNumber = endMatch[2];
           }
 
-          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5&countrycodes=br&viewbox=-47.25,-22.70,-46.80,-23.10&bounded=1`, {
-            headers: { 'User-Agent': 'RouteDeliveryApp/1.0' }
-          });
+          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5&countrycodes=br&viewbox=-47.25,-22.70,-46.80,-23.10&bounded=1`);
           let data = await res.json();
 
           const userSpecifiedCampinas = value.toLowerCase().includes('campinas');
@@ -123,7 +123,7 @@ function AddressAutocomplete({ value, onChange, placeholder, containerClassName 
              
              
              const clean = parts.replace(/, ,/g, ',').replace(/\s+/g, ' ').replace(/ ,/g, ',').trim();
-             return { display_name: clean };
+             return { display_name: clean, lat: item.lat, lon: item.lon };
           });
 
           setSuggestions(formatted);
@@ -141,7 +141,7 @@ function AddressAutocomplete({ value, onChange, placeholder, containerClassName 
     <div className={`relative ${containerClassName || ''}`}>
       <input
         value={value}
-        onChange={(e) => { onChange(e.target.value); setShowSuggestions(true); }}
+        onChange={(e) => { onSelectCoords?.(undefined); onChange(e.target.value); setShowSuggestions(true); }}
         onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
         placeholder={placeholder}
         className="w-full px-3 py-2 border border-slate-300 rounded"
@@ -152,6 +152,11 @@ function AddressAutocomplete({ value, onChange, placeholder, containerClassName 
             <li key={i} className="px-3 py-2 hover:bg-slate-50 cursor-pointer text-sm text-slate-700"
                 onMouseDown={() => {
                   onChange(s.display_name);
+                  if (onSelectCoords) {
+                    const lat = Number(s.lat);
+                    const lon = Number(s.lon);
+                    onSelectCoords(!Number.isNaN(lat) && !Number.isNaN(lon) ? [lat, lon] : undefined);
+                  }
                   setShowSuggestions(false);
                 }}>
               {s.display_name}
@@ -193,6 +198,8 @@ export function NovaEntregaPanel() {
   const coordsCache = useRef<Map<string, { lat: number; lon: number }>>(new Map()); // Kept for backward compatibility if needed, but unused now
   const [driverValueDisplay, setDriverValueDisplay] = useState<string>('0.00');
   const [driverReturnDisplay, setDriverReturnDisplay] = useState<string | null>(null);
+  const [coletaSelectedCoords, setColetaSelectedCoords] = useState<[number, number] | undefined>(undefined);
+  const [entregaSelectedCoords, setEntregaSelectedCoords] = useState<[number, number] | undefined>(undefined);
 
   const [form, setForm] = useState({
     cliente_id: '',
@@ -438,8 +445,8 @@ export function NovaEntregaPanel() {
       const coletaFull = form.coleta_numero ? `${form.coleta_endereco_texto}, ${form.coleta_numero}` : form.coleta_endereco_texto;
       const entregaFull = form.entrega_numero ? `${form.entrega_endereco_texto}, ${form.entrega_numero}` : form.entrega_endereco_texto;
 
-      const startCoords = await getCoordsFromAddress(coletaFull);
-      const endCoords = await getCoordsFromAddress(entregaFull);
+      const startCoords = coletaSelectedCoords ?? await getCoordsFromAddress(coletaFull);
+      const endCoords = entregaSelectedCoords ?? await getCoordsFromAddress(entregaFull);
 
       if (startCoords && endCoords) {
         const points = [];
@@ -467,6 +474,8 @@ export function NovaEntregaPanel() {
         }
 
         setDistanciaKm(totalDist.toFixed(2));
+      } else {
+        setDistanciaKm('');
       }
       setCalculatingDistance(false);
     };
@@ -476,7 +485,7 @@ export function NovaEntregaPanel() {
     }, 500);
 
     return () => clearTimeout(timeoutId);
-  }, [form.coleta_endereco_texto, form.coleta_numero, form.entrega_endereco_texto, form.entrega_numero, form.pontos]);
+  }, [form.coleta_endereco_texto, form.coleta_numero, form.entrega_endereco_texto, form.entrega_numero, form.pontos, coletaSelectedCoords, entregaSelectedCoords]);
 
   useEffect(() => {
     calculatePrice();
@@ -534,32 +543,42 @@ export function NovaEntregaPanel() {
       price = totalPoints * pricePerPoint;
       shouldCalculate = true;
     } else {
-      if (!distanciaKm || !selectedTabelaId) return;
+      if (!selectedTabelaId) return;
 
-      const km = parseFloat(distanciaKm.replace(',', '.'));
-      if (isNaN(km)) return;
-  
-      const tabela = tabelasPrecos.find(t => t.id === selectedTabelaId);
+      const tabela = tabelasPrecos.find(t => String(t.id) === String(selectedTabelaId));
       if (!tabela) return;
   
       if (!faixasPreco || faixasPreco.length === 0) return;
-  
-      const faixa = faixasPreco.find(f => f.km_ate >= km);
-  
-      if (faixa) {
-        price = faixa.valor;
+
+      const km = distanciaKm ? parseFloat(distanciaKm.replace(',', '.')) : NaN;
+      const kmValid = !Number.isNaN(km) && km > 0;
+
+      if (!kmValid) {
+        const fallback =
+          (Number(tabela.valor_minimo) > 0 ? Number(tabela.valor_minimo) : 0) ||
+          (faixasPreco.length > 0 && Number(faixasPreco[0].valor) > 0 ? Number(faixasPreco[0].valor) : 0);
+
+        if (fallback > 0) {
+          price = fallback;
+          shouldCalculate = true;
+        }
       } else {
-        
-        const lastFaixa = faixasPreco[faixasPreco.length - 1];
-        const extraKm = km - lastFaixa.km_ate;
-        price = lastFaixa.valor + (extraKm * (tabela.km_adicional || 0));
+        const faixa = faixasPreco.find(f => Number(f.km_ate) >= km);
+
+        if (faixa) {
+          price = Number(faixa.valor);
+        } else {
+          const lastFaixa = faixasPreco[faixasPreco.length - 1];
+          const lastKm = Number(lastFaixa?.km_ate || 0);
+          const lastValor = Number(lastFaixa?.valor || 0);
+          const extraKm = km - lastKm;
+          price = lastValor + (extraKm * Number(tabela.km_adicional || 0));
+        }
+
+        const min = Number(tabela.valor_minimo || 0);
+        if (!Number.isNaN(min) && min > 0 && price < min) price = min;
+        shouldCalculate = true;
       }
-  
-      
-      if (tabela.valor_minimo && price < tabela.valor_minimo) {
-        price = tabela.valor_minimo;
-      }
-      shouldCalculate = true;
     }
 
     if (!shouldCalculate) return;
@@ -1120,6 +1139,7 @@ export function NovaEntregaPanel() {
             placeholder="Endereço completo"
             value={form.coleta_endereco_texto}
             onChange={(val) => setForm({ ...form, coleta_endereco_texto: val })}
+            onSelectCoords={setColetaSelectedCoords}
             containerClassName="md:col-span-2"
           />
           <input placeholder="Nº" value={form.coleta_numero} onChange={(e) => setForm({ ...form, coleta_numero: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
@@ -1145,6 +1165,7 @@ export function NovaEntregaPanel() {
             placeholder="Endereço completo"
             value={form.entrega_endereco_texto}
             onChange={(val) => setForm({ ...form, entrega_endereco_texto: val })}
+            onSelectCoords={setEntregaSelectedCoords}
             containerClassName="md:col-span-2"
           />
           <input placeholder="Nº" value={form.entrega_numero} onChange={(e) => setForm({ ...form, entrega_numero: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
@@ -1192,11 +1213,14 @@ export function NovaEntregaPanel() {
       </div>
 
       <div className="mt-6 bg-white border border-slate-200 rounded-lg p-4">
-        {(valorDinamico || calculatingDistance) && (
+        {((form.coleta_endereco_texto && form.entrega_endereco_texto) || valorDinamico || calculatingDistance || pricingMode === 'Zerar' || pricingMode === 'Fixo') && (
            <div className="mb-4 p-4 bg-sky-50 border border-sky-100 rounded-lg flex flex-col md:flex-row justify-between items-center gap-4">
              <div>
                 <span className="text-sm text-sky-700 font-medium block">Valor Total da Entrega</span>
                 {distanciaKm && <span className="text-xs text-sky-600">Distância estimada: {distanciaKm} km</span>}
+                {!calculatingDistance && (form.coleta_endereco_texto && form.entrega_endereco_texto) && !distanciaKm && (
+                  <span className="text-xs text-amber-700 block">Aguardando cálculo da distância...</span>
+                )}
                 {activeDynamicRules.length > 0 && (
                   <div className="mt-1">
                     {activeDynamicRules.map((rule, idx) => (
@@ -1210,7 +1234,7 @@ export function NovaEntregaPanel() {
 
              </div>
              <div className="text-3xl font-bold text-sky-900">
-               {calculatingDistance ? '...' : `R$ ${form.valor_entrega}`}
+               {calculatingDistance ? '...' : (form.valor_entrega ? `R$ ${form.valor_entrega}` : 'R$ --')}
             </div>
            </div>
         )}
