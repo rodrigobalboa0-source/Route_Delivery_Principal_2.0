@@ -39,54 +39,290 @@ interface AddressSuggestion {
 }
 
 function AddressAutocomplete({ value, onChange, placeholder, containerClassName, onSelectCoords }: { value: string, onChange: (val: string) => void, placeholder: string, containerClassName?: string, onSelectCoords?: (coords: [number, number] | undefined) => void }) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const requestSeqRef = useRef(0);
+  const cacheRef = useRef<Map<string, AddressSuggestion[]>>(new Map());
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
+  const [didSearch, setDidSearch] = useState(false);
+  const [activeIndex, setActiveIndex] = useState<number>(-1);
 
   useEffect(() => {
-    const timer = setTimeout(async () => {
-      if (value.length > 4 && showSuggestions) {
-        try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(value)}&addressdetails=1&limit=5&countrycodes=br&viewbox=-47.25,-22.70,-46.80,-23.10&bounded=1`, {
-            headers: { 'User-Agent': 'RouteDeliveryApp/1.0' }
-          });
-          const data = await res.json();
-          setSuggestions(data || []);
-        } catch (e) {
-          console.error(e);
-        }
-      } else {
-        setSuggestions([]);
+    const handlePointerDown = (e: PointerEvent) => {
+      const el = containerRef.current;
+      if (!el) return;
+      if (!el.contains(e.target as Node)) {
+        setOpen(false);
+        setActiveIndex(-1);
       }
-    }, 500);
+    };
+    window.addEventListener('pointerdown', handlePointerDown);
+    return () => window.removeEventListener('pointerdown', handlePointerDown);
+  }, []);
+
+  const selectSuggestion = (s: AddressSuggestion) => {
+    onChange(s.display_name);
+    if (onSelectCoords) {
+      const lat = Number(s.lat);
+      const lon = Number(s.lon);
+      onSelectCoords(!Number.isNaN(lat) && !Number.isNaN(lon) ? [lat, lon] : undefined);
+    }
+    setOpen(false);
+    setActiveIndex(-1);
+  };
+
+  useEffect(() => {
+    const trimmed = (value || '').trim();
+    if (!open || trimmed.length < 3) {
+      setSuggestions([]);
+      setLoadingSuggestions(false);
+      setSuggestionsError(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      const seq = ++requestSeqRef.current;
+      const normalizedKey = trimmed
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, ' ');
+
+      const cached = cacheRef.current.get(normalizedKey);
+      if (cached) {
+        setSuggestions(cached);
+        setLoadingSuggestions(false);
+        setSuggestionsError(null);
+        setDidSearch(true);
+        return;
+      }
+
+      setLoadingSuggestions(true);
+      setSuggestionsError(null);
+      setDidSearch(true);
+
+      try {
+        let query = trimmed;
+        const queryNormalized = query
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase();
+
+        const regionCities = [
+          'campinas',
+          'valinhos',
+          'vinhedo',
+          'hortolandia',
+          'hortolândia',
+          'sumare',
+          'sumaré',
+          'paulinia',
+          'paulínia',
+          'indaiatuba',
+          'jaguariuna',
+          'jaguariúna',
+          'monte mor',
+          'itupeva',
+        ];
+
+        const hasCityHint = regionCities.some((c) => queryNormalized.includes(c));
+        const hasStateHint = queryNormalized.includes(', sp') || queryNormalized.includes(' sao paulo') || queryNormalized.includes('são paulo');
+        if (!hasCityHint && !hasStateHint) {
+          query = `${query}, Campinas, SP`;
+        }
+
+        const callProxy = async (bounded: boolean) => {
+          const { data, error } = await supabase.functions.invoke('geocode', {
+            body: { q: query, limit: 8, bounded },
+          });
+          if (error) return { ok: false as const, results: [] as any[] };
+          const results = Array.isArray((data as any)?.results) ? (data as any).results : [];
+          return { ok: true as const, results };
+        };
+
+        const callDirect = async (bounded: boolean) => {
+          const viewbox = '-47.60,-22.55,-46.60,-23.35';
+          const url =
+            `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(query)}` +
+            `&addressdetails=1&limit=8&countrycodes=br` +
+            (bounded ? `&bounded=1&viewbox=${viewbox}` : '');
+          const res = await fetch(url, { headers: { 'Accept-Language': 'pt-BR' } });
+          if (!res.ok) return [] as any[];
+          const data = await res.json();
+          return Array.isArray(data) ? data : [];
+        };
+
+        const first = await callProxy(true);
+        let results = first.ok ? first.results : [];
+        if (results.length === 0) {
+          results = (await callProxy(false)).results;
+        }
+        if (results.length === 0) {
+          results = await callDirect(true);
+          if (results.length === 0) results = await callDirect(false);
+        }
+
+        if (seq !== requestSeqRef.current) return;
+
+        const campinasCenter: [number, number] = [-22.9056, -47.0608];
+        const deg2rad = (deg: number) => deg * (Math.PI / 180);
+        const haversineKm = (a: [number, number], b: [number, number]) => {
+          const R = 6371;
+          const dLat = deg2rad(b[0] - a[0]);
+          const dLon = deg2rad(b[1] - a[1]);
+          const x =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(deg2rad(a[0])) * Math.cos(deg2rad(b[0])) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+          return R * (2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x)));
+        };
+
+        const suggestionsScored = (Array.isArray(results) ? results : [])
+          .map((item: any) => {
+            const addr = item.address || {};
+            const road = addr.road || addr.pedestrian || addr.street || item.name || '';
+            const district = addr.suburb || addr.neighbourhood || addr.city_district || '';
+            const city = addr.city || addr.town || addr.municipality || addr.village || '';
+            const state = addr.state || '';
+
+            const lat = typeof item.lat === 'string' ? item.lat : undefined;
+            const lon = typeof item.lon === 'string' ? item.lon : undefined;
+
+            const parts = [
+              road || '',
+              district ? ` - ${district}` : '',
+              city ? ` - ${city}` : '',
+              state ? ` - ${state}` : '',
+            ].join('');
+
+            const display =
+              (road ? parts : (item.display_name || '')).replace(/, ,/g, ',').replace(/\s+/g, ' ').replace(/ ,/g, ',').trim();
+
+            const cityNorm = String(city || '')
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .toLowerCase();
+
+            let score = 0;
+            if (cityNorm.includes('campinas')) score += 50;
+            else if (cityNorm) score += 20;
+            if (district) score += 3;
+            if (typeof item.importance === 'number') score += item.importance * 10;
+
+            const nLat = Number(lat);
+            const nLon = Number(lon);
+            if (!Number.isNaN(nLat) && !Number.isNaN(nLon)) {
+              const dist = haversineKm(campinasCenter, [nLat, nLon]);
+              score += Math.max(0, 40 - dist);
+            }
+
+            return { display_name: display, lat, lon, score };
+          })
+          .filter((s: any) => !!s.display_name)
+          .sort((a: any, b: any) => (b.score || 0) - (a.score || 0))
+          .map((s: any) => ({ display_name: s.display_name, lat: s.lat, lon: s.lon } as AddressSuggestion));
+
+        const deduped: AddressSuggestion[] = [];
+        const seen = new Set<string>();
+        for (const s of suggestionsScored) {
+          const k = s.display_name
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .trim()
+            .replace(/\s+/g, ' ');
+          if (seen.has(k)) continue;
+          seen.add(k);
+          deduped.push(s);
+        }
+
+        cacheRef.current.set(normalizedKey, deduped);
+        setSuggestions(deduped);
+      } catch (e) {
+        setSuggestions([]);
+        setSuggestionsError('Falha ao buscar endereços. Tente novamente.');
+      } finally {
+        const isLatest = seq === requestSeqRef.current;
+        if (isLatest) setLoadingSuggestions(false);
+      }
+    }, 250);
+
     return () => clearTimeout(timer);
-  }, [value, showSuggestions]);
+  }, [value, open]);
+
+  const trimmedValue = (value || '').trim();
 
   return (
-    <div className={`relative ${containerClassName || ''}`}>
+    <div ref={containerRef} className={`relative ${containerClassName || ''}`}>
       <input
         value={value}
-        onChange={(e) => { onSelectCoords?.(undefined); onChange(e.target.value); setShowSuggestions(true); }}
-        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+        onFocus={() => setOpen(true)}
+        onChange={(e) => {
+          onSelectCoords?.(undefined);
+          setActiveIndex(-1);
+          setOpen(true);
+          onChange(e.target.value);
+        }}
+        onKeyDown={(e) => {
+          if (!open) return;
+          if (e.key === 'Escape') {
+            setOpen(false);
+            setActiveIndex(-1);
+            return;
+          }
+          if (suggestions.length === 0) return;
+          if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setActiveIndex((v) => (v + 1) % suggestions.length);
+            return;
+          }
+          if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setActiveIndex((v) => (v <= 0 ? suggestions.length - 1 : v - 1));
+            return;
+          }
+          if (e.key === 'Enter') {
+            if (activeIndex >= 0 && activeIndex < suggestions.length) {
+              e.preventDefault();
+              selectSuggestion(suggestions[activeIndex]);
+            }
+          }
+        }}
         placeholder={placeholder}
         className="w-full border rounded p-2"
       />
-      {showSuggestions && suggestions.length > 0 && (
-        <ul className="absolute z-50 w-full bg-white border border-slate-200 rounded-b shadow-lg max-h-60 overflow-auto mt-1">
-          {suggestions.map((s, i) => (
-            <li key={i} className="px-3 py-2 hover:bg-slate-50 cursor-pointer text-sm text-slate-700"
-                onMouseDown={() => {
-                  onChange(s.display_name);
-                  if (onSelectCoords) {
-                    const lat = Number(s.lat);
-                    const lon = Number(s.lon);
-                    onSelectCoords(!Number.isNaN(lat) && !Number.isNaN(lon) ? [lat, lon] : undefined);
-                  }
-                  setShowSuggestions(false);
-                }}>
-              {s.display_name}
-            </li>
-          ))}
-        </ul>
+      {open && trimmedValue.length > 0 && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded shadow-lg overflow-hidden">
+          {trimmedValue.length < 3 ? (
+            <div className="px-3 py-2 text-sm text-slate-500">Digite pelo menos 3 caracteres</div>
+          ) : loadingSuggestions ? (
+            <div className="px-3 py-2 text-sm text-slate-500">Buscando endereços...</div>
+          ) : suggestionsError ? (
+            <div className="px-3 py-2 text-sm text-red-700">{suggestionsError}</div>
+          ) : suggestions.length === 0 && didSearch ? (
+            <div className="px-3 py-2 text-sm text-slate-500">Nenhum endereço encontrado. Tente incluir bairro ou número.</div>
+          ) : (
+            <ul className="max-h-60 overflow-auto">
+              {suggestions.map((s, i) => (
+                <li
+                  key={`${s.display_name}-${i}`}
+                  className={`px-3 py-2 cursor-pointer text-sm ${
+                    i === activeIndex ? 'bg-sky-50 text-slate-900' : 'text-slate-700 hover:bg-slate-50'
+                  }`}
+                  onMouseEnter={() => setActiveIndex(i)}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    selectSuggestion(s);
+                  }}
+                >
+                  {s.display_name}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </div>
   );

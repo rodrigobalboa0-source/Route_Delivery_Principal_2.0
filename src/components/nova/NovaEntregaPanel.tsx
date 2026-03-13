@@ -61,108 +61,291 @@ function isClientFaturamento(client: Cliente | null | undefined) {
   return false;
 }
 
-function AddressAutocomplete({ value, onChange, placeholder, containerClassName, onSelectCoords }: { value: string, onChange: (val: string) => void, placeholder: string, containerClassName?: string, onSelectCoords?: (coords: [number, number] | undefined) => void }) {
+function AddressAutocomplete({ value, onChange, placeholder, containerClassName, onSelectCoords }: { value: string, onChange: (val: string) => void, placeholder: string, containerClassName?: string, onSelectCoords?: (coords: [number, number] | undefined, selectedText?: string) => void }) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const requestSeqRef = useRef(0);
+  const cacheRef = useRef<Map<string, AddressSuggestion[]>>(new Map());
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
+  const [didSearch, setDidSearch] = useState(false);
+  const [activeIndex, setActiveIndex] = useState<number>(-1);
 
   useEffect(() => {
-    const timer = setTimeout(async () => {
-      if (value.length > 4 && showSuggestions) {
-        try {
-         
-          let query = value;
-          let userNumber = '';
-          
-          const startMatch = value.match(/^(\d+)[,\s]+(.+)$/);
-          const endMatch = value.match(/^(.+)[,\s]+(\d+)$/);
-
-          if (startMatch) {
-             userNumber = startMatch[1];
-             
-             query = `${startMatch[2]}, ${startMatch[1]}`;
-          } else if (endMatch) {
-             userNumber = endMatch[2];
-          }
-
-          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5&countrycodes=br&viewbox=-47.25,-22.70,-46.80,-23.10&bounded=1`);
-          let data = await res.json();
-
-          const userSpecifiedCampinas = value.toLowerCase().includes('campinas');
-          if (userSpecifiedCampinas && data && data.length > 0) {
-             const filtered = data.filter((item: any) => {
-                 const addr = item.address || {};
-                 const city = addr.city || addr.town || addr.municipality || addr.village || '';
-                 const displayName = item.display_name || '';
-                 return (city && city.toLowerCase().includes('campinas')) || displayName.toLowerCase().includes('campinas');
-             });
-             
-             if (filtered.length > 0) {
-                 data = filtered;
-             }
-          }
-          
-          const formatted = (data || []).map((item: any) => {
-             const addr = item.address || {};
-             const road = addr.road || addr.pedestrian || addr.street || item.name || '';
-             
-             const number = addr.house_number || userNumber || '';
-             const district = addr.suburb || addr.neighbourhood || addr.city_district || '';
-             const city = addr.city || addr.town || addr.municipality || addr.village || '';
-             const state = addr.state || '';
-
-             
-             if (!road) return { display_name: item.display_name };
-
-             const parts = [
-               road,
-               number ? `, ${number}` : '',
-               district ? ` - ${district}` : '',
-               city ? ` - ${city}` : '',
-               state ? ` - ${state}` : ''
-             ].join('');
-             
-             
-             const clean = parts.replace(/, ,/g, ',').replace(/\s+/g, ' ').replace(/ ,/g, ',').trim();
-             return { display_name: clean, lat: item.lat, lon: item.lon };
-          });
-
-          setSuggestions(formatted);
-        } catch (e) {
-          console.error(e);
-        }
-      } else {
-        setSuggestions([]);
+    const handlePointerDown = (e: PointerEvent) => {
+      const el = containerRef.current;
+      if (!el) return;
+      if (!el.contains(e.target as Node)) {
+        setOpen(false);
+        setActiveIndex(-1);
       }
-    }, 500);
+    };
+    window.addEventListener('pointerdown', handlePointerDown);
+    return () => window.removeEventListener('pointerdown', handlePointerDown);
+  }, []);
+
+  const selectSuggestion = (s: AddressSuggestion) => {
+    onChange(s.display_name);
+    if (onSelectCoords) {
+      const lat = Number(s.lat);
+      const lon = Number(s.lon);
+      const coords = !Number.isNaN(lat) && !Number.isNaN(lon) ? ([lat, lon] as [number, number]) : undefined;
+      onSelectCoords(coords, s.display_name);
+    }
+    setOpen(false);
+    setActiveIndex(-1);
+  };
+
+  useEffect(() => {
+    const trimmed = (value || '').trim();
+    if (!open || trimmed.length < 3) {
+      setSuggestions([]);
+      setLoadingSuggestions(false);
+      setSuggestionsError(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      const seq = ++requestSeqRef.current;
+      const normalizedKey = trimmed
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, ' ');
+
+      const cached = cacheRef.current.get(normalizedKey);
+      if (cached) {
+        setSuggestions(cached);
+        setLoadingSuggestions(false);
+        setSuggestionsError(null);
+        setDidSearch(true);
+        return;
+      }
+
+      setLoadingSuggestions(true);
+      setSuggestionsError(null);
+      setDidSearch(true);
+
+      try {
+        let query = trimmed;
+        let userNumber = '';
+
+        const startMatch = trimmed.match(/^(\d+)[,\s]+(.+)$/);
+        const endMatch = trimmed.match(/^(.+)[,\s]+(\d+)$/);
+
+        if (startMatch) {
+          userNumber = startMatch[1];
+          query = `${startMatch[2]}, ${startMatch[1]}`;
+        } else if (endMatch) {
+          userNumber = endMatch[2];
+        }
+
+        const queryNormalized = query
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase();
+
+        const regionCities = [
+          'campinas',
+          'valinhos',
+          'vinhedo',
+          'hortolandia',
+          'hortolândia',
+          'sumare',
+          'sumaré',
+          'paulinia',
+          'paulínia',
+          'indaiatuba',
+          'jaguariuna',
+          'jaguariúna',
+          'monte mor',
+          'santa barbara',
+          'santa bárbara',
+          'santo antonio',
+          'santo antônio',
+          'itupeva',
+        ];
+
+        const hasCityHint = regionCities.some((c) => queryNormalized.includes(c));
+        const hasStateHint = queryNormalized.includes(', sp') || queryNormalized.includes(' sao paulo') || queryNormalized.includes('são paulo');
+        if (!hasCityHint && !hasStateHint) {
+          query = `${query}, Campinas, SP`;
+        }
+
+        const call = async (bounded: boolean) => {
+          const { data, error } = await supabase.functions.invoke('geocode', {
+            body: { q: query, limit: 8, bounded },
+          });
+          if (error) return { ok: false as const, results: [] as any[] };
+          const results = Array.isArray((data as any)?.results) ? (data as any).results : [];
+          return { ok: true as const, results };
+        };
+
+        const first = await call(true);
+        const results = first.ok && first.results.length > 0 ? first.results : (await call(false)).results;
+        if (seq !== requestSeqRef.current) return;
+
+        const campinasCenter: [number, number] = [-22.9056, -47.0608];
+        const deg2rad = (deg: number) => deg * (Math.PI / 180);
+        const haversineKm = (a: [number, number], b: [number, number]) => {
+          const R = 6371;
+          const dLat = deg2rad(b[0] - a[0]);
+          const dLon = deg2rad(b[1] - a[1]);
+          const x =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(deg2rad(a[0])) * Math.cos(deg2rad(b[0])) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+          return R * (2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x)));
+        };
+
+        const suggestionsScored = (Array.isArray(results) ? results : [])
+          .map((item: any) => {
+            const addr = item.address || {};
+            const road = addr.road || addr.pedestrian || addr.street || item.name || '';
+            const number = addr.house_number || userNumber || '';
+            const district = addr.suburb || addr.neighbourhood || addr.city_district || '';
+            const city = addr.city || addr.town || addr.municipality || addr.village || '';
+            const state = addr.state || '';
+
+            const lat = typeof item.lat === 'string' ? item.lat : undefined;
+            const lon = typeof item.lon === 'string' ? item.lon : undefined;
+
+            const parts = [
+              road || '',
+              number ? `, ${number}` : '',
+              district ? ` - ${district}` : '',
+              city ? ` - ${city}` : '',
+              state ? ` - ${state}` : '',
+            ].join('');
+
+            const display =
+              (road ? parts : (item.display_name || '')).replace(/, ,/g, ',').replace(/\s+/g, ' ').replace(/ ,/g, ',').trim();
+
+            const cityNorm = String(city || '')
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .toLowerCase();
+
+            let score = 0;
+            if (cityNorm.includes('campinas')) score += 50;
+            else if (cityNorm) score += 20;
+            if (number) score += 5;
+            if (district) score += 3;
+            if (typeof item.importance === 'number') score += item.importance * 10;
+
+            const nLat = Number(lat);
+            const nLon = Number(lon);
+            if (!Number.isNaN(nLat) && !Number.isNaN(nLon)) {
+              const dist = haversineKm(campinasCenter, [nLat, nLon]);
+              score += Math.max(0, 40 - dist);
+            }
+
+            return { display_name: display, lat, lon, score };
+          })
+          .filter((s: any) => !!s.display_name)
+          .sort((a: any, b: any) => (b.score || 0) - (a.score || 0))
+          .map((s: any) => ({ display_name: s.display_name, lat: s.lat, lon: s.lon } as AddressSuggestion));
+
+        const deduped: AddressSuggestion[] = [];
+        const seen = new Set<string>();
+        for (const s of suggestionsScored) {
+          const k = s.display_name
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .trim()
+            .replace(/\s+/g, ' ');
+          if (seen.has(k)) continue;
+          seen.add(k);
+          deduped.push(s);
+        }
+
+        cacheRef.current.set(normalizedKey, deduped);
+        setSuggestions(deduped);
+      } catch (e) {
+        setSuggestions([]);
+        setSuggestionsError('Falha ao buscar endereços. Tente novamente.');
+      } finally {
+        const isLatest = seq === requestSeqRef.current;
+        if (isLatest) setLoadingSuggestions(false);
+      }
+    }, 250);
+
     return () => clearTimeout(timer);
-  }, [value, showSuggestions]);
+  }, [value, open]);
+
+  const trimmedValue = (value || '').trim();
 
   return (
-    <div className={`relative ${containerClassName || ''}`}>
+    <div ref={containerRef} className={`relative ${containerClassName || ''}`}>
       <input
         value={value}
-        onChange={(e) => { onSelectCoords?.(undefined); onChange(e.target.value); setShowSuggestions(true); }}
-        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+        onFocus={() => setOpen(true)}
+        onChange={(e) => {
+          onSelectCoords?.(undefined, undefined);
+          setActiveIndex(-1);
+          setOpen(true);
+          onChange(e.target.value);
+        }}
+        onKeyDown={(e) => {
+          if (!open) return;
+          if (e.key === 'Escape') {
+            setOpen(false);
+            setActiveIndex(-1);
+            return;
+          }
+          if (suggestions.length === 0) return;
+          if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setActiveIndex((v) => (v + 1) % suggestions.length);
+            return;
+          }
+          if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setActiveIndex((v) => (v <= 0 ? suggestions.length - 1 : v - 1));
+            return;
+          }
+          if (e.key === 'Enter') {
+            if (activeIndex >= 0 && activeIndex < suggestions.length) {
+              e.preventDefault();
+              selectSuggestion(suggestions[activeIndex]);
+            }
+          }
+        }}
         placeholder={placeholder}
         className="w-full px-3 py-2 border border-slate-300 rounded"
       />
-      {showSuggestions && suggestions.length > 0 && (
-        <ul className="absolute z-50 w-full bg-white border border-slate-200 rounded-b shadow-lg max-h-60 overflow-auto mt-1">
-          {suggestions.map((s, i) => (
-            <li key={i} className="px-3 py-2 hover:bg-slate-50 cursor-pointer text-sm text-slate-700"
-                onMouseDown={() => {
-                  onChange(s.display_name);
-                  if (onSelectCoords) {
-                    const lat = Number(s.lat);
-                    const lon = Number(s.lon);
-                    onSelectCoords(!Number.isNaN(lat) && !Number.isNaN(lon) ? [lat, lon] : undefined);
-                  }
-                  setShowSuggestions(false);
-                }}>
-              {s.display_name}
-            </li>
-          ))}
-        </ul>
+      {open && trimmedValue.length > 0 && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded shadow-lg overflow-hidden">
+          {trimmedValue.length < 3 ? (
+            <div className="px-3 py-2 text-sm text-slate-500">Digite pelo menos 3 caracteres</div>
+          ) : loadingSuggestions ? (
+            <div className="px-3 py-2 text-sm text-slate-500">Buscando endereços...</div>
+          ) : suggestionsError ? (
+            <div className="px-3 py-2 text-sm text-red-700">{suggestionsError}</div>
+          ) : suggestions.length === 0 && didSearch ? (
+            <div className="px-3 py-2 text-sm text-slate-500">Nenhum endereço encontrado. Tente incluir bairro ou número.</div>
+          ) : (
+            <ul className="max-h-60 overflow-auto">
+              {suggestions.map((s, i) => (
+                <li
+                  key={`${s.display_name}-${i}`}
+                  className={`px-3 py-2 cursor-pointer text-sm ${
+                    i === activeIndex ? 'bg-sky-50 text-slate-900' : 'text-slate-700 hover:bg-slate-50'
+                  }`}
+                  onMouseEnter={() => setActiveIndex(i)}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    selectSuggestion(s);
+                  }}
+                >
+                  {s.display_name}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </div>
   );
@@ -187,6 +370,7 @@ export function NovaEntregaPanel() {
 
   const [distanciaKm, setDistanciaKm] = useState<string>('');
   const [calculatingDistance, setCalculatingDistance] = useState(false);
+  const [distanceError, setDistanceError] = useState<string | null>(null);
   const [selectedTabelaId, setSelectedTabelaId] = useState<string>('');
   const [valorDinamico, setValorDinamico] = useState(false);
   const [pricingMode, setPricingMode] = useState<'Distância' | 'Fixo' | 'Padrão' | 'Zona' | 'Bairro' | 'Zerar'>('Distância');
@@ -196,10 +380,24 @@ export function NovaEntregaPanel() {
   const [dynamicDriverRules, setDynamicDriverRules] = useState<DynamicDriverRule[]>([]);
   const [faixasPreco, setFaixasPreco] = useState<FaixaPreco[]>([]);
   const coordsCache = useRef<Map<string, { lat: number; lon: number }>>(new Map()); // Kept for backward compatibility if needed, but unused now
+  const distanceCalcIdRef = useRef(0);
   const [driverValueDisplay, setDriverValueDisplay] = useState<string>('0.00');
   const [driverReturnDisplay, setDriverReturnDisplay] = useState<string | null>(null);
   const [coletaSelectedCoords, setColetaSelectedCoords] = useState<[number, number] | undefined>(undefined);
   const [entregaSelectedCoords, setEntregaSelectedCoords] = useState<[number, number] | undefined>(undefined);
+  const selectedCoordsByTextRef = useRef<Map<string, [number, number]>>(new Map());
+
+  const normalizeAddressKey = (text: string) => {
+    return String(text || '')
+      .replace(/\s+-\s+/g, ', ')
+      .replace(/\s*,\s*/g, ', ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ');
+  };
 
   const [form, setForm] = useState({
     cliente_id: '',
@@ -235,7 +433,7 @@ export function NovaEntregaPanel() {
     entrega_complemento: '',
     entrega_observacoes: '',
     retorno: false,
-    pontos: [] as Array<{ contato: string; telefone: string; cep: string; endereco_texto: string; numero: string; complemento: string; observacoes: string }>,
+    pontos: [] as Array<{ contato: string; telefone: string; cep: string; endereco_texto: string; numero: string; complemento: string; observacoes: string; coords?: [number, number] }>,
   });
 
   useEffect(() => {
@@ -336,6 +534,9 @@ export function NovaEntregaPanel() {
   }, [form.cliente_id, tabelasComissoes]);
 
   const handleUseRegistrationAddress = (type: 'coleta' | 'entrega', checked: boolean) => {
+    if (type === 'coleta') setColetaSelectedCoords(undefined);
+    else setEntregaSelectedCoords(undefined);
+    setDistanceError(null);
     setForm((prev) => {
       let next = { ...prev };
       if (type === 'coleta') next.coleta_usa_endereco_cadastro = checked;
@@ -438,50 +639,127 @@ export function NovaEntregaPanel() {
 
   useEffect(() => {
     const updateDistance = async () => {
-      if (!form.coleta_endereco_texto || !form.entrega_endereco_texto) return;
+      const calcId = ++distanceCalcIdRef.current;
+
+      const coletaEndereco = (form.coleta_endereco_texto || '').trim();
+      const entregaEndereco = (form.entrega_endereco_texto || '').trim();
+
+      if (!coletaEndereco || !entregaEndereco) {
+        if (calcId === distanceCalcIdRef.current) {
+          setDistanciaKm('');
+          setDistanceError(null);
+          setCalculatingDistance(false);
+        }
+        return;
+      }
+
+      const coletaFull = form.coleta_numero ? `${coletaEndereco}, ${form.coleta_numero}` : coletaEndereco;
+      const entregaFull = form.entrega_numero ? `${entregaEndereco}, ${form.entrega_numero}` : entregaEndereco;
+
+      if ((!coletaSelectedCoords && coletaFull.length < 5) || (!entregaSelectedCoords && entregaFull.length < 5)) {
+        if (calcId === distanceCalcIdRef.current) {
+          setDistanciaKm('');
+          setDistanceError(null);
+          setCalculatingDistance(false);
+        }
+        return;
+      }
 
       setCalculatingDistance(true);
-      
-      const coletaFull = form.coleta_numero ? `${form.coleta_endereco_texto}, ${form.coleta_numero}` : form.coleta_endereco_texto;
-      const entregaFull = form.entrega_numero ? `${form.entrega_endereco_texto}, ${form.entrega_numero}` : form.entrega_endereco_texto;
+      setDistanceError(null);
 
-      const startCoords = coletaSelectedCoords ?? await getCoordsFromAddress(coletaFull);
-      const endCoords = entregaSelectedCoords ?? await getCoordsFromAddress(entregaFull);
+      try {
+        const resolveCoords = async (
+          baseText: string,
+          numero: string,
+          selected: [number, number] | undefined
+        ) => {
+          if (selected) return selected;
+          const key = normalizeAddressKey(baseText);
+          const cached = selectedCoordsByTextRef.current.get(key);
+          if (cached) return cached;
 
-      if (startCoords && endCoords) {
-        const points = [];
-        points.push({lat: startCoords[0], lon: startCoords[1]});
-
-        for (const ponto of form.pontos) {
-          const pontoFull = ponto.numero ? `${ponto.endereco_texto}, ${ponto.numero}` : ponto.endereco_texto;
-          const pointCoords = await getCoordsFromAddress(pontoFull || '');
-          if (pointCoords) {
-             points.push({lat: pointCoords[0], lon: pointCoords[1]});
+          const full = numero ? `${baseText}, ${numero}` : baseText;
+          let c = await getCoordsFromAddress(full);
+          if (!c && numero) c = await getCoordsFromAddress(baseText);
+          if (c) {
+            selectedCoordsByTextRef.current.set(key, c);
+            return c;
           }
-        }
-        points.push({lat: endCoords[0], lon: endCoords[1]});
+          return undefined;
+        };
 
-        
+        const [startCoords, endCoords] = await Promise.all([
+          resolveCoords(coletaEndereco, String(form.coleta_numero || '').trim(), coletaSelectedCoords),
+          resolveCoords(entregaEndereco, String(form.entrega_numero || '').trim(), entregaSelectedCoords),
+        ]);
+
+        if (calcId !== distanceCalcIdRef.current) return;
+
+        if (!startCoords || !endCoords) {
+          setDistanciaKm('');
+          if (!startCoords && !endCoords) {
+            setDistanceError('Não foi possível localizar coleta e entrega. Selecione uma sugestão da lista.');
+          } else if (!startCoords) {
+            setDistanceError('Não foi possível localizar o endereço de coleta. Selecione uma sugestão da lista.');
+          } else {
+            setDistanceError('Não foi possível localizar o endereço de entrega. Selecione uma sugestão da lista.');
+          }
+          return;
+        }
+
+        const pontosFilled = (form.pontos || []).filter((p) => (p?.endereco_texto || '').trim().length > 0);
+        const extraCoords: Array<[number, number]> = [];
+        for (const p of pontosFilled) {
+          if (p.coords) {
+            extraCoords.push(p.coords);
+            continue;
+          }
+          const texto = (p.endereco_texto || '').trim();
+          const addr = p.numero ? `${texto}, ${p.numero}` : texto;
+          if (addr.trim().length < 5) continue;
+          const c = await getCoordsFromAddress(addr);
+          if (!c) {
+            setDistanciaKm('');
+            setDistanceError('Não foi possível localizar um ponto adicional. Selecione uma sugestão da lista.');
+            return;
+          }
+          extraCoords.push(c);
+        }
+
+        if (calcId !== distanceCalcIdRef.current) return;
+
+        const points: { lat: number; lon: number }[] = [];
+        points.push({ lat: startCoords[0], lon: startCoords[1] });
+        extraCoords.forEach((c) => points.push({ lat: c[0], lon: c[1] }));
+        points.push({ lat: endCoords[0], lon: endCoords[1] });
+
         let totalDist = await getDrivingRouteDistance(points);
 
-        
+        if (calcId !== distanceCalcIdRef.current) return;
+
         if (totalDist === null) {
-            console.log("OSRM failed, falling back to Haversine");
-            totalDist = 0;
-            for (let i = 0; i < points.length - 1; i++) {
-                totalDist += calculateDistance(points[i].lat, points[i].lon, points[i+1].lat, points[i+1].lon);
-            }
+          totalDist = 0;
+          for (let i = 0; i < points.length - 1; i++) {
+            totalDist += calculateDistance(points[i].lat, points[i].lon, points[i + 1].lat, points[i + 1].lon);
+          }
         }
 
-        setDistanciaKm(totalDist.toFixed(2));
-      } else {
+        setDistanciaKm(totalDist > 0 ? totalDist.toFixed(2) : '');
+        setDistanceError(null);
+      } catch (e) {
+        if (calcId !== distanceCalcIdRef.current) return;
         setDistanciaKm('');
+        setDistanceError('Erro ao calcular a distância. Tente novamente.');
+      } finally {
+        if (calcId === distanceCalcIdRef.current) {
+          setCalculatingDistance(false);
+        }
       }
-      setCalculatingDistance(false);
     };
 
     const timeoutId = setTimeout(() => {
-      updateDistance();
+      void updateDistance();
     }, 500);
 
     return () => clearTimeout(timeoutId);
@@ -988,7 +1266,7 @@ export function NovaEntregaPanel() {
         entrega_complemento: form.entrega_complemento || null,
         entrega_observacoes: form.entrega_observacoes || null,
         retorno: form.retorno,
-        pontos_adicionais: form.pontos.length ? form.pontos : null,
+        pontos_adicionais: form.pontos.length ? form.pontos.map(({ coords, ...rest }) => rest) : null,
         opcionais: driverBonuses.length > 0 ? { driver_bonuses: driverBonuses } : null,
         observacoes: form.observacoes || null,
         status: entregadorEscolhido ? 'atribuida' : 'criada',
@@ -1138,8 +1416,14 @@ export function NovaEntregaPanel() {
           <AddressAutocomplete
             placeholder="Endereço completo"
             value={form.coleta_endereco_texto}
-            onChange={(val) => setForm({ ...form, coleta_endereco_texto: val })}
-            onSelectCoords={setColetaSelectedCoords}
+            onChange={(val) => { setColetaSelectedCoords(undefined); setDistanceError(null); setForm({ ...form, coleta_endereco_texto: val }); }}
+            onSelectCoords={(coords, selectedText) => {
+              setColetaSelectedCoords(coords);
+              if (coords) {
+                const key = normalizeAddressKey(selectedText || form.coleta_endereco_texto);
+                if (key) selectedCoordsByTextRef.current.set(key, coords);
+              }
+            }}
             containerClassName="md:col-span-2"
           />
           <input placeholder="Nº" value={form.coleta_numero} onChange={(e) => setForm({ ...form, coleta_numero: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
@@ -1164,8 +1448,14 @@ export function NovaEntregaPanel() {
           <AddressAutocomplete
             placeholder="Endereço completo"
             value={form.entrega_endereco_texto}
-            onChange={(val) => setForm({ ...form, entrega_endereco_texto: val })}
-            onSelectCoords={setEntregaSelectedCoords}
+            onChange={(val) => { setEntregaSelectedCoords(undefined); setDistanceError(null); setForm({ ...form, entrega_endereco_texto: val }); }}
+            onSelectCoords={(coords, selectedText) => {
+              setEntregaSelectedCoords(coords);
+              if (coords) {
+                const key = normalizeAddressKey(selectedText || form.entrega_endereco_texto);
+                if (key) selectedCoordsByTextRef.current.set(key, coords);
+              }
+            }}
             containerClassName="md:col-span-2"
           />
           <input placeholder="Nº" value={form.entrega_numero} onChange={(e) => setForm({ ...form, entrega_numero: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
@@ -1178,7 +1468,7 @@ export function NovaEntregaPanel() {
         <div className="flex items-center justify-between">
           <div className="text-sm font-semibold text-slate-900">Serviços Opcionais</div>
           <div className="flex items-center gap-3">
-            <button onClick={() => setForm({ ...form, pontos: [...form.pontos, { contato: '', telefone: '', cep: '', endereco_texto: '', numero: '', complemento: '', observacoes: '' }] })} className="px-3 py-2 rounded bg-green-600 text-white text-sm">Adicionar Ponto +</button>
+            <button onClick={() => { setDistanceError(null); setForm({ ...form, pontos: [...form.pontos, { contato: '', telefone: '', cep: '', endereco_texto: '', numero: '', complemento: '', observacoes: '', coords: undefined }] }); }} className="px-3 py-2 rounded bg-green-600 text-white text-sm">Adicionar Ponto +</button>
             <div className="flex items-center gap-2">
               <input id="retorno" type="checkbox" checked={form.retorno} onChange={(e) => setForm({ ...form, retorno: e.target.checked })} />
               <label htmlFor="retorno" className="text-sm text-slate-700">Adicionar Retorno</label>
@@ -1197,7 +1487,8 @@ export function NovaEntregaPanel() {
                 <AddressAutocomplete
                   placeholder="Endereço completo"
                   value={p.endereco_texto}
-                  onChange={(val) => { const arr = [...form.pontos]; arr[idx] = { ...arr[idx], endereco_texto: val }; setForm({ ...form, pontos: arr }); }}
+                  onChange={(val) => { setDistanceError(null); const arr = [...form.pontos]; arr[idx] = { ...arr[idx], endereco_texto: val, coords: undefined }; setForm({ ...form, pontos: arr }); }}
+                  onSelectCoords={(coords) => { setDistanceError(null); const arr = [...form.pontos]; arr[idx] = { ...arr[idx], coords }; setForm({ ...form, pontos: arr }); }}
                   containerClassName="md:col-span-2"
                 />
                 <input placeholder="Nº" value={p.numero} onChange={(e) => { const v = e.target.value; const arr = [...form.pontos]; arr[idx] = { ...arr[idx], numero: v }; setForm({ ...form, pontos: arr }); }} className="px-3 py-2 border border-slate-300 rounded" />
@@ -1218,7 +1509,10 @@ export function NovaEntregaPanel() {
              <div>
                 <span className="text-sm text-sky-700 font-medium block">Valor Total da Entrega</span>
                 {distanciaKm && <span className="text-xs text-sky-600">Distância estimada: {distanciaKm} km</span>}
-                {!calculatingDistance && (form.coleta_endereco_texto && form.entrega_endereco_texto) && !distanciaKm && (
+                {!calculatingDistance && !!distanceError && (
+                  <span className="text-xs text-red-700 block">{distanceError}</span>
+                )}
+                {!calculatingDistance && (form.coleta_endereco_texto && form.entrega_endereco_texto) && !distanciaKm && !distanceError && (
                   <span className="text-xs text-amber-700 block">Aguardando cálculo da distância...</span>
                 )}
                 {activeDynamicRules.length > 0 && (
