@@ -202,31 +202,11 @@ export function ComercioNotificacoesPanel() {
       });
 
       if (fnError) {
-        let message =
+        const message =
           (data as any)?.error ||
           (data as any)?.message ||
           (fnError as any).message ||
           'Erro ao finalizar autenticação com iFood.';
-
-        try {
-          const { data: sessionData } = await supabase.auth.getSession();
-          const accessToken = sessionData.session?.access_token || SUPABASE_ANON_KEY;
-
-          const resp = await fetch(`${SUPABASE_URL}/functions/v1/ifood-auth`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              apikey: SUPABASE_ANON_KEY,
-              Authorization: `Bearer ${accessToken}`,
-            },
-            body: JSON.stringify(payload),
-          });
-
-          const raw = await resp.text();
-          const parsed = raw ? JSON.parse(raw) : null;
-          message = (parsed as any)?.error || (parsed as any)?.message || message;
-        } catch {
-        }
 
         setIfoodError(message);
         return;
