@@ -112,14 +112,11 @@ export function IntegracaoPanel() {
           return;
         }
 
-        const redirectUri = window.location.origin + window.location.pathname;
-
         const { data: exchangeData, error: exchangeError } = await supabase.functions.invoke('ifood-auth', {
           body: {
             action: 'exchange',
             code: authCode.trim(),
-            cliente_id: clienteId,
-            redirect_uri: redirectUri
+            cliente_id: clienteId
           }
         });
 
@@ -173,6 +170,7 @@ export function IntegracaoPanel() {
   useEffect(() => {
     if (!pollMerchantStatus) return;
     if (!merchantClienteId) return;
+    if (!merchantId) return;
 
     let cancelled = false;
     const tick = async () => {

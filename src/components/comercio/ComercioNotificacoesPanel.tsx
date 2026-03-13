@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase, SUPABASE_ANON_KEY, SUPABASE_URL } from '../../lib/supabase';
 import { Bell, AlertCircle, ExternalLink } from 'lucide-react';
 import { Modal } from '../Modal';
 
@@ -148,24 +148,43 @@ export function ComercioNotificacoesPanel() {
     try {
       setIfoodLoading(true);
       setIfoodError(null);
-
-      const redirectUri = window.location.origin + window.location.pathname;
+      const payload = {
+        action: 'exchange',
+        code: ifoodAuthCode.trim(),
+        cliente_id: clientId,
+      };
 
       const { data, error: fnError } = await supabase.functions.invoke('ifood-auth', {
-        body: {
-          action: 'exchange',
-          code: ifoodAuthCode.trim(),
-          cliente_id: clientId,
-          redirect_uri: redirectUri
-        }
+        body: payload
       });
 
       if (fnError) {
-        const message =
+        let message =
           (data as any)?.error ||
           (data as any)?.message ||
           (fnError as any).message ||
           'Erro ao finalizar autenticação com iFood.';
+
+        try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          const accessToken = sessionData.session?.access_token || SUPABASE_ANON_KEY;
+
+          const resp = await fetch(`${SUPABASE_URL}/functions/v1/ifood-auth`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              apikey: SUPABASE_ANON_KEY,
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify(payload),
+          });
+
+          const raw = await resp.text();
+          const parsed = raw ? JSON.parse(raw) : null;
+          message = (parsed as any)?.error || (parsed as any)?.message || message;
+        } catch {
+        }
+
         setIfoodError(message);
         return;
       }

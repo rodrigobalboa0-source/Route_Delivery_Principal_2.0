@@ -95,6 +95,28 @@ function App() {
   const entregadorLastHeartbeatRef = useRef(0);
   const entregadorLocationRef = useRef<{ lat: number; lng: number } | null>(null);
 
+  const clearSupabaseAuthStorage = () => {
+    try {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i) || '';
+        if (k === 'sb-comercio-token' || k === 'sb-admin-token') keysToRemove.push(k);
+        if (k.startsWith('sb-') && k.includes('-auth-token')) keysToRemove.push(k);
+      }
+      for (const k of keysToRemove) localStorage.removeItem(k);
+    } catch (e) {
+      void e;
+    }
+  };
+
+  const isInvalidAuthSessionError = (err: unknown) => {
+    const msg =
+      (err && typeof err === 'object' && 'message' in err && (err as any).message
+        ? String((err as any).message)
+        : String(err || '')).toLowerCase();
+    return msg.includes('invalid refresh token') || msg.includes('refresh token') || msg.includes('no api key found');
+  };
+
   useEffect(() => {
     if (userRole === 'operador') {
       setShowPendingWithdrawalsModal(true);
@@ -235,12 +257,7 @@ function App() {
     setAccountPending(false);
     setIsRecoveryMode(false);
     try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i) || '';
-        if (k.startsWith('sb-') && k.includes('-auth-token')) {
-          localStorage.removeItem(k);
-        }
-      }
+      clearSupabaseAuthStorage();
       localStorage.removeItem('last_active_menu');
       localStorage.removeItem('last_menu_params');
     } catch (e) { void e; }
@@ -405,15 +422,38 @@ function App() {
       setIsRecoveryMode(true);
     }
     
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setAuthenticated(true);
-        resolveRole(session.user.id, session.user.email || '');
-      } else {
+    supabase.auth
+      .getSession()
+      .then(({ data: { session }, error }) => {
+        if (error && isInvalidAuthSessionError(error)) {
+          clearSupabaseAuthStorage();
+          setAuthenticated(false);
+          setUserRole('loading');
+          setAccountPending(false);
+          setIsRecoveryMode(false);
+          return;
+        }
+
+        if (session?.user) {
+          setAuthenticated(true);
+          resolveRole(session.user.id, session.user.email || '');
+        } else {
+          setAuthenticated(false);
+          setUserRole('loading');
+        }
+      })
+      .catch((err) => {
+        if (isInvalidAuthSessionError(err)) {
+          clearSupabaseAuthStorage();
+          setAuthenticated(false);
+          setUserRole('loading');
+          setAccountPending(false);
+          setIsRecoveryMode(false);
+          return;
+        }
         setAuthenticated(false);
         setUserRole('loading');
-      }
-    });
+      });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY') {
