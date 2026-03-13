@@ -94,9 +94,18 @@ export function IntegracaoPanel() {
 
         const userCode = (data as any).userCode || (data as any).user_code;
         const verificationUrl = (data as any).verificationUrlComplete || (data as any).verification_url_complete;
+        const authorizationCodeVerifier =
+          (data as any).authorizationCodeVerifier ||
+          (data as any).authorization_code_verifier ||
+          (data as any).codeVerifier ||
+          (data as any).code_verifier ||
+          null;
 
         if (!userCode) {
           throw new Error('Não foi possível obter o código de ativação do iFood.');
+        }
+        if (!authorizationCodeVerifier) {
+          throw new Error('Não foi possível obter o code verifier do iFood.');
         }
 
         let mensagem = `1) Acesse o Portal do Parceiro iFood e clique em "Ativar aplicativo por código".\n\n2) Informe este código: ${userCode}.\n\n3) Após autorizar o aplicativo, o portal exibirá um "código de autorização".\n\n4) Copie esse código e cole na próxima caixa.`;
@@ -116,7 +125,8 @@ export function IntegracaoPanel() {
           body: {
             action: 'exchange',
             code: authCode.trim(),
-            cliente_id: clienteId
+            cliente_id: clienteId,
+            authorization_code_verifier: authorizationCodeVerifier
           }
         });
 

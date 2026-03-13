@@ -19,6 +19,7 @@ export function ComercioNotificacoesPanel() {
   const [ifoodLoading, setIfoodLoading] = useState(false);
   const [ifoodUserCode, setIfoodUserCode] = useState<string | null>(null);
   const [ifoodVerificationUrl, setIfoodVerificationUrl] = useState<string | null>(null);
+  const [ifoodAuthorizationCodeVerifier, setIfoodAuthorizationCodeVerifier] = useState<string | null>(null);
   const [ifoodError, setIfoodError] = useState<string | null>(null);
   const [ifoodAuthCode, setIfoodAuthCode] = useState('');
 
@@ -95,6 +96,7 @@ export function ComercioNotificacoesPanel() {
       setIfoodError(null);
       setIfoodUserCode(null);
       setIfoodVerificationUrl(null);
+      setIfoodAuthorizationCodeVerifier(null);
 
       const { data, error: fnError } = await supabase.functions.invoke('ifood-auth', {
         body: {
@@ -123,6 +125,12 @@ export function ComercioNotificacoesPanel() {
         (data as any).verificationUrlComplete ||
         (data as any).verification_url_complete ||
         null;
+      const authorizationCodeVerifier =
+        (data as any).authorizationCodeVerifier ||
+        (data as any).authorization_code_verifier ||
+        (data as any).codeVerifier ||
+        (data as any).code_verifier ||
+        null;
 
       if (!userCode) {
         setIfoodError('Não foi possível obter o código de ativação do iFood.');
@@ -131,6 +139,7 @@ export function ComercioNotificacoesPanel() {
 
       setIfoodUserCode(userCode);
       setIfoodVerificationUrl(verificationUrl);
+      setIfoodAuthorizationCodeVerifier(authorizationCodeVerifier);
       setIfoodModalOpen(true);
     } catch (e: any) {
       setIfoodError(e.message || 'Erro ao gerar código de ativação no iFood.');
@@ -145,6 +154,10 @@ export function ComercioNotificacoesPanel() {
       setIfoodError('Informe o código de autorização exibido no Portal do iFood.');
       return;
     }
+    if (!ifoodAuthorizationCodeVerifier) {
+      setIfoodError('Reinicie a autorização do iFood para gerar o code verifier.');
+      return;
+    }
     try {
       setIfoodLoading(true);
       setIfoodError(null);
@@ -152,6 +165,7 @@ export function ComercioNotificacoesPanel() {
         action: 'exchange',
         code: ifoodAuthCode.trim(),
         cliente_id: clientId,
+        authorization_code_verifier: ifoodAuthorizationCodeVerifier,
       };
 
       const { data, error: fnError } = await supabase.functions.invoke('ifood-auth', {
