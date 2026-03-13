@@ -27,7 +27,7 @@ type DeliveryLog = Database['public']['Tables']['delivery_logs']['Row'] & { crea
 
 interface PedidosPanelProps {
   onNavigate?: (menu: string, params?: any) => void;
-  userRole?: 'operador' | 'cliente' | 'entregador' | 'loading';
+  userRole?: 'admin' | 'operador' | 'cliente' | 'entregador' | 'loading';
   userId?: string;
 }
 
@@ -423,8 +423,9 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [selectedPedidoForAllocation, setSelectedPedidoForAllocation] = useState<Pedido | null>(null);
   const [selectedEntregadorId, setSelectedEntregadorId] = useState('');
   const [isSwappingFinalized, setIsSwappingFinalized] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isComercio, setIsComercio] = useState(false);
+  const normalizedUserRole = typeof userRole === 'string' ? userRole : '';
+  const isComercio = normalizedUserRole === 'cliente' || normalizedUserRole === '' || normalizedUserRole === 'loading';
+  const isAdmin = normalizedUserRole === 'admin' || normalizedUserRole === 'operador';
   const [allowAlocarComercio, setAllowAlocarComercio] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isBulkAllocation, setIsBulkAllocation] = useState(false);
@@ -562,8 +563,6 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         const { data } = await supabase.from('users').select('role, cliente_id, email').eq('id', userId).single();
         
         const isClient = data?.role === 'cliente';
-        setIsAdmin(data?.role === 'admin' || data?.role === 'operador');
-        setIsComercio(isClient);
         
         if (isClient) {
             let targetClientId = data?.cliente_id;
@@ -1309,6 +1308,14 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     if (!silent) setLoadingList(true);
     setError(null);
     
+    if (isComercio && !filters.cliente_id) {
+        if (!silent) {
+            setItems([]);
+            setAllItems([]);
+        }
+        return;
+    }
+
     try {
         
         let qPedidos = supabase.from('pedidos').select('*').order('created_at', { ascending: false });
@@ -1415,6 +1422,10 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         if (!silent) setLoadingList(false);
     }
   }, [filters, clientes, isComercio]);
+
+  useEffect(() => {
+    fetchPedidos();
+  }, [fetchPedidos]);
 
   useEffect(() => {
     
@@ -2014,6 +2025,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       </div>
 
       {/* Summary Cards & Actions */}
+      {!isComercio && (
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {!isComercio && (
         <div className="bg-white p-4 rounded-lg border border-slate-200 flex items-center gap-3">
@@ -2066,8 +2078,11 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
              </button>
         </div>
       </div>
+      )}
 
       {/* Filters */}
+      {!isComercio && (
+      <>
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
             <button 
                 className="bg-white border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-slate-200 outline-none text-left flex justify-between items-center"
@@ -2192,6 +2207,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
           </div>
         </div>
       </Modal>
+      </>
+      )}
 
       {/* Status Counters */}
       {!isComercio && (

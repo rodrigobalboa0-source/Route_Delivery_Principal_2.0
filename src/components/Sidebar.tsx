@@ -142,7 +142,10 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
   }, [forceOpenGroups]);
 
   const visibleMenuItems = ((): { id: string; label: string; icon: any }[] => {
-    if (userRole === 'cliente') return menuItems.filter((m) => ['mensagens', 'pedidos', 'comercio_notificacoes', 'comercio_creditos', 'comercio_faturamento'].includes(m.id));
+    if (userRole === 'cliente') {
+      const order = ['pedidos', 'nova', 'mensagens', 'comercio_notificacoes', 'comercio_creditos', 'comercio_faturamento'];
+      return order.map((id) => menuItems.find((m) => m.id === id)).filter(Boolean) as { id: string; label: string; icon: any }[];
+    }
     if (userRole === 'entregador') return menuItems.filter((m) => ['home_entregador', 'entregas', 'mensagens', 'carteira', 'conta'].includes(m.id));
 
     return menuItems.filter((m) => !['home_entregador', 'entregas', 'carteira', 'conta', 'comercio_creditos', 'comercio_faturamento'].includes(m.id));
