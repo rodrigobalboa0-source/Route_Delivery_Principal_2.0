@@ -34,6 +34,19 @@ export function IntegracaoPanel() {
     status: 'inativo'
   });
 
+  const getIfoodVerifierStorageKey = (cid: string) => `ifood:auth:verifier:${cid}`;
+  const setPersistedIfoodVerifier = (cid: string, verifier: string | null) => {
+    try {
+      const key = getIfoodVerifierStorageKey(cid);
+      if (!verifier) {
+        localStorage.removeItem(key);
+      } else {
+        localStorage.setItem(key, verifier);
+      }
+    } catch {
+    }
+  };
+
   const activeIntegracoes = integracoes.filter(i => i.status === 'ativo');
 
   const fetchData = async () => {
@@ -107,6 +120,7 @@ export function IntegracaoPanel() {
         if (!authorizationCodeVerifier) {
           throw new Error('Não foi possível obter o code verifier do iFood.');
         }
+        setPersistedIfoodVerifier(clienteId, authorizationCodeVerifier);
 
         let mensagem = `1) Acesse o Portal do Parceiro iFood e clique em "Ativar aplicativo por código".\n\n2) Informe este código: ${userCode}.\n\n3) Após autorizar o aplicativo, o portal exibirá um "código de autorização".\n\n4) Copie esse código e cole na próxima caixa.`;
 
@@ -145,6 +159,7 @@ export function IntegracaoPanel() {
         }
 
         alert('Integração conectada com sucesso!');
+        setPersistedIfoodVerifier(clienteId, null);
         fetchData();
       } catch (err: any) {
         console.error('Erro na conexão iFood:', err);
