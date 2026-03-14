@@ -958,7 +958,57 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         if (addressParts.length > 0) {
           const fullAddress = addressParts.join(', ');
           setComercioAddress(fullAddress);
-          const coords = await getCoordsFromAddress(fullAddress);
+          const resolveCoordsWithFallback = async (text: string) => {
+            const baseText = String(text || '').trim();
+            if (!baseText) return undefined;
+
+            let c = await getCoordsFromAddress(baseText);
+            if (c) return c;
+
+            const normalized = baseText.replace(/\s+-\s+/g, ', ');
+            const parts = normalized
+              .split(',')
+              .map((p) => p.trim())
+              .filter(Boolean);
+
+            const noCep = parts.filter((p) => !/^\d{5}-?\d{3}$/.test(p));
+            const candidates: string[] = [];
+
+            if (noCep.length >= 4) {
+              const rua = noCep[0];
+              const numero = noCep[1];
+              const bairro = noCep[2];
+              const cidade = noCep[3];
+
+              candidates.push([rua, numero, bairro, cidade].filter(Boolean).join(', '));
+              candidates.push([rua, bairro, cidade].filter(Boolean).join(', '));
+              candidates.push([bairro, cidade].filter(Boolean).join(', '));
+            }
+
+            if (noCep.length >= 2) {
+              candidates.push(noCep.slice(1).join(', '));
+              candidates.push(noCep.slice(-2).join(', '));
+            }
+
+            const seen = new Set<string>();
+            for (const q of candidates) {
+              const k = q
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase()
+                .trim()
+                .replace(/\s+/g, ' ');
+              if (!k || seen.has(k)) continue;
+              seen.add(k);
+
+              c = await getCoordsFromAddress(q);
+              if (c) return c;
+            }
+
+            return undefined;
+          };
+
+          const coords = await resolveCoordsWithFallback(fullAddress);
           if (coords) {
             setOriginCoords(coords);
             setOriginTitle(clienteData.nome_completo || 'Minha Loja');
@@ -1486,6 +1536,39 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
+    const resolveCoordsWithFallback = async (text: string) => {
+      const baseText = String(text || '').trim();
+      if (!baseText) return undefined;
+
+      let c = await getCoordsFromAddress(baseText);
+      if (c) return c;
+
+      const normalized = baseText.replace(/\s+-\s+/g, ', ');
+      const parts = normalized
+        .split(',')
+        .map((p) => p.trim())
+        .filter(Boolean);
+
+      if (parts.length >= 2) {
+        const area = parts.slice(1).join(', ');
+        const candidates: string[] = [area];
+        const areaNorm = area
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase()
+          .trim()
+          .replace(/\s+/g, ' ');
+        if (!areaNorm.includes('campinas')) candidates.push(`${area}, Campinas, SP`);
+
+        for (const q of candidates) {
+          c = await getCoordsFromAddress(q);
+          if (c) return c;
+        }
+      }
+
+      return undefined;
+    };
+
     
     setOriginCoords(undefined);
     setDestinationCoords(undefined);
@@ -1506,9 +1589,21 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     
     if (entrega?.coleta_endereco_texto) {
       setOriginTitle(entrega.coleta_contato || 'Coleta');
-      const coords = await getCoordsFromAddress(entrega.coleta_endereco_texto);
+      const coords = await resolveCoordsWithFallback(entrega.coleta_endereco_texto);
       if (coords && isValidCoords(coords)) {
         setOriginCoords(coords);
+      } else if (isComercio) {
+        if (commerceDefaultCoords) {
+          setOriginTitle(commerceDefaultTitle);
+          setOriginCoords(commerceDefaultCoords);
+        } else if (comercioAddress) {
+          setOriginTitle(commerceDefaultTitle || 'Minha Loja');
+          const fallbackCoords = await resolveCoordsWithFallback(comercioAddress);
+          if (fallbackCoords && isValidCoords(fallbackCoords)) {
+            setOriginCoords(fallbackCoords);
+            setCommerceDefaultCoords(fallbackCoords);
+          }
+        }
       }
     } else {
         
@@ -1519,7 +1614,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             setOriginCoords(commerceDefaultCoords);
           } else if (comercioAddress) {
             setOriginTitle(commerceDefaultTitle || 'Minha Loja');
-            const coords = await getCoordsFromAddress(comercioAddress);
+            const coords = await resolveCoordsWithFallback(comercioAddress);
             if (coords && isValidCoords(coords)) {
               setOriginCoords(coords);
               setCommerceDefaultCoords(coords);
@@ -1542,7 +1637,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
             if (address) {
               setOriginTitle(cliente.nome_completo);
-              const coords = await getCoordsFromAddress(address);
+              const coords = await resolveCoordsWithFallback(address);
               if (coords && isValidCoords(coords)) {
                 setOriginCoords(coords);
               }
@@ -1554,13 +1649,13 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     
     if (entrega?.entrega_endereco_texto) {
       setDestinationTitle(entrega.entrega_contato || 'Entrega');
-      const coords = await getCoordsFromAddress(entrega.entrega_endereco_texto);
+      const coords = await resolveCoordsWithFallback(entrega.entrega_endereco_texto);
       if (coords && isValidCoords(coords)) {
         setDestinationCoords(coords);
       }
     } else if (pedido.endereco_texto) {
       setDestinationTitle('Entrega');
-      const coords = await getCoordsFromAddress(pedido.endereco_texto);
+      const coords = await resolveCoordsWithFallback(pedido.endereco_texto);
       if (coords && isValidCoords(coords)) {
         setDestinationCoords(coords);
       }
