@@ -38,7 +38,21 @@ interface AddressSuggestion {
   lon?: string;
 }
 
-function AddressAutocomplete({ value, onChange, placeholder, containerClassName, onSelectCoords }: { value: string, onChange: (val: string) => void, placeholder: string, containerClassName?: string, onSelectCoords?: (coords: [number, number] | undefined) => void }) {
+function AddressAutocomplete({
+  value,
+  onChange,
+  placeholder,
+  containerClassName,
+  onSelectCoords,
+  onSuggestCoords,
+}: {
+  value: string,
+  onChange: (val: string) => void,
+  placeholder: string,
+  containerClassName?: string,
+  onSelectCoords?: (coords: [number, number] | undefined) => void,
+  onSuggestCoords?: (coords: [number, number] | undefined, typedText: string) => void
+}) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const requestSeqRef = useRef(0);
   const cacheRef = useRef<Map<string, AddressSuggestion[]>>(new Map());
@@ -240,6 +254,14 @@ function AddressAutocomplete({ value, onChange, placeholder, containerClassName,
 
         cacheRef.current.set(normalizedKey, deduped);
         setSuggestions(deduped);
+
+        if (onSuggestCoords && trimmed.length >= 6) {
+          const top = deduped[0];
+          const lat = Number(top?.lat);
+          const lon = Number(top?.lon);
+          const coords = !Number.isNaN(lat) && !Number.isNaN(lon) ? ([lat, lon] as [number, number]) : undefined;
+          onSuggestCoords(coords, trimmed);
+        }
       } catch (e) {
         setSuggestions([]);
         setSuggestionsError('Falha ao buscar endereços. Tente novamente.');
@@ -807,48 +829,84 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         };
 
         const userRow = (await getUserRow(userId)) ?? null;
-        const isClient = userRow?.role === 'cliente' || normalizedUserRole === 'cliente';
+        const normalizeEmail = (v: unknown) => {
+          const e = typeof v === 'string' ? v.trim().toLowerCase() : '';
+          return e || null;
+        };
+        const isCommerceCandidate =
+          normalizedUserRole === 'cliente' ||
+          normalizedUserRole === '' ||
+          normalizedUserRole === 'loading' ||
+          userRow?.role === 'cliente';
 
-        if (!isClient) return;
+        if (!isCommerceCandidate) return;
 
         let targetClientId: string | null = userRow?.cliente_id ?? null;
-        let targetEmail: string | null = (userRow?.email || '').trim() || null;
+        let targetEmail: string | null = normalizeEmail(userRow?.email);
 
-        if (!targetEmail || !targetClientId) {
-          try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-              targetEmail = targetEmail ?? (user.email?.trim() || null);
-              if (!targetClientId) {
-                const row = await getUserRow(user.id);
-                targetClientId = row?.cliente_id ?? targetClientId;
-                targetEmail = row?.email?.trim() || targetEmail;
-              }
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            targetEmail = targetEmail ?? normalizeEmail(user.email);
+            if (!targetClientId) {
+              const row = await getUserRow(user.id);
+              targetClientId = row?.cliente_id ?? targetClientId;
+              targetEmail = normalizeEmail(row?.email) ?? targetEmail;
             }
+          }
+        } catch (e) {
+          void e;
+        }
+
+        const clienteSelect = 'id, nome_completo, rua, numero, bairro, cidade, cep, precificacao_config, telefone';
+        const selectClienteById = async (id: string) => {
+          const { data } = await supabase.from('clientes').select(clienteSelect).eq('id', id).maybeSingle();
+          return data ?? null;
+        };
+        const selectClienteByEmail = async (emailRaw: string) => {
+          const email = normalizeEmail(emailRaw);
+          if (!email) return null;
+
+          const tryEmail = async (pattern: string) => {
+            const { data, error } = await supabase.from('clientes').select(clienteSelect).ilike('email', pattern).limit(1);
+            if (error) return null;
+            return Array.isArray(data) && data.length > 0 ? (data[0] as any) : null;
+          };
+
+          const exact = await tryEmail(email);
+          if (exact) return exact;
+
+          const contains = await tryEmail(`%${email}%`);
+          if (contains) return contains;
+
+          try {
+            const { data, error } = await supabase
+              .from('clientes')
+              .select(clienteSelect)
+              .contains('faturamento_emails', [email])
+              .limit(1);
+            if (!error && Array.isArray(data) && data.length > 0) return data[0] as any;
           } catch (e) {
             void e;
           }
-        }
 
-        const selectCliente = async (by: { id?: string; email?: string }) => {
-          let q = supabase
-            .from('clientes')
-            .select('id, nome_completo, rua, numero, bairro, cidade, cep, precificacao_config, telefone');
-
-          if (by.id) q = q.eq('id', by.id);
-          if (!by.id && by.email) q = q.ilike('email', by.email.trim().toLowerCase());
-
-          const { data } = await q.maybeSingle();
-          return data ?? null;
+          return null;
         };
 
         let clienteData: any | null = null;
         if (targetClientId) {
-          clienteData = await selectCliente({ id: targetClientId });
+          clienteData = await selectClienteById(targetClientId);
         }
         if (!clienteData && targetEmail) {
-          clienteData = await selectCliente({ email: targetEmail });
+          clienteData = await selectClienteByEmail(targetEmail);
           if (clienteData && !targetClientId) targetClientId = clienteData.id;
+        }
+        if (!clienteData) {
+          const { data, error } = await supabase.from('clientes').select(clienteSelect).limit(2);
+          if (!error && Array.isArray(data) && data.length === 1) {
+            clienteData = data[0] as any;
+            if (!targetClientId) targetClientId = String((data[0] as any).id || '');
+          }
         }
 
         if (targetClientId) {
@@ -1186,7 +1244,33 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
             let origin = commerceDefaultCoords ?? originCoords;
             if (!origin && comercioAddress) {
-                const coords = await getCoordsFromAddress(comercioAddress);
+                const buildAreaCandidates = (text: string) => {
+                    const normalized = String(text || '').replace(/\s+-\s+/g, ', ');
+                    const parts = normalized
+                        .split(',')
+                        .map((p) => p.trim())
+                        .filter(Boolean);
+                    if (parts.length < 2) return [] as string[];
+                    const area = parts.slice(1).join(', ');
+                    const candidates: string[] = [area];
+                    const areaNorm = area
+                        .normalize('NFD')
+                        .replace(/[\u0300-\u036f]/g, '')
+                        .toLowerCase()
+                        .trim()
+                        .replace(/\s+/g, ' ');
+                    if (!areaNorm.includes('campinas')) candidates.push(`${area}, Campinas, SP`);
+                    return candidates;
+                };
+
+                let coords = await getCoordsFromAddress(comercioAddress);
+                if (!coords) {
+                    const areaCandidates = buildAreaCandidates(comercioAddress);
+                    for (const q of areaCandidates) {
+                        coords = await getCoordsFromAddress(q);
+                        if (coords) break;
+                    }
+                }
                 if (quickDistanceCalcIdRef.current !== calcId) return;
                 if (coords) {
                     origin = coords;
@@ -1196,7 +1280,37 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
             if (!origin) return;
 
-            const destCoords = quickDestinationCoords ?? await getCoordsFromAddress(fullAddress);
+            let destCoords = quickDestinationCoords;
+            if (!destCoords) {
+                let c = await getCoordsFromAddress(fullAddress);
+                if (!c && quickNumber) c = await getCoordsFromAddress(quickAddress);
+                if (!c) {
+                    const normalized = String(quickAddress || '').replace(/\s+-\s+/g, ', ');
+                    const parts = normalized
+                        .split(',')
+                        .map((p) => p.trim())
+                        .filter(Boolean);
+                    if (parts.length >= 2) {
+                        const area = parts.slice(1).join(', ');
+                        const candidates: string[] = [area];
+                        const areaNorm = area
+                            .normalize('NFD')
+                            .replace(/[\u0300-\u036f]/g, '')
+                            .toLowerCase()
+                            .trim()
+                            .replace(/\s+/g, ' ');
+                        if (!areaNorm.includes('campinas')) candidates.push(`${area}, Campinas, SP`);
+                        for (const q of candidates) {
+                            c = await getCoordsFromAddress(q);
+                            if (c) break;
+                        }
+                    }
+                }
+                if (c) {
+                    destCoords = c;
+                    setQuickDestinationCoords(c);
+                }
+            }
             if (quickDistanceCalcIdRef.current !== calcId) return;
             if (!destCoords) return;
 
@@ -1458,7 +1572,92 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   };
 
   useEffect(() => {
-    fetchClientes();
+    if (isComercio) {
+      void (async () => {
+        const normalizeEmail = (v: unknown) => {
+          const e = typeof v === 'string' ? v.trim().toLowerCase() : '';
+          return e || '';
+        };
+
+        const readLocalClientId = () => {
+          try {
+            const raw = localStorage.getItem('cliente_context');
+            if (!raw) return '';
+            const parsed = JSON.parse(raw) as { id?: string };
+            return String(parsed?.id || '').trim();
+          } catch (e) {
+            void e;
+            return '';
+          }
+        };
+
+        const localClientId = readLocalClientId();
+        let clienteId = localClientId;
+
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const { data: uRow } = await supabase.from('users').select('cliente_id, email').eq('id', user.id).maybeSingle();
+            const userEmail = normalizeEmail((uRow as any)?.email || user.email);
+
+            const rowClientId = String((uRow as any)?.cliente_id || '').trim();
+            if (!clienteId && rowClientId) clienteId = rowClientId;
+
+            if (!clienteId) {
+              try {
+                const { data: resolvedId } = await supabase.rpc('resolve_my_cliente_id');
+                if (resolvedId) clienteId = String(resolvedId).trim();
+              } catch (e) {
+                void e;
+              }
+            }
+
+            if (!clienteId && userEmail) {
+              const { data: byEmail } = await supabase.from('clientes').select('id').ilike('email', userEmail).maybeSingle();
+              if ((byEmail as any)?.id) clienteId = String((byEmail as any).id).trim();
+            }
+
+            if (!clienteId && userEmail) {
+              try {
+                const { data: byBilling } = await supabase.from('clientes').select('id').contains('faturamento_emails', [userEmail]).limit(1);
+                if (Array.isArray(byBilling) && byBilling[0]?.id) clienteId = String(byBilling[0].id).trim();
+              } catch (e) {
+                void e;
+              }
+            }
+          }
+        } catch (e) {
+          void e;
+        }
+
+        if (!clienteId) {
+          setClientes([]);
+          return;
+        }
+
+        const { data: cliente, error: clienteError } = await supabase
+          .from('clientes')
+          .select('id, nome_completo, telefone, rua, numero, bairro, cidade, cep')
+          .eq('id', clienteId)
+          .maybeSingle();
+
+        if (clienteError?.message) {
+          setError(clienteError.message);
+          setClientes([]);
+          return;
+        }
+
+        if (cliente) {
+          setClientes([cliente as Cliente]);
+          setFilters((prev) => ({ ...prev, cliente_id: String((cliente as any).id || '') }));
+        } else {
+          setClientes([]);
+        }
+      })();
+    } else {
+      fetchClientes();
+    }
+
     fetchEntregadoresList();
 
     
@@ -2180,6 +2379,10 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                         value={quickAddress}
                         onChange={setQuickAddress}
                         onSelectCoords={setQuickDestinationCoords}
+                        onSuggestCoords={(coords) => {
+                          if (!coords) return;
+                          setQuickDestinationCoords(coords);
+                        }}
                         placeholder="Rua, Bairro..."
                         containerClassName="w-full"
                     />

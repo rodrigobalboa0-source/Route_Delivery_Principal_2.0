@@ -48,12 +48,19 @@ async function fetchWithTimeout(url: string, timeoutMs: number, init?: RequestIn
   }
 }
 
-async function getCoordsFromEdgeFunction(address: string): Promise<[number, number] | undefined> {
-  const q = sanitizeAddressQuery(address);
-  if (!q) return undefined;
+function hasCityOrStateHint(address: string) {
+  const q = normalizeAddressKey(address);
+  if (!q) return false;
+  if (q.includes('campinas')) return true;
+  if (q.includes(', sp') || q.includes(' sp,')) return true;
+  if (q.includes('sao paulo') || q.includes('são paulo')) return true;
+  return false;
+}
+
+async function invokeGeocode(q: string, bounded: boolean): Promise<[number, number] | undefined> {
   try {
     const { data, error } = await supabase.functions.invoke('geocode', {
-      body: { q, limit: 1, bounded: true },
+      body: { q, limit: 1, bounded },
     });
     if (error) return undefined;
     const results = (data as any)?.results;
@@ -65,6 +72,40 @@ async function getCoordsFromEdgeFunction(address: string): Promise<[number, numb
   } catch (e) {
     void e;
   }
+  return undefined;
+}
+
+async function getCoordsFromEdgeFunction(address: string): Promise<[number, number] | undefined> {
+  const base = sanitizeAddressQuery(address);
+  if (!base) return undefined;
+
+  const candidates: string[] = [base];
+  if (!hasCityOrStateHint(base)) candidates.push(`${base}, Campinas, SP`);
+
+  const seen = new Set<string>();
+  const uniqueCandidates = candidates.filter((c) => {
+    const k = normalizeAddressKey(c);
+    if (!k || seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+
+  for (const q of uniqueCandidates) {
+    const boundedCoords = await invokeGeocode(q, true);
+    if (boundedCoords) return boundedCoords;
+
+    const unboundedCoords = await invokeGeocode(q, false);
+    if (unboundedCoords) return unboundedCoords;
+  }
+
+  const normalizedNoAccents = base.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (normalizeAddressKey(normalizedNoAccents) !== normalizeAddressKey(base)) {
+    const boundedCoords = await invokeGeocode(normalizedNoAccents, true);
+    if (boundedCoords) return boundedCoords;
+    const unboundedCoords = await invokeGeocode(normalizedNoAccents, false);
+    if (unboundedCoords) return unboundedCoords;
+  }
+
   return undefined;
 }
 

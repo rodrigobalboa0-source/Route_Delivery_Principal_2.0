@@ -94,21 +94,50 @@ export function AuthPage({ forceResetMode = false, onResetComplete }: { forceRes
   };
 
   const handleSignIn = async () => {
+    if (loading) return;
     setLoading(true);
     setError(null);
     try {
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
-        password: password.trim(),
-      });
+      const withTimeout = async <T,>(p: PromiseLike<T>, timeoutMs: number): Promise<T> => {
+        let timer: number | undefined;
+        try {
+          return await Promise.race<T>([
+            Promise.resolve(p as unknown as T),
+            new Promise<T>((_, reject) => {
+              timer = window.setTimeout(() => reject(new Error('AUTH_SIGNIN_TIMEOUT')), timeoutMs);
+            }),
+          ]);
+        } finally {
+          if (timer) window.clearTimeout(timer);
+        }
+      };
+
+      const { data, error: signInError } = await withTimeout(
+        supabase.auth.signInWithPassword({
+          email: email.trim().toLowerCase(),
+          password: password.trim(),
+        }),
+        12000
+      );
       if (signInError) throw signInError;
+
+      const hasSessionUser = Boolean((data as any)?.session?.user);
+      if (!hasSessionUser) {
+        const { data: sessionData } = await withTimeout(supabase.auth.getSession(), 6000);
+        if (!sessionData?.session?.user) {
+          throw new Error('Não foi possível iniciar a sessão. Tente novamente.');
+        }
+      }
 
       if (remember) {
         
       }
     } catch (e: any) {
-      let msg = e.message || 'Falha no login';
+      let msg = e?.message || 'Falha no login';
       if (/email not confirmed/i.test(msg)) msg = 'Você precisa confirmar seu e-mail primeiro para logar';
+      if (/AUTH_SIGNIN_TIMEOUT/i.test(msg) || /timeout/i.test(msg)) {
+        msg = 'O login demorou demais para responder. Verifique sua internet e tente novamente.';
+      }
       setError(msg);
     } finally {
       setLoading(false);

@@ -61,7 +61,21 @@ function isClientFaturamento(client: Cliente | null | undefined) {
   return false;
 }
 
-function AddressAutocomplete({ value, onChange, placeholder, containerClassName, onSelectCoords }: { value: string, onChange: (val: string) => void, placeholder: string, containerClassName?: string, onSelectCoords?: (coords: [number, number] | undefined, selectedText?: string) => void }) {
+function AddressAutocomplete({
+  value,
+  onChange,
+  placeholder,
+  containerClassName,
+  onSelectCoords,
+  onSuggestCoords,
+}: {
+  value: string,
+  onChange: (val: string) => void,
+  placeholder: string,
+  containerClassName?: string,
+  onSelectCoords?: (coords: [number, number] | undefined, selectedText?: string) => void,
+  onSuggestCoords?: (coords: [number, number] | undefined, typedText: string) => void
+}) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const requestSeqRef = useRef(0);
   const cacheRef = useRef<Map<string, AddressSuggestion[]>>(new Map());
@@ -263,6 +277,14 @@ function AddressAutocomplete({ value, onChange, placeholder, containerClassName,
 
         cacheRef.current.set(normalizedKey, deduped);
         setSuggestions(deduped);
+
+        if (onSuggestCoords && trimmedValue.length >= 6) {
+          const top = deduped[0];
+          const lat = Number(top?.lat);
+          const lon = Number(top?.lon);
+          const coords = !Number.isNaN(lat) && !Number.isNaN(lon) ? ([lat, lon] as [number, number]) : undefined;
+          onSuggestCoords(coords, trimmedValue);
+        }
       } catch (e) {
         setSuggestions([]);
         setSuggestionsError('Falha ao buscar endereços. Tente novamente.');
@@ -379,13 +401,67 @@ export function NovaEntregaPanel() {
   const [activeDynamicRules, setActiveDynamicRules] = useState<{ name: string; value: number }[]>([]);
   const [dynamicDriverRules, setDynamicDriverRules] = useState<DynamicDriverRule[]>([]);
   const [faixasPreco, setFaixasPreco] = useState<FaixaPreco[]>([]);
-  const coordsCache = useRef<Map<string, { lat: number; lon: number }>>(new Map()); // Kept for backward compatibility if needed, but unused now
+  const coordsCache = useRef<Map<string, { lat: number; lon: number }>>(new Map()); 
   const distanceCalcIdRef = useRef(0);
   const [driverValueDisplay, setDriverValueDisplay] = useState<string>('0.00');
   const [driverReturnDisplay, setDriverReturnDisplay] = useState<string | null>(null);
   const [coletaSelectedCoords, setColetaSelectedCoords] = useState<[number, number] | undefined>(undefined);
   const [entregaSelectedCoords, setEntregaSelectedCoords] = useState<[number, number] | undefined>(undefined);
   const selectedCoordsByTextRef = useRef<Map<string, [number, number]>>(new Map());
+
+  const debugEnabled = (() => {
+    try {
+      if (typeof window === 'undefined') return false;
+      const params = new URLSearchParams(window.location.search);
+      return params.get('debug') === '1' || localStorage.getItem('rd_debug') === '1';
+    } catch (e) {
+      void e;
+      return false;
+    }
+  })();
+
+  const debugRef = useRef<Record<string, unknown>>({});
+  const [debugText, setDebugText] = useState<string>('');
+  const updateDebug = (partial: Record<string, unknown>) => {
+    if (!debugEnabled) return;
+    debugRef.current = { ...debugRef.current, ...partial, at: new Date().toISOString() };
+    try {
+      setDebugText(JSON.stringify(debugRef.current, null, 2));
+    } catch (e) {
+      void e;
+    }
+  };
+
+  useEffect(() => {
+    if (!debugEnabled) return;
+    updateDebug({
+      debug_enabled: true,
+      href: typeof window !== 'undefined' ? window.location.href : null,
+    });
+  }, [debugEnabled]);
+
+  const enableDebug = () => {
+    try {
+      localStorage.setItem('rd_debug', '1');
+    } catch (e) {
+      void e;
+    }
+
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('debug', '1');
+      window.location.href = url.toString();
+      return;
+    } catch (e) {
+      void e;
+    }
+
+    try {
+      window.location.reload();
+    } catch (e) {
+      void e;
+    }
+  };
 
   const normalizeAddressKey = (text: string) => {
     return String(text || '')
@@ -656,6 +732,26 @@ export function NovaEntregaPanel() {
       const coletaFull = form.coleta_numero ? `${coletaEndereco}, ${form.coleta_numero}` : coletaEndereco;
       const entregaFull = form.entrega_numero ? `${entregaEndereco}, ${form.entrega_numero}` : entregaEndereco;
 
+      updateDebug({
+        distancia: {
+          coleta_texto: coletaEndereco,
+          coleta_numero: String(form.coleta_numero || ''),
+          entrega_texto: entregaEndereco,
+          entrega_numero: String(form.entrega_numero || ''),
+          coleta_full: coletaFull,
+          entrega_full: entregaFull,
+          coleta_selected_coords: coletaSelectedCoords || null,
+          entrega_selected_coords: entregaSelectedCoords || null,
+        },
+        precificacao: {
+          pricing_mode: pricingMode,
+          selected_tabela_id: selectedTabelaId || null,
+          tabelas_precos_count: Array.isArray(tabelasPrecos) ? tabelasPrecos.length : 0,
+          faixas_preco_count: Array.isArray(faixasPreco) ? faixasPreco.length : 0,
+          valor_entrega: form.valor_entrega || null,
+        },
+      });
+
       if ((!coletaSelectedCoords && coletaFull.length < 5) || (!entregaSelectedCoords && entregaFull.length < 5)) {
         if (calcId === distanceCalcIdRef.current) {
           setDistanciaKm('');
@@ -686,6 +782,33 @@ export function NovaEntregaPanel() {
             selectedCoordsByTextRef.current.set(key, c);
             return c;
           }
+
+          const normalized = String(baseText || '').replace(/\s+-\s+/g, ', ');
+          const parts = normalized
+            .split(',')
+            .map((p) => p.trim())
+            .filter(Boolean);
+
+          if (parts.length >= 2) {
+            const area = parts.slice(1).join(', ');
+            const candidates: string[] = [area];
+            const areaNorm = normalizeAddressKey(area);
+            if (!areaNorm.includes('campinas')) candidates.push(`${area}, Campinas, SP`);
+
+            for (const q of candidates) {
+              const areaCoords = await getCoordsFromAddress(q);
+              if (areaCoords) {
+                selectedCoordsByTextRef.current.set(key, areaCoords);
+                updateDebug({
+                  distancia: {
+                    ...(typeof debugRef.current.distancia === 'object' && debugRef.current.distancia ? (debugRef.current.distancia as any) : {}),
+                    fallback_area_query: q,
+                  },
+                });
+                return areaCoords;
+              }
+            }
+          }
           return undefined;
         };
 
@@ -696,6 +819,14 @@ export function NovaEntregaPanel() {
 
         if (calcId !== distanceCalcIdRef.current) return;
 
+        updateDebug({
+          distancia: {
+            ...(typeof debugRef.current.distancia === 'object' && debugRef.current.distancia ? (debugRef.current.distancia as any) : {}),
+            start_coords: startCoords || null,
+            end_coords: endCoords || null,
+          },
+        });
+
         if (!startCoords || !endCoords) {
           setDistanciaKm('');
           if (!startCoords && !endCoords) {
@@ -705,6 +836,12 @@ export function NovaEntregaPanel() {
           } else {
             setDistanceError('Não foi possível localizar o endereço de entrega. Selecione uma sugestão da lista.');
           }
+          updateDebug({
+            distancia: {
+              ...(typeof debugRef.current.distancia === 'object' && debugRef.current.distancia ? (debugRef.current.distancia as any) : {}),
+              error: !startCoords && !endCoords ? 'coleta_e_entrega_sem_coords' : !startCoords ? 'coleta_sem_coords' : 'entrega_sem_coords',
+            },
+          });
           return;
         }
 
@@ -747,10 +884,24 @@ export function NovaEntregaPanel() {
 
         setDistanciaKm(totalDist > 0 ? totalDist.toFixed(2) : '');
         setDistanceError(null);
+        updateDebug({
+          distancia: {
+            ...(typeof debugRef.current.distancia === 'object' && debugRef.current.distancia ? (debugRef.current.distancia as any) : {}),
+            total_km: typeof totalDist === 'number' ? totalDist : null,
+            result_distancia_km: totalDist > 0 ? totalDist.toFixed(2) : '',
+            error: null,
+          },
+        });
       } catch (e) {
         if (calcId !== distanceCalcIdRef.current) return;
         setDistanciaKm('');
         setDistanceError('Erro ao calcular a distância. Tente novamente.');
+        updateDebug({
+          distancia: {
+            ...(typeof debugRef.current.distancia === 'object' && debugRef.current.distancia ? (debugRef.current.distancia as any) : {}),
+            error: 'exception',
+          },
+        });
       } finally {
         if (calcId === distanceCalcIdRef.current) {
           setCalculatingDistance(false);
@@ -901,67 +1052,106 @@ export function NovaEntregaPanel() {
   };
 
   const fetchData = async () => {
-    const userPromise = supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
 
-    const [c, e, t, m, tp, tc, b, dyn, dynDriver] = await Promise.all([
-      supabase.from('clientes').select('*').order('nome_completo'),
+    const normalizeEmail = (v: unknown) => {
+      const e = typeof v === 'string' ? v.trim().toLowerCase() : '';
+      return e || '';
+    };
+
+    const uDataPromise = user
+      ? supabase
+          .from('users')
+          .select('role, cliente_id, email')
+          .eq('id', user.id)
+          .maybeSingle()
+      : Promise.resolve({ data: null as any });
+
+    const [uDataResp, e, t, m, tp, tc, b, dyn, dynDriver] = await Promise.all([
+      uDataPromise,
       supabase.from('entregadores').select('id, nome_completo, status, is_online').neq('status', 'inativo').order('nome_completo'),
       supabase.from('tipo_servicos').select('*').eq('ativo', true).order('nome'),
       supabase.from('modais').select('*').eq('ativo', true).order('tipo'),
       supabase.from('tabelas_precos').select('*').order('nome'),
       supabase.from('tabelas_comissoes').select('*').order('nome'),
       supabase.from('entregador_bloqueios_clientes').select('cliente_id, entregador_id'),
-       supabase.from('preco_dinamico_demanda').select('*').eq('ativa', true).order('nome'),
-       supabase.from('preco_dinamico_entregador').select('*').eq('ativa', true)
-     ]);
+      supabase.from('preco_dinamico_demanda').select('*').eq('ativa', true).order('nome'),
+      supabase.from('preco_dinamico_entregador').select('*').eq('ativa', true),
+    ]);
 
-     let finalClientes = (c.data || []) as Cliente[];
-     
-     
-      const { data: { user } } = await userPromise;
-      if (user) {
-          const { data: uData } = await supabase
-            .from('users')
-            .select('role, cliente_id, email')
-            .eq('id', user.id)
-            .maybeSingle();
+    const uData = (uDataResp as any)?.data || null;
+    const userEmail = normalizeEmail((uData as any)?.email || user?.email);
+    const targetClientId = String((uData as any)?.cliente_id || '').trim();
+    const isClientByRole = (uData as any)?.role === 'cliente';
 
-          const isClientByRole = uData?.role === 'cliente';
-          const userEmail = (uData?.email || user.email || '').trim().toLowerCase();
-          const targetClientId = (uData?.cliente_id || '').trim();
+    updateDebug({
+      auth_user_email: user?.email || null,
+      users_row: uData,
+      resolved_user_email: userEmail || null,
+      resolved_target_cliente_id: targetClientId || null,
+      resolved_is_client_by_role: isClientByRole,
+    });
 
-          if (isClientByRole || userEmail || targetClientId) {
-            let matched: Cliente | undefined;
+    let finalClientes: Cliente[] = [];
 
-            if (targetClientId) {
-              matched = finalClientes.find((cli) => String(cli.id) === String(targetClientId));
-            }
+    if (user && (isClientByRole || !!targetClientId || !!userEmail)) {
+      setIsComercio(Boolean(isClientByRole));
 
-            if (!matched && userEmail) {
-              matched = finalClientes.find((cli) => (cli.email || '').trim().toLowerCase() === userEmail);
-            }
+      const readLocalClientId = () => {
+        try {
+          const raw = localStorage.getItem('cliente_context');
+          if (!raw) return '';
+          const parsed = JSON.parse(raw) as { id?: string };
+          return String(parsed?.id || '').trim();
+        } catch (e) {
+          void e;
+          return '';
+        }
+      };
 
-            if (!matched && (targetClientId || userEmail)) {
-              const q = supabase.from('clientes').select('*');
-              const { data: direct } = targetClientId
-                ? await q.eq('id', targetClientId).maybeSingle()
-                : await q.ilike('email', userEmail).maybeSingle();
-              if (direct) matched = direct as Cliente;
-            }
+      const localClientId = readLocalClientId();
+      const preferredId = targetClientId || localClientId;
 
-            if (matched) {
-              setIsComercio(true);
-              finalClientes = [matched];
-              setForm(prev => ({ ...prev, cliente_id: matched.id }));
-              setClientSaldo(matched.saldo_creditos);
-            } else if (isClientByRole) {
-              setIsComercio(true);
-              finalClientes = [];
-            }
-          }
+      let matched: Cliente | null = null;
+
+      if (preferredId) {
+        const { data } = await supabase.from('clientes').select('*').eq('id', preferredId).maybeSingle();
+        matched = (data as Cliente | null) || null;
       }
 
-     setClientes(finalClientes);
+      if (!matched && userEmail) {
+        const { data } = await supabase.from('clientes').select('*').ilike('email', userEmail).maybeSingle();
+        matched = (data as Cliente | null) || null;
+      }
+
+      if (!matched && userEmail) {
+        try {
+          const { data } = await supabase.from('clientes').select('*').contains('faturamento_emails', [userEmail]).limit(1);
+          if (Array.isArray(data) && data[0]) matched = data[0] as Cliente;
+        } catch (e) {
+          void e;
+        }
+      }
+
+      if (matched) {
+        finalClientes = [matched];
+        setForm((prev) => ({ ...prev, cliente_id: matched!.id }));
+        setClientSaldo(matched.saldo_creditos);
+        updateDebug({
+          matched_cliente_id: matched.id,
+          matched_cliente_email: matched.email || null,
+          matched_cliente_nome: matched.nome_completo || null,
+        });
+      } else if (isClientByRole) {
+        finalClientes = [];
+        updateDebug({ matched_cliente_id: null });
+      }
+    } else {
+      const { data } = await supabase.from('clientes').select('*').order('nome_completo');
+      finalClientes = (data || []) as Cliente[];
+    }
+
+    setClientes(finalClientes);
     setEntregadores((e.data || []) as Entregador[]);
     const tiposList = (t.data || []) as TipoServico[];
     setTipos(tiposList);
@@ -1450,6 +1640,11 @@ export function NovaEntregaPanel() {
                 if (key) selectedCoordsByTextRef.current.set(key, coords);
               }
             }}
+            onSuggestCoords={(coords, typedText) => {
+              if (!coords) return;
+              const key = normalizeAddressKey(typedText);
+              if (key) selectedCoordsByTextRef.current.set(key, coords);
+            }}
             containerClassName="md:col-span-2"
           />
           <input placeholder="Nº" value={form.coleta_numero} onChange={(e) => setForm({ ...form, coleta_numero: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
@@ -1481,6 +1676,11 @@ export function NovaEntregaPanel() {
                 const key = normalizeAddressKey(selectedText || form.entrega_endereco_texto);
                 if (key) selectedCoordsByTextRef.current.set(key, coords);
               }
+            }}
+            onSuggestCoords={(coords, typedText) => {
+              if (!coords) return;
+              const key = normalizeAddressKey(typedText);
+              if (key) selectedCoordsByTextRef.current.set(key, coords);
             }}
             containerClassName="md:col-span-2"
           />
@@ -1551,6 +1751,37 @@ export function NovaEntregaPanel() {
                   </div>
                 )}
                 {calculatingDistance && <span className="text-xs text-amber-600 block animate-pulse">Calculando rota e distância...</span>}
+                {!debugEnabled ? (
+                  <button
+                    type="button"
+                    className="mt-2 px-2 py-1 rounded bg-slate-200 text-slate-800 text-xs"
+                    onClick={enableDebug}
+                  >
+                    Ativar diagnóstico
+                  </button>
+                ) : (
+                  <details className="mt-2">
+                    <summary className="text-xs text-slate-600 cursor-pointer select-none">Diagnóstico</summary>
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        type="button"
+                        className="px-2 py-1 rounded bg-slate-200 text-slate-800 text-xs"
+                        onClick={() => {
+                          try {
+                            void navigator.clipboard.writeText(debugText);
+                          } catch (e) {
+                            void e;
+                          }
+                        }}
+                      >
+                        Copiar
+                      </button>
+                    </div>
+                    <pre className="mt-2 text-xs whitespace-pre-wrap break-words bg-slate-50 border border-slate-200 rounded p-2 max-h-64 overflow-auto">
+                      {debugText || 'Aguardando eventos para preencher diagnóstico...'}
+                    </pre>
+                  </details>
+                )}
 
              </div>
              <div className="text-3xl font-bold text-sky-900">

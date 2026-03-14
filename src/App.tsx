@@ -81,9 +81,11 @@ function App() {
   const [userName, setUserName] = useState<string | undefined>(undefined);
   const [userId, setUserId] = useState<string | undefined>(undefined);
   const [userRole, setUserRole] = useState<'operador' | 'cliente' | 'entregador' | 'loading'>('loading');
+  const [roleResolveError, setRoleResolveError] = useState<string | null>(null);
   const [menuParams, setMenuParams] = useState<any>(null);
   const roleResolvedRef = useRef(false);
   const resolvedUidRef = useRef<string | null>(null);
+  const roleResolveInFlightRef = useRef<{ uid: string; startedAt: number } | null>(null);
   const [trainingOpen, setTrainingOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
   const [accountPending, setAccountPending] = useState(false);
@@ -266,6 +268,7 @@ function App() {
 
   const resolveRole = async (uid: string, emailRaw: string) => {
     setUserId(uid);
+    setRoleResolveError(null);
 
     const setInitialMenu = (resolvedRole: string, defaultMenu: string) => {
       const persisted = localStorage.getItem('last_active_menu');
@@ -322,97 +325,264 @@ function App() {
     };
 
     if (roleResolvedRef.current && resolvedUidRef.current === uid) return;
-    const email = (emailRaw || '').trim().toLowerCase();
+    if (roleResolveInFlightRef.current?.uid === uid) return;
+    roleResolveInFlightRef.current = { uid, startedAt: Date.now() };
 
-    const { data: uData } = await supabase.from('users').select('role, full_name, email').eq('id', uid).maybeSingle();
-    const role = ((uData as { role?: string } | null)?.role || '').trim();
+    try {
+      const email = (emailRaw || '').trim().toLowerCase();
 
-    if (role === 'admin' || role === 'operador') {
-      setUserRole('operador');
-      setInitialMenu('operador', 'pedidos');
-      roleResolvedRef.current = true;
-      resolvedUidRef.current = uid;
-      try { localStorage.removeItem('cliente_context'); localStorage.removeItem('entregador_context'); } catch (e) { void e; }
-      return;
-    }
+      const normalizeEmail = (v: unknown) => {
+        const e = typeof v === 'string' ? v.trim().toLowerCase() : '';
+        return e || null;
+      };
 
-    if (role === 'cliente') {
-      const { data: c } = await supabase.from('clientes').select('id, nome_completo').ilike('email', email).maybeSingle();
-      if ((c as { id?: string } | null)?.id) {
+      const setRoleCache = (roleToCache: 'operador' | 'cliente' | 'entregador') => {
+        try {
+          localStorage.setItem('user_role_cache', JSON.stringify({ uid, role: roleToCache, ts: Date.now() }));
+        } catch (e) {
+          void e;
+        }
+      };
+
+      const tryApplyCachedRole = () => {
+        try {
+          const raw = localStorage.getItem('user_role_cache');
+          if (!raw) return false;
+          const parsed = JSON.parse(raw) as { uid?: string; role?: string; ts?: number };
+          if (!parsed || parsed.uid !== uid) return false;
+          const ts = typeof parsed.ts === 'number' ? parsed.ts : 0;
+          if (Date.now() - ts > 1000 * 60 * 60 * 24 * 7) return false;
+          if (parsed.role === 'operador' || parsed.role === 'cliente' || parsed.role === 'entregador') {
+            if (userRole === 'loading') {
+              setUserRole(parsed.role);
+              setInitialMenu(parsed.role, parsed.role === 'cliente' ? 'pedidos' : parsed.role === 'entregador' ? 'home_entregador' : 'pedidos');
+            }
+            return true;
+          }
+        } catch (e) {
+          void e;
+        }
+        return false;
+      };
+
+      const withTimeout = async <T,>(p: PromiseLike<T>, timeoutMs: number): Promise<T> => {
+        let timer: number | undefined;
+        try {
+          return await Promise.race<T>([
+            Promise.resolve(p as unknown as T),
+            new Promise<T>((_, reject) => {
+              timer = window.setTimeout(() => reject(new Error('ROLE_RESOLVE_TIMEOUT')), timeoutMs);
+            }),
+          ]);
+        } finally {
+          if (timer) window.clearTimeout(timer);
+        }
+      };
+
+      tryApplyCachedRole();
+
+      try {
+        const { data: uData } = await withTimeout(
+          supabase.from('users').select('role, full_name, email, cliente_id, entregador_id').eq('id', uid).maybeSingle(),
+          6000
+        );
+        const role = String((uData as any)?.role || '').trim();
+        const userEmail = normalizeEmail((uData as any)?.email) ?? email;
+        const clienteId = String((uData as any)?.cliente_id || '').trim() || null;
+        const entregadorId = String((uData as any)?.entregador_id || '').trim() || null;
+
+        if (role === 'admin' || role === 'operador') {
+          setUserRole('operador');
+          setInitialMenu('operador', 'pedidos');
+          setRoleCache('operador');
+          roleResolvedRef.current = true;
+          resolvedUidRef.current = uid;
+          try { localStorage.removeItem('cliente_context'); localStorage.removeItem('entregador_context'); } catch (e) { void e; }
+          return;
+        }
+
+        if (role === 'cliente') {
+          setUserRole('cliente');
+          setInitialMenu('cliente', 'pedidos');
+          setRoleCache('cliente');
+          roleResolvedRef.current = true;
+          resolvedUidRef.current = uid;
+
+          void (async () => {
+            try {
+              if (clienteId) {
+                const { data: c } = await withTimeout(
+                  supabase.from('clientes').select('id, nome_completo').eq('id', clienteId).maybeSingle(),
+                  5000
+                );
+                if ((c as any)?.id) {
+                  localStorage.setItem('cliente_context', JSON.stringify({ id: String((c as any).id || ''), nome: String((c as any).nome_completo || '') }));
+                  return;
+                }
+              }
+
+              if (userEmail) {
+                const [byEmail, byBilling] = await Promise.allSettled([
+                  withTimeout(supabase.from('clientes').select('id, nome_completo').ilike('email', userEmail).maybeSingle(), 5000),
+                  withTimeout(supabase.from('clientes').select('id, nome_completo').contains('faturamento_emails', [userEmail]).limit(1), 5000),
+                ]);
+
+                const c1 = byEmail.status === 'fulfilled' ? (byEmail.value as any).data : null;
+                const c2 = byBilling.status === 'fulfilled' ? (byBilling.value as any).data : null;
+                const row = (c1 as any)?.id
+                  ? c1
+                  : Array.isArray(c2) && c2.length > 0
+                    ? c2[0]
+                    : null;
+
+                if (row?.id) {
+                  localStorage.setItem('cliente_context', JSON.stringify({ id: String(row.id || ''), nome: String(row.nome_completo || '') }));
+                }
+              }
+            } catch (e) {
+              void e;
+            }
+          })();
+
+          return;
+        }
+
+        if (role === 'entregador') {
+          setUserRole('entregador');
+          setInitialMenu('entregador', 'home_entregador');
+          setRoleCache('entregador');
+          roleResolvedRef.current = true;
+          resolvedUidRef.current = uid;
+
+          void (async () => {
+            try {
+              if (entregadorId) {
+                const { data: eData } = await withTimeout(
+                  supabase.from('entregadores').select('id, nome_completo, status').eq('id', entregadorId).maybeSingle(),
+                  5000
+                );
+                if ((eData as any)?.id) {
+                  const eStatus = (eData as any)?.status;
+                  setAccountPending(eStatus !== 'ativo');
+                  localStorage.setItem('entregador_context', JSON.stringify({ id: String((eData as any).id || ''), nome: String((eData as any).nome_completo || '') }));
+                }
+                return;
+              }
+
+              if (userEmail) {
+                const { data: eData } = await withTimeout(
+                  supabase.from('entregadores').select('id, nome_completo, status').ilike('email', userEmail).maybeSingle(),
+                  5000
+                );
+                if ((eData as any)?.id) {
+                  const eStatus = (eData as any)?.status;
+                  setAccountPending(eStatus !== 'ativo');
+                  localStorage.setItem('entregador_context', JSON.stringify({ id: String((eData as any).id || ''), nome: String((eData as any).nome_completo || '') }));
+                }
+              }
+            } catch (e) {
+              void e;
+            }
+          })();
+
+          return;
+        }
+      } catch (e) {
+        void e;
+      }
+
+      const [c2, cBilling, e2] = await Promise.allSettled([
+        withTimeout(supabase.from('clientes').select('id, nome_completo').ilike('email', email).maybeSingle(), 6000),
+        email ? withTimeout(supabase.from('clientes').select('id, nome_completo').contains('faturamento_emails', [email]).limit(1), 6000) : Promise.resolve(null as any),
+        withTimeout(supabase.from('entregadores').select('id, nome_completo, status').ilike('email', email).maybeSingle(), 6000),
+      ]);
+
+      const clienteByEmail = c2.status === 'fulfilled' ? (c2.value as any).data : null;
+      const clienteByBilling = cBilling.status === 'fulfilled' ? (cBilling.value as any).data : null;
+      const entregadorByEmail = e2.status === 'fulfilled' ? (e2.value as any).data : null;
+
+      const resolvedCliente =
+        (clienteByEmail as any)?.id
+          ? clienteByEmail
+          : Array.isArray(clienteByBilling) && clienteByBilling.length > 0
+            ? clienteByBilling[0]
+            : null;
+
+      let finalResolvedCliente = resolvedCliente as any;
+
+      if (!finalResolvedCliente?.id) {
+        try {
+          const { data: resolvedId } = await withTimeout(supabase.rpc('resolve_my_cliente_id'), 6000);
+          if (resolvedId) {
+            const { data: byId } = await withTimeout(
+              supabase.from('clientes').select('id, nome_completo').eq('id', resolvedId).maybeSingle(),
+              6000
+            );
+            if ((byId as any)?.id) finalResolvedCliente = byId;
+          }
+        } catch (e) {
+          void e;
+        }
+      }
+
+      if (finalResolvedCliente?.id) {
+        const nome = String(finalResolvedCliente?.nome_completo || userName || email);
+        void (supabase as unknown as { from: (t: string) => { upsert: (v: unknown, o?: unknown) => Promise<unknown> } })
+          .from('users')
+          .upsert({ id: uid, full_name: nome, email, role: 'cliente', cliente_id: String(finalResolvedCliente.id) });
         setUserRole('cliente');
         setInitialMenu('cliente', 'pedidos');
+        setRoleCache('cliente');
         roleResolvedRef.current = true;
         resolvedUidRef.current = uid;
         try {
-          const cid = ((c as { id?: string } | null)?.id) || '';
-          const cnome = ((c as { nome_completo?: string } | null)?.nome_completo) || '';
-          localStorage.setItem('cliente_context', JSON.stringify({ id: cid, nome: cnome }));
+          localStorage.setItem('cliente_context', JSON.stringify({ id: String(finalResolvedCliente.id || ''), nome: String(finalResolvedCliente.nome_completo || '') }));
         } catch (e) { void e; }
         return;
       }
-    }
 
-    if (role === 'entregador') {
-      const { data: eData } = await supabase.from('entregadores').select('id, nome_completo, status').ilike('email', email).maybeSingle();
-      if ((eData as { id?: string } | null)?.id) {
-        const eStatus = (eData as { status?: string } | null)?.status;
+      if ((entregadorByEmail as any)?.id) {
+        const nome = String((entregadorByEmail as any)?.nome_completo || userName || email);
+        const eStatus = (entregadorByEmail as any)?.status;
         setAccountPending(eStatus !== 'ativo');
-        
+
+        void (supabase as unknown as { from: (t: string) => { upsert: (v: unknown, o?: unknown) => Promise<unknown> } })
+          .from('users')
+          .upsert({ id: uid, full_name: nome, email, role: 'entregador', entregador_id: String((entregadorByEmail as any).id) });
         setUserRole('entregador');
         setInitialMenu('entregador', 'home_entregador');
+        setRoleCache('entregador');
         roleResolvedRef.current = true;
         resolvedUidRef.current = uid;
         try {
-          const eid = ((eData as { id?: string } | null)?.id) || '';
-          const enome = ((eData as { nome_completo?: string } | null)?.nome_completo) || '';
-          localStorage.setItem('entregador_context', JSON.stringify({ id: eid, nome: enome }));
+          localStorage.setItem('entregador_context', JSON.stringify({ id: String((entregadorByEmail as any).id || ''), nome: String((entregadorByEmail as any).nome_completo || '') }));
         } catch (e) { void e; }
         return;
       }
-    }
 
-    const { data: c2 } = await supabase.from('clientes').select('id, nome_completo').ilike('email', email).maybeSingle();
-    if ((c2 as { id?: string } | null)?.id) {
-      const nome = (c2 as { nome_completo?: string } | null)?.nome_completo || userName || email;
-      await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown, o?: unknown) => Promise<unknown> } }).from('users').upsert({ id: uid, full_name: nome, email, role: 'cliente' });
-      setUserRole('cliente');
-      setInitialMenu('cliente', 'pedidos');
-      roleResolvedRef.current = true;
-      resolvedUidRef.current = uid;
-      try {
-        const cid2 = ((c2 as { id?: string } | null)?.id) || '';
-        const cnome2 = ((c2 as { nome_completo?: string } | null)?.nome_completo) || '';
-        localStorage.setItem('cliente_context', JSON.stringify({ id: cid2, nome: cnome2 }));
-      } catch (e) { void e; }
-      return;
-    }
+      const isComercioRouteNow = typeof window !== 'undefined' && window.location.pathname === '/comercio';
+      if (isComercioRouteNow) {
+        setRoleResolveError('Não foi possível identificar seu perfil de Comércio. Tente novamente.');
+        setUserRole('loading');
+        return;
+      }
 
-    const { data: e2 } = await supabase.from('entregadores').select('id, nome_completo, status').ilike('email', email).maybeSingle();
-    if ((e2 as { id?: string } | null)?.id) {
-      const nome = (e2 as { nome_completo?: string } | null)?.nome_completo || userName || email;
-      const eStatus = (e2 as { status?: string } | null)?.status;
-      setAccountPending(eStatus !== 'ativo');
-
-      await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown, o?: unknown) => Promise<unknown> } }).from('users').upsert({ id: uid, full_name: nome, email, role: 'entregador' });
+      console.warn('Falha ao identificar perfil. Atribuindo papel de entregador por segurança.');
       setUserRole('entregador');
-      setInitialMenu('entregador', 'home_entregador'); 
+      setInitialMenu('entregador', 'carteira_extrato');
+      setAccountPending(true);
+      setRoleCache('entregador');
       roleResolvedRef.current = true;
       resolvedUidRef.current = uid;
-      try {
-        const eid2 = ((e2 as { id?: string } | null)?.id) || '';
-        const enome2 = ((e2 as { nome_completo?: string } | null)?.nome_completo) || '';
-        localStorage.setItem('entregador_context', JSON.stringify({ id: eid2, nome: enome2 }));
-      } catch (e) { void e; }
-      return;
+      try { localStorage.removeItem('entregador_context'); } catch (e) { void e; }
+    } catch (e) {
+      void e;
+      if (userRole === 'loading') {
+        setRoleResolveError('Falha ao verificar permissões. Tente novamente.');
+      }
+    } finally {
+      roleResolveInFlightRef.current = null;
     }
-
-    console.warn('Falha ao identificar perfil. Atribuindo papel de entregador por segurança.');
-    setUserRole('entregador');
-    setInitialMenu('entregador', 'carteira_extrato');
-    setAccountPending(true);
-    roleResolvedRef.current = true;
-    resolvedUidRef.current = uid;
-    try { localStorage.removeItem('entregador_context'); } catch (e) { void e; }
   };
 
   useEffect(() => {
@@ -491,7 +661,18 @@ function App() {
       <div className="flex items-center justify-center h-screen bg-slate-100 text-slate-600">
         <div className="flex flex-col items-center gap-4">
           <div className="w-8 h-8 border-4 border-sky-600 border-t-transparent rounded-full animate-spin" />
-          <p>Verificando permissões...</p>
+          <p>{roleResolveError || 'Verificando permissões...'}</p>
+          {roleResolveError && (
+            <button
+              onClick={async () => {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session?.user) resolveRole(session.user.id, session.user.email || '');
+              }}
+              className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-medium"
+            >
+              Tentar novamente
+            </button>
+          )}
         </div>
       </div>
     );
