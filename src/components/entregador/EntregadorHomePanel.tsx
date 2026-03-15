@@ -217,13 +217,17 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
               
              const { data: acertosData } = await supabase
                .from('acertos_entregadores')
-               .select('valor_pago')
+               .select('valor_pago, taxa_aplicada, status')
                .eq('entregador_id', data.id)
-               .eq('status', 'pago');
+               .in('status', ['pendente', 'pago']);
               
              if (entregasData) {
                const totalEntregas = entregasData.reduce((acc, curr) => acc + (curr.valor_entregador || curr.valor_entrega || 0), 0);
-               const totalAcertos = acertosData?.reduce((acc, curr) => acc + (Number(curr.valor_pago) || 0), 0) || 0;
+               const totalAcertos =
+                 acertosData?.reduce(
+                   (acc, curr: any) => acc + (Number(curr.valor_pago) || 0) + (Number(curr.taxa_aplicada) || 0),
+                   0
+                 ) || 0;
                setGanhos(totalEntregas - totalAcertos);
              }
            }
@@ -584,6 +588,8 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
         
         setGanhos(totalEntregas - totalAcertos);
     };
+
+    fetchBalance();
 
     const channel = supabase
       .channel('home_acertos_balance')
