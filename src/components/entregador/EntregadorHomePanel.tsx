@@ -341,23 +341,19 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
         const effectiveRadiusKm = radiusKm ?? 30;
         
         const { data: assigned } = await supabase
-            .from('nova_entrega')
-            .select('*')
-            .eq('entregador_id', entregadorId)
-            .eq('status', 'atribuida')
-            .eq('atribuicao_modo', 'automatica') 
-            .order('updated_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-        
-        if (assigned && !rejectedIds.includes(assigned.id)) {
-             setIncomingDelivery(assigned);
-             return;
-        }
+          .from('nova_entrega')
+          .select('*')
+          .eq('entregador_id', entregadorId)
+          .eq('status', 'atribuida')
+          .eq('atribuicao_modo', 'automatica')
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
         
         const { data: configData } = await supabase.from('configuracoes_comercio').select('limite_entregas_simultaneas').limit(1).single();
         const limit = configData?.limite_entregas_simultaneas || 10;
+        const effectiveLimit = Math.min(limit, 4);
         
         const { count } = await supabase
             .from('nova_entrega')
@@ -369,21 +365,20 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
         
         
         const isLocked = localStorage.getItem('delivery_limit_locked') === 'true';
-        let newLockedState = isLocked;
-
-        if (currentActive === 0) {
-            newLockedState = false;
-        } else if (currentActive >= limit) {
-            newLockedState = true;
-        }
+        const newLockedState = currentActive >= effectiveLimit;
 
         if (newLockedState !== isLocked) {
             localStorage.setItem('delivery_limit_locked', String(newLockedState));
         }
         
         if (newLockedState) {
-             if (!assigned) setIncomingDelivery(null);
+             setIncomingDelivery(null);
              return;
+        }
+
+        if (assigned && !rejectedIds.includes(assigned.id)) {
+          setIncomingDelivery(assigned);
+          return;
         }
 
         
@@ -449,6 +444,11 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
            if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
                const newRecord = payload.new;
 
+               if (localStorage.getItem('delivery_limit_locked') === 'true') {
+                   if (incomingDelivery?.id === newRecord.id) setIncomingDelivery(null);
+                   return;
+               }
+
                
                if (newRecord.pedido_id) {
                    const { data: p, error: pError } = await supabase
@@ -491,6 +491,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                    
                    const { data: configData } = await supabase.from('configuracoes_comercio').select('limite_entregas_simultaneas').limit(1).single();
                    const limit = configData?.limite_entregas_simultaneas || 10;
+                   const effectiveLimit = Math.min(limit, 4);
                    const { count } = await supabase
                         .from('nova_entrega')
                         .select('*', { count: 'exact', head: true })
@@ -500,19 +501,16 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                    const currentActive = count || 0;
                    
                    const isLocked = localStorage.getItem('delivery_limit_locked') === 'true';
-                   let newLockedState = isLocked;
-
-                   if (currentActive === 0) {
-                       newLockedState = false;
-                   } else if (currentActive >= limit) {
-                       newLockedState = true;
-                   }
+                   const newLockedState = currentActive >= effectiveLimit;
 
                    if (newLockedState !== isLocked) {
                        localStorage.setItem('delivery_limit_locked', String(newLockedState));
                    }
 
-                   if (newLockedState) return;
+                   if (newLockedState) {
+                     if (incomingDelivery?.id === newRecord.id) setIncomingDelivery(null);
+                     return;
+                   }
 
                    const effectiveRadiusKm = radiusKm ?? 30;
                    let inRadius = true;
@@ -577,12 +575,12 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
 
         const { data: acertosData } = await supabase
             .from('acertos_entregadores')
-            .select('valor_pago')
+            .select('valor_pago, taxa_aplicada, status')
             .eq('entregador_id', entregadorId)
-            .eq('status', 'pago');
+            .in('status', ['pendente', 'pago']);
 
         const totalEntregas = entregasData?.reduce((acc, curr) => acc + (curr.valor_entregador || curr.valor_entrega || 0), 0) || 0;
-        const totalAcertos = acertosData?.reduce((acc, curr) => acc + (Number(curr.valor_pago) || 0), 0) || 0;
+        const totalAcertos = acertosData?.reduce((acc, curr) => acc + (Number(curr.valor_pago) || 0) + (Number((curr as any).taxa_aplicada) || 0), 0) || 0;
         
         setGanhos(totalEntregas - totalAcertos);
     };
@@ -656,6 +654,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                 .single();
               
               const limit = configData?.limite_entregas_simultaneas || 10;
+              const effectiveLimit = Math.min(limit, 4);
 
               
               const { count, error: countError } = await supabase
@@ -669,15 +668,17 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
               const currentActive = count || 0;
               
               const isLocked = localStorage.getItem('delivery_limit_locked') === 'true';
-              if (isLocked) {
+              if (isLocked && currentActive < effectiveLimit) {
+                   localStorage.setItem('delivery_limit_locked', 'false');
+              } else if (isLocked) {
                    alert('Você precisa finalizar suas entregas pendentes antes de pegar novas.');
                    setIncomingDelivery(null);
                    return;
               }
 
-              if (currentActive >= limit) {
+              if (currentActive >= effectiveLimit) {
                 localStorage.setItem('delivery_limit_locked', 'true');
-                alert(`Você atingiu o limite de ${limit} entregas simultâneas. Finalize todas para pegar mais.`);
+                alert(`Você atingiu o limite de ${effectiveLimit} entregas simultâneas. Finalize todas para pegar mais.`);
                 setIncomingDelivery(null);
                 return;
               }
@@ -692,7 +693,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                   throw new Error(data.message || 'Erro ao aceitar entrega');
               }
               
-              if (currentActive + 1 >= limit) {
+              if (currentActive + 1 >= effectiveLimit) {
                   localStorage.setItem('delivery_limit_locked', 'true');
               }
               

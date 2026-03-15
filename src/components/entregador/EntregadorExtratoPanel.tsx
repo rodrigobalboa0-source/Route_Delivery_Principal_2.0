@@ -148,12 +148,11 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
       
       const totalGanhos = (entregas || []).reduce((acc, curr) => acc + (curr.valor_entregador || curr.valor_entrega || 0), 0);
       
-      // Saldo is Earnings - PAID Withdrawals
-      const totalPagos = (acertosData || [])
-        .filter((a: any) => a.status === 'pago')
+      const totalSaques = (acertosData || [])
+        .filter((a: any) => a.status === 'pago' || a.status === 'pendente')
         .reduce((acc: number, curr: any) => acc + (Number(curr.valor_pago) || 0) + (Number(curr.taxa_aplicada) || 0), 0);
         
-      setSaldo(totalGanhos - totalPagos);
+      setSaldo(totalGanhos - totalSaques);
 
     } catch (error) {
       console.error('Erro ao buscar extrato:', error);
@@ -227,15 +226,10 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
       finalAmount = amount - feeValue;
     }
 
-    // Calcular saldo realmente disponível (Saldo Total - Saques Pendentes - Taxas Pendentes)
-    const totalPendente = acertos
-      .filter(a => a.status === 'pendente')
-      .reduce((acc, curr) => acc + (Number(curr.valor_pago) || 0) + (Number(curr.taxa_aplicada) || 0), 0);
-    
-    const saldoDisponivel = saldo - totalPendente;
+    const saldoDisponivel = saldo;
 
     if (amount > saldoDisponivel) {
-      alert(`Saldo insuficiente. Você possui R$ ${totalPendente.toFixed(2)} em solicitações pendentes.`);
+      alert(`Saldo insuficiente. Seu saldo disponível é R$ ${saldoDisponivel.toFixed(2)}.`);
       return;
     }
 
@@ -490,7 +484,7 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
              <div className="mt-2 space-y-1">
                {pendingWithdrawals.map(p => (
                  <div key={p.id} className="text-xs text-yellow-800/80 flex items-center gap-2">
-                    <span>• {new Date(p.created_at).toLocaleDateString()} - R$ {Number(p.valor_pago).toFixed(2)}</span>
+                    <span>• {new Date(p.created_at).toLocaleDateString()} - R$ {(Number(p.valor_pago) + (Number(p.taxa_aplicada) || 0)).toFixed(2)}</span>
                  </div>
                ))}
              </div>
@@ -524,9 +518,9 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
                {[...extrato, ...acertos].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map((item) => {
                  // Identify type
                  const isAcerto = 'valor_pago' in item;
-                 const valor = isAcerto ? -Number(item.valor_pago) : (item.valor_entregador || item.valor_entrega || 0);
+                 const valor = isAcerto ? -((Number(item.valor_pago) || 0) + (Number(item.taxa_aplicada) || 0)) : (item.valor_entregador || item.valor_entrega || 0);
                  const descricao = isAcerto ? 
-                    (item.status === 'pendente' ? 'Saque (Pendente)' : 'Saque Realizado') : 
+                    (item.status === 'pendente' ? (item.tipo_saque === 'rapido' ? 'Saque Rápido (Pendente)' : 'Saque (Pendente)') : (item.tipo_saque === 'rapido' ? 'Saque Rápido Realizado' : 'Saque Realizado')) : 
                     (item.descricao || 'Comissão de Entrega');
                  
                  return (

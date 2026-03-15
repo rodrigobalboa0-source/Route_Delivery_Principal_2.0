@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { Capacitor } from '@capacitor/core';
@@ -13,6 +13,8 @@ interface NotificationManagerProps {
 }
 
 export function NotificationManager({ userId, userRole, onNavigate }: NotificationManagerProps) {
+  const activeCountCacheRef = useRef<{ at: number; count: number } | null>(null);
+
   useEffect(() => {
     if (userRole !== 'entregador' && userRole !== 'admin' && userRole !== 'operador') return;
 
@@ -21,6 +23,7 @@ export function NotificationManager({ userId, userRole, onNavigate }: Notificati
     const setupNotifications = async () => {
       
       let radiusKm = 10;
+      let effectiveLimit = 4;
       if (userRole === 'entregador') {
         try {
           const { data: config } = await supabase.from('configuracoes_comercio').select('raio_busca_entregador').single();
@@ -29,6 +32,16 @@ export function NotificationManager({ userId, userRole, onNavigate }: Notificati
           }
         } catch (e) {
           console.error('Erro ao buscar config raio:', e);
+        }
+
+        try {
+          const { data: config } = await supabase.from('configuracoes_comercio').select('limite_entregas_simultaneas').single();
+          const limit = config?.limite_entregas_simultaneas;
+          if (typeof limit === 'number') {
+            effectiveLimit = Math.min(limit, 4);
+          }
+        } catch (e) {
+          console.error('Erro ao buscar config limite:', e);
         }
       }
       
@@ -39,6 +52,32 @@ export function NotificationManager({ userId, userRole, onNavigate }: Notificati
       }
 
       if (userRole === 'entregador') {
+        const getActiveDeliveriesCount = async () => {
+          const now = Date.now();
+          const cached = activeCountCacheRef.current;
+          if (cached && now - cached.at < 5000) return cached.count;
+
+          const { count, error } = await supabase
+            .from('nova_entrega')
+            .select('*', { count: 'exact', head: true })
+            .eq('entregador_id', userId)
+            .in('status', ['atribuida', 'chegou_coleta', 'em_rota', 'chegou_entrega']);
+
+          if (error) throw error;
+          const c = count || 0;
+          activeCountCacheRef.current = { at: now, count: c };
+          return c;
+        };
+
+        const atCapacity = async () => {
+          try {
+            const c = await getActiveDeliveriesCount();
+            return c >= effectiveLimit;
+          } catch (e) {
+            return localStorage.getItem('delivery_limit_locked') === 'true';
+          }
+        };
+
         await LocalNotifications.createChannel({
           id: 'entregas',
           name: 'Novas Entregas',
@@ -117,6 +156,7 @@ export function NotificationManager({ userId, userRole, onNavigate }: Notificati
                 (eventType === 'UPDATE' && newRecord.status === 'criada' && !newRecord.entregador_id);
 
               if (isAvailableCandidate) {
+                if (await atCapacity()) return;
                 let pedidoPronto = true;
 
                 if (newRecord.pedido_id) {
@@ -194,6 +234,7 @@ export function NotificationManager({ userId, userRole, onNavigate }: Notificati
                   newRecord.entregador_id === userId &&
                   (oldRecord.entregador_id !== userId || (oldRecord.status !== 'atribuida' && oldRecord.status !== 'criada')))
               ) {
+                if (await atCapacity()) return;
                 await LocalNotifications.schedule({
                   notifications: [
                     {

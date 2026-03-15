@@ -303,17 +303,12 @@ export function EntregadorEntregasDisponiveisPanel() {
       ]);
 
       const limit = configResult.data?.limite_entregas_simultaneas || 10;
+      const effectiveLimit = Math.min(limit, 4);
       const currentActive = countResult.count || 0;
 
       
       const isLocked = localStorage.getItem('delivery_limit_locked') === 'true';
-      let newLockedState = isLocked;
-
-      if (currentActive === 0) {
-        newLockedState = false;
-      } else if (currentActive >= limit) {
-        newLockedState = true;
-      }
+      const newLockedState = currentActive >= effectiveLimit;
 
       if (newLockedState !== isLocked) {
         localStorage.setItem('delivery_limit_locked', String(newLockedState));
@@ -366,6 +361,7 @@ export function EntregadorEntregasDisponiveisPanel() {
         .single();
       
       const limit = configData?.limite_entregas_simultaneas || 10;
+      const effectiveLimit = Math.min(limit, 4);
 
       
       const { count, error: countError } = await supabase
@@ -379,16 +375,18 @@ export function EntregadorEntregasDisponiveisPanel() {
       const currentActive = count || 0;
 
       const isLocked = localStorage.getItem('delivery_limit_locked') === 'true';
-      if (isLocked) {
+      if (isLocked && currentActive < effectiveLimit) {
+          localStorage.setItem('delivery_limit_locked', 'false');
+      } else if (isLocked) {
           alert('Você precisa finalizar suas entregas pendentes antes de pegar novas.');
           setProcessingId(null);
           setEntregas([]);
           return;
       }
 
-      if (currentActive >= limit) {
+      if (currentActive >= effectiveLimit) {
         localStorage.setItem('delivery_limit_locked', 'true');
-        alert(`Você atingiu o limite de ${limit} entregas simultâneas. Finalize todas para pegar mais.`);
+        alert(`Você atingiu o limite de ${effectiveLimit} entregas simultâneas. Finalize todas para pegar mais.`);
         setEntregas([]);
         setProcessingId(null);
         return;
@@ -399,7 +397,7 @@ export function EntregadorEntregasDisponiveisPanel() {
       if (error) throw error;
       
       if (data && data.success) {
-        if (currentActive + 1 >= limit) {
+        if (currentActive + 1 >= effectiveLimit) {
             localStorage.setItem('delivery_limit_locked', 'true');
             setEntregas([]);
         } else {

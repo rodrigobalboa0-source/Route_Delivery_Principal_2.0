@@ -685,6 +685,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const isComercio = normalizedUserRole === 'cliente' || normalizedUserRole === '' || normalizedUserRole === 'loading';
   const isAdmin = normalizedUserRole === 'admin' || normalizedUserRole === 'operador';
   const [allowAlocarComercio, setAllowAlocarComercio] = useState(false);
+  const [bloquearFinalizarPedido, setBloquearFinalizarPedido] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isBulkAllocation, setIsBulkAllocation] = useState(false);
   const [ibgeCities, setIbgeCities] = useState<string[]>([]);
@@ -711,6 +712,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [quickDriverPrice, setQuickDriverPrice] = useState<number>(0);
   const [quickDestinationCoords, setQuickDestinationCoords] = useState<[number, number] | undefined>(undefined);
   const quickDistanceCalcIdRef = useRef(0);
+  const pedidosFetchSeqRef = useRef(0);
+  const pedidosRefreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   
   const [pricingTables, setPricingTables] = useState<any[]>([]);
@@ -858,7 +861,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
           void e;
         }
 
-        const clienteSelect = 'id, nome_completo, rua, numero, bairro, cidade, cep, precificacao_config, telefone';
+        const clienteSelect = 'id, nome_completo, rua, numero, bairro, cidade, cep, precificacao_config, telefone, observacoes';
         const selectClienteById = async (id: string) => {
           const { data } = await supabase.from('clientes').select(clienteSelect).eq('id', id).maybeSingle();
           return data ?? null;
@@ -914,6 +917,23 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         }
 
         if (!clienteData) return;
+
+        if (clienteData.observacoes) {
+          try {
+            const raw = String(clienteData.observacoes || '').trim();
+            if (raw.startsWith('{')) {
+              const parsed = JSON.parse(raw);
+              setBloquearFinalizarPedido(!!parsed?.extras?.bloquear_finalizar_pedido);
+            } else {
+              setBloquearFinalizarPedido(false);
+            }
+          } catch (e) {
+            void e;
+            setBloquearFinalizarPedido(false);
+          }
+        } else {
+          setBloquearFinalizarPedido(false);
+        }
 
         if (clienteData.precificacao_config) {
           setClientPricingConfig(clienteData.precificacao_config as any);
@@ -1046,6 +1066,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   
   const [menuPos, setMenuPos] = useState<{top?: number, bottom?: number, left: number} | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [statusMenuPos, setStatusMenuPos] = useState<{top?: number, bottom?: number, left: number} | null>(null);
+  const [openStatusMenuId, setOpenStatusMenuId] = useState<string | null>(null);
 
   
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -1055,13 +1077,17 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
   
   useEffect(() => {
-    const handleClickOutside = () => setOpenMenuId(null);
+    const handleClickOutside = () => {
+      setOpenMenuId(null);
+      setOpenStatusMenuId(null);
+    };
     window.addEventListener('click', handleClickOutside);
     return () => window.removeEventListener('click', handleClickOutside);
   }, []);
 
   const handleMenuClick = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
+    setOpenStatusMenuId(null);
     if (openMenuId === id) {
       setOpenMenuId(null);
       return;
@@ -1084,6 +1110,79 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
        });
     }
     setOpenMenuId(id);
+  };
+
+  const handleStatusMenuClick = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    setOpenMenuId(null);
+    if (openStatusMenuId === id) {
+      setOpenStatusMenuId(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const screenHeight = window.innerHeight;
+    const spaceBelow = screenHeight - rect.bottom;
+    const approximateMenuHeight = 340;
+    const menuWidth = 256;
+
+    if (spaceBelow < approximateMenuHeight) {
+      setStatusMenuPos({
+        bottom: screenHeight - rect.top,
+        left: Math.max(8, rect.left - (menuWidth / 2) + (rect.width / 2))
+      });
+    } else {
+      setStatusMenuPos({
+        top: rect.bottom,
+        left: Math.max(8, rect.left - (menuWidth / 2) + (rect.width / 2))
+      });
+    }
+    setOpenStatusMenuId(id);
+  };
+
+  const handleManualPedidoStatusChange = async (pedidoId: string, newStatus: string) => {
+    const nowIso = new Date().toISOString();
+
+    setAllItems(prev => prev.map(p => (p.id === pedidoId ? { ...p, status: newStatus as any, updated_at: nowIso } : p)));
+    queueSilentPedidosRefresh();
+
+    const { error } = await supabase
+      .from('pedidos')
+      .update({ status: newStatus as any, updated_at: nowIso } as any)
+      .eq('id', pedidoId);
+
+    if (error) {
+      alert('Erro ao atualizar status: ' + error.message);
+      queueSilentPedidosRefresh();
+      return;
+    }
+
+    setOpenStatusMenuId(null);
+  };
+
+  const handleManualEntregaStatusChange = async (pedidoId: string, newStatus: string) => {
+    const entrega = entregasMap[pedidoId];
+    if (!entrega?.id) return;
+    const nowIso = new Date().toISOString();
+
+    setEntregasMap(prev => ({ ...prev, [pedidoId]: { ...prev[pedidoId], status: newStatus as any, updated_at: nowIso } as any }));
+    queueSilentPedidosRefresh();
+
+    const { error } = await supabase
+      .from('nova_entrega')
+      .update({ status: newStatus as any, updated_at: nowIso } as any)
+      .eq('id', entrega.id);
+
+    if (error) {
+      alert('Erro ao atualizar status: ' + error.message);
+      queueSilentPedidosRefresh();
+      return;
+    }
+
+    if (newStatus === 'entregue') {
+      void handleManualPedidoStatusChange(pedidoId, 'entregue');
+    }
+
+    setOpenStatusMenuId(null);
   };
 
   const getColetaAddress = (p: Pedido) => {
@@ -1187,6 +1286,10 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   };
 
   const handleFinalizePedido = async (p: Pedido) => {
+    if (isComercio && bloquearFinalizarPedido) {
+      alert('Seu comércio não tem permissão para finalizar pedidos.');
+      return;
+    }
     if (!confirm('Finalizar pedido e marcar como Entregue?')) return;
     
     
@@ -1893,11 +1996,12 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   };
 
   const fetchPedidos = useCallback(async (silent = false) => {
+    const fetchSeq = ++pedidosFetchSeqRef.current;
     if (!silent) setLoadingList(true);
     setError(null);
     
     if (isComercio && !filters.cliente_id) {
-        if (!silent) {
+        if (!silent && fetchSeq === pedidosFetchSeqRef.current) {
             setItems([]);
             setAllItems([]);
         }
@@ -1994,6 +2098,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             eMap[e.id] = e; 
         });
 
+        if (fetchSeq !== pedidosFetchSeqRef.current) return;
         setAllItems(finalPedidosSemEntregues);
         
         const displayedItems = filters.status === 'todos' 
@@ -2005,11 +2110,19 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         
     } catch (e: any) {
         console.error('Fetch error', e);
-        setError(e.message);
+        if (fetchSeq === pedidosFetchSeqRef.current) setError(e.message);
     } finally {
-        if (!silent) setLoadingList(false);
+        if (!silent && fetchSeq === pedidosFetchSeqRef.current) setLoadingList(false);
     }
   }, [filters, clientes, isComercio]);
+
+  const queueSilentPedidosRefresh = useCallback(() => {
+    if (pedidosRefreshTimeoutRef.current) return;
+    pedidosRefreshTimeoutRef.current = setTimeout(() => {
+      pedidosRefreshTimeoutRef.current = null;
+      void fetchPedidos(true);
+    }, 120);
+  }, [fetchPedidos]);
 
   useEffect(() => {
     fetchPedidos();
@@ -2018,11 +2131,11 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   useEffect(() => {
     
     const interval = setInterval(() => {
-        fetchPedidos(true);
+        queueSilentPedidosRefresh();
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [fetchPedidos]);
+  }, [queueSilentPedidosRefresh]);
 
   useEffect(() => {
     let interval: any = null;
@@ -2078,16 +2191,55 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         'postgres_changes',
         { event: '*', schema: 'public', table: 'pedidos' },
         (payload) => {
-          
-          fetchPedidos(true);
+          const eventType = (payload as any).eventType as string | undefined;
+          if (eventType === 'DELETE') {
+            const oldPedido = (payload as any).old as Pedido | undefined;
+            if (oldPedido?.id) {
+              setAllItems(prev => prev.filter(p => p.id !== oldPedido.id));
+            }
+          } else {
+            const newPedido = (payload as any).new as Pedido | undefined;
+            if (newPedido?.id) {
+              setAllItems(prev => {
+                const idx = prev.findIndex(p => p.id === newPedido.id);
+                if (idx === -1) return [newPedido, ...prev];
+                return prev.map(p => (p.id === newPedido.id ? { ...p, ...newPedido } : p));
+              });
+            }
+          }
+          queueSilentPedidosRefresh();
         }
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'nova_entrega' },
         (payload) => {
-          
-          fetchPedidos(true);
+          const eventType = (payload as any).eventType as string | undefined;
+          if (eventType === 'DELETE') {
+            const oldEntrega = (payload as any).old as Partial<Entrega> | undefined;
+            const oldKey = (oldEntrega as any)?.pedido_id || (oldEntrega as any)?.id;
+            if (oldKey) {
+              setEntregasMap(prev => {
+                if (!(oldKey in prev)) return prev;
+                const next = { ...prev };
+                delete next[oldKey];
+                return next;
+              });
+            }
+          } else {
+            const newEntrega = (payload as any).new as Entrega | undefined;
+            const oldEntrega = (payload as any).old as Partial<Entrega> | undefined;
+            const newKey = (newEntrega as any)?.pedido_id || (newEntrega as any)?.id;
+            const oldKey = (oldEntrega as any)?.pedido_id || (oldEntrega as any)?.id;
+            if (newEntrega && newKey) {
+              setEntregasMap(prev => {
+                const next = { ...prev, [newKey]: newEntrega };
+                if (oldKey && oldKey !== newKey) delete (next as any)[oldKey];
+                return next;
+              });
+            }
+          }
+          queueSilentPedidosRefresh();
         }
       )
       .subscribe();
@@ -2095,7 +2247,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchPedidos]);
+  }, [queueSilentPedidosRefresh]);
 
   const handleDelete = async (id: string) => {
     if (!confirm('Tem certeza que deseja cancelar este pedido?')) return;
@@ -2912,7 +3064,16 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                                 {entrega?.valor_entrega ? `R$ ${entrega.valor_entrega.toFixed(2)}` : '-'}
                             </td>
                             <td className="px-4 py-3">
-                                {getStatusBadge(entrega?.status || p.status)}
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleStatusMenuClick(e, p.id)}
+                                  className="inline-flex items-center gap-2 hover:opacity-90"
+                                  title="Alterar status"
+                                  disabled={userRole === 'entregador'}
+                                >
+                                  {getStatusBadge(entrega?.status || p.status)}
+                                  <Settings size={14} className="text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </button>
                             </td>
                             <td className="px-4 py-3">
                                 {entregador && (!isComercio || ['atribuida', 'coletando', 'entregando', 'entregue', 'finalizada'].includes(entrega?.status)) ? (
@@ -2984,7 +3145,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                         {(isAdmin || isComercio) && (
                         <button onClick={() => handleSetReady(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2"><CheckSquare size={16}/> Pronto</button>
                         )}
-                        {isAdmin && p.status !== 'entregue' && p.status !== 'cancelado' && (
+                        {(isAdmin || (isComercio && !bloquearFinalizarPedido)) && p.status !== 'entregue' && p.status !== 'cancelado' && (
                           <button
                             onClick={() => handleFinalizePedido(p)}
                             className="px-4 py-2 hover:bg-slate-50 text-sm text-emerald-700 flex items-center gap-2"
@@ -3025,6 +3186,100 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                  );
              })()}
           </div>
+      )}
+
+      {/* Status Menu */}
+      {openStatusMenuId && statusMenuPos && (
+        <div
+          className="fixed bg-white border border-slate-200 rounded-lg shadow-xl z-[9999] py-1 text-left flex flex-col w-64"
+          style={{
+            top: statusMenuPos.top,
+            bottom: statusMenuPos.bottom,
+            left: statusMenuPos.left
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {(() => {
+            const p = items.find(i => i.id === openStatusMenuId) || allItems.find(i => i.id === openStatusMenuId);
+            if (!p) return null;
+            const entrega = entregasMap[p.id];
+
+            const pedidoOptions = [
+              { value: 'criado', label: 'CRIADO' },
+              { value: 'confirmado', label: 'CONFIRMADO' },
+              { value: 'em_preparo', label: 'EM PREPARO' },
+              { value: 'pronto', label: 'PRONTO' },
+              { value: 'entregue', label: 'ENTREGUE' },
+              { value: 'cancelado', label: 'CANCELADO' }
+            ];
+
+            const entregaOptions = [
+              { value: 'criada', label: 'CRIADA' },
+              { value: 'atribuida', label: 'ATRIBUÍDA' },
+              { value: 'chegou_coleta', label: 'NA LOJA' },
+              { value: 'em_rota', label: 'EM ROTA' },
+              { value: 'chegou_entrega', label: 'CHEGUEI NO CLIENTE' },
+              { value: 'entregue', label: 'ENTREGUE' },
+              { value: 'cancelada', label: 'CANCELADA' }
+            ];
+
+            const canEditPedido = userRole !== 'entregador' && (isAdmin || isComercio);
+            const canEditEntrega = userRole !== 'entregador' && (isAdmin || isComercio);
+
+            const filteredPedidoOptions = isAdmin
+              ? pedidoOptions
+              : pedidoOptions.filter(o => ['criado', 'confirmado', 'em_preparo', 'pronto'].includes(o.value));
+
+            const filteredEntregaOptions = isAdmin
+              ? entregaOptions
+              : entregaOptions.filter(o => o.value === 'chegou_entrega');
+
+            return (
+              <>
+                <div className="px-4 py-2 text-xs font-bold text-slate-500 uppercase">Status do Pedido</div>
+                {filteredPedidoOptions.map(opt => {
+                  const disabled = !canEditPedido || (opt.value === 'entregue' && !isAdmin) || (opt.value === 'cancelado' && !isAdmin);
+                  return (
+                    <button
+                      key={`p-${opt.value}`}
+                      disabled={disabled}
+                      onClick={() => handleManualPedidoStatusChange(p.id, opt.value)}
+                      className={`px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center justify-between ${
+                        disabled ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
+                    >
+                      <span>{opt.label}</span>
+                      {p.status === opt.value && <CheckCircle size={16} className="text-emerald-600" />}
+                    </button>
+                  );
+                })}
+
+                {entrega && (
+                  <>
+                    <div className="border-t border-slate-100 mt-1" />
+                    <div className="px-4 py-2 text-xs font-bold text-slate-500 uppercase">Status da Entrega</div>
+                    {filteredEntregaOptions.map(opt => {
+                      const disabled = !canEditEntrega;
+                      return (
+                        <button
+                          key={`e-${opt.value}`}
+                          disabled={disabled}
+                          onClick={() => handleManualEntregaStatusChange(p.id, opt.value)}
+                          className={`px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center justify-between ${
+                            disabled ? 'opacity-50 cursor-not-allowed' : ''
+                          }`}
+                        >
+                          <span>{opt.label}</span>
+                          {entrega.status === opt.value && <CheckCircle size={16} className="text-emerald-600" />}
+                        </button>
+                      );
+                    })}
+                  </>
+                )}
+              </>
+            );
+          })()}
+        </div>
       )}
 
       {/* Allocation Modal */}
