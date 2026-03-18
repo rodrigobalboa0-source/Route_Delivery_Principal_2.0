@@ -31,7 +31,6 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
   const [deliveryDistance, setDeliveryDistance] = useState<number | null>(null);
   const [calculatingDistance, setCalculatingDistance] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const lastLocationUpdateRef = useRef<number>(0);
   const [radiusKm, setRadiusKm] = useState<number | null>(null);
 
   const [rejectedIds, setRejectedIds] = useState<string[]>(() => {
@@ -308,30 +307,6 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
       }
     };
   }, []);
-
-  useEffect(() => {
-    const pushLocation = async () => {
-      if (!entregadorId || !userLocation || !isOnline) return;
-
-      const now = Date.now();
-      if (now - lastLocationUpdateRef.current < 10000) return;
-
-      try {
-        await supabase.from('entregadores').update({
-          current_latitude: userLocation.lat,
-          current_longitude: userLocation.lng,
-          last_location_update: new Date().toISOString(),
-          is_online: true 
-        }).eq('id', entregadorId);
-        
-        lastLocationUpdateRef.current = now;
-      } catch (e) {
-        console.error('Erro ao atualizar localização no servidor:', e);
-      }
-    };
-
-    pushLocation();
-  }, [userLocation, isOnline, entregadorId]);
 
   useEffect(() => {
     if (!entregadorId) return;

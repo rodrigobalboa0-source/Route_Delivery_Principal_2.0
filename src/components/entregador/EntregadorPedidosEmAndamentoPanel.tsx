@@ -14,7 +14,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
   const [profileMissing, setProfileMissing] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [mapVisibleId, setMapVisibleId] = useState<string | null>(null);
-  const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number; accuracyM?: number } | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   
   const [deliveryCoords, setDeliveryCoords] = useState<Record<string, { pickup?: [number, number], delivery?: [number, number] }>>({});
@@ -153,7 +153,8 @@ export function EntregadorPedidosEmAndamentoPanel() {
           
           setUserLocation({
             lat: position.coords.latitude,
-            lng: position.coords.longitude
+            lng: position.coords.longitude,
+            accuracyM: typeof position.coords.accuracy === 'number' ? position.coords.accuracy : undefined
           });
         } catch (e) {
           console.warn('Erro ao obter posição inicial, aguardando watchPosition', e);
@@ -166,7 +167,8 @@ export function EntregadorPedidosEmAndamentoPanel() {
           if (position) {
             setUserLocation({
               lat: position.coords.latitude,
-              lng: position.coords.longitude
+              lng: position.coords.longitude,
+              accuracyM: typeof position.coords.accuracy === 'number' ? position.coords.accuracy : undefined
             });
           }
           if (err) {
@@ -233,7 +235,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
     }
   }
 
-  const MAX_DISTANCE_KM = 0.2; 
+  const BASE_MAX_DISTANCE_KM = 0.2;
 
   async function updateStatus(id: string, newStatus: string) {
     setUpdatingId(id);
@@ -252,12 +254,24 @@ export function EntregadorPedidosEmAndamentoPanel() {
       if (currentEntrega) {
          const hasPickupAddress = !!currentEntrega.coleta_endereco_texto;
          const hasDeliveryAddress = !!currentEntrega.entrega_endereco_texto;
+         const effectiveMaxDistanceKm = Math.max(
+          BASE_MAX_DISTANCE_KM,
+          Math.min(1, ((userLocation.accuracyM || 0) / 1000) * 2)
+        );
          
          if (newStatus === 'chegou_coleta' || newStatus === 'em_rota') {
              if (hasPickupAddress) {
-                 if (!coords || !coords.pickup) {
+                 let pickupCoords = coords?.pickup;
+                 if (!pickupCoords && currentEntrega.coleta_endereco_texto) {
+                   pickupCoords = await getCoordsFromAddress(currentEntrega.coleta_endereco_texto);
+                   if (pickupCoords) {
+                     setDeliveryCoords(prev => ({ ...prev, [id]: { ...(prev[id] || {}), pickup: pickupCoords } }));
+                   }
+                 }
+
+                 if (!pickupCoords) {
                      
-                     alert('Não foi possível identificar a localização da coleta no mapa. Não é possível validar sua presença no local.');
+                     alert(`Não foi possível localizar o endereço de coleta para validar sua presença.\n\nEndereço de coleta: ${String(currentEntrega.coleta_endereco_texto || '').trim()}`);
                      setUpdatingId(null);
                      return;
                  } else {
@@ -265,12 +279,15 @@ export function EntregadorPedidosEmAndamentoPanel() {
                      const distKm = getDistanceFromLatLonInKm(
                          userLocation.lat, 
                          userLocation.lng, 
-                         coords.pickup[0], 
-                         coords.pickup[1]
+                         pickupCoords[0], 
+                         pickupCoords[1]
                      );
                      
-                     if (distKm > MAX_DISTANCE_KM) {
-                         alert('Você ainda não chegou no local indicado, chegue ao local primeiro para poder confirmar');
+                     if (distKm > effectiveMaxDistanceKm) {
+                         const acc = userLocation.accuracyM ? `\nPrecisão do GPS: ~${Math.round(userLocation.accuracyM)}m` : '';
+                         alert(
+                          `Você ainda não chegou no local de coleta para confirmar.\n\nEndereço de coleta: ${String(currentEntrega.coleta_endereco_texto || '').trim()}\nDistância: ${distKm.toFixed(2)} km (máx: ${effectiveMaxDistanceKm.toFixed(2)} km)${acc}`
+                        );
                          setUpdatingId(null);
                          return;
                      }
@@ -280,9 +297,17 @@ export function EntregadorPedidosEmAndamentoPanel() {
 
          if (newStatus === 'chegou_entrega' || newStatus === 'entregue') {
              if (hasDeliveryAddress) {
-                 if (!coords || !coords.delivery) {
+                 let deliveryCoordsResolved = coords?.delivery;
+                 if (!deliveryCoordsResolved && currentEntrega.entrega_endereco_texto) {
+                   deliveryCoordsResolved = await getCoordsFromAddress(currentEntrega.entrega_endereco_texto);
+                   if (deliveryCoordsResolved) {
+                     setDeliveryCoords(prev => ({ ...prev, [id]: { ...(prev[id] || {}), delivery: deliveryCoordsResolved } }));
+                   }
+                 }
+
+                 if (!deliveryCoordsResolved) {
                      
-                     alert('Não foi possível identificar a localização da entrega no mapa. Não é possível validar sua presença no local.');
+                     alert(`Não foi possível localizar o endereço de entrega para validar sua presença.\n\nEndereço de entrega: ${String(currentEntrega.entrega_endereco_texto || '').trim()}`);
                      setUpdatingId(null);
                      return;
                  } else {
@@ -290,12 +315,15 @@ export function EntregadorPedidosEmAndamentoPanel() {
                      const distKm = getDistanceFromLatLonInKm(
                          userLocation.lat, 
                          userLocation.lng, 
-                         coords.delivery[0], 
-                         coords.delivery[1]
+                         deliveryCoordsResolved[0], 
+                         deliveryCoordsResolved[1]
                      );
                      
-                     if (distKm > MAX_DISTANCE_KM) {
-                         alert('Você ainda não chegou no local indicado, chegue ao local primeiro para poder confirmar');
+                     if (distKm > effectiveMaxDistanceKm) {
+                         const acc = userLocation.accuracyM ? `\nPrecisão do GPS: ~${Math.round(userLocation.accuracyM)}m` : '';
+                         alert(
+                          `Você ainda não chegou no local de entrega para confirmar.\n\nEndereço de entrega: ${String(currentEntrega.entrega_endereco_texto || '').trim()}\nDistância: ${distKm.toFixed(2)} km (máx: ${effectiveMaxDistanceKm.toFixed(2)} km)${acc}`
+                        );
                          setUpdatingId(null);
                          return;
                      }

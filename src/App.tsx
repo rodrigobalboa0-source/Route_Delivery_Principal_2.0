@@ -96,6 +96,8 @@ function App() {
   const entregadorHeartbeatInFlightRef = useRef(false);
   const entregadorLastHeartbeatRef = useRef(0);
   const entregadorLocationRef = useRef<{ lat: number; lng: number } | null>(null);
+  const entregadorLastSentLocationRef = useRef<{ lat: number; lng: number } | null>(null);
+  const entregadorLastSentLocationAtRef = useRef(0);
 
   const clearSupabaseAuthStorage = () => {
     try {
@@ -213,8 +215,27 @@ function App() {
 
           const loc = entregadorLocationRef.current;
           if (loc) {
-            payload.current_latitude = loc.lat;
-            payload.current_longitude = loc.lng;
+            const toRad = (d: number) => (d * Math.PI) / 180;
+            const distanceKm = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
+              const R = 6371;
+              const dLat = toRad(b.lat - a.lat);
+              const dLng = toRad(b.lng - a.lng);
+              const x =
+                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+              return R * (2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x)));
+            };
+
+            const lastSent = entregadorLastSentLocationRef.current;
+            const movedKm = lastSent ? distanceKm(lastSent, loc) : Number.POSITIVE_INFINITY;
+            const shouldSendCoords = movedKm >= 0.02 || now - entregadorLastSentLocationAtRef.current >= 60000;
+
+            if (shouldSendCoords) {
+              payload.current_latitude = loc.lat;
+              payload.current_longitude = loc.lng;
+              entregadorLastSentLocationRef.current = loc;
+              entregadorLastSentLocationAtRef.current = now;
+            }
           }
 
           await supabase.from('entregadores').update(payload).eq('id', entregadorIdFromContext);

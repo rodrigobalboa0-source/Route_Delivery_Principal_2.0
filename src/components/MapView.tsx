@@ -38,11 +38,19 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<LeafletMap | null>(null);
   const markers = useRef<Map<string, any>>(new Map());
+  const markerAnimations = useRef<Map<string, number>>(new Map());
   const [mapLoaded, setMapLoaded] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const destMarker = useRef<any | null>(null);
   const originMarker = useRef<any | null>(null);
   const routePolyline = useRef<any | null>(null);
+
+  useEffect(() => {
+    return () => {
+      markerAnimations.current.forEach((rafId) => cancelAnimationFrame(rafId));
+      markerAnimations.current.clear();
+    };
+  }, []);
 
   useEffect(() => {
     
@@ -172,6 +180,34 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
 
     const currentMarkerIds = new Set<string>();
 
+    const animateMarkerTo = (marker: any, markerId: string, to: [number, number], durationMs: number) => {
+      const existing = markerAnimations.current.get(markerId);
+      if (typeof existing === 'number') cancelAnimationFrame(existing);
+
+      const fromLatLng = marker?.getLatLng?.();
+      const from: [number, number] =
+        fromLatLng && typeof fromLatLng.lat === 'number' && typeof fromLatLng.lng === 'number'
+          ? [fromLatLng.lat, fromLatLng.lng]
+          : to;
+
+      const start = performance.now();
+      const step = (now: number) => {
+        const t = Math.min(1, (now - start) / durationMs);
+        const lat = from[0] + (to[0] - from[0]) * t;
+        const lng = from[1] + (to[1] - from[1]) * t;
+        marker.setLatLng([lat, lng]);
+        if (t < 1) {
+          const rafId = requestAnimationFrame(step);
+          markerAnimations.current.set(markerId, rafId);
+        } else {
+          markerAnimations.current.delete(markerId);
+        }
+      };
+
+      const rafId = requestAnimationFrame(step);
+      markerAnimations.current.set(markerId, rafId);
+    };
+
     (deliveryPersons || []).forEach((person) => {
       if (!person.current_latitude || !person.current_longitude) return;
 
@@ -233,8 +269,7 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
 
       if (existingMarker) {
       
-        const newLatLng = [person.current_latitude, person.current_longitude];
-        existingMarker.setLatLng(newLatLng);
+        const newLatLng: [number, number] = [person.current_latitude, person.current_longitude];
         existingMarker.setIcon(L.divIcon({
             html: getMarkerHtml(person),
             className: '', 
@@ -244,6 +279,17 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
         }));
         existingMarker.getPopup().setContent(popupContent);
 
+        if (person.id === selectedEntregadorId) {
+          animateMarkerTo(existingMarker, person.id, newLatLng, 900);
+        } else {
+          const existingAnim = markerAnimations.current.get(person.id);
+          if (typeof existingAnim === 'number') {
+            cancelAnimationFrame(existingAnim);
+            markerAnimations.current.delete(person.id);
+          }
+          existingMarker.setLatLng(newLatLng);
+        }
+        
         
         if (person.id === selectedEntregadorId) {
             existingMarker.setZIndexOffset(1000);
@@ -251,7 +297,6 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
             existingMarker.setZIndexOffset(0);
         }
 
-      } else {
         
         const icon = L.divIcon({
             html: getMarkerHtml(person),
@@ -272,6 +317,9 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
     
     markers.current.forEach((marker, id) => {
       if (!currentMarkerIds.has(id)) {
+        const existingAnim = markerAnimations.current.get(id);
+        if (typeof existingAnim === 'number') cancelAnimationFrame(existingAnim);
+        markerAnimations.current.delete(id);
         marker.remove();
         markers.current.delete(id);
       }

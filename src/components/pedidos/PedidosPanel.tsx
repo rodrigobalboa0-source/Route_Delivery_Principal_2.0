@@ -1867,6 +1867,23 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         (payload) => {
           const { eventType, new: newRecord, old: oldRecord } = payload;
 
+          if (eventType === 'UPDATE') {
+            const prev = (oldRecord || null) as Entregador | null;
+            const next = (newRecord || null) as Entregador | null;
+            if (!next) return;
+
+            const changed =
+              !prev ||
+              prev.current_latitude !== next.current_latitude ||
+              prev.current_longitude !== next.current_longitude ||
+              prev.last_location_update !== next.last_location_update ||
+              prev.is_online !== next.is_online ||
+              prev.status !== next.status ||
+              prev.foto_url !== next.foto_url;
+
+            if (!changed) return;
+          }
+
           if (eventType === 'INSERT' || eventType === 'UPDATE') {
              const updatedEntregador = newRecord as Entregador;
              
