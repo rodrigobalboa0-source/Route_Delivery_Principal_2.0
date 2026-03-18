@@ -1976,8 +1976,24 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   };
 
   const fetchEntregadoresList = async () => {
-    const { data } = await supabase.from('entregadores').select('*').order('nome_completo');
-    setAvailableEntregadores((data || []) as Entregador[]);
+    const selectFields = [
+      'id',
+      'nome_completo',
+      'email',
+      'telefone',
+      'status',
+      'is_online',
+      'current_latitude',
+      'current_longitude',
+      'last_location_update',
+      'created_at',
+      'updated_at',
+      'foto_url',
+      'veiculo_tipo',
+    ].join(', ');
+
+    const { data } = await supabase.from('entregadores').select(selectFields).order('nome_completo');
+    setAvailableEntregadores((data || []) as unknown as Entregador[]);
     
     const map: Record<string, Entregador> = {};
     const mapPersons: MapDeliveryPerson[] = [];
@@ -1985,20 +2001,22 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     (data || []).forEach((e: any) => { 
         map[e.id] = e;
         
-        mapPersons.push({
-            id: e.id,
-            name: e.nome_completo,
-            email: e.email || '',
-            phone: e.telefone || '',
-            status: e.status === 'ativo' ? 'disponivel' : 'inativo',
-            is_online: e.is_online || false,
-            current_latitude: e.current_latitude,
-            current_longitude: e.current_longitude,
-            last_location_update: e.last_location_update,
-            created_at: e.created_at,
-            updated_at: e.updated_at,
-            foto_url: e.foto_url
-        });
+        if (e.current_latitude && e.current_longitude) {
+          mapPersons.push({
+              id: e.id,
+              name: e.nome_completo,
+              email: e.email || '',
+              phone: e.telefone || '',
+              status: e.status === 'ativo' ? 'disponivel' : 'inativo',
+              is_online: e.is_online || false,
+              current_latitude: e.current_latitude,
+              current_longitude: e.current_longitude,
+              last_location_update: e.last_location_update,
+              created_at: e.created_at,
+              updated_at: e.updated_at,
+              foto_url: e.foto_url
+          });
+        }
     });
     setEntregadores(prev => ({ ...prev, ...map }));
     setMapDeliveryPersons(mapPersons);
