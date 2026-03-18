@@ -28,31 +28,41 @@ export function HistoricoMensagensPanel({ userRole, onNavigate }: HistoricoMensa
     try {
       let conversationIds: string[] | null = null;
 
-      // Se for cliente, busca apenas conversas onde ele é o cliente_id
-      if (userRole === 'cliente') {
-        try {
-          const ctx = localStorage.getItem('cliente_context');
-          if (ctx) {
-            const parsed = JSON.parse(ctx);
-            if (parsed.id) {
-              const { data } = await supabase.from('conversas').select('id').eq('cliente_id', parsed.id);
-              if (data) conversationIds = data.map((c) => c.id);
-            }
+      if (userRole === 'cliente' || userRole === 'entregador') {
+        const { data: authData } = await supabase.auth.getUser();
+        const user = authData.user;
+        if (!user) {
+          setThreads([]);
+          setConversas({});
+          setLoadingList(false);
+          return;
+        }
+
+        const { data: userData } = await supabase
+          .from('users')
+          .select('cliente_id, entregador_id, email')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        const email = (userData as any)?.email || user.email || null;
+        const resolvedClienteId = (userData as any)?.cliente_id || null;
+        const resolvedEntregadorId = (userData as any)?.entregador_id || null;
+
+        let alvoId: string | null = userRole === 'cliente' ? resolvedClienteId : resolvedEntregadorId;
+        if (!alvoId && email) {
+          if (userRole === 'cliente') {
+            const { data: clienteData } = await supabase.from('clientes').select('id').ilike('email', email).maybeSingle();
+            alvoId = (clienteData as any)?.id || null;
+          } else {
+            const { data: entregadorData } = await supabase.from('entregadores').select('id').ilike('email', email).maybeSingle();
+            alvoId = (entregadorData as any)?.id || null;
           }
-        } catch (e) { console.error(e); }
-      } 
-      // Se for entregador, busca apenas conversas onde ele é o entregador_id
-      else if (userRole === 'entregador') {
-        try {
-          const ctx = localStorage.getItem('entregador_context');
-          if (ctx) {
-            const parsed = JSON.parse(ctx);
-            if (parsed.id) {
-              const { data } = await supabase.from('conversas').select('id').eq('entregador_id', parsed.id);
-              if (data) conversationIds = data.map((c) => c.id);
-            }
-          }
-        } catch (e) { console.error(e); }
+        }
+
+        if (alvoId) {
+          const { data } = await supabase.from('conversas').select('id').eq('tipo_alvo', userRole).eq('alvo_id', alvoId);
+          if (data) conversationIds = data.map((c: any) => c.id);
+        }
       }
 
       // Se usuário restrito não tiver conversas, não mostra nada
@@ -189,15 +199,9 @@ export function HistoricoMensagensPanel({ userRole, onNavigate }: HistoricoMensa
                 <div>
                   <button
                     onClick={() => {
-                      try {
-                        localStorage.setItem('mensagens_preselect', JSON.stringify({ tipo: m.tipo, alvoId: m.alvoId }));
-                        if (onNavigate) {
-                          onNavigate(m.tipo === 'cliente' ? 'mensagens_clientes' : 'mensagens_entregadores');
-                        } else {
-                          // Fallback se onNavigate não for passado
-                          window.location.hash = m.tipo === 'cliente' ? '#mensagens_clientes' : '#mensagens_entregadores';
-                        }
-                      } catch (e) { void e; }
+                      if (onNavigate) {
+                        onNavigate(m.tipo === 'cliente' ? 'mensagens_clientes' : 'mensagens_entregadores', { tipo: m.tipo, alvoId: m.alvoId });
+                      }
                     }}
                     className="px-3 py-1 rounded bg-sky-600 hover:bg-sky-700 text-white text-xs"
                   >

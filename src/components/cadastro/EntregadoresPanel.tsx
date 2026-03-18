@@ -607,7 +607,6 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
         const currentEmail = (session.session?.user?.email || '').trim().toLowerCase();
         if (currentEmail && email && currentEmail === email) {
           await supabase.auth.signOut();
-          try { localStorage.removeItem('entregador_context'); } catch (e) { void e; }
         }
       } catch (e) { void e; }
 

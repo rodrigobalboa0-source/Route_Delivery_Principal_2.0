@@ -413,7 +413,7 @@ export function NovaEntregaPanel() {
     try {
       if (typeof window === 'undefined') return false;
       const params = new URLSearchParams(window.location.search);
-      return params.get('debug') === '1' || localStorage.getItem('rd_debug') === '1';
+      return params.get('debug') === '1';
     } catch (e) {
       void e;
       return false;
@@ -441,12 +441,6 @@ export function NovaEntregaPanel() {
   }, [debugEnabled]);
 
   const enableDebug = () => {
-    try {
-      localStorage.setItem('rd_debug', '1');
-    } catch (e) {
-      void e;
-    }
-
     try {
       const url = new URL(window.location.href);
       url.searchParams.set('debug', '1');
@@ -1094,28 +1088,23 @@ export function NovaEntregaPanel() {
 
     let finalClientes: Cliente[] = [];
 
-    if (user && (isClientByRole || !!targetClientId || !!userEmail)) {
-      setIsComercio(Boolean(isClientByRole));
+    if (user && isClientByRole) {
+      setIsComercio(true);
 
-      const readLocalClientId = () => {
+      let resolvedClientId = targetClientId;
+      if (!resolvedClientId) {
         try {
-          const raw = localStorage.getItem('cliente_context');
-          if (!raw) return '';
-          const parsed = JSON.parse(raw) as { id?: string };
-          return String(parsed?.id || '').trim();
+          const { data: rpcId } = await supabase.rpc('resolve_my_cliente_id');
+          if (rpcId) resolvedClientId = String(rpcId).trim();
         } catch (e) {
           void e;
-          return '';
         }
-      };
-
-      const localClientId = readLocalClientId();
-      const preferredId = targetClientId || localClientId;
+      }
 
       let matched: Cliente | null = null;
 
-      if (preferredId) {
-        const { data } = await supabase.from('clientes').select('*').eq('id', preferredId).maybeSingle();
+      if (resolvedClientId) {
+        const { data } = await supabase.from('clientes').select('*').eq('id', resolvedClientId).maybeSingle();
         matched = (data as Cliente | null) || null;
       }
 
@@ -1142,11 +1131,12 @@ export function NovaEntregaPanel() {
           matched_cliente_email: matched.email || null,
           matched_cliente_nome: matched.nome_completo || null,
         });
-      } else if (isClientByRole) {
+      } else {
         finalClientes = [];
         updateDebug({ matched_cliente_id: null });
       }
     } else {
+      setIsComercio(false);
       const { data } = await supabase.from('clientes').select('*').order('nome_completo');
       finalClientes = (data || []) as Cliente[];
     }

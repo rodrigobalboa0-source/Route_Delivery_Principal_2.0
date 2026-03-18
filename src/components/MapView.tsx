@@ -268,15 +268,16 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
       `;
 
       if (existingMarker) {
-      
         const newLatLng: [number, number] = [person.current_latitude, person.current_longitude];
-        existingMarker.setIcon(L.divIcon({
+        existingMarker.setIcon(
+          L.divIcon({
             html: getMarkerHtml(person),
-            className: '', 
+            className: '',
             iconSize: [56, 56],
             iconAnchor: [28, 56],
-            popupAnchor: [0, -50]
-        }));
+            popupAnchor: [0, -50],
+          })
+        );
         existingMarker.getPopup().setContent(popupContent);
 
         if (person.id === selectedEntregadorId) {
@@ -289,26 +290,28 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
           }
           existingMarker.setLatLng(newLatLng);
         }
-        
-        
-        if (person.id === selectedEntregadorId) {
-            existingMarker.setZIndexOffset(1000);
-        } else {
-            existingMarker.setZIndexOffset(0);
-        }
 
-        
+        if (person.id === selectedEntregadorId) {
+          existingMarker.setZIndexOffset(1000);
+        } else {
+          existingMarker.setZIndexOffset(0);
+        }
+      } else {
         const icon = L.divIcon({
-            html: getMarkerHtml(person),
-            className: '', 
-            iconSize: [56, 56],
-            iconAnchor: [28, 56],
-            popupAnchor: [0, -50]
+          html: getMarkerHtml(person),
+          className: '',
+          iconSize: [56, 56],
+          iconAnchor: [28, 56],
+          popupAnchor: [0, -50],
         });
 
         const marker = L.marker([person.current_latitude, person.current_longitude], { icon })
           .bindPopup(popupContent)
           .addTo(map.current);
+
+        if (person.id === selectedEntregadorId) {
+          marker.setZIndexOffset(1000);
+        }
 
         markers.current.set(person.id, marker);
       }

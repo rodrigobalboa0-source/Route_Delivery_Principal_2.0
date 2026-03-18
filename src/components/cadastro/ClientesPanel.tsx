@@ -585,7 +585,6 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
             const currentEmail = (session.session?.user?.email || '').trim().toLowerCase();
             if (currentEmail && currentEmail === email) {
                 await supabase.auth.signOut();
-                try { localStorage.removeItem('cliente_context'); } catch (e) { void e; }
                 window.location.reload();
                 return;
             }

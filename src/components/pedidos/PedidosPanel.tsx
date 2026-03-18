@@ -1684,8 +1684,11 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
     
     if (entrega?.entregador_id) {
-      if (!isComercio || ['atribuida', 'coletando', 'entregando'].includes(entrega.status)) {
-          setMapSelectedEntregadorId(entrega.entregador_id);
+      if (
+        !isComercio ||
+        ['atribuida', 'chegou_coleta', 'em_rota', 'chegou_entrega', 'coletando', 'entregando'].includes(entrega.status)
+      ) {
+        setMapSelectedEntregadorId(entrega.entregador_id);
       }
     }
 
@@ -1776,21 +1779,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
           const e = typeof v === 'string' ? v.trim().toLowerCase() : '';
           return e || '';
         };
-
-        const readLocalClientId = () => {
-          try {
-            const raw = localStorage.getItem('cliente_context');
-            if (!raw) return '';
-            const parsed = JSON.parse(raw) as { id?: string };
-            return String(parsed?.id || '').trim();
-          } catch (e) {
-            void e;
-            return '';
-          }
-        };
-
-        const localClientId = readLocalClientId();
-        let clienteId = localClientId;
+        let clienteId = '';
 
         try {
           const { data: { user } } = await supabase.auth.getUser();
@@ -1969,7 +1958,10 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     
     const assignedIds = new Set<string>();
     Object.values(entregasMap).forEach(entrega => {
-        if (entrega.entregador_id && ['atribuida', 'coletando', 'entregando'].includes(entrega.status)) {
+        if (
+          entrega.entregador_id &&
+          ['atribuida', 'chegou_coleta', 'em_rota', 'chegou_entrega', 'coletando', 'entregando'].includes(entrega.status)
+        ) {
             assignedIds.add(entrega.entregador_id);
         }
     });
@@ -3093,7 +3085,11 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                                 </button>
                             </td>
                             <td className="px-4 py-3">
-                                {entregador && (!isComercio || ['atribuida', 'coletando', 'entregando', 'entregue', 'finalizada'].includes(entrega?.status)) ? (
+                                {entregador &&
+                                (!isComercio ||
+                                  ['atribuida', 'chegou_coleta', 'em_rota', 'chegou_entrega', 'coletando', 'entregando', 'entregue', 'finalizada'].includes(
+                                    entrega?.status
+                                  )) ? (
                                     <div className="flex items-center gap-2">
                                         <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center overflow-hidden">
                                             {entregador.foto_url ? (
@@ -3105,7 +3101,19 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                                         <span className="text-slate-700">{entregador.nome_completo.split(' ')[0]}</span>
                                     </div>
                                 ) : (
-                                    (!entregador || (isComercio && !['atribuida', 'coletando', 'entregando', 'entregue', 'finalizada'].includes(entrega?.status))) && (!isComercio || allowAlocarComercio) && (
+                                    (!entregador ||
+                                      (isComercio &&
+                                        ![
+                                          'atribuida',
+                                          'chegou_coleta',
+                                          'em_rota',
+                                          'chegou_entrega',
+                                          'coletando',
+                                          'entregando',
+                                          'entregue',
+                                          'finalizada',
+                                        ].includes(entrega?.status))) &&
+                                      (!isComercio || allowAlocarComercio) && (
                                     <button 
                                         onClick={() => handleOpenAllocation(p)}
                                         className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded border border-slate-200"

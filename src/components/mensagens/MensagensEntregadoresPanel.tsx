@@ -5,7 +5,11 @@ import type { Database } from '../../lib/database.types';
 type Entregador = Database['public']['Tables']['entregadores']['Row'];
 type MsgThread = Database['public']['Tables']['conversa_mensagens']['Row'];
 
-export function MensagensEntregadoresPanel() {
+interface MensagensEntregadoresPanelProps {
+  initialEntregadorId?: string;
+}
+
+export function MensagensEntregadoresPanel({ initialEntregadorId }: MensagensEntregadoresPanelProps) {
   const [entregadores, setEntregadores] = useState<Entregador[]>([]);
   const [conversaId, setConversaId] = useState<string | null>(null);
   const [mensagens, setMensagens] = useState<MsgThread[]>([]);
@@ -67,29 +71,64 @@ export function MensagensEntregadoresPanel() {
   }, [fetchEntregadores]);
 
   useEffect(() => {
-    try {
-      const cCtxRaw = localStorage.getItem('cliente_context');
-      if (cCtxRaw) {
-        const ctx = JSON.parse(cCtxRaw) as { id?: string };
-        if (ctx?.id) setClienteId(ctx.id);
-      }
-      const ctxRaw = localStorage.getItem('entregador_context');
-      if (ctxRaw) {
-        const ctx = JSON.parse(ctxRaw) as { id?: string; nome?: string };
-        if (ctx?.id) {
-          setIsEntregadorUser(true);
-          setEntregadorNome(ctx.nome || 'Entregador');
-          void handleSelectEntregador(ctx.id);
+    if (!initialEntregadorId) return;
+    if (isEntregadorUser) return;
+    void handleSelectEntregador(initialEntregadorId);
+  }, [initialEntregadorId, isEntregadorUser]);
+
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const { data: authData } = await supabase.auth.getUser();
+        const user = authData.user;
+        if (!user) return;
+
+        const { data: userData } = await supabase
+          .from('users')
+          .select('role, email, cliente_id, entregador_id')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        const role = (userData as any)?.role as string | undefined;
+        const email = ((userData as any)?.email || user.email || '').trim();
+
+        if (role === 'entregador') {
+          let eid: string | null = (userData as any)?.entregador_id || null;
+          if (!eid && email) {
+            const { data: entregadorData } = await supabase.from('entregadores').select('id, nome_completo').ilike('email', email).maybeSingle();
+            eid = (entregadorData as any)?.id || null;
+            setEntregadorNome((entregadorData as any)?.nome_completo || 'Entregador');
+          } else if (eid) {
+            const { data: entregadorData } = await supabase.from('entregadores').select('nome_completo').eq('id', eid).maybeSingle();
+            setEntregadorNome((entregadorData as any)?.nome_completo || 'Entregador');
+          }
+
+          if (eid) {
+            setIsEntregadorUser(true);
+            void handleSelectEntregador(eid);
+          }
+          return;
         }
+
+        if (role === 'cliente') {
+          let cid: string | null = (userData as any)?.cliente_id || null;
+          if (!cid && email) {
+            const { data: clienteData } = await supabase.from('clientes').select('id').ilike('email', email).maybeSingle();
+            cid = (clienteData as any)?.id || null;
+          }
+          if (cid) setClienteId(cid);
+          return;
+        }
+
+        if (initialEntregadorId) {
+          void handleSelectEntregador(initialEntregadorId);
+        }
+      } catch (e) {
+        void e;
       }
-      const raw = localStorage.getItem('mensagens_preselect');
-      if (!raw) return;
-      const v = JSON.parse(raw) as { tipo?: 'cliente' | 'entregador'; alvoId?: string };
-      localStorage.removeItem('mensagens_preselect');
-      if (v?.tipo === 'entregador' && v.alvoId) {
-        void handleSelectEntregador(v.alvoId);
-      }
-    } catch (e) { void e; }
+    };
+
+    void init();
   }, []);
 
   const withTimeout = <T,>(p: { then: (onFulfilled: (v: T) => unknown, onRejected?: (e: unknown) => unknown) => unknown }, ms: number) =>

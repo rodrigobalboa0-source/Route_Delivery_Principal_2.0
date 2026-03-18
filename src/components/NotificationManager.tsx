@@ -74,7 +74,7 @@ export function NotificationManager({ userId, userRole, onNavigate }: Notificati
             const c = await getActiveDeliveriesCount();
             return c >= effectiveLimit;
           } catch (e) {
-            return localStorage.getItem('delivery_limit_locked') === 'true';
+            return false;
           }
         };
 

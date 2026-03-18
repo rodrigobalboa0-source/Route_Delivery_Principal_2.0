@@ -254,10 +254,8 @@ export function EntregadorPedidosEmAndamentoPanel() {
       if (currentEntrega) {
          const hasPickupAddress = !!currentEntrega.coleta_endereco_texto;
          const hasDeliveryAddress = !!currentEntrega.entrega_endereco_texto;
-         const effectiveMaxDistanceKm = Math.max(
-          BASE_MAX_DISTANCE_KM,
-          Math.min(1, ((userLocation.accuracyM || 0) / 1000) * 2)
-        );
+         const accuracyKm = typeof userLocation.accuracyM === 'number' ? userLocation.accuracyM / 1000 : 0;
+         const effectiveMaxDistanceKm = Math.max(BASE_MAX_DISTANCE_KM, 0.25, Math.min(1, accuracyKm * 3.5));
          
          if (newStatus === 'chegou_coleta' || newStatus === 'em_rota') {
              if (hasPickupAddress) {

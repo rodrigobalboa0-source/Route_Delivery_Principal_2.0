@@ -51,35 +51,64 @@ export function SupportChatOverlay({ open, onClose, userRole }: SupportChatOverl
         return;
     }
 
-    try {
-      const cRaw = localStorage.getItem('cliente_context');
-      const eRaw = localStorage.getItem('entregador_context');
-      
-      if (userRole === 'cliente' || cRaw) {
-        const c = cRaw ? JSON.parse(cRaw) : null;
-        if (c?.id) { 
-            setCurrentUserRole('cliente'); 
-            void ensureConversa('cliente', c.id); 
-            return; 
+    const init = async () => {
+      try {
+        const { data: authData } = await supabase.auth.getUser();
+        const user = authData.user;
+        if (!user) {
+          setIsAdminMode(true);
+          setCurrentUserRole('operador');
+          fetchTargets();
+          return;
         }
-      }
-      
-      if (userRole === 'entregador' || eRaw) {
-        const e = eRaw ? JSON.parse(eRaw) : null;
-        if (e?.id) { 
-            setCurrentUserRole('entregador'); 
-            void ensureConversa('entregador', e.id); 
-            return; 
+
+        const { data: userData } = await supabase
+          .from('users')
+          .select('role, email, cliente_id, entregador_id')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        const role = (userRole && userRole !== 'loading' ? userRole : ((userData as any)?.role as string | undefined)) || '';
+        const email = ((userData as any)?.email || user.email || '').trim();
+
+        if (role === 'cliente') {
+          let cid: string | null = (userData as any)?.cliente_id || null;
+          if (!cid && email) {
+            const { data: clienteData } = await supabase.from('clientes').select('id').ilike('email', email).maybeSingle();
+            cid = (clienteData as any)?.id || null;
+          }
+          if (cid) {
+            setCurrentUserRole('cliente');
+            void ensureConversa('cliente', cid);
+            return;
+          }
         }
+
+        if (role === 'entregador') {
+          let eid: string | null = (userData as any)?.entregador_id || null;
+          if (!eid && email) {
+            const { data: entregadorData } = await supabase.from('entregadores').select('id').ilike('email', email).maybeSingle();
+            eid = (entregadorData as any)?.id || null;
+          }
+          if (eid) {
+            setCurrentUserRole('entregador');
+            void ensureConversa('entregador', eid);
+            return;
+          }
+        }
+
+        setIsAdminMode(true);
+        setCurrentUserRole('operador');
+        fetchTargets();
+      } catch (e) {
+        void e;
+        setIsAdminMode(true);
+        setCurrentUserRole('operador');
+        fetchTargets();
       }
-      
-  
-  
-      setIsAdminMode(true);
-      setCurrentUserRole('operador');
-      fetchTargets();
-      
-    } catch (e) { void e; }
+    };
+
+    void init();
   }, [open, userRole]);
 
   const fetchTargets = async () => {

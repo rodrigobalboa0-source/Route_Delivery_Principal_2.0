@@ -23,27 +23,6 @@ export function ComercioNotificacoesPanel() {
   const [ifoodError, setIfoodError] = useState<string | null>(null);
   const [ifoodAuthCode, setIfoodAuthCode] = useState('');
 
-  const getIfoodVerifierStorageKey = (cid: string) => `ifood:auth:verifier:${cid}`;
-  const getPersistedIfoodVerifier = (cid: string) => {
-    try {
-      const v = localStorage.getItem(getIfoodVerifierStorageKey(cid));
-      return v && v.trim() ? v : null;
-    } catch {
-      return null;
-    }
-  };
-  const setPersistedIfoodVerifier = (cid: string, verifier: string | null) => {
-    try {
-      const key = getIfoodVerifierStorageKey(cid);
-      if (!verifier) {
-        localStorage.removeItem(key);
-      } else {
-        localStorage.setItem(key, verifier);
-      }
-    } catch {
-    }
-  };
-
   useEffect(() => {
     fetchData();
   }, []);
@@ -89,10 +68,6 @@ export function ComercioNotificacoesPanel() {
       }
 
       setClientId(targetClientId);
-      if (!ifoodAuthorizationCodeVerifier) {
-        const persisted = getPersistedIfoodVerifier(targetClientId);
-        if (persisted) setIfoodAuthorizationCodeVerifier(persisted);
-      }
 
       const { data: integData, error: integError } = await supabase
         .from('integracoes_ifood')
@@ -165,9 +140,6 @@ export function ComercioNotificacoesPanel() {
       setIfoodUserCode(userCode);
       setIfoodVerificationUrl(verificationUrl);
       setIfoodAuthorizationCodeVerifier(authorizationCodeVerifier);
-      if (authorizationCodeVerifier) {
-        setPersistedIfoodVerifier(clientId, authorizationCodeVerifier);
-      }
       setIfoodModalOpen(true);
     } catch (e: any) {
       setIfoodError(e.message || 'Erro ao gerar código de ativação no iFood.');
@@ -182,7 +154,7 @@ export function ComercioNotificacoesPanel() {
       setIfoodError('Informe o código de autorização exibido no Portal do iFood.');
       return;
     }
-    const verifier = ifoodAuthorizationCodeVerifier || getPersistedIfoodVerifier(clientId);
+    const verifier = ifoodAuthorizationCodeVerifier;
     if (!verifier) {
       setIfoodError('Reinicie a autorização do iFood para gerar o code verifier.');
       return;
@@ -220,7 +192,6 @@ export function ComercioNotificacoesPanel() {
       setIfoodModalOpen(false);
       setIfoodAuthCode('');
       setIfoodAuthorizationCodeVerifier(null);
-      setPersistedIfoodVerifier(clientId, null);
       await fetchData();
     } catch (e: any) {
       setIfoodError(e.message || 'Erro ao finalizar autenticação com iFood.');

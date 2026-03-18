@@ -5,7 +5,11 @@ import type { Database } from '../../lib/database.types';
 type Cliente = { id: string; nome_completo: string };
 type MsgThread = Database['public']['Tables']['conversa_mensagens']['Row'];
 
-export function MensagensClientesPanel() {
+interface MensagensClientesPanelProps {
+  initialClienteId?: string;
+}
+
+export function MensagensClientesPanel({ initialClienteId }: MensagensClientesPanelProps) {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [conversaId, setConversaId] = useState<string | null>(null);
   const [mensagens, setMensagens] = useState<MsgThread[]>([]);
@@ -23,30 +27,64 @@ export function MensagensClientesPanel() {
   }, [entregadorId, isClienteUser]);
 
   useEffect(() => {
-    try {
-      const eCtxRaw = localStorage.getItem('entregador_context');
-      if (eCtxRaw) {
-        const ctx = JSON.parse(eCtxRaw) as { id?: string };
-        if (ctx?.id) setEntregadorId(ctx.id);
-      }
-      const ctxRaw = localStorage.getItem('cliente_context');
-      if (ctxRaw) {
-        const ctx = JSON.parse(ctxRaw) as { id?: string; nome?: string };
-        if (ctx?.id) {
-          setIsClienteUser(true);
-          setClienteNome(ctx.nome || 'Cliente');
-          void handleSelectCliente(ctx.id);
+    if (!initialClienteId) return;
+    if (isClienteUser) return;
+    void handleSelectCliente(initialClienteId);
+  }, [initialClienteId, isClienteUser]);
+
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const { data: authData } = await supabase.auth.getUser();
+        const user = authData.user;
+        if (!user) return;
+
+        const { data: userData } = await supabase
+          .from('users')
+          .select('role, email, cliente_id, entregador_id')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        const role = (userData as any)?.role as string | undefined;
+        const email = ((userData as any)?.email || user.email || '').trim();
+
+        if (role === 'cliente') {
+          let cid: string | null = (userData as any)?.cliente_id || null;
+          if (!cid && email) {
+            const { data: clienteData } = await supabase.from('clientes').select('id, nome_completo').ilike('email', email).maybeSingle();
+            cid = (clienteData as any)?.id || null;
+            setClienteNome((clienteData as any)?.nome_completo || 'Comércio');
+          } else if (cid) {
+            const { data: clienteData } = await supabase.from('clientes').select('nome_completo').eq('id', cid).maybeSingle();
+            setClienteNome((clienteData as any)?.nome_completo || 'Comércio');
+          }
+
+          if (cid) {
+            setIsClienteUser(true);
+            void handleSelectCliente(cid);
+          }
+          return;
         }
-      }
-      const raw = localStorage.getItem('mensagens_preselect');
-      if (raw) {
-        const v = JSON.parse(raw) as { tipo?: 'cliente' | 'entregador'; alvoId?: string };
-        localStorage.removeItem('mensagens_preselect');
-        if (v?.tipo === 'cliente' && v.alvoId) {
-          void handleSelectCliente(v.alvoId);
+
+        if (role === 'entregador') {
+          let eid: string | null = (userData as any)?.entregador_id || null;
+          if (!eid && email) {
+            const { data: entregadorData } = await supabase.from('entregadores').select('id').ilike('email', email).maybeSingle();
+            eid = (entregadorData as any)?.id || null;
+          }
+          if (eid) setEntregadorId(eid);
+          return;
         }
+
+        if (initialClienteId) {
+          void handleSelectCliente(initialClienteId);
+        }
+      } catch (e) {
+        void e;
       }
-    } catch (e) { void e; }
+    };
+
+    void init();
   }, []);
 
   const fetchClientes = async () => {
