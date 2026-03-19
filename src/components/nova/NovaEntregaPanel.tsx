@@ -409,54 +409,6 @@ export function NovaEntregaPanel() {
   const [entregaSelectedCoords, setEntregaSelectedCoords] = useState<[number, number] | undefined>(undefined);
   const selectedCoordsByTextRef = useRef<Map<string, [number, number]>>(new Map());
 
-  const debugEnabled = (() => {
-    try {
-      if (typeof window === 'undefined') return false;
-      const params = new URLSearchParams(window.location.search);
-      return params.get('debug') === '1';
-    } catch (e) {
-      void e;
-      return false;
-    }
-  })();
-
-  const debugRef = useRef<Record<string, unknown>>({});
-  const [debugText, setDebugText] = useState<string>('');
-  const updateDebug = (partial: Record<string, unknown>) => {
-    if (!debugEnabled) return;
-    debugRef.current = { ...debugRef.current, ...partial, at: new Date().toISOString() };
-    try {
-      setDebugText(JSON.stringify(debugRef.current, null, 2));
-    } catch (e) {
-      void e;
-    }
-  };
-
-  useEffect(() => {
-    if (!debugEnabled) return;
-    updateDebug({
-      debug_enabled: true,
-      href: typeof window !== 'undefined' ? window.location.href : null,
-    });
-  }, [debugEnabled]);
-
-  const enableDebug = () => {
-    try {
-      const url = new URL(window.location.href);
-      url.searchParams.set('debug', '1');
-      window.location.href = url.toString();
-      return;
-    } catch (e) {
-      void e;
-    }
-
-    try {
-      window.location.reload();
-    } catch (e) {
-      void e;
-    }
-  };
-
   const normalizeAddressKey = (text: string) => {
     return String(text || '')
       .replace(/\s+-\s+/g, ', ')
@@ -726,26 +678,6 @@ export function NovaEntregaPanel() {
       const coletaFull = form.coleta_numero ? `${coletaEndereco}, ${form.coleta_numero}` : coletaEndereco;
       const entregaFull = form.entrega_numero ? `${entregaEndereco}, ${form.entrega_numero}` : entregaEndereco;
 
-      updateDebug({
-        distancia: {
-          coleta_texto: coletaEndereco,
-          coleta_numero: String(form.coleta_numero || ''),
-          entrega_texto: entregaEndereco,
-          entrega_numero: String(form.entrega_numero || ''),
-          coleta_full: coletaFull,
-          entrega_full: entregaFull,
-          coleta_selected_coords: coletaSelectedCoords || null,
-          entrega_selected_coords: entregaSelectedCoords || null,
-        },
-        precificacao: {
-          pricing_mode: pricingMode,
-          selected_tabela_id: selectedTabelaId || null,
-          tabelas_precos_count: Array.isArray(tabelasPrecos) ? tabelasPrecos.length : 0,
-          faixas_preco_count: Array.isArray(faixasPreco) ? faixasPreco.length : 0,
-          valor_entrega: form.valor_entrega || null,
-        },
-      });
-
       if ((!coletaSelectedCoords && coletaFull.length < 5) || (!entregaSelectedCoords && entregaFull.length < 5)) {
         if (calcId === distanceCalcIdRef.current) {
           setDistanciaKm('');
@@ -793,12 +725,6 @@ export function NovaEntregaPanel() {
               const areaCoords = await getCoordsFromAddress(q);
               if (areaCoords) {
                 selectedCoordsByTextRef.current.set(key, areaCoords);
-                updateDebug({
-                  distancia: {
-                    ...(typeof debugRef.current.distancia === 'object' && debugRef.current.distancia ? (debugRef.current.distancia as any) : {}),
-                    fallback_area_query: q,
-                  },
-                });
                 return areaCoords;
               }
             }
@@ -813,14 +739,6 @@ export function NovaEntregaPanel() {
 
         if (calcId !== distanceCalcIdRef.current) return;
 
-        updateDebug({
-          distancia: {
-            ...(typeof debugRef.current.distancia === 'object' && debugRef.current.distancia ? (debugRef.current.distancia as any) : {}),
-            start_coords: startCoords || null,
-            end_coords: endCoords || null,
-          },
-        });
-
         if (!startCoords || !endCoords) {
           setDistanciaKm('');
           if (!startCoords && !endCoords) {
@@ -830,12 +748,6 @@ export function NovaEntregaPanel() {
           } else {
             setDistanceError('Não foi possível localizar o endereço de entrega. Selecione uma sugestão da lista.');
           }
-          updateDebug({
-            distancia: {
-              ...(typeof debugRef.current.distancia === 'object' && debugRef.current.distancia ? (debugRef.current.distancia as any) : {}),
-              error: !startCoords && !endCoords ? 'coleta_e_entrega_sem_coords' : !startCoords ? 'coleta_sem_coords' : 'entrega_sem_coords',
-            },
-          });
           return;
         }
 
@@ -878,24 +790,10 @@ export function NovaEntregaPanel() {
 
         setDistanciaKm(totalDist > 0 ? totalDist.toFixed(2) : '');
         setDistanceError(null);
-        updateDebug({
-          distancia: {
-            ...(typeof debugRef.current.distancia === 'object' && debugRef.current.distancia ? (debugRef.current.distancia as any) : {}),
-            total_km: typeof totalDist === 'number' ? totalDist : null,
-            result_distancia_km: totalDist > 0 ? totalDist.toFixed(2) : '',
-            error: null,
-          },
-        });
       } catch (e) {
         if (calcId !== distanceCalcIdRef.current) return;
         setDistanciaKm('');
         setDistanceError('Erro ao calcular a distância. Tente novamente.');
-        updateDebug({
-          distancia: {
-            ...(typeof debugRef.current.distancia === 'object' && debugRef.current.distancia ? (debugRef.current.distancia as any) : {}),
-            error: 'exception',
-          },
-        });
       } finally {
         if (calcId === distanceCalcIdRef.current) {
           setCalculatingDistance(false);
@@ -1078,14 +976,6 @@ export function NovaEntregaPanel() {
     const targetClientId = String((uData as any)?.cliente_id || '').trim();
     const isClientByRole = (uData as any)?.role === 'cliente';
 
-    updateDebug({
-      auth_user_email: user?.email || null,
-      users_row: uData,
-      resolved_user_email: userEmail || null,
-      resolved_target_cliente_id: targetClientId || null,
-      resolved_is_client_by_role: isClientByRole,
-    });
-
     let finalClientes: Cliente[] = [];
 
     if (user && isClientByRole) {
@@ -1126,14 +1016,8 @@ export function NovaEntregaPanel() {
         finalClientes = [matched];
         setForm((prev) => ({ ...prev, cliente_id: matched!.id }));
         setClientSaldo(matched.saldo_creditos);
-        updateDebug({
-          matched_cliente_id: matched.id,
-          matched_cliente_email: matched.email || null,
-          matched_cliente_nome: matched.nome_completo || null,
-        });
       } else {
         finalClientes = [];
-        updateDebug({ matched_cliente_id: null });
       }
     } else {
       setIsComercio(false);
@@ -1741,37 +1625,6 @@ export function NovaEntregaPanel() {
                   </div>
                 )}
                 {calculatingDistance && <span className="text-xs text-amber-600 block animate-pulse">Calculando rota e distância...</span>}
-                {!debugEnabled ? (
-                  <button
-                    type="button"
-                    className="mt-2 px-2 py-1 rounded bg-slate-200 text-slate-800 text-xs"
-                    onClick={enableDebug}
-                  >
-                    Ativar diagnóstico
-                  </button>
-                ) : (
-                  <details className="mt-2">
-                    <summary className="text-xs text-slate-600 cursor-pointer select-none">Diagnóstico</summary>
-                    <div className="mt-2 flex gap-2">
-                      <button
-                        type="button"
-                        className="px-2 py-1 rounded bg-slate-200 text-slate-800 text-xs"
-                        onClick={() => {
-                          try {
-                            void navigator.clipboard.writeText(debugText);
-                          } catch (e) {
-                            void e;
-                          }
-                        }}
-                      >
-                        Copiar
-                      </button>
-                    </div>
-                    <pre className="mt-2 text-xs whitespace-pre-wrap break-words bg-slate-50 border border-slate-200 rounded p-2 max-h-64 overflow-auto">
-                      {debugText || 'Aguardando eventos para preencher diagnóstico...'}
-                    </pre>
-                  </details>
-                )}
 
              </div>
              <div className="text-3xl font-bold text-sky-900">
