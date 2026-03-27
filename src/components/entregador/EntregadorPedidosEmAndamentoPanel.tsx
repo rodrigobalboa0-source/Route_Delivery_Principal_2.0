@@ -19,6 +19,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
   
   const [deliveryCoords, setDeliveryCoords] = useState<Record<string, { pickup?: [number, number], delivery?: [number, number] }>>({});
   const [distances, setDistances] = useState<Record<string, { userToPickup: number, pickupToDelivery: number, userToDelivery: number }>>({});
+  const [persistedDistanceIds, setPersistedDistanceIds] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const fetchCoords = async () => {
@@ -89,6 +90,27 @@ export function EntregadorPedidosEmAndamentoPanel() {
 
     setDistances(newDistances);
   }, [userLocation, deliveryCoords]);
+
+  useEffect(() => {
+    const persistDistances = async () => {
+      for (const entrega of entregas) {
+        if (!entrega) continue;
+        if (persistedDistanceIds[entrega.id]) continue;
+        const d = distances[entrega.id];
+        if (!d) continue;
+        if ((!entrega.distancia_km || Number(entrega.distancia_km) === 0) && d.pickupToDelivery > 0) {
+          try {
+            await supabase.from('nova_entrega').update({ distancia_km: d.pickupToDelivery }).eq('id', entrega.id);
+            setEntregas(prev => prev.map(e => e.id === entrega.id ? { ...e, distancia_km: d.pickupToDelivery } : e));
+            setPersistedDistanceIds(prev => ({ ...prev, [entrega.id]: true }));
+          } catch {
+            setPersistedDistanceIds(prev => ({ ...prev, [entrega.id]: true }));
+          }
+        }
+      }
+    };
+    if (entregas.length > 0) persistDistances();
+  }, [entregas, distances, persistedDistanceIds]);
 
   useEffect(() => {
     fetchEntregas();

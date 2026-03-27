@@ -162,6 +162,52 @@ export function EntregadorEntregasDisponiveisPanel() {
               if (entrega.coleta_endereco_texto) {
                   await new Promise(r => setTimeout(r, 1000)); // Rate limit
                   pickup = await getCoordsFromAddress(entrega.coleta_endereco_texto);
+              } else {
+                  
+                  try {
+                    let rua: string | null = null;
+                    let numero: string | null = null;
+                    let bairro: string | null = null;
+                    let cidade: string | null = null;
+                    let cep: string | null = null;
+                    
+                    if (entrega.cliente_id) {
+                      const { data: cli } = await supabase
+                        .from('clientes')
+                        .select('rua, numero, bairro, cidade, cep')
+                        .eq('id', entrega.cliente_id)
+                        .maybeSingle();
+                      rua = cli?.rua ?? null;
+                      numero = cli?.numero ?? null;
+                      bairro = cli?.bairro ?? null;
+                      cidade = cli?.cidade ?? null;
+                      cep = cli?.cep ?? null;
+                      
+                      if (!rua || !cidade) {
+                        const { data: alt } = await supabase
+                          .from('cliente_enderecos')
+                          .select('rua, numero, bairro, cidade, cep')
+                          .eq('cliente_id', entrega.cliente_id)
+                          .order('created_at', { ascending: false })
+                          .limit(1);
+                        const row = Array.isArray(alt) && alt.length > 0 ? alt[0] : null;
+                        rua = rua || row?.rua || null;
+                        numero = numero || row?.numero || null;
+                        bairro = bairro || row?.bairro || null;
+                        cidade = cidade || row?.cidade || null;
+                        cep = cep || row?.cep || null;
+                      }
+                    }
+                    
+                    const parts = [rua, numero, bairro, cidade, cep].filter(Boolean);
+                    const pickupText = parts.join(', ');
+                    if (pickupText) {
+                      await new Promise(r => setTimeout(r, 1000)); // Rate limit
+                      pickup = await getCoordsFromAddress(pickupText);
+                    }
+                  } catch {
+                    
+                  }
               }
               
               if (entrega.entrega_endereco_texto) {

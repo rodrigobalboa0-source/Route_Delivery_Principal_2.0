@@ -1336,6 +1336,69 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         
         const entrega = entregasMap[p.id];
         if (entrega) {
+           let pickupText = String(entrega.coleta_endereco_texto || '').trim();
+           let deliveryText = String(entrega.entrega_endereco_texto || '').trim();
+           
+           
+           if (!deliveryText) {
+             deliveryText = String(p.endereco_texto || '').trim();
+           }
+           
+           
+           if (!pickupText) {
+             try {
+               const { data: cli } = await supabase
+                 .from('clientes')
+                 .select('rua, numero, bairro, cidade, cep')
+                 .eq('id', p.cliente_id)
+                 .maybeSingle();
+               
+               let rua = cli?.rua ?? null;
+               let numero = cli?.numero ?? null;
+               let bairro = cli?.bairro ?? null;
+               let cidade = cli?.cidade ?? null;
+               let cep = cli?.cep ?? null;
+               
+               if (!rua || !cidade) {
+                 const { data: alt } = await supabase
+                   .from('cliente_enderecos')
+                   .select('rua, numero, bairro, cidade, cep')
+                   .eq('cliente_id', p.cliente_id)
+                   .order('created_at', { ascending: false })
+                   .limit(1);
+                 const row = Array.isArray(alt) && alt.length > 0 ? alt[0] : null;
+                 rua = rua || row?.rua || null;
+                 numero = numero || row?.numero || null;
+                 bairro = bairro || row?.bairro || null;
+                 cidade = cidade || row?.cidade || null;
+                 cep = cep || row?.cep || null;
+               }
+               
+               const parts = [rua, numero, bairro, cidade, cep].filter(Boolean);
+               pickupText = parts.join(', ');
+             } catch {
+               pickupText = '';
+             }
+           }
+           
+           
+           let distanciaKm: number | null = null;
+           try {
+             const [pickupCoords, deliveryCoords] = await Promise.all([
+               pickupText ? getCoordsFromAddress(pickupText) : Promise.resolve(undefined),
+               deliveryText ? getCoordsFromAddress(deliveryText) : Promise.resolve(undefined)
+             ]);
+             
+             if (pickupCoords && deliveryCoords) {
+               distanciaKm = getDistanceFromLatLonInKm(
+                 pickupCoords[0], pickupCoords[1],
+                 deliveryCoords[0], deliveryCoords[1]
+               );
+             }
+           } catch {
+             distanciaKm = null;
+           }
+           
            await supabase.from('nova_entrega').insert({
                pedido_id: newPedido.id,
                cliente_id: entrega.cliente_id,
@@ -1367,6 +1430,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                entrega_endereco_texto: entrega.entrega_endereco_texto,
                entrega_complemento: entrega.entrega_complemento,
                entrega_observacoes: entrega.entrega_observacoes,
+               distancia_km: distanciaKm !== null ? distanciaKm : null,
                status: 'criada'
            });
         }
