@@ -18,4 +18,16 @@ export class IfoodService {
       return { success: false, message: error.message };
     }
   }
+
+  static async acceptOrder(pedidoId: string) {
+    try {
+      const { data, error } = await supabase.functions.invoke('ifood-update-status', {
+        body: { action: 'confirm', pedidoId }
+      });
+      if (error) throw error;
+      return data;
+    } catch (error: any) {
+      return { success: false, message: error.message };
+    }
+  }
 }

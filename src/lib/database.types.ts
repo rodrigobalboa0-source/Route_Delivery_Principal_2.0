@@ -15,6 +15,8 @@ export interface Database {
           cliente_id: string
           endereco_id: string | null
           numero: string | null
+          ifood_order_id?: string | null
+          ifood_info?: Json | null
           item_descricao: string | null
           endereco_texto: string | null
           origem: 'manual' | 'online'
@@ -34,6 +36,8 @@ export interface Database {
           cliente_id: string
           endereco_id?: string | null
           numero?: string | null
+          ifood_order_id?: string | null
+          ifood_info?: Json | null
           item_descricao?: string | null
           endereco_texto?: string | null
           origem?: 'manual' | 'online'
@@ -53,6 +57,8 @@ export interface Database {
           cliente_id?: string
           endereco_id?: string | null
           numero?: string | null
+          ifood_order_id?: string | null
+          ifood_info?: Json | null
           item_descricao?: string | null
           endereco_texto?: string | null
           origem?: 'manual' | 'online'

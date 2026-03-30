@@ -1217,6 +1217,17 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     setOpenMenuId(null);
   };
 
+  const handleAcceptIfood = async (p: Pedido) => {
+    try {
+      const resp = await IfoodService.acceptOrder(p.id);
+      await supabase.from('pedidos').update({ status: 'confirmado' }).eq('id', p.id);
+      fetchPedidos();
+      alert('Pedido iFood aceito com sucesso!');
+    } catch (err: any) {
+      alert(`Erro ao aceitar pedido iFood: ${err?.message || 'erro desconhecido'}`);
+    }
+  };
+
   const handleReprocurar = async (pedido: Pedido) => {
     const entrega = entregasMap[pedido.id];
     if (!entrega || !entrega.id) return;
@@ -3104,6 +3115,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                 <th className="px-4 py-3">Cliente</th>
                 <th className="px-4 py-3">Coleta</th>
                 <th className="px-4 py-3">Entrega</th>
+                <th className="px-4 py-3">Integração</th>
                 <th className="px-4 py-3">Taxa</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Entregador</th>
@@ -3150,6 +3162,17 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                             </td>
                             <td className="px-4 py-3 max-w-[200px] truncate" title={getEntregaAddress(p)}>
                                 {getEntregaAddress(p)}
+                            </td>
+                            <td className="px-4 py-3">
+                                {p.origem === 'online' ? (
+                                  <div className="text-xs">
+                                    <div className="font-medium text-slate-800">iFood</div>
+                                    <div className="text-slate-500">Código: {p.numero || '-'}</div>
+                                    {p.ifood_order_id && <div className="text-slate-400">ID: {p.ifood_order_id}</div>}
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-500">-</span>
+                                )}
                             </td>
                             <td className="px-4 py-3 font-medium text-slate-700">
                                 {entrega?.valor_entrega ? `R$ ${entrega.valor_entrega.toFixed(2)}` : '-'}
@@ -3258,6 +3281,14 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                             className="px-4 py-2 hover:bg-slate-50 text-sm text-emerald-700 flex items-center gap-2"
                           >
                             <CheckCircle size={16} /> Finalizar pedido
+                          </button>
+                        )}
+                        {p.origem === 'online' && p.status === 'criado' && (
+                          <button
+                            onClick={() => handleAcceptIfood(p)}
+                            className="px-4 py-2 hover:bg-slate-50 text-sm text-emerald-700 flex items-center gap-2"
+                          >
+                            <CheckSquare size={16}/> Aceitar iFood
                           </button>
                         )}
                         <button onClick={() => handleCopyLink(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2"><Link size={16}/> Copiar link de rastreio</button>

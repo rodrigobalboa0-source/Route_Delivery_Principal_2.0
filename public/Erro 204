@@ -1,0 +1,171 @@
+{
+  "event_message": "PATCH | 204 | https://mtanrihprbgrrtgwcyia.supabase.co/rest/v1/integracoes_ifood?id=eq.7c5123df-de12-40e7-80a6-5f6dda973e4c | Deno/2.1.4 (variant; SupabaseEdgeRuntime/1.73.0)",
+  "id": "c5fd5806-c06b-42d9-a08f-553d664de88b",
+  "metadata": [
+    {
+      "load_balancer_experimental_routing": null,
+      "load_balancer_geo_aware_info": [],
+      "load_balancer_redirect_identifier": null,
+      "logflare_worker": [
+        {
+          "worker_id": "SX8MNN"
+        }
+      ],
+      "request": [
+        {
+          "cf": [
+            {
+              "asOrganization": "Amazon Data Services Brazil",
+              "asn": null,
+              "botManagement": [
+                {
+                  "corporateProxy": null,
+                  "detectionIds": [],
+                  "ja3Hash": "123b834303f54b9cf14df1d04ea03d63",
+                  "ja4": "t13d1011h2_61a7ad8aa9b6_3fcd1a44f3e3",
+                  "ja4Signals": [],
+                  "jsDetection": [],
+                  "score": null,
+                  "staticResource": null,
+                  "verifiedBot": null
+                }
+              ],
+              "city": "São Paulo",
+              "clientAcceptEncoding": null,
+              "clientTcpRtt": null,
+              "clientTrustScore": 4,
+              "colo": "GRU",
+              "continent": null,
+              "country": "BR",
+              "edgeRequestKeepAliveStatus": null,
+              "httpProtocol": "HTTP/2",
+              "isEUCountry": null,
+              "latitude": null,
+              "longitude": null,
+              "metroCode": null,
+              "postalCode": "01000-000",
+              "region": "São Paulo",
+              "regionCode": null,
+              "requestPriority": null,
+              "timezone": "America/Sao_Paulo",
+              "tlsCipher": null,
+              "tlsClientAuth": [],
+              "tlsClientCiphersSha1": null,
+              "tlsClientExtensionsSha1": null,
+              "tlsClientExtensionsSha1Le": null,
+              "tlsClientHelloLength": null,
+              "tlsClientRandom": null,
+              "tlsExportedAuthenticator": [],
+              "tlsVersion": null,
+              "verifiedBotCategory": null
+            }
+          ],
+          "headers": [
+            {
+              "accept": "*/*",
+              "cf_cache_status": null,
+              "cf_connecting_ip": "18.231.178.75",
+              "cf_ipcountry": "BR",
+              "cf_ray": "9e47f6dcacedf1f2",
+              "content_length": "85",
+              "content_location": null,
+              "content_range": null,
+              "content_type": "application/json",
+              "date": null,
+              "host": "mtanrihprbgrrtgwcyia.supabase.co",
+              "prefer": null,
+              "range": null,
+              "referer": null,
+              "sb_gateway_mode": null,
+              "sb_gateway_version": null,
+              "user_agent": "Deno/2.1.4 (variant; SupabaseEdgeRuntime/1.73.0)",
+              "x_client_info": "supabase-js-deno/2.57.4",
+              "x_forwarded_for": null,
+              "x_forwarded_host": null,
+              "x_forwarded_proto": "https",
+              "x_forwarded_user_agent": null,
+              "x_kong_proxy_latency": null,
+              "x_kong_upstream_latency": null,
+              "x_real_ip": "18.231.178.75"
+            }
+          ],
+          "host": "mtanrihprbgrrtgwcyia.supabase.co",
+          "method": "PATCH",
+          "path": "/rest/v1/integracoes_ifood",
+          "port": null,
+          "protocol": "https:",
+          "sb": [
+            {
+              "apikey": [],
+              "auth_user": null,
+              "jwt": [
+                {
+                  "apikey": [
+                    {
+                      "invalid": null,
+                      "payload": [
+                        {
+                          "algorithm": "HS256",
+                          "expires_at": 2078611692,
+                          "issuer": "supabase",
+                          "role": "service_role",
+                          "signature_prefix": "zEz6fE",
+                          "subject": null
+                        }
+                      ]
+                    }
+                  ],
+                  "authorization": [
+                    {
+                      "invalid": null,
+                      "payload": [
+                        {
+                          "algorithm": "HS256",
+                          "expires_at": 2078611692,
+                          "issuer": "supabase",
+                          "key_id": null,
+                          "role": "service_role",
+                          "session_id": null,
+                          "signature_prefix": "zEz6fE",
+                          "subject": null
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "search": "?id=eq.7c5123df-de12-40e7-80a6-5f6dda973e4c",
+          "url": "https://mtanrihprbgrrtgwcyia.supabase.co/rest/v1/integracoes_ifood?id=eq.7c5123df-de12-40e7-80a6-5f6dda973e4c"
+        }
+      ],
+      "response": [
+        {
+          "headers": [
+            {
+              "cf_cache_status": "DYNAMIC",
+              "cf_ray": "9e47f6dcb0b6f1f2-GRU",
+              "content_length": null,
+              "content_location": null,
+              "content_range": "0-0/*",
+              "content_type": null,
+              "date": "Mon, 30 Mar 2026 14:57:00 GMT",
+              "proxy_status": null,
+              "sb_gateway_mode": null,
+              "sb_gateway_version": "1",
+              "sb_request_id": null,
+              "transfer_encoding": null,
+              "x_kong_proxy_latency": null,
+              "x_kong_upstream_latency": null,
+              "x_sb_error_code": null
+            }
+          ],
+          "origin_time": 18,
+          "status_code": 204
+        }
+      ]
+    }
+  ],
+  "timestamp": 1774882620911000
+}

@@ -1,6 +1,6 @@
 {
-  "event_message": "POST | 400 | https://mtanrihprbgrrtgwcyia.supabase.co/rest/v1/integracoes_ifood?on_conflict=cliente_id | Deno/2.1.4 (variant; SupabaseEdgeRuntime/1.73.0)",
-  "id": "564c3d32-88cd-4acb-9bed-d09747c61b8b",
+  "event_message": "POST | 400 | https://mtanrihprbgrrtgwcyia.supabase.co/rest/v1/pedidos?select=* | Deno/2.1.4 (variant; SupabaseEdgeRuntime/1.73.0)",
+  "id": "20d90a35-699e-49ca-884b-54800f632ca4",
   "metadata": [
     {
       "load_balancer_experimental_routing": null,
@@ -8,7 +8,7 @@
       "load_balancer_redirect_identifier": null,
       "logflare_worker": [
         {
-          "worker_id": "N27ARP"
+          "worker_id": "SX8MNN"
         }
       ],
       "request": [
@@ -21,7 +21,7 @@
                 {
                   "corporateProxy": null,
                   "detectionIds": [],
-                  "ja3Hash": "90411ca03766015cd0312380fdeea5a9",
+                  "ja3Hash": "123b834303f54b9cf14df1d04ea03d63",
                   "ja4": "t13d1011h2_61a7ad8aa9b6_3fcd1a44f3e3",
                   "ja4Signals": [],
                   "jsDetection": [],
@@ -33,7 +33,7 @@
               "city": "São Paulo",
               "clientAcceptEncoding": null,
               "clientTcpRtt": null,
-              "clientTrustScore": 2,
+              "clientTrustScore": 5,
               "colo": "GRU",
               "continent": null,
               "country": "BR",
@@ -62,36 +62,36 @@
           ],
           "headers": [
             {
-              "accept": "*/*",
+              "accept": "application/vnd.pgrst.object+json",
               "cf_cache_status": null,
-              "cf_connecting_ip": "54.232.160.45",
+              "cf_connecting_ip": "18.231.178.75",
               "cf_ipcountry": "BR",
-              "cf_ray": "9e08121d0abba5c6",
-              "content_length": "2655",
+              "cf_ray": "9e47f6dc8ca3f1f2",
+              "content_length": "373",
               "content_location": null,
               "content_range": null,
               "content_type": "application/json",
               "date": null,
               "host": "mtanrihprbgrrtgwcyia.supabase.co",
-              "prefer": "resolution=merge-duplicates",
+              "prefer": "return=representation",
               "range": null,
               "referer": null,
               "sb_gateway_mode": null,
               "sb_gateway_version": null,
               "user_agent": "Deno/2.1.4 (variant; SupabaseEdgeRuntime/1.73.0)",
-              "x_client_info": "supabase-js-deno/2.39.3",
+              "x_client_info": "supabase-js-deno/2.57.4",
               "x_forwarded_for": null,
               "x_forwarded_host": null,
               "x_forwarded_proto": "https",
               "x_forwarded_user_agent": null,
               "x_kong_proxy_latency": null,
               "x_kong_upstream_latency": null,
-              "x_real_ip": "54.232.160.45"
+              "x_real_ip": "18.231.178.75"
             }
           ],
           "host": "mtanrihprbgrrtgwcyia.supabase.co",
           "method": "POST",
-          "path": "/rest/v1/integracoes_ifood",
+          "path": "/rest/v1/pedidos",
           "port": null,
           "protocol": "https:",
           "sb": [
@@ -136,8 +136,8 @@
               ]
             }
           ],
-          "search": "?on_conflict=cliente_id",
-          "url": "https://mtanrihprbgrrtgwcyia.supabase.co/rest/v1/integracoes_ifood?on_conflict=cliente_id"
+          "search": "?select=*",
+          "url": "https://mtanrihprbgrrtgwcyia.supabase.co/rest/v1/pedidos?select=*"
         }
       ],
       "response": [
@@ -145,13 +145,13 @@
           "headers": [
             {
               "cf_cache_status": "DYNAMIC",
-              "cf_ray": "9e08121d2570a5c6-GRU",
+              "cf_ray": "9e47f6dc90a4f1f2-GRU",
               "content_length": null,
               "content_location": null,
               "content_range": null,
               "content_type": "application/json; charset=utf-8",
-              "date": "Sun, 22 Mar 2026 20:50:48 GMT",
-              "proxy_status": "PostgREST; error=42P10",
+              "date": "Mon, 30 Mar 2026 14:57:00 GMT",
+              "proxy_status": "PostgREST; error=PGRST204",
               "sb_gateway_mode": null,
               "sb_gateway_version": "1",
               "sb_request_id": null,
@@ -161,11 +161,11 @@
               "x_sb_error_code": null
             }
           ],
-          "origin_time": 78,
+          "origin_time": 11,
           "status_code": 400
         }
       ]
     }
   ],
-  "timestamp": 1774212648498000
+  "timestamp": 1774882620887000
 }
