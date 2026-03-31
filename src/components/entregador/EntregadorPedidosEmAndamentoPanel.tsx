@@ -290,10 +290,19 @@ export function EntregadorPedidosEmAndamentoPanel() {
                  }
 
                  if (!pickupCoords) {
-                     
-                     alert(`Não foi possível localizar o endereço de coleta para validar sua presença.\n\nEndereço de coleta: ${String(currentEntrega.coleta_endereco_texto || '').trim()}`);
-                     setUpdatingId(null);
-                     return;
+                     const acc = userLocation.accuracyM ? `\nPrecisão do GPS: ~${Math.round(userLocation.accuracyM)}m` : '';
+                     const canBypass = typeof userLocation.accuracyM === 'number' && userLocation.accuracyM <= 120;
+                     if (canBypass) {
+                       const ok = confirm(`Não foi possível localizar o endereço de coleta para validar sua presença.\n\nEndereço de coleta: ${String(currentEntrega.coleta_endereco_texto || '').trim()}${acc}\n\nDeseja confirmar mesmo assim?`);
+                       if (!ok) {
+                         setUpdatingId(null);
+                         return;
+                       }
+                     } else {
+                       alert(`Não foi possível localizar o endereço de coleta para validar sua presença.\n\nEndereço de coleta: ${String(currentEntrega.coleta_endereco_texto || '').trim()}${acc}`);
+                       setUpdatingId(null);
+                       return;
+                     }
                  } else {
                      
                      const distKm = getDistanceFromLatLonInKm(
@@ -326,10 +335,19 @@ export function EntregadorPedidosEmAndamentoPanel() {
                  }
 
                  if (!deliveryCoordsResolved) {
-                     
-                     alert(`Não foi possível localizar o endereço de entrega para validar sua presença.\n\nEndereço de entrega: ${String(currentEntrega.entrega_endereco_texto || '').trim()}`);
-                     setUpdatingId(null);
-                     return;
+                     const acc = userLocation.accuracyM ? `\nPrecisão do GPS: ~${Math.round(userLocation.accuracyM)}m` : '';
+                     const canBypass = typeof userLocation.accuracyM === 'number' && userLocation.accuracyM <= 120;
+                     if (canBypass) {
+                       const ok = confirm(`Não foi possível localizar o endereço de entrega para validar sua presença.\n\nEndereço de entrega: ${String(currentEntrega.entrega_endereco_texto || '').trim()}${acc}\n\nDeseja confirmar mesmo assim?`);
+                       if (!ok) {
+                         setUpdatingId(null);
+                         return;
+                       }
+                     } else {
+                       alert(`Não foi possível localizar o endereço de entrega para validar sua presença.\n\nEndereço de entrega: ${String(currentEntrega.entrega_endereco_texto || '').trim()}${acc}`);
+                       setUpdatingId(null);
+                       return;
+                     }
                  } else {
                      
                      const distKm = getDistanceFromLatLonInKm(
@@ -385,16 +403,17 @@ export function EntregadorPedidosEmAndamentoPanel() {
           }
       }
 
-      // Integration: Notify iFood
+      
       if (currentEntrega?.pedido_id) {
           let ifoodAction = '';
+          if (newStatus === 'chegou_coleta') ifoodAction = 'dispatch';
           if (newStatus === 'em_rota') ifoodAction = 'dispatch';
-          // if (newStatus === 'entregue') ifoodAction = 'delivery'; 
+          if (newStatus === 'entregue') ifoodAction = 'conclude';
           
           if (ifoodAction) {
-              // Fire and forget
+              
               supabase.functions.invoke('ifood-update-status', {
-                  body: { action: ifoodAction, orderId: currentEntrega.pedido_id }
+                  body: { action: ifoodAction, pedidoId: currentEntrega.pedido_id }
               }).then(({ error }) => {
                   if (error) console.warn('Falha ao atualizar iFood:', error);
               });

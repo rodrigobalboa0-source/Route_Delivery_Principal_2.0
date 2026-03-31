@@ -390,7 +390,7 @@ function PedidoEditForm({ pedido, entrega, onClose, onSave }: { pedido: Pedido, 
       if (pError) throw pError;
 
       
-      if (formData.status !== pedido.status) {
+      if (formData.status !== pedido.status && (pedido.origem === 'online' || !!(pedido as any).ifood_order_id)) {
          let action = '';
          if (formData.status === 'confirmado') action = 'confirm';
          if (formData.status === 'em_preparo') action = 'startPreparation';
@@ -399,7 +399,7 @@ function PedidoEditForm({ pedido, entrega, onClose, onSave }: { pedido: Pedido, 
          
          if (action) {
              supabase.functions.invoke('ifood-update-status', {
-                 body: { action, orderId: pedido.id }
+                 body: { action, pedidoId: pedido.id }
              }).then(({ error }) => {
                  if (error) console.warn('iFood update failed', error);
              });
@@ -675,6 +675,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [filters, setFilters] = useState({ status: 'todos', cliente_id: '', origem: 'todos', de: '', ate: '', cidade: 'todos' });
   const [availableEntregadores, setAvailableEntregadores] = useState<Entregador[]>([]);
   const [mapDeliveryPersons, setMapDeliveryPersons] = useState<MapDeliveryPerson[]>([]);
+
+  const hasIfoodVisible = useMemo(() => items.some(i => i.origem === 'online'), [items]);
   
   
   const [isAllocationModalOpen, setIsAllocationModalOpen] = useState(false);
@@ -684,6 +686,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const normalizedUserRole = typeof userRole === 'string' ? userRole : '';
   const isComercio = normalizedUserRole === 'cliente' || normalizedUserRole === '' || normalizedUserRole === 'loading';
   const isAdmin = normalizedUserRole === 'admin' || normalizedUserRole === 'operador';
+  const tableColCount = (isComercio ? 9 : 10) + (hasIfoodVisible ? 1 : 0);
   const [allowAlocarComercio, setAllowAlocarComercio] = useState(false);
   const [bloquearFinalizarPedido, setBloquearFinalizarPedido] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -1219,9 +1222,14 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
   const handleAcceptIfood = async (p: Pedido) => {
     try {
-      const resp = await IfoodService.acceptOrder(p.id);
+      if (!(p as any).ifood_order_id) {
+        alert('Este pedido iFood ainda não tem o ID do iFood salvo. Rode a sincronização iFood e tente novamente.');
+        return;
+      }
+      await IfoodService.acceptOrder(p.id, p.cliente_id, (p as any).ifood_order_id);
       await supabase.from('pedidos').update({ status: 'confirmado' }).eq('id', p.id);
       fetchPedidos();
+      setOpenMenuId(null);
       alert('Pedido iFood aceito com sucesso!');
     } catch (err: any) {
       alert(`Erro ao aceitar pedido iFood: ${err?.message || 'erro desconhecido'}`);
@@ -1286,6 +1294,13 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     if (error) {
         alert('Erro ao atualizar status: ' + error.message);
     } else {
+        if (p.origem === 'online' || !!(p as any).ifood_order_id) {
+            supabase.functions.invoke('ifood-update-status', {
+                body: { action: 'readyToPickup', pedidoId: p.id }
+            }).then(({ error }) => {
+                if (error) console.warn('iFood update failed', error);
+            });
+        }
         const nowIso = new Date().toISOString();
         await supabase
             .from('nova_entrega')
@@ -1308,6 +1323,14 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     if (errorPedido) {
         alert('Erro ao atualizar status do pedido: ' + errorPedido.message);
         return;
+    }
+
+    if (p.origem === 'online' || !!(p as any).ifood_order_id) {
+        supabase.functions.invoke('ifood-update-status', {
+            body: { action: 'conclude', pedidoId: p.id }
+        }).then(({ error }) => {
+            if (error) console.warn('iFood update failed', error);
+        });
     }
 
     
@@ -2102,14 +2125,6 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     if (!silent) setLoadingList(true);
     setError(null);
     
-    if (isComercio && !filters.cliente_id) {
-        if (!silent && fetchSeq === pedidosFetchSeqRef.current) {
-            setItems([]);
-            setAllItems([]);
-        }
-        return;
-    }
-
     try {
         
         let qPedidos = supabase.from('pedidos').select('*').order('created_at', { ascending: false });
@@ -2147,6 +2162,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         }
 
         const [resPedidos, resEntregas] = await Promise.all([qPedidos, qEntregas]);
+        if (resPedidos.error) throw resPedidos.error;
+        if (resEntregas.error) throw resEntregas.error;
         
         const pedidosList = (resPedidos.data || []) as Pedido[];
         const entregasList = (resEntregas.data || []) as Entrega[];
@@ -2195,17 +2212,21 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             return true;
         });
 
+        const finalPedidosComOrigem = filters.origem === 'todos'
+          ? finalPedidosSemEntregues
+          : finalPedidosSemEntregues.filter(p => (filters.origem === 'manual' ? p.origem === 'manual' : p.origem === 'online'));
+
         
         unlinkedEntregas.forEach(e => {
             eMap[e.id] = e; 
         });
 
         if (fetchSeq !== pedidosFetchSeqRef.current) return;
-        setAllItems(finalPedidosSemEntregues);
+        setAllItems(finalPedidosComOrigem);
         
         const displayedItems = filters.status === 'todos' 
-            ? finalPedidosSemEntregues 
-            : finalPedidosSemEntregues.filter(p => p.status === filters.status);
+            ? finalPedidosComOrigem 
+            : finalPedidosComOrigem.filter(p => p.status === filters.status);
             
         setItems(displayedItems);
         setEntregasMap(eMap);
@@ -2253,10 +2274,10 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
         if (error) {
           console.error('Erro ao verificar integrações iFood ativas:', error);
-          return;
+          if (!isComercio) return;
         }
 
-        if (!data || data.length === 0) return;
+        if (!error && (!data || data.length === 0)) return;
 
         const runSync = async () => {
           if (running) return;
@@ -2284,7 +2305,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [fetchPedidos]);
+  }, [fetchPedidos, isComercio]);
 
   useEffect(() => {
     const channel = supabase
@@ -2351,18 +2372,26 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     };
   }, [queueSilentPedidosRefresh]);
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (p: Pedido) => {
     if (!confirm('Tem certeza que deseja cancelar este pedido?')) return;
     
     try {
         
-        await supabase.from('pedidos').update({ status: 'cancelado' }).eq('id', id);
+        await supabase.from('pedidos').update({ status: 'cancelado' }).eq('id', p.id);
         
         
-        await supabase.from('nova_entrega').update({ status: 'cancelada' }).eq('pedido_id', id);
-        await supabase.from('nova_entrega').update({ status: 'cancelada' }).eq('id', id);
+        await supabase.from('nova_entrega').update({ status: 'cancelada' }).eq('pedido_id', p.id);
+        await supabase.from('nova_entrega').update({ status: 'cancelada' }).eq('id', p.id);
+
+        if (p.origem === 'online' || !!(p as any).ifood_order_id) {
+            supabase.functions.invoke('ifood-update-status', {
+                body: { action: 'requestCancellation', pedidoId: p.id }
+            }).then(({ error }) => {
+                if (error) console.warn('iFood update failed', error);
+            });
+        }
         
-        await logAction(id, 'CANCELAR_PEDIDO', 'Pedido cancelado via menu', 
+        await logAction(p.id, 'CANCELAR_PEDIDO', 'Pedido cancelado via menu', 
             { status: 'ativo' }, 
             { status: 'cancelado' }
         );
@@ -2419,6 +2448,14 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       
       try {
         await supabase.from('pedidos').update({ status: 'cancelado' }).eq('id', p.id);
+
+        if (p.origem === 'online' || !!(p as any).ifood_order_id) {
+            supabase.functions.invoke('ifood-update-status', {
+                body: { action: 'requestCancellation', pedidoId: p.id }
+            }).then(({ error }) => {
+                if (error) console.warn('iFood update failed', error);
+            });
+        }
         
         if (entrega) {
             await supabase.from('nova_entrega').update({ status: 'cancelada' }).eq('id', entrega.id);
@@ -3115,7 +3152,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                 <th className="px-4 py-3">Cliente</th>
                 <th className="px-4 py-3">Coleta</th>
                 <th className="px-4 py-3">Entrega</th>
-                <th className="px-4 py-3">Integração</th>
+                {hasIfoodVisible && <th className="px-4 py-3">Integração</th>}
                 <th className="px-4 py-3">Taxa</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Entregador</th>
@@ -3124,9 +3161,9 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loadingList ? (
-                <tr><td colSpan={!isComercio ? 9 : 8} className="px-4 py-8 text-center text-slate-500">Carregando pedidos...</td></tr>
+                <tr><td colSpan={tableColCount} className="px-4 py-8 text-center text-slate-500">Carregando pedidos...</td></tr>
               ) : items.length === 0 ? (
-                <tr><td colSpan={!isComercio ? 9 : 8} className="px-4 py-8 text-center text-slate-500">Nenhum pedido encontrado.</td></tr>
+                <tr><td colSpan={tableColCount} className="px-4 py-8 text-center text-slate-500">Nenhum pedido encontrado.</td></tr>
               ) : (
                 items.map(p => {
                     const cliente = clientes.find(c => c.id === p.cliente_id);
@@ -3163,17 +3200,19 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                             <td className="px-4 py-3 max-w-[200px] truncate" title={getEntregaAddress(p)}>
                                 {getEntregaAddress(p)}
                             </td>
-                            <td className="px-4 py-3">
-                                {p.origem === 'online' ? (
-                                  <div className="text-xs">
-                                    <div className="font-medium text-slate-800">iFood</div>
-                                    <div className="text-slate-500">Código: {p.numero || '-'}</div>
-                                    {p.ifood_order_id && <div className="text-slate-400">ID: {p.ifood_order_id}</div>}
-                                  </div>
-                                ) : (
-                                  <span className="text-slate-500">-</span>
-                                )}
-                            </td>
+                            {hasIfoodVisible && (
+                              <td className="px-4 py-3">
+                                  {p.origem === 'online' ? (
+                                    <div className="text-xs">
+                                      <div className="font-medium text-slate-800">iFood</div>
+                                      <div className="text-slate-500">Código: {p.numero || '-'}</div>
+                                      {p.ifood_order_id && <div className="text-slate-400">ID: {p.ifood_order_id}</div>}
+                                    </div>
+                                  ) : (
+                                    <span className="text-slate-500">-</span>
+                                  )}
+                              </td>
+                            )}
                             <td className="px-4 py-3 font-medium text-slate-700">
                                 {entrega?.valor_entrega ? `R$ ${entrega.valor_entrega.toFixed(2)}` : '-'}
                             </td>
@@ -3318,7 +3357,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                              <button onClick={() => handleReprocurar(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2 border-t border-slate-100 mt-1"><RefreshCw size={16}/> Reprocurar</button>
                         )}
                         {userRole !== 'entregador' && (
-                             <button onClick={() => handleDelete(p.id)} className="px-4 py-2 hover:bg-red-50 text-sm text-red-600 flex items-center gap-2 border-t border-slate-100 mt-1"><Trash2 size={16}/> Cancelar</button>
+                             <button onClick={() => handleDelete(p)} className="px-4 py-2 hover:bg-red-50 text-sm text-red-600 flex items-center gap-2 border-t border-slate-100 mt-1"><Trash2 size={16}/> Cancelar</button>
                         )}
                      </>
                  );

@@ -38,6 +38,69 @@ function normalizeAddressKey(address: string) {
     .replace(/\s+/g, ' ');
 }
 
+function moveTrailingNumberAfterStreet(address: string) {
+  const parts = sanitizeAddressQuery(address)
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  if (parts.length < 3) return undefined;
+  const last = parts[parts.length - 1];
+  if (!/^\d+[a-zA-Z]?$/.test(last)) return undefined;
+  const street = parts[0];
+  if (!street || /\d/.test(street)) return undefined;
+
+  const middle = parts.slice(1, -1);
+  if (middle.length === 0) return undefined;
+
+  return [street, last, ...middle].join(', ');
+}
+
+function addSpIfMissing(address: string) {
+  const q = normalizeAddressKey(address);
+  if (!q) return undefined;
+  if (!q.includes('campinas')) return undefined;
+  if (q.includes(', sp') || q.includes(' sp,') || q.endsWith(' sp')) return undefined;
+  if (q.includes('sao paulo') || q.includes('são paulo')) return undefined;
+  return `${sanitizeAddressQuery(address)}, SP`;
+}
+
+function buildGeocodeCandidates(address: string) {
+  const base = sanitizeAddressQuery(address);
+  if (!base) return [];
+
+  const candidates: string[] = [base];
+  const moved = moveTrailingNumberAfterStreet(base);
+  if (moved && normalizeAddressKey(moved) !== normalizeAddressKey(base)) candidates.push(moved);
+
+  const spBase = addSpIfMissing(base);
+  if (spBase) candidates.push(spBase);
+  const spMoved = moved ? addSpIfMissing(moved) : undefined;
+  if (spMoved) candidates.push(spMoved);
+
+  if (!hasCityOrStateHint(base)) candidates.push(`${base}, Campinas, SP`);
+
+  const baseNoAccents = base.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (normalizeAddressKey(baseNoAccents) !== normalizeAddressKey(base)) {
+    candidates.push(baseNoAccents);
+    const movedNoAccents = moveTrailingNumberAfterStreet(baseNoAccents);
+    if (movedNoAccents) candidates.push(movedNoAccents);
+    const spNoAccents = addSpIfMissing(baseNoAccents);
+    if (spNoAccents) candidates.push(spNoAccents);
+    const spMovedNoAccents = movedNoAccents ? addSpIfMissing(movedNoAccents) : undefined;
+    if (spMovedNoAccents) candidates.push(spMovedNoAccents);
+    if (!hasCityOrStateHint(baseNoAccents)) candidates.push(`${baseNoAccents}, Campinas, SP`);
+  }
+
+  const seen = new Set<string>();
+  return candidates.filter((c) => {
+    const k = normalizeAddressKey(c);
+    if (!k || seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
 async function fetchWithTimeout(url: string, timeoutMs: number, init?: RequestInit) {
   const controller = new AbortController();
   const timeoutId = globalThis.setTimeout(() => controller.abort(), timeoutMs);
@@ -76,33 +139,14 @@ async function invokeGeocode(q: string, bounded: boolean): Promise<[number, numb
 }
 
 async function getCoordsFromEdgeFunction(address: string): Promise<[number, number] | undefined> {
-  const base = sanitizeAddressQuery(address);
-  if (!base) return undefined;
-
-  const candidates: string[] = [base];
-  if (!hasCityOrStateHint(base)) candidates.push(`${base}, Campinas, SP`);
-
-  const seen = new Set<string>();
-  const uniqueCandidates = candidates.filter((c) => {
-    const k = normalizeAddressKey(c);
-    if (!k || seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
+  const uniqueCandidates = buildGeocodeCandidates(address);
+  if (uniqueCandidates.length === 0) return undefined;
 
   for (const q of uniqueCandidates) {
     const boundedCoords = await invokeGeocode(q, true);
     if (boundedCoords) return boundedCoords;
 
     const unboundedCoords = await invokeGeocode(q, false);
-    if (unboundedCoords) return unboundedCoords;
-  }
-
-  const normalizedNoAccents = base.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  if (normalizeAddressKey(normalizedNoAccents) !== normalizeAddressKey(base)) {
-    const boundedCoords = await invokeGeocode(normalizedNoAccents, true);
-    if (boundedCoords) return boundedCoords;
-    const unboundedCoords = await invokeGeocode(normalizedNoAccents, false);
     if (unboundedCoords) return unboundedCoords;
   }
 
@@ -135,9 +179,6 @@ export async function getCoordsFromAddress(address: string): Promise<[number, nu
       }
 
       const viewbox = '-47.60,-22.55,-46.60,-23.35';
-      const boundedUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(sanitized)}&limit=1&countrycodes=br&viewbox=${viewbox}&bounded=1`;
-      const unboundedUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(sanitized)}&limit=1&countrycodes=br`;
-
       const tryFetch = async (url: string) => {
         const res = await fetchWithTimeout(url, 12000, { headers: { 'Accept-Language': 'pt-BR' } });
         if (!res.ok) return undefined;
@@ -148,10 +189,15 @@ export async function getCoordsFromAddress(address: string): Promise<[number, nu
         return undefined;
       };
 
-      const coords = (await tryFetch(boundedUrl)) ?? (await tryFetch(unboundedUrl));
-      if (coords) {
-        coordsCache.set(key, coords);
-        return coords;
+      const candidates = buildGeocodeCandidates(sanitized);
+      for (const q of candidates) {
+        const boundedUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1&countrycodes=br&viewbox=${viewbox}&bounded=1`;
+        const unboundedUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1&countrycodes=br`;
+        const coords = (await tryFetch(boundedUrl)) ?? (await tryFetch(unboundedUrl));
+        if (coords) {
+          coordsCache.set(key, coords);
+          return coords;
+        }
       }
     } catch (e) {
       console.error('Error fetching coords for address:', address, e);

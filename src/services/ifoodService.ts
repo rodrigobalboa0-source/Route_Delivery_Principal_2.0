@@ -19,15 +19,12 @@ export class IfoodService {
     }
   }
 
-  static async acceptOrder(pedidoId: string) {
-    try {
-      const { data, error } = await supabase.functions.invoke('ifood-update-status', {
-        body: { action: 'confirm', pedidoId }
-      });
-      if (error) throw error;
-      return data;
-    } catch (error: any) {
-      return { success: false, message: error.message };
-    }
+  static async acceptOrder(pedidoId: string, clienteId?: string, ifoodOrderId?: string) {
+    const { data, error } = await supabase.functions.invoke('ifood-update-status', {
+      body: { action: 'confirm', pedidoId, clienteId, ifoodOrderId }
+    });
+    if (error) throw error;
+    if (!data?.success) throw new Error(data?.error || data?.message || 'Falha ao aceitar pedido no iFood');
+    return data;
   }
 }

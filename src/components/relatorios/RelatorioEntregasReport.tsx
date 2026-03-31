@@ -221,8 +221,22 @@ export function RelatorioEntregasReport({ onNavigate, userRole }: RelatorioEntre
       if (!confirm('Deseja realmente cancelar esta entrega finalizada? O valor será estornado para o comércio.')) return;
       
       try {
+        const { data: pedidoForIfood } = await supabase
+            .from('pedidos')
+            .select('origem, ifood_order_id')
+            .eq('id', e.pedido_id)
+            .maybeSingle();
+
         await supabase.from('pedidos').update({ status: 'cancelado' }).eq('id', e.pedido_id);
         await supabase.from('nova_entrega').update({ status: 'cancelada' }).eq('id', e.id);
+
+        if ((pedidoForIfood as any)?.origem === 'online' || !!(pedidoForIfood as any)?.ifood_order_id) {
+            supabase.functions.invoke('ifood-update-status', {
+                body: { action: 'requestCancellation', pedidoId: e.pedido_id }
+            }).then(({ error }) => {
+                if (error) console.warn('iFood update failed', error);
+            });
+        }
         
         if (e.cliente_id && e.valor_entrega && e.valor_entrega > 0) {
             const { data: cliente } = await supabase
