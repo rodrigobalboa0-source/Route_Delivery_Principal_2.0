@@ -1326,11 +1326,13 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     }
 
     if (p.origem === 'online' || !!(p as any).ifood_order_id) {
-        supabase.functions.invoke('ifood-update-status', {
+        const { data, error } = await supabase.functions.invoke('ifood-update-status', {
             body: { action: 'conclude', pedidoId: p.id }
-        }).then(({ error }) => {
-            if (error) console.warn('iFood update failed', error);
         });
+        if (error || data?.success === false) {
+            const msg = (data as any)?.error || (data as any)?.message || error?.message || 'erro desconhecido';
+            alert(`Falha ao finalizar no iFood: ${msg}`);
+        }
     }
 
     
