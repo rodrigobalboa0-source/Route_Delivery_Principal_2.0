@@ -233,8 +233,8 @@ export function RelatorioEntregasReport({ onNavigate, userRole }: RelatorioEntre
         if ((pedidoForIfood as any)?.origem === 'online' || !!(pedidoForIfood as any)?.ifood_order_id) {
             supabase.functions.invoke('ifood-update-status', {
                 body: { action: 'requestCancellation', pedidoId: e.pedido_id }
-            }).then(({ error }) => {
-                if (error) console.warn('iFood update failed', error);
+            }).then(({ data, error }) => {
+                if (error || data?.success === false) console.warn('iFood update failed', error || data);
             });
         }
         

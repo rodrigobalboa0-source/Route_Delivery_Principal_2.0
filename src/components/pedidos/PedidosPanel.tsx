@@ -350,7 +350,19 @@ function AddressAutocomplete({
   );
 }
 
-function PedidoEditForm({ pedido, entrega, onClose, onSave }: { pedido: Pedido, entrega?: Entrega, onClose: () => void, onSave: () => void }) {
+function PedidoEditForm({
+  pedido,
+  entrega,
+  onClose,
+  onSave,
+  onAlert,
+}: {
+  pedido: Pedido,
+  entrega?: Entrega,
+  onClose: () => void,
+  onSave: () => void,
+  onAlert?: (message: string, title?: string) => Promise<void>
+}) {
   const [formData, setFormData] = useState<Partial<Pedido>>({ ...pedido });
   const [entregaData, setEntregaData] = useState<Partial<Entrega>>(entrega || {});
   const [loading, setLoading] = useState(false);
@@ -400,8 +412,8 @@ function PedidoEditForm({ pedido, entrega, onClose, onSave }: { pedido: Pedido, 
          if (action) {
              supabase.functions.invoke('ifood-update-status', {
                  body: { action, pedidoId: pedido.id }
-             }).then(({ error }) => {
-                 if (error) console.warn('iFood update failed', error);
+             }).then(({ data, error }) => {
+                 if (error || data?.success === false) console.warn('iFood update failed', error || data);
              });
          }
       }
@@ -430,7 +442,7 @@ function PedidoEditForm({ pedido, entrega, onClose, onSave }: { pedido: Pedido, 
       onClose();
     } catch (e) {
       console.error(e);
-      alert('Erro ao salvar alterações');
+      if (onAlert) await onAlert('Erro ao salvar alterações', 'Erro');
     } finally {
       setLoading(false);
     }
@@ -675,6 +687,53 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [filters, setFilters] = useState({ status: 'todos', cliente_id: '', origem: 'todos', de: '', ate: '', cidade: 'todos' });
   const [availableEntregadores, setAvailableEntregadores] = useState<Entregador[]>([]);
   const [mapDeliveryPersons, setMapDeliveryPersons] = useState<MapDeliveryPerson[]>([]);
+  const [dialog, setDialog] = useState<{ open: boolean; title: string; message: string; mode: 'alert' | 'confirm' | 'prompt' }>({
+    open: false,
+    title: '',
+    message: '',
+    mode: 'alert',
+  });
+  const [dialogInput, setDialogInput] = useState('');
+  const dialogAlertResolveRef = useRef<(() => void) | null>(null);
+  const dialogConfirmResolveRef = useRef<((v: boolean) => void) | null>(null);
+  const dialogPromptResolveRef = useRef<((v: string | null) => void) | null>(null);
+
+  const showAlert = useCallback((message: string, title = 'Aviso') => {
+    return new Promise<void>((resolve) => {
+      if (dialogConfirmResolveRef.current) dialogConfirmResolveRef.current(false);
+      if (dialogPromptResolveRef.current) dialogPromptResolveRef.current(null);
+      if (dialogAlertResolveRef.current) dialogAlertResolveRef.current();
+      dialogConfirmResolveRef.current = null;
+      dialogPromptResolveRef.current = null;
+      dialogAlertResolveRef.current = resolve;
+      setDialog({ open: true, title, message, mode: 'alert' });
+    });
+  }, []);
+
+  const showConfirm = useCallback((message: string, title = 'Confirmação') => {
+    return new Promise<boolean>((resolve) => {
+      if (dialogAlertResolveRef.current) dialogAlertResolveRef.current();
+      if (dialogPromptResolveRef.current) dialogPromptResolveRef.current(null);
+      if (dialogConfirmResolveRef.current) dialogConfirmResolveRef.current(false);
+      dialogAlertResolveRef.current = null;
+      dialogPromptResolveRef.current = null;
+      dialogConfirmResolveRef.current = resolve;
+      setDialog({ open: true, title, message, mode: 'confirm' });
+    });
+  }, []);
+
+  const showPrompt = useCallback((message: string, opts?: { title?: string; defaultValue?: string }) => {
+    return new Promise<string | null>((resolve) => {
+      if (dialogAlertResolveRef.current) dialogAlertResolveRef.current();
+      if (dialogConfirmResolveRef.current) dialogConfirmResolveRef.current(false);
+      if (dialogPromptResolveRef.current) dialogPromptResolveRef.current(null);
+      dialogAlertResolveRef.current = null;
+      dialogConfirmResolveRef.current = null;
+      dialogPromptResolveRef.current = resolve;
+      setDialogInput(opts?.defaultValue ?? '');
+      setDialog({ open: true, title: opts?.title ?? 'Informe', message, mode: 'prompt' });
+    });
+  }, []);
 
   const hasIfoodVisible = useMemo(() => items.some(i => i.origem === 'online'), [items]);
   
@@ -1154,7 +1213,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       .eq('id', pedidoId);
 
     if (error) {
-      alert('Erro ao atualizar status: ' + error.message);
+      await showAlert('Erro ao atualizar status: ' + error.message, 'Erro');
       queueSilentPedidosRefresh();
       return;
     }
@@ -1176,7 +1235,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       .eq('id', entrega.id);
 
     if (error) {
-      alert('Erro ao atualizar status: ' + error.message);
+      await showAlert('Erro ao atualizar status: ' + error.message, 'Erro');
       queueSilentPedidosRefresh();
       return;
     }
@@ -1223,16 +1282,16 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const handleAcceptIfood = async (p: Pedido) => {
     try {
       if (!(p as any).ifood_order_id) {
-        alert('Este pedido iFood ainda não tem o ID do iFood salvo. Rode a sincronização iFood e tente novamente.');
+        await showAlert('Este pedido iFood ainda não tem o ID do iFood salvo. Rode a sincronização iFood e tente novamente.', 'Aviso');
         return;
       }
       await IfoodService.acceptOrder(p.id, p.cliente_id, (p as any).ifood_order_id);
       await supabase.from('pedidos').update({ status: 'confirmado' }).eq('id', p.id);
       fetchPedidos();
       setOpenMenuId(null);
-      alert('Pedido iFood aceito com sucesso!');
+      await showAlert('Pedido iFood aceito com sucesso!', 'Sucesso');
     } catch (err: any) {
-      alert(`Erro ao aceitar pedido iFood: ${err?.message || 'erro desconhecido'}`);
+      await showAlert(`Erro ao aceitar pedido iFood: ${err?.message || 'erro desconhecido'}`, 'Erro');
     }
   };
 
@@ -1240,7 +1299,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     const entrega = entregasMap[pedido.id];
     if (!entrega || !entrega.id) return;
 
-    if (!confirm('Deseja realmente colocar este pedido para reprocura? O entregador atual será removido.')) return;
+    const ok = await showConfirm('Deseja realmente colocar este pedido para reprocura? O entregador atual será removido.');
+    if (!ok) return;
 
     try {
         const { error } = await supabase
@@ -1259,7 +1319,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         setOpenMenuId(null);
     } catch (e) {
         console.error('Erro ao reprocurar:', e);
-        alert('Erro ao realizar operação');
+        await showAlert('Erro ao realizar operação', 'Erro');
     }
   };
 
@@ -1267,9 +1327,10 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       const entrega = entregasMap[pedido.id];
       if (!entrega || !entrega.entregador_id) return;
 
-      if (!confirm('Deseja colocar este entregador na blacklist deste comércio? Ele não receberá mais pedidos desta loja.')) return;
+      const ok = await showConfirm('Deseja colocar este entregador na blacklist deste comércio? Ele não receberá mais pedidos desta loja.');
+      if (!ok) return;
 
-      const motivo = prompt('Motivo do bloqueio (opcional):');
+      const motivo = await showPrompt('Motivo do bloqueio (opcional):', { title: 'Blacklist' });
 
       try {
           const { error } = await supabase.from('entregador_bloqueios_clientes').insert({
@@ -1280,25 +1341,26 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
           if (error) throw error;
 
-          alert('Entregador adicionado à blacklist com sucesso.');
+          await showAlert('Entregador adicionado à blacklist com sucesso.', 'Sucesso');
           setOpenMenuId(null);
       } catch (e: any) {
           console.error('Erro ao adicionar à blacklist:', e);
-          alert('Erro ao realizar operação: ' + e.message);
+          await showAlert('Erro ao realizar operação: ' + e.message, 'Erro');
       }
   };
 
   const handleSetReady = async (p: Pedido) => { 
-    if (!confirm('Marcar pedido como Pronto?')) return;
+    const ok = await showConfirm('Marcar pedido como Pronto?');
+    if (!ok) return;
     const { error } = await supabase.from('pedidos').update({ status: 'pronto' }).eq('id', p.id);
     if (error) {
-        alert('Erro ao atualizar status: ' + error.message);
+        await showAlert('Erro ao atualizar status: ' + error.message, 'Erro');
     } else {
         if (p.origem === 'online' || !!(p as any).ifood_order_id) {
             supabase.functions.invoke('ifood-update-status', {
                 body: { action: 'readyToPickup', pedidoId: p.id }
-            }).then(({ error }) => {
-                if (error) console.warn('iFood update failed', error);
+            }).then(({ data, error }) => {
+                if (error || data?.success === false) console.warn('iFood update failed', error || data);
             });
         }
         const nowIso = new Date().toISOString();
@@ -1313,15 +1375,16 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
   const handleFinalizePedido = async (p: Pedido) => {
     if (isComercio && bloquearFinalizarPedido) {
-      alert('Seu comércio não tem permissão para finalizar pedidos.');
+      await showAlert('Seu comércio não tem permissão para finalizar pedidos.', 'Aviso');
       return;
     }
-    if (!confirm('Finalizar pedido e marcar como Entregue?')) return;
+    const ok = await showConfirm('Finalizar pedido e marcar como Entregue?');
+    if (!ok) return;
     
     
     const { error: errorPedido } = await supabase.from('pedidos').update({ status: 'entregue' }).eq('id', p.id);
     if (errorPedido) {
-        alert('Erro ao atualizar status do pedido: ' + errorPedido.message);
+        await showAlert('Erro ao atualizar status do pedido: ' + errorPedido.message, 'Erro');
         return;
     }
 
@@ -1331,7 +1394,9 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         });
         if (error || data?.success === false) {
             const msg = (data as any)?.error || (data as any)?.message || error?.message || 'erro desconhecido';
-            alert(`Falha ao finalizar no iFood: ${msg}`);
+            await showAlert(`Falha ao finalizar no iFood: ${msg}`, 'Erro');
+        } else if (data?.ifood?.fallbackUsed) {
+            await showAlert('iFood não permite concluir diretamente; aplicamos o status de saída para entrega (dispatch) como fallback.', 'Aviso');
         }
     }
 
@@ -1345,14 +1410,15 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     setOpenMenuId(null);
   };
 
-  const handleCopyLink = (p: Pedido) => { 
-    navigator.clipboard.writeText(`${window.location.origin}/rastreio/${p.id}`);
-    alert('Link de rastreio copiado!'); 
+  const handleCopyLink = async (p: Pedido) => { 
+    await navigator.clipboard.writeText(`${window.location.origin}/rastreio/${p.id}`);
+    await showAlert('Link de rastreio copiado!', 'Sucesso');
     setOpenMenuId(null); 
   };
 
   const handleClone = async (p: Pedido) => { 
-    if (!confirm('Deseja clonar este pedido?')) return;
+    const ok = await showConfirm('Deseja clonar este pedido?');
+    if (!ok) return;
     try {
         
         const { data: newPedido, error: pError } = await supabase.from('pedidos').insert({
@@ -1471,10 +1537,10 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
            });
         }
         fetchPedidos();
-        alert('Pedido clonado com sucesso!');
+        await showAlert('Pedido clonado com sucesso!', 'Sucesso');
     } catch (e) {
         console.error(e);
-        alert('Erro ao clonar pedido.');
+        await showAlert('Erro ao clonar pedido.', 'Erro');
     }
     setOpenMenuId(null); 
   };
@@ -2375,7 +2441,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   }, [queueSilentPedidosRefresh]);
 
   const handleDelete = async (p: Pedido) => {
-    if (!confirm('Tem certeza que deseja cancelar este pedido?')) return;
+    const ok = await showConfirm('Tem certeza que deseja cancelar este pedido?');
+    if (!ok) return;
     
     try {
         
@@ -2388,8 +2455,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         if (p.origem === 'online' || !!(p as any).ifood_order_id) {
             supabase.functions.invoke('ifood-update-status', {
                 body: { action: 'requestCancellation', pedidoId: p.id }
-            }).then(({ error }) => {
-                if (error) console.warn('iFood update failed', error);
+            }).then(({ data, error }) => {
+                if (error || data?.success === false) console.warn('iFood update failed', error || data);
             });
         }
         
@@ -2400,10 +2467,10 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         
         fetchPedidos();
         setOpenMenuId(null);
-        alert('Pedido cancelado com sucesso!');
+        await showAlert('Pedido cancelado com sucesso!', 'Sucesso');
     } catch (e) {
         console.error('Erro ao cancelar pedido:', e);
-        alert('Erro ao cancelar pedido');
+        await showAlert('Erro ao cancelar pedido', 'Erro');
     }
   };
 
@@ -2426,7 +2493,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       if (unassigned) {
           handleOpenAllocation(unassigned);
       } else {
-          alert('Não há pedidos pendentes de alocação.');
+          void showAlert('Não há pedidos pendentes de alocação.', 'Aviso');
       }
   };
 
@@ -2444,7 +2511,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   };
 
   const handleRevertFinalized = async (p: Pedido) => {
-      if (!confirm('Deseja realmente cancelar esta entrega finalizada? O valor será estornado para o comércio.')) return;
+      const ok = await showConfirm('Deseja realmente cancelar esta entrega finalizada? O valor será estornado para o comércio.');
+      if (!ok) return;
       
       const entrega = entregasMap[p.id];
       
@@ -2454,8 +2522,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         if (p.origem === 'online' || !!(p as any).ifood_order_id) {
             supabase.functions.invoke('ifood-update-status', {
                 body: { action: 'requestCancellation', pedidoId: p.id }
-            }).then(({ error }) => {
-                if (error) console.warn('iFood update failed', error);
+            }).then(({ data, error }) => {
+                if (error || data?.success === false) console.warn('iFood update failed', error || data);
             });
         }
         
@@ -2496,10 +2564,10 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         
         fetchPedidos();
         setOpenMenuId(null);
-        alert('Entrega cancelada e valor estornado com sucesso!');
+        await showAlert('Entrega cancelada e valor estornado com sucesso!', 'Sucesso');
       } catch (e) {
           console.error('Erro ao cancelar entrega:', e);
-          alert('Erro ao cancelar entrega');
+          await showAlert('Erro ao cancelar entrega', 'Erro');
       }
   };
 
@@ -2514,7 +2582,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
   const handleAddObservation = async (p: Pedido) => {
       const currentObs = p.observacoes || '';
-      const newObs = prompt('Escrever Observação:', currentObs);
+      const newObs = await showPrompt('Escrever Observação:', { title: 'Observação', defaultValue: currentObs });
       if (newObs === null || newObs === currentObs) return;
       
       try {
@@ -2530,7 +2598,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const handleSaveAllocation = async () => {
     if (isBulkAllocation) {
         if (!selectedEntregadorId) {
-            alert('Selecione um entregador');
+            await showAlert('Selecione um entregador', 'Aviso');
             return;
         }
 
@@ -2556,9 +2624,9 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             setIsBulkAllocation(false);
             setSelectedIds(new Set());
             fetchPedidos();
-            alert('Pedidos alocados com sucesso!');
+            await showAlert('Pedidos alocados com sucesso!', 'Sucesso');
         } catch (err) {
-            alert('Erro ao alocar pedidos em massa');
+            await showAlert('Erro ao alocar pedidos em massa', 'Erro');
             console.error(err);
         }
         return;
@@ -2568,7 +2636,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     const entrega = entregasMap[selectedPedidoForAllocation.id];
     
     if (!entrega) {
-      alert('Não foi encontrada uma entrega vinculada a este pedido para alocar.');
+      await showAlert('Não foi encontrada uma entrega vinculada a este pedido para alocar.', 'Aviso');
       return;
     }
 
@@ -2583,7 +2651,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
               `Troca de entregador em entrega finalizada: de ${oldEntregador} para ${selectedEntregadorId}`, 
               { entregador_id: oldEntregador }, { entregador_id: selectedEntregadorId });
               
-          alert('Entregador trocado com sucesso.');
+          await showAlert('Entregador trocado com sucesso.', 'Sucesso');
       } else {
           await supabase.from('nova_entrega').update({
             entregador_id: selectedEntregadorId || null,
@@ -2600,21 +2668,21 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       setIsSwappingFinalized(false);
       fetchPedidos(); 
     } catch (err) {
-      alert('Erro ao salvar alocação');
+      await showAlert('Erro ao salvar alocação', 'Erro');
       console.error(err);
     }
   };
 
   const handleQuickCreate = async () => {
     if (!quickAddress) {
-        alert('Por favor, informe o endereço de entrega.');
+        await showAlert('Por favor, informe o endereço de entrega.', 'Aviso');
         return;
     }
 
     const fullAddress = quickNumber ? `${quickAddress}, ${quickNumber}` : quickAddress;
 
     if (!comercioAddress) {
-        alert('Endereço do comércio não encontrado. Verifique seu cadastro.');
+        await showAlert('Endereço do comércio não encontrado. Verifique seu cadastro.', 'Aviso');
         return;
     }
 
@@ -2677,7 +2745,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             throw eError;
         }
 
-        alert('Pedido criado com sucesso!');
+        await showAlert('Pedido criado com sucesso!', 'Sucesso');
         setQuickAddress('');
         setQuickNumber('');
     
@@ -2696,7 +2764,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
     } catch (e: any) {
         console.error('Erro ao criar pedido rápido:', e);
-        alert('Erro ao criar pedido: ' + e.message);
+        await showAlert('Erro ao criar pedido: ' + e.message, 'Erro');
     } finally {
         setQuickLoading(false);
     }
@@ -3525,6 +3593,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                 entrega={entregasMap[selectedPedido.id]}
                 onClose={() => setIsEditModalOpen(false)}
                 onSave={fetchPedidos}
+                onAlert={showAlert}
             />
          )}
       </Modal>
@@ -3549,6 +3618,54 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                 entregaId={entregasMap[selectedPedido.id]?.id}
              />
          )}
+      </Modal>
+
+      <Modal
+        open={dialog.open}
+        onClose={() => {
+          setDialog((prev) => ({ ...prev, open: false }));
+          if (dialog.mode === 'confirm') {
+            dialogConfirmResolveRef.current?.(false);
+            dialogConfirmResolveRef.current = null;
+          } else if (dialog.mode === 'prompt') {
+            dialogPromptResolveRef.current?.(null);
+            dialogPromptResolveRef.current = null;
+          } else {
+            dialogAlertResolveRef.current?.();
+            dialogAlertResolveRef.current = null;
+          }
+        }}
+        onConfirm={
+          dialog.mode === 'confirm'
+            ? () => {
+                setDialog((prev) => ({ ...prev, open: false }));
+                dialogConfirmResolveRef.current?.(true);
+                dialogConfirmResolveRef.current = null;
+              }
+            : dialog.mode === 'prompt'
+              ? () => {
+                  setDialog((prev) => ({ ...prev, open: false }));
+                  dialogPromptResolveRef.current?.(dialogInput);
+                  dialogPromptResolveRef.current = null;
+                }
+              : undefined
+        }
+        title={dialog.title}
+        cancelText={dialog.mode === 'confirm' || dialog.mode === 'prompt' ? 'Cancelar' : 'OK'}
+        confirmText={dialog.mode === 'prompt' ? 'Continuar' : 'Confirmar'}
+      >
+        <div className="space-y-3">
+          <div className="text-sm text-slate-700 whitespace-pre-wrap">{dialog.message}</div>
+          {dialog.mode === 'prompt' && (
+            <input
+              type="text"
+              value={dialogInput}
+              onChange={(e) => setDialogInput(e.target.value)}
+              className="w-full border rounded p-2 text-sm"
+              autoFocus
+            />
+          )}
+        </div>
       </Modal>
 
     </div>

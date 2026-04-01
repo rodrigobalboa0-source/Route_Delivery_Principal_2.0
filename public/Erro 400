@@ -1,0 +1,102 @@
+{
+  "event_message": "POST | 400 | https://mtanrihprbgrrtgwcyia.supabase.co/functions/v1/ifood-update-status",
+  "id": "58419dd7-4bb6-4187-94b6-e4c0d0561b57",
+  "metadata": [
+    {
+      "deployment_id": "mtanrihprbgrrtgwcyia_4ec53e8b-8ee5-4a92-9bfc-da3628f72a33_7",
+      "execution_id": "936becbb-e822-4e90-a170-fd731c3d3056",
+      "execution_time_ms": 401,
+      "function_id": "4ec53e8b-8ee5-4a92-9bfc-da3628f72a33",
+      "project_ref": "mtanrihprbgrrtgwcyia",
+      "request": [
+        {
+          "headers": [
+            {
+              "accept": "*/*",
+              "accept_encoding": "gzip, br",
+              "connection": "Keep-Alive",
+              "content_length": "71",
+              "cookie": null,
+              "host": "mtanrihprbgrrtgwcyia.supabase.co",
+              "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
+              "x_client_info": "supabase-js-web/2.57.4"
+            }
+          ],
+          "host": "mtanrihprbgrrtgwcyia.supabase.co",
+          "method": "POST",
+          "pathname": "/functions/v1/ifood-update-status",
+          "port": null,
+          "protocol": "https:",
+          "sb": [
+            {
+              "apikey": [],
+              "auth_user": "4eca734d-5bf3-417a-b65b-339968be38bb",
+              "jwt": [
+                {
+                  "apikey": [
+                    {
+                      "invalid": null,
+                      "payload": [
+                        {
+                          "algorithm": "HS256",
+                          "expires_at": 2078611692,
+                          "issuer": "supabase",
+                          "key_id": null,
+                          "role": "anon",
+                          "session_id": null,
+                          "signature_prefix": "5YbuhW",
+                          "subject": null
+                        }
+                      ]
+                    }
+                  ],
+                  "authorization": [
+                    {
+                      "invalid": null,
+                      "payload": [
+                        {
+                          "algorithm": "HS256",
+                          "expires_at": 1774983558,
+                          "issuer": "https://mtanrihprbgrrtgwcyia.supabase.co/auth/v1",
+                          "key_id": "Iyjul8+6z3MWD5qc",
+                          "role": "authenticated",
+                          "session_id": "0c86d7a9-fab1-488f-b7e2-cbdbfb7347fe",
+                          "signature_prefix": "7DmueT",
+                          "subject": "4eca734d-5bf3-417a-b65b-339968be38bb"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "search": null,
+          "url": "https://mtanrihprbgrrtgwcyia.supabase.co/functions/v1/ifood-update-status"
+        }
+      ],
+      "response": [
+        {
+          "headers": [
+            {
+              "content_length": "120",
+              "content_type": "application/json",
+              "date": "Tue, 31 Mar 2026 18:16:07 GMT",
+              "sb_request_id": null,
+              "server": "cloudflare",
+              "vary": "Accept-Encoding",
+              "x_envoy_upstream_service_time": null,
+              "x_sb_compute_multiplier": null,
+              "x_sb_edge_region": "sa-east-1",
+              "x_sb_resource_multiplier": null,
+              "x_served_by": "supabase-edge-runtime"
+            }
+          ],
+          "status_code": 400
+        }
+      ],
+      "version": "7"
+    }
+  ],
+  "timestamp": 1774980967851000
+}

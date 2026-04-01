@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { MapPin, CheckCircle, Truck, AlertCircle, Phone, Navigation, Map as MapIcon, DollarSign } from 'lucide-react';
 import { MapView, MapDeliveryPerson } from '../MapView';
 import type { Database } from '../../lib/database.types';
 import { Geolocation } from '@capacitor/geolocation';
 import { getDistanceFromLatLonInKm, getCoordsFromAddress } from '../../utils/geo';
+import { Modal } from '../Modal';
 
 type DeliveryPerson = Database['public']['Tables']['delivery_persons']['Row'];
 
@@ -20,6 +21,33 @@ export function EntregadorPedidosEmAndamentoPanel() {
   const [deliveryCoords, setDeliveryCoords] = useState<Record<string, { pickup?: [number, number], delivery?: [number, number] }>>({});
   const [distances, setDistances] = useState<Record<string, { userToPickup: number, pickupToDelivery: number, userToDelivery: number }>>({});
   const [persistedDistanceIds, setPersistedDistanceIds] = useState<Record<string, boolean>>({});
+
+  const [dialog, setDialog] = useState<{ open: boolean; title: string; message: string; mode: 'alert' | 'confirm' }>({
+    open: false,
+    title: '',
+    message: '',
+    mode: 'alert',
+  });
+  const dialogAlertResolveRef = useRef<(() => void) | null>(null);
+  const dialogConfirmResolveRef = useRef<((v: boolean) => void) | null>(null);
+
+  const showAlert = (message: string, title = 'Aviso') =>
+    new Promise<void>((resolve) => {
+      if (dialogConfirmResolveRef.current) dialogConfirmResolveRef.current(false);
+      dialogConfirmResolveRef.current = null;
+      if (dialogAlertResolveRef.current) dialogAlertResolveRef.current();
+      dialogAlertResolveRef.current = resolve;
+      setDialog({ open: true, title, message, mode: 'alert' });
+    });
+
+  const showConfirm = (message: string, title = 'Confirmação') =>
+    new Promise<boolean>((resolve) => {
+      if (dialogAlertResolveRef.current) dialogAlertResolveRef.current();
+      dialogAlertResolveRef.current = null;
+      if (dialogConfirmResolveRef.current) dialogConfirmResolveRef.current(false);
+      dialogConfirmResolveRef.current = resolve;
+      setDialog({ open: true, title, message, mode: 'confirm' });
+    });
 
   useEffect(() => {
     const fetchCoords = async () => {
@@ -268,7 +296,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
 
       
       if (!userLocation) {
-          alert('Aguardando localização do dispositivo...');
+          await showAlert('Aguardando localização do dispositivo...', 'Localização');
           setUpdatingId(null);
           return;
       }
@@ -293,13 +321,19 @@ export function EntregadorPedidosEmAndamentoPanel() {
                      const acc = userLocation.accuracyM ? `\nPrecisão do GPS: ~${Math.round(userLocation.accuracyM)}m` : '';
                      const canBypass = typeof userLocation.accuracyM === 'number' && userLocation.accuracyM <= 120;
                      if (canBypass) {
-                       const ok = confirm(`Não foi possível localizar o endereço de coleta para validar sua presença.\n\nEndereço de coleta: ${String(currentEntrega.coleta_endereco_texto || '').trim()}${acc}\n\nDeseja confirmar mesmo assim?`);
+                      const ok = await showConfirm(
+                        `Não foi possível localizar o endereço de coleta para validar sua presença.\n\nEndereço de coleta: ${String(currentEntrega.coleta_endereco_texto || '').trim()}${acc}\n\nDeseja confirmar mesmo assim?`,
+                        'Confirmação'
+                      );
                        if (!ok) {
                          setUpdatingId(null);
                          return;
                        }
                      } else {
-                       alert(`Não foi possível localizar o endereço de coleta para validar sua presença.\n\nEndereço de coleta: ${String(currentEntrega.coleta_endereco_texto || '').trim()}${acc}`);
+                      await showAlert(
+                        `Não foi possível localizar o endereço de coleta para validar sua presença.\n\nEndereço de coleta: ${String(currentEntrega.coleta_endereco_texto || '').trim()}${acc}`,
+                        'Localização'
+                      );
                        setUpdatingId(null);
                        return;
                      }
@@ -314,8 +348,9 @@ export function EntregadorPedidosEmAndamentoPanel() {
                      
                      if (distKm > effectiveMaxDistanceKm) {
                          const acc = userLocation.accuracyM ? `\nPrecisão do GPS: ~${Math.round(userLocation.accuracyM)}m` : '';
-                         alert(
-                          `Você ainda não chegou no local de coleta para confirmar.\n\nEndereço de coleta: ${String(currentEntrega.coleta_endereco_texto || '').trim()}\nDistância: ${distKm.toFixed(2)} km (máx: ${effectiveMaxDistanceKm.toFixed(2)} km)${acc}`
+                        await showAlert(
+                          `Você ainda não chegou no local de coleta para confirmar.\n\nEndereço de coleta: ${String(currentEntrega.coleta_endereco_texto || '').trim()}\nDistância: ${distKm.toFixed(2)} km (máx: ${effectiveMaxDistanceKm.toFixed(2)} km)${acc}`,
+                          'Localização'
                         );
                          setUpdatingId(null);
                          return;
@@ -338,13 +373,19 @@ export function EntregadorPedidosEmAndamentoPanel() {
                      const acc = userLocation.accuracyM ? `\nPrecisão do GPS: ~${Math.round(userLocation.accuracyM)}m` : '';
                      const canBypass = typeof userLocation.accuracyM === 'number' && userLocation.accuracyM <= 120;
                      if (canBypass) {
-                       const ok = confirm(`Não foi possível localizar o endereço de entrega para validar sua presença.\n\nEndereço de entrega: ${String(currentEntrega.entrega_endereco_texto || '').trim()}${acc}\n\nDeseja confirmar mesmo assim?`);
+                      const ok = await showConfirm(
+                        `Não foi possível localizar o endereço de entrega para validar sua presença.\n\nEndereço de entrega: ${String(currentEntrega.entrega_endereco_texto || '').trim()}${acc}\n\nDeseja confirmar mesmo assim?`,
+                        'Confirmação'
+                      );
                        if (!ok) {
                          setUpdatingId(null);
                          return;
                        }
                      } else {
-                       alert(`Não foi possível localizar o endereço de entrega para validar sua presença.\n\nEndereço de entrega: ${String(currentEntrega.entrega_endereco_texto || '').trim()}${acc}`);
+                      await showAlert(
+                        `Não foi possível localizar o endereço de entrega para validar sua presença.\n\nEndereço de entrega: ${String(currentEntrega.entrega_endereco_texto || '').trim()}${acc}`,
+                        'Localização'
+                      );
                        setUpdatingId(null);
                        return;
                      }
@@ -359,8 +400,9 @@ export function EntregadorPedidosEmAndamentoPanel() {
                      
                      if (distKm > effectiveMaxDistanceKm) {
                          const acc = userLocation.accuracyM ? `\nPrecisão do GPS: ~${Math.round(userLocation.accuracyM)}m` : '';
-                         alert(
-                          `Você ainda não chegou no local de entrega para confirmar.\n\nEndereço de entrega: ${String(currentEntrega.entrega_endereco_texto || '').trim()}\nDistância: ${distKm.toFixed(2)} km (máx: ${effectiveMaxDistanceKm.toFixed(2)} km)${acc}`
+                        await showAlert(
+                          `Você ainda não chegou no local de entrega para confirmar.\n\nEndereço de entrega: ${String(currentEntrega.entrega_endereco_texto || '').trim()}\nDistância: ${distKm.toFixed(2)} km (máx: ${effectiveMaxDistanceKm.toFixed(2)} km)${acc}`,
+                          'Localização'
                         );
                          setUpdatingId(null);
                          return;
@@ -414,8 +456,8 @@ export function EntregadorPedidosEmAndamentoPanel() {
               
               supabase.functions.invoke('ifood-update-status', {
                   body: { action: ifoodAction, pedidoId: currentEntrega.pedido_id }
-              }).then(({ error }) => {
-                  if (error) console.warn('Falha ao atualizar iFood:', error);
+              }).then(({ data, error }) => {
+                  if (error || data?.success === false) console.warn('Falha ao atualizar iFood:', error || data);
               });
           }
       }
@@ -429,14 +471,15 @@ export function EntregadorPedidosEmAndamentoPanel() {
 
     } catch (error: any) {
       console.error('Erro ao atualizar status:', error);
-      alert('Erro ao atualizar status: ' + error.message);
+      await showAlert('Erro ao atualizar status: ' + error.message, 'Erro');
     } finally {
       setUpdatingId(null);
     }
   }
 
   async function handleRejeitar(id: string) {
-    if (!confirm('Deseja realmente rejeitar esta entrega?')) return;
+    const ok = await showConfirm('Deseja realmente rejeitar esta entrega?', 'Confirmação');
+    if (!ok) return;
     setUpdatingId(id);
     try {
       const { error } = await supabase
@@ -455,7 +498,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
       
     } catch (error: any) {
       console.error('Erro ao rejeitar:', error);
-      alert('Erro ao rejeitar: ' + error.message);
+      await showAlert('Erro ao rejeitar: ' + error.message, 'Erro');
     } finally {
       setUpdatingId(null);
     }
@@ -481,6 +524,33 @@ export function EntregadorPedidosEmAndamentoPanel() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
+      <Modal
+        open={dialog.open}
+        onClose={() => {
+          setDialog((prev) => ({ ...prev, open: false }));
+          if (dialog.mode === 'confirm') {
+            dialogConfirmResolveRef.current?.(false);
+            dialogConfirmResolveRef.current = null;
+          } else {
+            dialogAlertResolveRef.current?.();
+            dialogAlertResolveRef.current = null;
+          }
+        }}
+        onConfirm={
+          dialog.mode === 'confirm'
+            ? () => {
+                setDialog((prev) => ({ ...prev, open: false }));
+                dialogConfirmResolveRef.current?.(true);
+                dialogConfirmResolveRef.current = null;
+              }
+            : undefined
+        }
+        title={dialog.title}
+        cancelText={dialog.mode === 'confirm' ? 'Cancelar' : 'OK'}
+        confirmText="Confirmar"
+      >
+        <div className="text-sm text-slate-700 whitespace-pre-wrap">{dialog.message}</div>
+      </Modal>
       <h1 className="text-2xl font-bold mb-6 flex items-center gap-2">
         <Truck className="w-6 h-6" />
         Pedidos em Andamento
@@ -614,9 +684,12 @@ export function EntregadorPedidosEmAndamentoPanel() {
                   </button>
 
                   <button 
-                    onClick={() => {
+                    onClick={async () => {
                         const address = isPickupPhase ? entrega.coleta_endereco_texto : entrega.entrega_endereco_texto;
-                        if (!address) return alert('Endereço não disponível');
+                        if (!address) {
+                          await showAlert('Endereço não disponível', 'Aviso');
+                          return;
+                        }
                         
                         const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}&travelmode=driving`;
                         window.open(url, '_blank');
