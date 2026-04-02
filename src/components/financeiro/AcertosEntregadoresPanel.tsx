@@ -19,6 +19,13 @@ export function AcertosEntregadoresPanel() {
   const [showBankModal, setShowBankModal] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
+  const formatDateTime = (iso?: string | null) => {
+    if (!iso) return '-';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '-';
+    return d.toLocaleString('pt-BR');
+  };
+
   const copyToClipboard = (text: string, field: string) => {
     if (!text) return;
     navigator.clipboard.writeText(text);
@@ -186,7 +193,12 @@ export function AcertosEntregadoresPanel() {
                       <CreditCard size={16} />
                     </button>
                   </div>
-                  <div className="text-sm text-slate-600">{[a.entrega_id || 'Solicitação de Saque', a.valor_pago != null ? `R$ ${Number(a.valor_pago).toFixed(2)}` : '', a.status === 'pago' ? 'pago' : 'pendente'].filter(Boolean).join(' • ')}</div>
+                  <div className="text-sm text-slate-600">
+                    {[a.entrega_id || 'Solicitação de Saque', a.valor_pago != null ? `R$ ${Number(a.valor_pago).toFixed(2)}` : '', a.status === 'pago' ? 'pago' : 'pendente'].filter(Boolean).join(' • ')}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">
+                    {(a.entrega_id ? 'Registrado em' : 'Solicitado em')}: {formatDateTime(a.created_at)}
+                  </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <button onClick={() => handleTogglePago(a.id, a.status)} className="text-sm text-sky-700">{a.status === 'pago' ? 'Desmarcar pago' : 'Marcar pago'}</button>
