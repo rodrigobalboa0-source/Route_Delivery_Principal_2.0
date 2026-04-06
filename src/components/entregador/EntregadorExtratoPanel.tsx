@@ -6,6 +6,18 @@ interface EntregadorExtratoPanelProps {
   userId?: string;
 }
 
+type SaqueRule = {
+  limite_valor: number | null;
+  max_solicitacoes_dia: number | null;
+  dias_semana: number[];
+  datas: string[];
+};
+
+type SaqueRules = {
+  normal: SaqueRule;
+  rapido: SaqueRule;
+};
+
 export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) {
   const [extrato, setExtrato] = useState<any[]>([]);
   const [acertos, setAcertos] = useState<any[]>([]);
@@ -23,7 +35,30 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawType, setWithdrawType] = useState<'normal' | 'rapido'>('normal');
   const [quickWithdrawFee, setQuickWithdrawFee] = useState(0);
+  const [withdrawRules, setWithdrawRules] = useState<SaqueRules | null>(null);
   const [submittingWithdraw, setSubmittingWithdraw] = useState(false);
+
+  const parseWithdrawRules = (raw: any): SaqueRules => {
+    const base = (raw && typeof raw === 'object') ? raw : {};
+    const make = (k: 'normal' | 'rapido'): SaqueRule => {
+      const src = (base as any)?.[k];
+      const obj = (src && typeof src === 'object') ? src : {};
+      return {
+        limite_valor: typeof obj.limite_valor === 'number' ? obj.limite_valor : null,
+        max_solicitacoes_dia: typeof obj.max_solicitacoes_dia === 'number' ? obj.max_solicitacoes_dia : null,
+        dias_semana: Array.isArray(obj.dias_semana) ? obj.dias_semana.filter((v: any) => typeof v === 'number') : [],
+        datas: Array.isArray(obj.datas) ? obj.datas.filter((v: any) => typeof v === 'string') : [],
+      };
+    };
+    return { normal: make('normal'), rapido: make('rapido') };
+  };
+
+  const toLocalYmd = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
 
   const [bankData, setBankData] = useState({
     nome_titular: '',
@@ -56,9 +91,10 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
 
   const fetchConfig = async () => {
     try {
-      const { data } = await supabase.from('configuracoes_operacao').select('taxa_saque_rapido').single();
+      const { data } = await supabase.from('configuracoes_operacao').select('taxa_saque_rapido, regras_saque').single();
       if (data) {
         setQuickWithdrawFee(data.taxa_saque_rapido || 0);
+        setWithdrawRules(parseWithdrawRules((data as any).regras_saque));
       }
     } catch (e) {
       console.error('Erro ao buscar config:', e);
@@ -215,6 +251,50 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
     if (amount <= 0) {
       alert('Valor inválido');
       return;
+    }
+
+    const rules = withdrawRules?.[withdrawType] || null;
+    if (rules) {
+      const now = new Date();
+      const todayYmd = toLocalYmd(now);
+      const allowedDates = (rules.datas || []).map((s) => String(s).trim()).filter(Boolean);
+      const allowedWeekdays = (rules.dias_semana || []).filter((v) => typeof v === 'number');
+
+      if (allowedDates.length > 0 && !allowedDates.includes(todayYmd)) {
+        alert(`Saque ${withdrawType === 'rapido' ? 'rápido' : 'normal'} indisponível hoje. Datas permitidas: ${allowedDates.join(', ')}`);
+        return;
+      }
+
+      if (allowedDates.length === 0 && allowedWeekdays.length > 0 && !allowedWeekdays.includes(now.getDay())) {
+        alert(`Saque ${withdrawType === 'rapido' ? 'rápido' : 'normal'} disponível apenas em dias específicos.`);
+        return;
+      }
+
+      if (rules.limite_valor != null && amount > rules.limite_valor) {
+        alert(`Limite excedido. O máximo por solicitação é R$ ${Number(rules.limite_valor).toFixed(2)}.`);
+        return;
+      }
+
+      if (rules.max_solicitacoes_dia != null) {
+        const start = new Date();
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(start);
+        end.setDate(end.getDate() + 1);
+        const usedToday = (acertos || []).filter((a: any) => {
+          if (a?.entrega_id != null) return false;
+          const t = (a?.tipo_saque || 'normal') as string;
+          if (t !== withdrawType) return false;
+          const st = String(a?.status || '');
+          if (st !== 'pendente' && st !== 'pago') return false;
+          const created = new Date(a?.created_at);
+          if (Number.isNaN(created.getTime())) return false;
+          return created >= start && created < end;
+        }).length;
+        if (usedToday >= rules.max_solicitacoes_dia) {
+          alert(`Limite diário atingido. Máximo de ${rules.max_solicitacoes_dia} solicitação(ões) por dia para este tipo de saque.`);
+          return;
+        }
+      }
     }
 
     // Calcular taxa se for saque rápido

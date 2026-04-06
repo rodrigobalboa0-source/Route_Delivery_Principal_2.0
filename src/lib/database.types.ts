@@ -341,6 +341,8 @@ export interface Database {
           bairro: string | null
           cidade: string | null
           referencia_entrega: string | null
+          latitude: number | null
+          longitude: number | null
           precificacao_config: Json | null
           saldo_creditos?: number
           created_at: string
@@ -374,6 +376,8 @@ export interface Database {
           bairro?: string | null
           cidade?: string | null
           referencia_entrega?: string | null
+          latitude?: number | null
+          longitude?: number | null
           precificacao_config?: Json | null
           saldo_creditos?: number
           created_at: string
@@ -407,6 +411,8 @@ export interface Database {
           bairro?: string | null
           cidade?: string | null
           referencia_entrega?: string | null
+          latitude?: number | null
+          longitude?: number | null
           precificacao_config?: Json | null
           saldo_creditos?: number
           created_at?: string
@@ -1972,6 +1978,7 @@ export interface Database {
           tempo_preparo_padrao: number | null
           modo_automatico: boolean | null
           regras_auto_cancelamento: Json | null
+          regras_saque: Json | null
           taxa_saque_rapido: number | null
           created_at: string
           updated_at: string
@@ -1984,6 +1991,7 @@ export interface Database {
           tempo_preparo_padrao?: number | null
           modo_automatico?: boolean | null
           regras_auto_cancelamento?: Json | null
+          regras_saque?: Json | null
           taxa_saque_rapido?: number | null
           created_at?: string
           updated_at?: string
@@ -1996,6 +2004,7 @@ export interface Database {
           tempo_preparo_padrao?: number | null
           modo_automatico?: boolean | null
           regras_auto_cancelamento?: Json | null
+          regras_saque?: Json | null
           taxa_saque_rapido?: number | null
           created_at?: string
           updated_at?: string

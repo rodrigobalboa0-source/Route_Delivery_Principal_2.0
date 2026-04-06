@@ -45,6 +45,8 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
     email: '',
     metodo_pagamento_preferido: '',
     observacoes: '',
+    latitude: '',
+    longitude: '',
     modo_faturamento: 'credito',
     faturamento_periodo: 'quinzenal',
     faturamento_vencimento_dias: '3',
@@ -613,6 +615,8 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
       email: c.email || '',
       metodo_pagamento_preferido: c.metodo_pagamento_preferido || '',
       observacoes: c.observacoes || '',
+      latitude: c.latitude == null ? '' : String(c.latitude),
+      longitude: c.longitude == null ? '' : String(c.longitude),
       modo_faturamento: c.modo_faturamento || 'credito',
       faturamento_periodo: c.faturamento_periodo || 'quinzenal',
       faturamento_vencimento_dias: String(c.faturamento_vencimento_dias || '3'),
@@ -693,6 +697,21 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
     if (!editing) return;
     setLoading(true);
     setError(null);
+
+    const latText = String((editForm as any).latitude || '').trim();
+    const lngText = String((editForm as any).longitude || '').trim();
+    const latitude = latText ? Number(latText) : null;
+    const longitude = lngText ? Number(lngText) : null;
+    if (latText && Number.isNaN(latitude as any)) {
+      setError('Latitude inválida');
+      setLoading(false);
+      return;
+    }
+    if (lngText && Number.isNaN(longitude as any)) {
+      setError('Longitude inválida');
+      setLoading(false);
+      return;
+    }
 
     if ((editForm as any).nova_senha) {
       try {
@@ -781,6 +800,8 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
         email: editForm.email || null,
         metodo_pagamento_preferido: editForm.metodo_pagamento_preferido || null,
         observacoes: editForm.observacoes || null,
+        latitude,
+        longitude,
         segmento: editForm.segmento || null,
         data_inicio: editForm.data_inicio || null,
         razao_social: editForm.razao_social || null,
@@ -1530,6 +1551,37 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
                 </div>
               );
             })}
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <div className="text-sm font-medium text-slate-900 mb-2">Localização do comércio (GPS)</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-slate-700">Latitude</label>
+              <input
+                type="number"
+                step="0.0000001"
+                placeholder="-23.550520"
+                value={(editForm as any).latitude}
+                onChange={(e) => setEditForm({ ...editForm, latitude: e.target.value } as any)}
+                className="w-full px-3 py-2 border border-slate-300 rounded"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-slate-700">Longitude</label>
+              <input
+                type="number"
+                step="0.0000001"
+                placeholder="-46.633308"
+                value={(editForm as any).longitude}
+                onChange={(e) => setEditForm({ ...editForm, longitude: e.target.value } as any)}
+                className="w-full px-3 py-2 border border-slate-300 rounded"
+              />
+            </div>
+          </div>
+          <div className="text-[11px] text-slate-500 mt-2">
+            Preencha para fixar a localização do comércio no mapa. Se vazio, o sistema continua tentando localizar pelo endereço.
           </div>
         </div>
 
