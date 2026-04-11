@@ -184,7 +184,7 @@ function App() {
         if (entregadorHeartbeatInFlightRef.current) return;
 
         const now = Date.now();
-        if (now - entregadorLastHeartbeatRef.current < 9000) return;
+        if (now - entregadorLastHeartbeatRef.current < 4500) return;
 
         entregadorHeartbeatInFlightRef.current = true;
         try {
@@ -208,7 +208,7 @@ function App() {
 
             const lastSent = entregadorLastSentLocationRef.current;
             const movedKm = lastSent ? distanceKm(lastSent, loc) : Number.POSITIVE_INFINITY;
-            const shouldSendCoords = movedKm >= 0.02 || now - entregadorLastSentLocationAtRef.current >= 60000;
+            const shouldSendCoords = movedKm >= 0.005 || now - entregadorLastSentLocationAtRef.current >= 10000;
 
             if (shouldSendCoords) {
               payload.current_latitude = loc.lat;
@@ -225,7 +225,7 @@ function App() {
         } finally {
           entregadorHeartbeatInFlightRef.current = false;
         }
-      }, 2000);
+      }, 5000);
     };
 
     start();
