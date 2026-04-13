@@ -11,6 +11,16 @@ type ContaReceber = Database['public']['Tables']['contas_receber']['Row'] & {
 };
 type Cliente = Database['public']['Tables']['clientes']['Row'];
 
+type EntregaFaturada = Pick<
+  Database['public']['Tables']['nova_entrega']['Row'],
+  'id' | 'created_at' | 'status' | 'valor_entrega' | 'entrega_endereco_texto' | 'pedido_id'
+> & {
+  pedidos:
+    | Pick<Database['public']['Tables']['pedidos']['Row'], 'id' | 'numero' | 'status' | 'valor_entrega' | 'endereco_texto'>
+    | null;
+  entregadores: Pick<Database['public']['Tables']['entregadores']['Row'], 'id' | 'nome_completo'> | null;
+};
+
 export function ContasReceberPanel() {
   const [items, setItems] = useState<ContaReceber[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -24,7 +34,7 @@ export function ContasReceberPanel() {
   
   const [viewingConta, setViewingConta] = useState<ContaReceber | null>(null);
   const [invoiceDetails, setInvoiceDetails] = useState<any | null>(null);
-  const [invoiceDeliveries, setInvoiceDeliveries] = useState<any[]>([]);
+  const [invoiceDeliveries, setInvoiceDeliveries] = useState<EntregaFaturada[]>([]);
   const [loadingDetails, setLoadingDetails] = useState(false);
 
   // States for Edit
@@ -166,10 +176,22 @@ export function ContasReceberPanel() {
     
     const { data: deliveries } = await supabase
       .from('nova_entrega')
-      .select('*')
-      .eq('fatura_cliente_id', conta.fatura_id);
+      .select(
+        `
+          id,
+          created_at,
+          status,
+          valor_entrega,
+          entrega_endereco_texto,
+          pedido_id,
+          pedidos ( id, numero, status, valor_entrega, endereco_texto ),
+          entregadores ( id, nome_completo )
+        `
+      )
+      .eq('fatura_cliente_id', conta.fatura_id)
+      .in('status', ['entregue', 'finalizada'] as any);
       
-    return { invoice, deliveries: deliveries || [] };
+    return { invoice, deliveries: (deliveries || []) as unknown as EntregaFaturada[] };
   };
 
   const handleView = async (conta: ContaReceber) => {
@@ -250,17 +272,19 @@ export function ContasReceberPanel() {
       if (deliveries.length > 0) {
         doc.text('Detalhamento das Entregas:', 14, currentY);
         currentY += 5;
-        
-        const tableData = deliveries.map(d => [
-          formatDate(d.created_at),
-          d.id.slice(0, 8),
-          d.delivery_address || '-',
-          formatCurrency(d.valor_entrega || 0)
-        ]);
-        
+
+        const tableData = (deliveries as EntregaFaturada[]).map((d) => {
+          const pedidoNumero = d.pedidos?.numero || (d.pedido_id ? d.pedido_id.slice(0, 8) : d.id.slice(0, 8));
+          const statusPedido = d.pedidos?.status || '-';
+          const endereco = d.entrega_endereco_texto || d.pedidos?.endereco_texto || '-';
+          const taxa = typeof d.valor_entrega === 'number' ? d.valor_entrega : typeof d.pedidos?.valor_entrega === 'number' ? d.pedidos?.valor_entrega : 0;
+          const entregador = d.entregadores?.nome_completo || '-';
+          return [formatDate(d.created_at), String(pedidoNumero), String(statusPedido), String(endereco), formatCurrency(taxa), String(entregador)];
+        });
+
         autoTable(doc, {
           startY: currentY,
-          head: [['Data', 'ID', 'Endereço', 'Valor']],
+          head: [['Data', 'Pedido', 'Status', 'Endereço', 'Taxa', 'Entregador']],
           body: tableData,
         });
       }
@@ -646,18 +670,34 @@ export function ContasReceberPanel() {
                           <thead className="bg-slate-50 text-slate-500 font-medium">
                             <tr>
                               <th className="px-3 py-2">Data</th>
-                              <th className="px-3 py-2">ID</th>
+                              <th className="px-3 py-2">Pedido</th>
+                              <th className="px-3 py-2">Status</th>
+                              <th className="px-3 py-2">Endereço</th>
                               <th className="px-3 py-2 text-right">Valor</th>
+                              <th className="px-3 py-2">Entregador</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
-                            {invoiceDeliveries.map((d) => (
-                              <tr key={d.id} className="hover:bg-slate-50">
-                                <td className="px-3 py-2 text-slate-600">{formatDate(d.created_at)}</td>
-                                <td className="px-3 py-2 text-slate-500 font-mono text-xs">{d.id.slice(0,8)}...</td>
-                                <td className="px-3 py-2 text-right font-medium text-slate-700">{formatCurrency(d.valor_entrega || 0)}</td>
-                              </tr>
-                            ))}
+                            {invoiceDeliveries.map((d) => {
+                              const pedidoNumero = d.pedidos?.numero || (d.pedido_id ? d.pedido_id.slice(0, 8) : d.id.slice(0, 8));
+                              const statusPedido = d.pedidos?.status || '-';
+                              const endereco = d.entrega_endereco_texto || d.pedidos?.endereco_texto || '-';
+                              const taxa =
+                                typeof d.valor_entrega === 'number' ? d.valor_entrega : typeof d.pedidos?.valor_entrega === 'number' ? d.pedidos?.valor_entrega : 0;
+                              const entregador = d.entregadores?.nome_completo || '-';
+                              return (
+                                <tr key={d.id} className="hover:bg-slate-50">
+                                  <td className="px-3 py-2 text-slate-600 whitespace-nowrap">{formatDate(d.created_at)}</td>
+                                  <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{pedidoNumero}</td>
+                                  <td className="px-3 py-2 text-slate-600 whitespace-nowrap">{statusPedido}</td>
+                                  <td className="px-3 py-2 text-slate-600 max-w-[280px] truncate" title={endereco}>
+                                    {endereco}
+                                  </td>
+                                  <td className="px-3 py-2 text-right font-medium text-slate-700 whitespace-nowrap">{formatCurrency(taxa)}</td>
+                                  <td className="px-3 py-2 text-slate-600 whitespace-nowrap">{entregador}</td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>

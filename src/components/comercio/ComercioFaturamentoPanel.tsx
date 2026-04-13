@@ -12,6 +12,11 @@ export function ComercioFaturamentoPanel() {
   const [dailyOrders, setDailyOrders] = useState<any[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
 
+  const toLocalDateInputValue = (date: Date) => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  };
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -25,15 +30,29 @@ export function ComercioFaturamentoPanel() {
   async function fetchDailyOrders() {
       setLoadingOrders(true);
       try {
-          const startDate = `${selectedDate}T00:00:00`;
-          const endDate = `${selectedDate}T23:59:59`;
+          const startDateIso = new Date(`${selectedDate}T00:00:00`).toISOString();
+          const endDateIso = new Date(`${selectedDate}T23:59:59.999`).toISOString();
 
           const { data, error } = await supabase
               .from('nova_entrega')
-              .select('*')
+              .select(
+                `
+                  id,
+                  pedido_id,
+                  created_at,
+                  updated_at,
+                  status,
+                  valor_entrega,
+                  entrega_contato,
+                  entrega_telefone,
+                  entrega_endereco_texto,
+                  pedidos ( id, numero, status ),
+                  entregadores ( id, nome_completo )
+                `
+              )
               .eq('cliente_id', clientId)
-              .gte('created_at', startDate)
-              .lte('created_at', endDate)
+              .gte('created_at', startDateIso)
+              .lte('created_at', endDateIso)
               .order('created_at', { ascending: false });
             
           if (error) throw error;
@@ -75,6 +94,7 @@ export function ComercioFaturamentoPanel() {
       }
       
       setClientId(targetClientId);
+      setSelectedDate((prev) => (prev ? prev : toLocalDateInputValue(new Date())));
 
       // Fetch Invoices
       const { data: invoicesData, error: invoicesError } = await supabase
@@ -229,9 +249,13 @@ export function ComercioFaturamentoPanel() {
                             <thead className="bg-gray-50 text-gray-600 text-xs uppercase tracking-wider font-semibold">
                                 <tr>
                                     <th className="p-4">Hora</th>
-                                    <th className="p-4">ID Pedido</th>
-                                    <th className="p-4">Endereço de Entrega</th>
+                                    <th className="p-4">Pedido</th>
+                                    <th className="p-4">Cliente</th>
+                                    <th className="p-4">Endereço</th>
+                                    <th className="p-4">Motoboy</th>
                                     <th className="p-4">Status</th>
+                                    <th className="p-4">Lançado</th>
+                                    <th className="p-4">Finalizado</th>
                                     <th className="p-4 text-right">Valor Entrega</th>
                                 </tr>
                             </thead>
@@ -242,16 +266,24 @@ export function ComercioFaturamentoPanel() {
                                             {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                         </td>
                                         <td className="p-4 text-sm text-gray-500 font-mono text-xs">
-                                            {order.pedido_id ? (
-                                                <span title={order.pedido_id}>{order.pedido_id.slice(0, 8)}...</span>
-                                            ) : (
-                                                <span className="text-gray-300">-</span>
-                                            )}
+                                            <span title={order?.pedidos?.numero || order?.pedido_id || ''}>
+                                              {order?.pedidos?.numero || (order.pedido_id ? `${order.pedido_id.slice(0, 8)}...` : '-')}
+                                            </span>
+                                        </td>
+                                        <td className="p-4 text-sm text-gray-700">
+                                          <div className="max-w-[220px] truncate" title={order.entrega_contato}>
+                                            {order.entrega_contato || '-'}
+                                          </div>
                                         </td>
                                         <td className="p-4 text-sm text-gray-700">
                                             <div className="max-w-md truncate" title={order.entrega_endereco_texto}>
                                                 {order.entrega_endereco_texto || '-'}
                                             </div>
+                                        </td>
+                                        <td className="p-4 text-sm text-gray-600">
+                                          <div className="max-w-[200px] truncate" title={order?.entregadores?.nome_completo}>
+                                            {order?.entregadores?.nome_completo || '-'}
+                                          </div>
                                         </td>
                                         <td className="p-4">
                                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize border
@@ -261,6 +293,14 @@ export function ComercioFaturamentoPanel() {
                                                 {order.status === 'cancelada' ? 'Cancelado' : order.status}
                                             </span>
                                         </td>
+                                        <td className="p-4 text-sm text-gray-600 whitespace-nowrap">
+                                          {new Date(order.created_at).toLocaleDateString('pt-BR')}
+                                        </td>
+                                        <td className="p-4 text-sm text-gray-600 whitespace-nowrap">
+                                          {['entregue', 'finalizada'].includes(String(order.status || '').toLowerCase())
+                                            ? new Date(order.updated_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                                            : '-'}
+                                        </td>
                                         <td className="p-4 text-right font-bold text-gray-800">
                                             R$ {Number(order.valor_entrega || 0).toFixed(2)}
                                         </td>
@@ -269,7 +309,7 @@ export function ComercioFaturamentoPanel() {
                             </tbody>
                             <tfoot className="bg-gray-50 font-semibold text-gray-700">
                                 <tr>
-                                    <td colSpan={4} className="p-4 text-right">Total do Dia:</td>
+                                    <td colSpan={9} className="p-4 text-right">Total do Dia:</td>
                                     <td className="p-4 text-right text-sky-700">
                                         R$ {dailyOrders.reduce((acc, curr) => acc + (Number(curr.valor_entrega) || 0), 0).toFixed(2)}
                                     </td>
