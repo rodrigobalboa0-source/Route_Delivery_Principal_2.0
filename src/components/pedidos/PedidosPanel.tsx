@@ -5,7 +5,7 @@ import { MapView, MapDeliveryPerson } from '../MapView';
 import { Modal } from '../Modal';
 import type { Database } from '../../lib/database.types';
 import { format } from 'date-fns';
-import { Trash2, User, CheckCircle, Truck, Plus, ArrowRight, MapPin, Settings, Edit, FileText, CheckSquare, Link, Clock, Copy, MoreVertical, X, RefreshCw, Ban, RotateCcw, MessageSquare, UserCog, Store, Search } from 'lucide-react';
+import { Trash2, User, CheckCircle, Truck, Plus, ArrowRight, MapPin, Settings, Edit, FileText, CheckSquare, Link, Clock, Copy, MoreVertical, X, RefreshCw, Ban, RotateCcw, MessageSquare, UserCog, Store, Search, DollarSign, AlertCircle } from 'lucide-react';
 import { IfoodService } from '../../services/ifoodService';
 
 type Cliente = { 
@@ -407,6 +407,7 @@ function PedidoEditForm({
          if (formData.status === 'confirmado') action = 'confirm';
          if (formData.status === 'em_preparo') action = 'startPreparation';
          if (formData.status === 'pronto') action = 'readyToPickup';
+         if (formData.status === 'entregue') action = 'conclude';
          if (formData.status === 'cancelado') action = 'requestCancellation';
          
          if (action) {
@@ -544,6 +545,23 @@ function PedidoEditForm({
 }
 
 function PedidoDetailsView({ pedido, entrega, cliente, onClose }: { pedido: Pedido, entrega?: Entrega, cliente?: Cliente, onClose: () => void }) {
+  const agendadoEm = pedido.agendar_em || entrega?.agendar_em || null;
+  const retiradaNoLocal = Boolean(pedido.retirada_no_local || entrega?.retirada_no_local);
+  const pagamentoMetodo = pedido.pagamento_metodo || entrega?.pagamento_metodo || null;
+  const pagamentoNaEntrega = Boolean(pedido.pagamento_na_entrega || entrega?.pagamento_na_entrega);
+  const trocoPara = (pedido.troco_para ?? entrega?.troco_para) ?? null;
+  const documentoTipo = pedido.documento_tipo || entrega?.documento_tipo || null;
+  const documentoNumero = pedido.documento_numero || entrega?.documento_numero || null;
+
+  const formatPagamentoMetodo = (m: string) => {
+    const v = String(m || '').trim().toLowerCase();
+    if (v === 'dinheiro') return 'Dinheiro';
+    if (v === 'cartao') return 'Cartão';
+    if (v === 'pix') return 'PIX';
+    if (v === 'online') return 'Online';
+    return m;
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-start">
@@ -565,18 +583,56 @@ function PedidoDetailsView({ pedido, entrega, cliente, onClose }: { pedido: Pedi
               <p><span className="text-slate-500">Item:</span> {pedido.item_descricao || '-'}</p>
               <p><span className="text-slate-500">Valor Pedido:</span> R$ {pedido.valor_total?.toFixed(2) || '0.00'}</p>
               <p><span className="text-slate-500">Status:</span> {pedido.status.toUpperCase()}</p>
+              <p><span className="text-slate-500">Modalidade:</span> {retiradaNoLocal ? 'RETIRADA NO LOCAL' : 'ENTREGA'}</p>
               <p><span className="text-slate-500">Criado em:</span> {format(new Date(pedido.created_at), 'dd/MM/yyyy HH:mm')}</p>
+              {agendadoEm && (
+                <p><span className="text-slate-500">Agendado para:</span> {format(new Date(agendadoEm), 'dd/MM/yyyy HH:mm')}</p>
+              )}
+              {pedido.ifood_order_id && (
+                <p><span className="text-slate-500">iFood Order ID:</span> {pedido.ifood_order_id}</p>
+              )}
             </div>
           </div>
+
+          {(pagamentoMetodo || pagamentoNaEntrega || trocoPara !== null || documentoNumero || pedido.voucher_codigo) && (
+            <div className="bg-slate-50 p-4 rounded-lg">
+              <h4 className="font-semibold text-slate-700 mb-2 flex items-center gap-2"><DollarSign size={16}/> Pagamento</h4>
+              <div className="space-y-2 text-sm">
+                {pagamentoMetodo && <p><span className="text-slate-500">Método:</span> {formatPagamentoMetodo(pagamentoMetodo)}</p>}
+                <p><span className="text-slate-500">Na entrega:</span> {pagamentoNaEntrega ? 'SIM' : 'NÃO'}</p>
+                {trocoPara !== null && <p><span className="text-slate-500">Troco para:</span> R$ {Number(trocoPara || 0).toFixed(2)}</p>}
+                {documentoNumero && <p><span className="text-slate-500">Documento:</span> {(documentoTipo || '').toUpperCase()} {documentoNumero}</p>}
+                {pedido.voucher_codigo && <p><span className="text-slate-500">Voucher/Cupom:</span> {pedido.voucher_codigo}</p>}
+              </div>
+            </div>
+          )}
+
+          {(pedido.status === 'cancelado' || pedido.cancelado_em || pedido.cancelamento_origem || pedido.cancelamento_codigo || pedido.cancelamento_motivo) && (
+            <div className="bg-red-50 p-4 rounded-lg border border-red-100">
+              <h4 className="font-semibold text-red-800 mb-2 flex items-center gap-2"><AlertCircle size={16}/> Cancelamento</h4>
+              <div className="space-y-2 text-sm text-red-700">
+                {pedido.cancelado_em && <p><span className="text-red-700/70">Cancelado em:</span> {format(new Date(pedido.cancelado_em), 'dd/MM/yyyy HH:mm')}</p>}
+                {pedido.cancelamento_origem && <p><span className="text-red-700/70">Origem:</span> {String(pedido.cancelamento_origem).toUpperCase()}</p>}
+                {pedido.cancelamento_codigo && <p><span className="text-red-700/70">Código:</span> {pedido.cancelamento_codigo}</p>}
+                {pedido.cancelamento_motivo && <p><span className="text-red-700/70">Motivo:</span> {pedido.cancelamento_motivo}</p>}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="space-y-4">
           <div className="bg-slate-50 p-4 rounded-lg">
             <h4 className="font-semibold text-slate-700 mb-2 flex items-center gap-2"><Truck size={16}/> Entrega</h4>
             <div className="space-y-2 text-sm">
-              <p><span className="text-slate-500">Status Entrega:</span> {entrega?.status?.toUpperCase() || '-'}</p>
-              <p><span className="text-slate-500">Valor Entrega:</span> R$ {entrega?.valor_entrega?.toFixed(2) || '0.00'}</p>
-              <p><span className="text-slate-500">Modal:</span> {entrega?.modal_tipo || '-'}</p>
+              {retiradaNoLocal ? (
+                <p className="text-slate-600">Pedido para retirada no local (sem motoboy).</p>
+              ) : (
+                <>
+                  <p><span className="text-slate-500">Status Entrega:</span> {entrega?.status?.toUpperCase() || '-'}</p>
+                  <p><span className="text-slate-500">Valor Entrega:</span> R$ {entrega?.valor_entrega?.toFixed(2) || '0.00'}</p>
+                  <p><span className="text-slate-500">Modal:</span> {entrega?.modal_tipo || '-'}</p>
+                </>
+              )}
             </div>
           </div>
 
@@ -589,7 +645,7 @@ function PedidoDetailsView({ pedido, entrega, cliente, onClose }: { pedido: Pedi
               </div>
               <div>
                 <p className="text-xs font-bold text-blue-600">ENTREGA</p>
-                <p>{entrega?.entrega_endereco_texto || pedido.endereco_texto || '-'}</p>
+                <p>{retiradaNoLocal ? 'Retirada no local' : (entrega?.entrega_endereco_texto || pedido.endereco_texto || '-')}</p>
               </div>
             </div>
           </div>
@@ -2263,6 +2319,21 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             valor_total: e.valor_entrega,
             status: (e.status as any) || 'criado', 
             observacoes: e.observacoes,
+            agendar_em: e.agendar_em || null,
+            retirada_no_local: e.retirada_no_local || false,
+            pagamento_metodo: e.pagamento_metodo || null,
+            pagamento_na_entrega: e.pagamento_na_entrega || false,
+            troco_para: e.troco_para ?? null,
+            documento_tipo: e.documento_tipo || null,
+            documento_numero: e.documento_numero || null,
+            voucher_codigo: null,
+            voucher_tipo: null,
+            desconto_total: null,
+            desconto_entrega: null,
+            cancelamento_origem: null,
+            cancelamento_codigo: null,
+            cancelamento_motivo: null,
+            cancelado_em: null,
             created_at: e.created_at,
             updated_at: e.updated_at
         }));
@@ -3255,6 +3326,9 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                             <td className="px-4 py-3 font-medium text-slate-700">
                                 {p.numero || p.id.slice(0, 6)}
                                 <div className="text-xs text-slate-400">{format(new Date(p.created_at), 'dd/MM HH:mm')}</div>
+                                {p.agendar_em && (
+                                  <div className="text-xs text-sky-700">Agendado: {format(new Date(p.agendar_em), 'dd/MM HH:mm')}</div>
+                                )}
                             </td>
                             <td className="px-4 py-3">
                                 <div className="font-medium text-slate-800">{cliente?.nome_completo || 'Comércio Desconhecido'}</div>

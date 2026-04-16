@@ -581,6 +581,17 @@ export function EntregadorPedidosEmAndamentoPanel() {
             
             const isPickupPhase = ['criada', 'atribuida', 'chegou_coleta'].includes(entrega.status);
             const destCoords = isPickupPhase ? coords?.pickup : coords?.delivery;
+            const pagamentoMetodo = entrega.pagamento_metodo ? String(entrega.pagamento_metodo).toLowerCase() : '';
+            const pagamentoLabel =
+              pagamentoMetodo === 'dinheiro'
+                ? 'Dinheiro'
+                : pagamentoMetodo === 'cartao'
+                  ? 'Cartão'
+                  : pagamentoMetodo === 'pix'
+                    ? 'PIX'
+                    : pagamentoMetodo === 'online'
+                      ? 'Online'
+                      : entrega.pagamento_metodo || '';
             
             let statusLabel = 'Aguardando Coleta';
             let statusColor = 'bg-yellow-100 text-yellow-700';
@@ -658,6 +669,23 @@ export function EntregadorPedidosEmAndamentoPanel() {
                   <div className="bg-yellow-50 p-3 rounded text-sm text-yellow-800 flex gap-2">
                     <AlertCircle size={16} className="shrink-0 mt-0.5" />
                     <p>{entrega.observacoes}</p>
+                  </div>
+                )}
+
+                {(entrega.pagamento_metodo || entrega.pagamento_na_entrega || entrega.troco_para || entrega.documento_numero) && (
+                  <div className="bg-slate-50 p-3 rounded text-sm text-slate-700 border border-slate-100 space-y-1">
+                    {pagamentoLabel && (
+                      <p>
+                        <span className="text-slate-500">Pagamento:</span> {pagamentoLabel}
+                        {entrega.pagamento_na_entrega ? ' (na entrega)' : ''}
+                      </p>
+                    )}
+                    {entrega.troco_para !== null && entrega.troco_para !== undefined && (
+                      <p><span className="text-slate-500">Troco para:</span> R$ {Number(entrega.troco_para || 0).toFixed(2)}</p>
+                    )}
+                    {entrega.documento_numero && (
+                      <p><span className="text-slate-500">Documento:</span> {(entrega.documento_tipo || '').toUpperCase()} {entrega.documento_numero}</p>
+                    )}
                   </div>
                 )}
 

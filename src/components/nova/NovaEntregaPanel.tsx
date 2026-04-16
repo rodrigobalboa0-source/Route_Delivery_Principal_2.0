@@ -431,9 +431,15 @@ export function NovaEntregaPanel() {
     observacoes: '',
     solicitar_comprovante: false,
     agendar_em: '',
+    retirada_no_local: false,
     valor_manual: false,
     valor_entrega: '',
     tipo_cobranca: 'fatura',
+    pagamento_metodo: 'fatura',
+    pagamento_na_entrega: false,
+    troco_para: '',
+    documento_tipo: 'cpf',
+    documento_numero: '',
     cobrar_destinatario: false,
     coleta_usa_endereco_cadastro: false,
     coleta_contato: '',
@@ -1283,6 +1289,12 @@ export function NovaEntregaPanel() {
     }
 
     let pedidoId = null;
+    const agendarIso = form.agendar_em ? new Date(form.agendar_em).toISOString() : null;
+    const trocoParaNum = form.troco_para ? Number(String(form.troco_para).replace(',', '.')) : null;
+    const documentoNumeroDigits = form.documento_numero ? String(form.documento_numero).replace(/\D/g, '') : '';
+    const documentoNumero = documentoNumeroDigits ? documentoNumeroDigits : null;
+    const documentoTipo = documentoNumero ? (form.documento_tipo === 'cnpj' ? 'cnpj' : 'cpf') : null;
+
     try {
       const valorTotal = form.valor_entrega ? Number(form.valor_entrega.replace(',', '.')) : null;
       console.log('Tentando criar pedido para cliente:', form.cliente_id, 'Valor:', valorTotal);
@@ -1296,11 +1308,20 @@ export function NovaEntregaPanel() {
           endereco_id: form.endereco_id || null,
           numero: form.entrega_codigo_pedido || null,
           item_descricao: null,
-          endereco_texto: form.entrega_numero ? `${form.entrega_endereco_texto}, ${form.entrega_numero}` : (form.entrega_endereco_texto || null),
+          endereco_texto: form.retirada_no_local
+            ? (form.coleta_numero ? `${form.coleta_endereco_texto}, ${form.coleta_numero}` : (form.coleta_endereco_texto || null))
+            : (form.entrega_numero ? `${form.entrega_endereco_texto}, ${form.entrega_numero}` : (form.entrega_endereco_texto || null)),
           origem: 'manual',
           valor_total: valorTotalParaPedido,
           status: 'criado',
           observacoes: form.observacoes || null,
+          agendar_em: agendarIso,
+          retirada_no_local: form.retirada_no_local,
+          pagamento_metodo: form.pagamento_metodo || null,
+          pagamento_na_entrega: !!form.pagamento_na_entrega,
+          troco_para: trocoParaNum && !isNaN(trocoParaNum) ? trocoParaNum : null,
+          documento_tipo: documentoTipo,
+          documento_numero: documentoNumero,
         })
         .select()
         .single();
@@ -1321,52 +1342,62 @@ export function NovaEntregaPanel() {
       return;
     }
 
-    const { error: insertError } = await supabase
-      .from('nova_entrega')
-      .insert({
-        pedido_id: pedidoId,
-        cliente_id: form.cliente_id,
-        endereco_id: form.endereco_id || null,
-        tipo_servico_id: form.tipo_servico_id || (tipos.length > 0 ? tipos[0].id : null),
-        modal_tipo: (form.modal_tipo || (modais.length > 0 ? modais[0].tipo : 'moto')) as ModalRow['tipo'],
-        atribuicao_modo: form.atribuicao_modo,
-        entregador_id: entregadorEscolhido,
-        solicitar_comprovante: form.solicitar_comprovante,
-        agendar_em: form.agendar_em ? new Date(form.agendar_em).toISOString() : null,
-        valor_manual: form.valor_manual,
-        valor_entrega: form.valor_entrega ? Number(form.valor_entrega.replace(',', '.')) : null,
-        valor_entregador: driverValue,
-        tipo_cobranca: form.tipo_cobranca as 'fatura' | 'avista' | 'pix' | 'cartao',
-        cobrar_destinatario: form.cobrar_destinatario,
-        coleta_usa_endereco_cadastro: form.coleta_usa_endereco_cadastro,
-        coleta_contato: form.coleta_contato || null,
-        coleta_telefone: form.coleta_telefone || null,
-        coleta_cep: form.coleta_cep || null,
-        coleta_endereco_texto: form.coleta_numero ? `${form.coleta_endereco_texto}, ${form.coleta_numero}` : (form.coleta_endereco_texto || null),
-        coleta_complemento: form.coleta_complemento || null,
-        coleta_observacoes: form.coleta_observacoes || null,
-        entrega_usa_endereco_cadastro: form.entrega_usa_endereco_cadastro,
-        entrega_contato: form.entrega_contato || null,
-        entrega_telefone: form.entrega_telefone || null,
-        entrega_codigo_pedido: form.entrega_codigo_pedido || null,
-        entrega_centro_custo: form.entrega_centro_custo || null,
-        entrega_solicitante: form.entrega_solicitante || null,
-        entrega_cep: form.entrega_cep || null,
-        entrega_endereco_texto: form.entrega_numero ? `${form.entrega_endereco_texto}, ${form.entrega_numero}` : (form.entrega_endereco_texto || null),
-        entrega_complemento: form.entrega_complemento || null,
-        entrega_observacoes: form.entrega_observacoes || null,
-        retorno: form.retorno,
-        pontos_adicionais: form.pontos.length ? form.pontos.map(({ coords, ...rest }) => rest) : null,
-        opcionais: driverBonuses.length > 0 ? { driver_bonuses: driverBonuses } : null,
-        observacoes: form.observacoes || null,
-        status: entregadorEscolhido ? 'atribuida' : 'criada',
-        distancia_km: kmValue > 0 ? kmValue : null,
-      });
+    let insertError: any = null;
+    if (!form.retirada_no_local) {
+      const res = await supabase
+        .from('nova_entrega')
+        .insert({
+          pedido_id: pedidoId,
+          cliente_id: form.cliente_id,
+          endereco_id: form.endereco_id || null,
+          tipo_servico_id: form.tipo_servico_id || (tipos.length > 0 ? tipos[0].id : null),
+          modal_tipo: (form.modal_tipo || (modais.length > 0 ? modais[0].tipo : 'moto')) as ModalRow['tipo'],
+          atribuicao_modo: form.atribuicao_modo,
+          entregador_id: entregadorEscolhido,
+          solicitar_comprovante: form.solicitar_comprovante,
+          agendar_em: agendarIso,
+          retirada_no_local: false,
+          valor_manual: form.valor_manual,
+          valor_entrega: form.valor_entrega ? Number(form.valor_entrega.replace(',', '.')) : null,
+          valor_entregador: driverValue,
+          tipo_cobranca: form.tipo_cobranca as 'fatura' | 'avista' | 'pix' | 'cartao',
+          pagamento_metodo: form.pagamento_metodo || null,
+          pagamento_na_entrega: !!form.pagamento_na_entrega,
+          troco_para: trocoParaNum && !isNaN(trocoParaNum) ? trocoParaNum : null,
+          documento_tipo: documentoTipo,
+          documento_numero: documentoNumero,
+          cobrar_destinatario: form.cobrar_destinatario,
+          coleta_usa_endereco_cadastro: form.coleta_usa_endereco_cadastro,
+          coleta_contato: form.coleta_contato || null,
+          coleta_telefone: form.coleta_telefone || null,
+          coleta_cep: form.coleta_cep || null,
+          coleta_endereco_texto: form.coleta_numero ? `${form.coleta_endereco_texto}, ${form.coleta_numero}` : (form.coleta_endereco_texto || null),
+          coleta_complemento: form.coleta_complemento || null,
+          coleta_observacoes: form.coleta_observacoes || null,
+          entrega_usa_endereco_cadastro: form.entrega_usa_endereco_cadastro,
+          entrega_contato: form.entrega_contato || null,
+          entrega_telefone: form.entrega_telefone || null,
+          entrega_codigo_pedido: form.entrega_codigo_pedido || null,
+          entrega_centro_custo: form.entrega_centro_custo || null,
+          entrega_solicitante: form.entrega_solicitante || null,
+          entrega_cep: form.entrega_cep || null,
+          entrega_endereco_texto: form.entrega_numero ? `${form.entrega_endereco_texto}, ${form.entrega_numero}` : (form.entrega_endereco_texto || null),
+          entrega_complemento: form.entrega_complemento || null,
+          entrega_observacoes: form.entrega_observacoes || null,
+          retorno: form.retorno,
+          pontos_adicionais: form.pontos.length ? form.pontos.map(({ coords, ...rest }) => rest) : null,
+          opcionais: driverBonuses.length > 0 ? { driver_bonuses: driverBonuses } : null,
+          observacoes: form.observacoes || null,
+          status: entregadorEscolhido ? 'atribuida' : 'criada',
+          distancia_km: kmValue > 0 ? kmValue : null,
+        });
+      insertError = res.error;
+    }
 
     if (insertError?.message) setError(insertError.message);
     else {
       
-      if (form.cliente_id && form.valor_entrega) {
+      if (!form.retirada_no_local && form.cliente_id && form.valor_entrega) {
          const val = parseFloat(form.valor_entrega.replace(',', '.'));
          if (!isNaN(val) && val > 0) {
              
@@ -1397,9 +1428,15 @@ export function NovaEntregaPanel() {
         observacoes: '',
         solicitar_comprovante: false, 
         agendar_em: '', 
+        retirada_no_local: false,
         valor_manual: false, 
         valor_entrega: '', 
         tipo_cobranca: 'fatura', 
+        pagamento_metodo: 'fatura',
+        pagamento_na_entrega: false,
+        troco_para: '',
+        documento_tipo: 'cpf',
+        documento_numero: '',
         cobrar_destinatario: false,
         coleta_usa_endereco_cadastro: false, 
         coleta_contato: '', 
@@ -1476,6 +1513,23 @@ export function NovaEntregaPanel() {
             <input id="solicitar_comprovante" type="checkbox" checked={form.solicitar_comprovante} onChange={(e) => setForm({ ...form, solicitar_comprovante: e.target.checked })} />
             <label htmlFor="solicitar_comprovante" className="text-sm text-slate-700">Solicitar comprovante assinado na entrega</label>
           </div>
+          <div className="flex items-center gap-2">
+            <input
+              id="retirada_no_local"
+              type="checkbox"
+              checked={form.retirada_no_local}
+              onChange={(e) => {
+                const next = e.target.checked;
+                setForm({
+                  ...form,
+                  retirada_no_local: next,
+                  entregador_id: next ? '' : form.entregador_id,
+                  cobrar_destinatario: next ? false : form.cobrar_destinatario,
+                });
+              }}
+            />
+            <label htmlFor="retirada_no_local" className="text-sm text-slate-700">Retirada no local (sem motoboy)</label>
+          </div>
           {/* Price Info Removed - Moved to Bottom */}
           <div className="flex items-center justify-between md:col-span-2">
             <div>
@@ -1488,6 +1542,58 @@ export function NovaEntregaPanel() {
             </div>
           </div>
           
+
+          <select
+            value={form.pagamento_metodo}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === 'fatura') {
+                setForm({ ...form, pagamento_metodo: 'fatura', tipo_cobranca: 'fatura', pagamento_na_entrega: false, troco_para: '', cobrar_destinatario: false });
+                return;
+              }
+              if (v === 'pix') {
+                setForm({ ...form, pagamento_metodo: 'pix', tipo_cobranca: 'pix', pagamento_na_entrega: false, troco_para: '', cobrar_destinatario: false });
+                return;
+              }
+              if (v === 'cartao') {
+                setForm({ ...form, pagamento_metodo: 'cartao', tipo_cobranca: 'cartao', pagamento_na_entrega: true, troco_para: '', cobrar_destinatario: true });
+                return;
+              }
+              if (v === 'dinheiro') {
+                setForm({ ...form, pagamento_metodo: 'dinheiro', tipo_cobranca: 'avista', pagamento_na_entrega: true, cobrar_destinatario: true });
+                return;
+              }
+              setForm({ ...form, pagamento_metodo: v });
+            }}
+            className="px-3 py-2 border border-slate-300 rounded"
+          >
+            <option value="fatura">Pagamento: Fatura</option>
+            <option value="pix">Pagamento: PIX</option>
+            <option value="cartao">Pagamento: Cartão na entrega</option>
+            <option value="dinheiro">Pagamento: Dinheiro (troco)</option>
+          </select>
+
+          {form.pagamento_metodo === 'dinheiro' ? (
+            <input
+              placeholder="Troco para (R$)"
+              value={form.troco_para}
+              onChange={(e) => setForm({ ...form, troco_para: e.target.value })}
+              className="px-3 py-2 border border-slate-300 rounded"
+            />
+          ) : (
+            <div />
+          )}
+
+          <select value={form.documento_tipo} onChange={(e) => setForm({ ...form, documento_tipo: e.target.value })} className="px-3 py-2 border border-slate-300 rounded">
+            <option value="cpf">CPF</option>
+            <option value="cnpj">CNPJ</option>
+          </select>
+          <input
+            placeholder="CPF/CNPJ do cliente"
+            value={form.documento_numero}
+            onChange={(e) => setForm({ ...form, documento_numero: e.target.value })}
+            className="px-3 py-2 border border-slate-300 rounded"
+          />
 
 
           <input placeholder="Observações" value={form.observacoes} onChange={(e) => setForm({ ...form, observacoes: e.target.value })} className="px-3 py-2 border border-slate-300 rounded md:col-span-2" />
@@ -1527,42 +1633,44 @@ export function NovaEntregaPanel() {
         </div>
       </div>
 
-      <div className="mt-6 bg-white border border-slate-200 rounded-lg p-4">
-        <div className="text-sm font-semibold text-slate-900 mb-3">Entrega</div>
-        <div className="flex items-center gap-2 mb-3">
-          <input id="entrega_mesmo" type="checkbox" checked={form.entrega_usa_endereco_cadastro} onChange={(e) => handleUseRegistrationAddress('entrega', e.target.checked)} />
-          <label htmlFor="entrega_mesmo" className="text-sm text-slate-700">Usar o mesmo endereço de cadastro</label>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <input placeholder="Contato" value={form.entrega_contato} onChange={(e) => setForm({ ...form, entrega_contato: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-          <input placeholder="Telefone" value={form.entrega_telefone} onChange={(e) => setForm({ ...form, entrega_telefone: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-          <input placeholder="Código do pedido" value={form.entrega_codigo_pedido} onChange={(e) => setForm({ ...form, entrega_codigo_pedido: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-          <input placeholder="Centro de Custo" value={form.entrega_centro_custo} onChange={(e) => setForm({ ...form, entrega_centro_custo: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-          <input placeholder="Solicitante" value={form.entrega_solicitante} onChange={(e) => setForm({ ...form, entrega_solicitante: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-          <input placeholder="CEP" value={form.entrega_cep} onChange={(e) => setForm({ ...form, entrega_cep: e.target.value })} onBlur={(e) => handleCepBlur(e.target.value, 'entrega')} className="px-3 py-2 border border-slate-300 rounded" />
-          <AddressAutocomplete
-            placeholder="Endereço completo"
-            value={form.entrega_endereco_texto}
-            onChange={(val) => { setEntregaSelectedCoords(undefined); setDistanceError(null); setForm({ ...form, entrega_endereco_texto: val }); }}
-            onSelectCoords={(coords, selectedText) => {
-              setEntregaSelectedCoords(coords);
-              if (coords) {
-                const key = normalizeAddressKey(selectedText || form.entrega_endereco_texto);
+      {!form.retirada_no_local && (
+        <div className="mt-6 bg-white border border-slate-200 rounded-lg p-4">
+          <div className="text-sm font-semibold text-slate-900 mb-3">Entrega</div>
+          <div className="flex items-center gap-2 mb-3">
+            <input id="entrega_mesmo" type="checkbox" checked={form.entrega_usa_endereco_cadastro} onChange={(e) => handleUseRegistrationAddress('entrega', e.target.checked)} />
+            <label htmlFor="entrega_mesmo" className="text-sm text-slate-700">Usar o mesmo endereço de cadastro</label>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <input placeholder="Contato" value={form.entrega_contato} onChange={(e) => setForm({ ...form, entrega_contato: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+            <input placeholder="Telefone" value={form.entrega_telefone} onChange={(e) => setForm({ ...form, entrega_telefone: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+            <input placeholder="Código do pedido" value={form.entrega_codigo_pedido} onChange={(e) => setForm({ ...form, entrega_codigo_pedido: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+            <input placeholder="Centro de Custo" value={form.entrega_centro_custo} onChange={(e) => setForm({ ...form, entrega_centro_custo: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+            <input placeholder="Solicitante" value={form.entrega_solicitante} onChange={(e) => setForm({ ...form, entrega_solicitante: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+            <input placeholder="CEP" value={form.entrega_cep} onChange={(e) => setForm({ ...form, entrega_cep: e.target.value })} onBlur={(e) => handleCepBlur(e.target.value, 'entrega')} className="px-3 py-2 border border-slate-300 rounded" />
+            <AddressAutocomplete
+              placeholder="Endereço completo"
+              value={form.entrega_endereco_texto}
+              onChange={(val) => { setEntregaSelectedCoords(undefined); setDistanceError(null); setForm({ ...form, entrega_endereco_texto: val }); }}
+              onSelectCoords={(coords, selectedText) => {
+                setEntregaSelectedCoords(coords);
+                if (coords) {
+                  const key = normalizeAddressKey(selectedText || form.entrega_endereco_texto);
+                  if (key) selectedCoordsByTextRef.current.set(key, coords);
+                }
+              }}
+              onSuggestCoords={(coords, typedText) => {
+                if (!coords) return;
+                const key = normalizeAddressKey(typedText);
                 if (key) selectedCoordsByTextRef.current.set(key, coords);
-              }
-            }}
-            onSuggestCoords={(coords, typedText) => {
-              if (!coords) return;
-              const key = normalizeAddressKey(typedText);
-              if (key) selectedCoordsByTextRef.current.set(key, coords);
-            }}
-            containerClassName="md:col-span-2"
-          />
-          <input placeholder="Nº" value={form.entrega_numero} onChange={(e) => setForm({ ...form, entrega_numero: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-          <input placeholder="Complemento" value={form.entrega_complemento} onChange={(e) => setForm({ ...form, entrega_complemento: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-          <input placeholder="Observações (Entrega)" value={form.entrega_observacoes} onChange={(e) => setForm({ ...form, entrega_observacoes: e.target.value })} className="px-3 py-2 border border-slate-300 rounded md:col-span-2" />
+              }}
+              containerClassName="md:col-span-2"
+            />
+            <input placeholder="Nº" value={form.entrega_numero} onChange={(e) => setForm({ ...form, entrega_numero: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+            <input placeholder="Complemento" value={form.entrega_complemento} onChange={(e) => setForm({ ...form, entrega_complemento: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
+            <input placeholder="Observações (Entrega)" value={form.entrega_observacoes} onChange={(e) => setForm({ ...form, entrega_observacoes: e.target.value })} className="px-3 py-2 border border-slate-300 rounded md:col-span-2" />
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="mt-6 bg-white border border-slate-200 rounded-lg p-4">
         <div className="flex items-center justify-between">

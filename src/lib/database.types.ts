@@ -28,6 +28,21 @@ export interface Database {
           entrega_telefone?: string | null
           valor_entrega?: number | null
           modal_tipo?: string | null
+          agendar_em: string | null
+          retirada_no_local: boolean
+          pagamento_metodo: string | null
+          pagamento_na_entrega: boolean
+          troco_para: number | null
+          documento_tipo: string | null
+          documento_numero: string | null
+          voucher_codigo: string | null
+          voucher_tipo: string | null
+          desconto_total: number | null
+          desconto_entrega: number | null
+          cancelamento_origem: string | null
+          cancelamento_codigo: string | null
+          cancelamento_motivo: string | null
+          cancelado_em: string | null
           created_at: string
           updated_at: string
         }
@@ -49,6 +64,21 @@ export interface Database {
           entrega_telefone?: string | null
           valor_entrega?: number | null
           modal_tipo?: string | null
+          agendar_em?: string | null
+          retirada_no_local?: boolean
+          pagamento_metodo?: string | null
+          pagamento_na_entrega?: boolean
+          troco_para?: number | null
+          documento_tipo?: string | null
+          documento_numero?: string | null
+          voucher_codigo?: string | null
+          voucher_tipo?: string | null
+          desconto_total?: number | null
+          desconto_entrega?: number | null
+          cancelamento_origem?: string | null
+          cancelamento_codigo?: string | null
+          cancelamento_motivo?: string | null
+          cancelado_em?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -70,6 +100,21 @@ export interface Database {
           entrega_telefone?: string | null
           valor_entrega?: number | null
           modal_tipo?: string | null
+          agendar_em?: string | null
+          retirada_no_local?: boolean
+          pagamento_metodo?: string | null
+          pagamento_na_entrega?: boolean
+          troco_para?: number | null
+          documento_tipo?: string | null
+          documento_numero?: string | null
+          voucher_codigo?: string | null
+          voucher_tipo?: string | null
+          desconto_total?: number | null
+          desconto_entrega?: number | null
+          cancelamento_origem?: string | null
+          cancelamento_codigo?: string | null
+          cancelamento_motivo?: string | null
+          cancelado_em?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1356,11 +1401,17 @@ export interface Database {
           observacoes: string | null
           solicitar_comprovante: boolean | null
           agendar_em: string | null
+          retirada_no_local: boolean
           valor_manual: boolean | null
           valor_entrega: number | null
           valor_entregador: number | null
           valor_mercadoria: number | null
           tipo_cobranca: 'fatura' | 'avista' | 'pix' | 'cartao' | null
+          pagamento_metodo: string | null
+          pagamento_na_entrega: boolean
+          troco_para: number | null
+          documento_tipo: string | null
+          documento_numero: string | null
           cobrar_destinatario: boolean | null
           coleta_usa_endereco_cadastro: boolean | null
           coleta_contato: string | null
@@ -1399,11 +1450,17 @@ export interface Database {
           observacoes?: string | null
           solicitar_comprovante?: boolean | null
           agendar_em?: string | null
+          retirada_no_local?: boolean
           valor_manual?: boolean | null
           valor_entrega?: number | null
           valor_entregador?: number | null
           valor_mercadoria?: number | null
           tipo_cobranca?: 'fatura' | 'avista' | 'pix' | 'cartao' | null
+          pagamento_metodo?: string | null
+          pagamento_na_entrega?: boolean
+          troco_para?: number | null
+          documento_tipo?: string | null
+          documento_numero?: string | null
           cobrar_destinatario?: boolean | null
           coleta_usa_endereco_cadastro?: boolean | null
           coleta_contato?: string | null
@@ -1442,11 +1499,17 @@ export interface Database {
           observacoes?: string | null
           solicitar_comprovante?: boolean | null
           agendar_em?: string | null
+          retirada_no_local?: boolean
           valor_manual?: boolean | null
           valor_entrega?: number | null
           valor_entregador?: number | null
           valor_mercadoria?: number | null
           tipo_cobranca?: 'fatura' | 'avista' | 'pix' | 'cartao' | null
+          pagamento_metodo?: string | null
+          pagamento_na_entrega?: boolean
+          troco_para?: number | null
+          documento_tipo?: string | null
+          documento_numero?: string | null
           cobrar_destinatario?: boolean | null
           coleta_usa_endereco_cadastro?: boolean | null
           coleta_contato?: string | null
