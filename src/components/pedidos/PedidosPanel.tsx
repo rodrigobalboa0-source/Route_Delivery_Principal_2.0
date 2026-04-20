@@ -3338,10 +3338,19 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                     const cliente = clientes.find(c => c.id === p.cliente_id);
                     const entrega = entregasMap[p.id];
                     const entregador = entrega?.entregador_id ? entregadores[entrega.entregador_id] : null;
+                    const isPedidoMultiplo = Array.isArray((entrega as any)?.pontos_adicionais) && ((entrega as any).pontos_adicionais as any[]).length > 0;
 
                     return (
                       <Fragment key={p.id}>
-                        <tr className={`hover:bg-slate-50 transition-colors group ${selectedIds.has(p.id) ? 'bg-emerald-50 hover:bg-emerald-100' : ''}`}>
+                        <tr
+                          className={`hover:bg-slate-50 transition-colors group ${selectedIds.has(p.id) ? 'bg-emerald-50 hover:bg-emerald-100' : ''}`}
+                          onClick={(e) => {
+                            if (!isPedidoMultiplo) return;
+                            const el = e.target as HTMLElement | null;
+                            if (el?.closest('button, a, input, textarea, select, label')) return;
+                            toggleMultiPedido(p.id);
+                          }}
+                        >
                             {!isComercio && (
                             <td className="px-4 py-3 text-center">
                                 <input 
@@ -3358,14 +3367,14 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                                 {p.agendar_em && (
                                   <div className="text-xs text-sky-700">Agendado: {format(new Date(p.agendar_em), 'dd/MM HH:mm')}</div>
                                 )}
-                                {Array.isArray((entrega as any)?.pontos_adicionais) && ((entrega as any).pontos_adicionais as any[]).length > 0 && (
+                                {isPedidoMultiplo && (
                                   <button
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       toggleMultiPedido(p.id);
                                     }}
-                                    className="mt-1 inline-flex items-center gap-2 text-xs font-semibold text-emerald-700 hover:text-emerald-800"
+                                    className="mt-1 inline-flex items-center gap-2 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full hover:bg-emerald-100"
                                   >
                                     Pedido múltiplo
                                     <span className="text-emerald-700/70">
@@ -3473,9 +3482,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                                 </div>
                             </td>
                         </tr>
-                        {Array.isArray((entrega as any)?.pontos_adicionais) &&
-                          ((entrega as any).pontos_adicionais as any[]).length > 0 &&
-                          expandedMultiPedidos[p.id] && (
+                        {isPedidoMultiplo && expandedMultiPedidos[p.id] && (
                             <tr className="bg-slate-50">
                               <td colSpan={tableColCount} className="px-4 py-3">
                                 {(() => {
