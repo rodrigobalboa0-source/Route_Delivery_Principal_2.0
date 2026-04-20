@@ -1424,9 +1424,54 @@ export function NovaEntregaPanel() {
       };
 
       const segmentPricing = buildSegmentPricing();
+      const buildCommissionDestinos = () => {
+        if (!segmentPricing || segmentPricing.length === 0) return null;
+
+        const faixasToUse = effectiveFaixasComissoes || [];
+        const tableToUse = effectiveSelectedTable || null;
+
+        if (!faixasToUse.length) return null;
+
+        const vpp = tableToUse ? Number(tableToUse.valor_por_ponto || 0) : 0;
+
+        const calcComissaoBaseForKm = (kmSegment: number) => {
+          const faixa = faixasToUse.find((f) => Number(f.km_ate) >= kmSegment);
+          if (faixa) return Number(faixa.valor);
+          const last = faixasToUse[faixasToUse.length - 1];
+          return last ? Number(last.valor) : 0;
+        };
+
+        const destinos = segmentPricing.map((seg: any, idx: number) => {
+          const kmSeg = Number(seg?.km || 0);
+          const base = calcComissaoBaseForKm(kmSeg);
+          const extraPonto = idx >= 1 && vpp > 0 ? vpp : 0;
+          return { destino: idx + 1, km: kmSeg, valor: base + extraPonto };
+        });
+
+        let retornoValor: number | null = null;
+        if (form.retorno) {
+          if (tableToUse && Number(tableToUse.valor_retorno || 0) > 0) {
+            retornoValor = Number(tableToUse.valor_retorno || 0);
+            const tipo = String(tableToUse.tipo_retorno || '').trim().toLowerCase();
+            if (tipo === 'percentual' || tipo === 'porcentagem') {
+              const baseTotal = destinos.reduce((acc: number, d: any) => acc + Number(d.valor || 0), 0);
+              retornoValor = baseTotal * (Number(tableToUse.valor_retorno || 0) / 100);
+            }
+          } else {
+            const baseTotal = destinos.reduce((acc: number, d: any) => acc + Number(d.valor || 0), 0);
+            retornoValor = baseTotal * 0.2;
+          }
+        }
+
+        const total = destinos.reduce((acc: number, d: any) => acc + Number(d.valor || 0), 0) + (retornoValor || 0);
+        return { destinos, retornoValor: retornoValor && retornoValor > 0 ? retornoValor : null, total: total > 0 ? total : null };
+      };
+
+      const commission = buildCommissionDestinos();
       const opcionaisPayload = {
         ...(driverBonuses.length > 0 ? { driver_bonuses: driverBonuses } : {}),
         ...(segmentPricing ? { pricing_destinos: segmentPricing } : {}),
+        ...(commission ? { comissao_destinos: commission.destinos, comissao_retorno: commission.retornoValor, comissao_total: commission.total } : {}),
       };
 
       const res = await supabase

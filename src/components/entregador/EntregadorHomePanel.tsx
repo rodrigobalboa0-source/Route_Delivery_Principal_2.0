@@ -31,6 +31,8 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
   const [rejectedIds, setRejectedIds] = useState<string[]>([]);
   const [incomingValorEntregadorCalc, setIncomingValorEntregadorCalc] = useState<number | null>(null);
   const [calculatingIncomingValorEntregador, setCalculatingIncomingValorEntregador] = useState(false);
+  const [incomingComissaoDestinosCalc, setIncomingComissaoDestinosCalc] = useState<Array<{ destino: number; km: number; valor: number }> | null>(null);
+  const [incomingComissaoRetornoCalc, setIncomingComissaoRetornoCalc] = useState<number | null>(null);
 
   const safeParseArray = (value: any) => {
     if (Array.isArray(value)) return value;
@@ -43,6 +45,17 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
       }
     }
     return [];
+  };
+
+  const findCommissionTableForClient = (tables: any[], clientId: string) => {
+    const targetId = String(clientId || '').trim().toLowerCase();
+    if (!targetId) return null;
+
+    for (const t of tables || []) {
+      const ids = safeParseArray((t as any)?.cliente_ids);
+      if (ids.some((id: any) => String(id).trim().toLowerCase() === targetId)) return t;
+    }
+    return null;
   };
 
   const computeCommission = (params: {
@@ -141,12 +154,16 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
     const compute = async () => {
       if (!incomingDelivery?.id) {
         setIncomingValorEntregadorCalc(null);
+        setIncomingComissaoDestinosCalc(null);
+        setIncomingComissaoRetornoCalc(null);
         return;
       }
 
       const stored = Number(incomingDelivery.valor_entregador || 0);
       if (stored > 0) {
         setIncomingValorEntregadorCalc(null);
+        setIncomingComissaoDestinosCalc(null);
+        setIncomingComissaoRetornoCalc(null);
         return;
       }
 
@@ -174,11 +191,12 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
           .order('updated_at', { ascending: false });
         if (tablesError) throw tablesError;
 
-        const clientId = String(incomingDelivery.cliente_id || '').trim().toLowerCase();
-        const table = (tablesData || []).find((t: any) => Array.isArray(t.cliente_ids) && t.cliente_ids.some((id: any) => String(id).trim().toLowerCase() === clientId)) || null;
+        const table = findCommissionTableForClient(tablesData || [], String(incomingDelivery.cliente_id || ''));
 
         if (!table) {
           setIncomingValorEntregadorCalc(null);
+          setIncomingComissaoDestinosCalc(null);
+          setIncomingComissaoRetornoCalc(null);
           return;
         }
 
@@ -192,6 +210,44 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
         const faixas = (faixasData || []) as Array<{ km_ate: number; valor: number }>;
         const computed = computeCommission({ km, hasReturn, pointsCount, faixas, table });
 
+        const pricingDestinos = safeParseArray(incomingDelivery?.opcionais?.pricing_destinos);
+        const segmentKms = pricingDestinos.map((d: any) => Number(d?.km)).filter((n: any) => typeof n === 'number' && !Number.isNaN(n) && n > 0);
+        const expectedSegments = 1 + pointsCount;
+
+        if (segmentKms.length === expectedSegments) {
+          const vpp = Number((table as any).valor_por_ponto || 0);
+          const comissaoDestinos = segmentKms.map((kmSeg: number, idx: number) => {
+            const base = computeCommission({ km: kmSeg, hasReturn: false, pointsCount: 0, faixas, table: null });
+            const extraPonto = idx >= 1 && vpp > 0 ? vpp : 0;
+            return { destino: idx + 1, km: kmSeg, valor: base + extraPonto };
+          });
+
+          let retornoValor = 0;
+          if (hasReturn && Number((table as any).valor_retorno || 0) > 0) {
+            retornoValor = Number((table as any).valor_retorno || 0);
+            const tipo = String((table as any).tipo_retorno || '').trim().toLowerCase();
+            if (tipo === 'percentual' || tipo === 'porcentagem') {
+              const baseTotal = comissaoDestinos.reduce((acc, d) => acc + Number(d.valor || 0), 0);
+              retornoValor = baseTotal * (Number((table as any).valor_retorno || 0) / 100);
+            }
+          } else if (hasReturn) {
+            const baseTotal = comissaoDestinos.reduce((acc, d) => acc + Number(d.valor || 0), 0);
+            retornoValor = baseTotal * 0.2;
+          }
+
+          setIncomingComissaoDestinosCalc(comissaoDestinos);
+          setIncomingComissaoRetornoCalc(retornoValor > 0 ? retornoValor : null);
+
+          const opcionaisMerged = { ...(incomingDelivery.opcionais || {}), comissao_destinos: comissaoDestinos, comissao_retorno: retornoValor > 0 ? retornoValor : null };
+          await supabase
+            .from('nova_entrega')
+            .update({ opcionais: opcionaisMerged } as any)
+            .eq('id', incomingDelivery.id);
+        } else {
+          setIncomingComissaoDestinosCalc(null);
+          setIncomingComissaoRetornoCalc(null);
+        }
+
         if (computed > 0) {
           setIncomingValorEntregadorCalc(computed);
           await supabase
@@ -204,6 +260,8 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
       } catch (e) {
         console.error('Falha ao calcular comissão do entregador:', e);
         setIncomingValorEntregadorCalc(null);
+        setIncomingComissaoDestinosCalc(null);
+        setIncomingComissaoRetornoCalc(null);
       } finally {
         setCalculatingIncomingValorEntregador(false);
       }
@@ -849,6 +907,8 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
 
   const incomingExtraPoints = safeParseArray(incomingDelivery?.pontos_adicionais);
   const incomingPricingDestinos = safeParseArray(incomingDelivery?.opcionais?.pricing_destinos);
+  const incomingComissaoDestinos = safeParseArray(incomingDelivery?.opcionais?.comissao_destinos);
+  const incomingComissaoRetorno = typeof incomingDelivery?.opcionais?.comissao_retorno === 'number' ? Number(incomingDelivery.opcionais.comissao_retorno) : null;
   const incomingDestinos = incomingDelivery
     ? [
         {
@@ -868,14 +928,6 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
       ]
     : [];
   const isIncomingMultiplo = incomingDestinos.length > 1;
-  const totalTaxaDestinos = incomingDestinos.reduce((acc: number, d: any) => {
-    const v = typeof d?.valor === 'number' ? d.valor : Number.NaN;
-    return !Number.isNaN(v) ? acc + v : acc;
-  }, 0);
-  const totalTaxaEntrega =
-    totalTaxaDestinos > 0
-      ? totalTaxaDestinos
-      : Number(incomingDelivery?.valor_entrega || 0);
 
   const valorEntregadorDisplay =
     typeof incomingDelivery?.valor_entregador === 'number' && incomingDelivery.valor_entregador > 0
@@ -883,6 +935,19 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
       : typeof incomingValorEntregadorCalc === 'number' && incomingValorEntregadorCalc > 0
         ? incomingValorEntregadorCalc
         : 0;
+
+  const comissaoDestinosDisplay =
+    incomingComissaoDestinos.length > 0
+      ? incomingComissaoDestinos
+      : Array.isArray(incomingComissaoDestinosCalc) && incomingComissaoDestinosCalc.length > 0
+        ? incomingComissaoDestinosCalc
+        : [];
+  const comissaoRetornoDisplay =
+    typeof incomingComissaoRetorno === 'number' && incomingComissaoRetorno > 0
+      ? incomingComissaoRetorno
+      : typeof incomingComissaoRetornoCalc === 'number' && incomingComissaoRetornoCalc > 0
+        ? incomingComissaoRetornoCalc
+        : null;
 
   return (
     <div className="h-full w-full relative bg-slate-100">
@@ -997,21 +1062,31 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
                             <div className="flex items-center justify-between">
                               <p className="text-xs font-bold text-slate-600 uppercase tracking-wide">Pedido Múltiplo</p>
-                              <p className="text-xs font-semibold text-slate-700">Total Taxa: R$ {totalTaxaEntrega.toFixed(2)}</p>
+                              <p className="text-xs font-semibold text-slate-700">Total: R$ {valorEntregadorDisplay.toFixed(2)}</p>
                             </div>
                             <div className="space-y-2">
-                              {incomingDestinos.map((d: any, idx: number) => (
+                              {incomingDestinos.map((d: any, idx: number) => {
+                                const c = comissaoDestinosDisplay.find((x: any) => Number(x?.destino) === idx + 1);
+                                const v = c && typeof c.valor === 'number' ? c.valor : null;
+                                return (
                                 <div key={idx} className="bg-white border border-slate-200 rounded-lg px-2.5 py-2">
                                   <div className="flex items-center justify-between gap-3">
                                     <span className="text-xs font-bold text-slate-700">{d.label}</span>
                                     <span className="text-xs font-semibold text-slate-700">
-                                      {typeof d.valor === 'number' && !Number.isNaN(d.valor) ? `R$ ${d.valor.toFixed(2)}` : '-'}
+                                      {typeof v === 'number' && !Number.isNaN(v) ? `R$ ${v.toFixed(2)}` : '-'}
                                     </span>
                                   </div>
                                   <p className="text-sm text-slate-700 mt-1">{d.endereco || '-'}</p>
                                 </div>
-                              ))}
+                                );
+                              })}
                             </div>
+                            {comissaoRetornoDisplay !== null && (
+                              <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
+                                <span className="text-xs font-semibold text-slate-600">Com retorno</span>
+                                <span className="text-xs font-semibold text-slate-700">R$ {comissaoRetornoDisplay.toFixed(2)}</span>
+                              </div>
+                            )}
                           </div>
                         )}
 
