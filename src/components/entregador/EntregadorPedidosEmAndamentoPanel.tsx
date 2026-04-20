@@ -9,6 +9,38 @@ import { Modal } from '../Modal';
 
 type DeliveryPerson = Database['public']['Tables']['delivery_persons']['Row'];
 
+type ExtraDeliveryPoint = {
+  contato?: string;
+  telefone?: string;
+  cep?: string;
+  endereco_texto?: string;
+  numero?: string;
+  complemento?: string;
+  observacoes?: string;
+};
+
+function parseExtraDeliveryPoints(entrega: any): ExtraDeliveryPoint[] {
+  const raw = entrega?.pontos_adicionais;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((p: any) => ({
+      contato: p?.contato || '',
+      telefone: p?.telefone || '',
+      cep: p?.cep || '',
+      endereco_texto: p?.endereco_texto || '',
+      numero: p?.numero || '',
+      complemento: p?.complemento || '',
+      observacoes: p?.observacoes || '',
+    }))
+    .filter((p) => String(p.endereco_texto || '').trim().length > 0);
+}
+
+function getCurrentDestinationIndex(entrega: any): number {
+  const idx = entrega?.opcionais?.destino_atual_indice;
+  if (typeof idx !== 'number' || !Number.isFinite(idx) || idx < 0) return 0;
+  return Math.floor(idx);
+}
+
 export function EntregadorPedidosEmAndamentoPanel() {
   const [entregas, setEntregas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,8 +86,6 @@ export function EntregadorPedidosEmAndamentoPanel() {
       const newCoords: Record<string, { pickup?: [number, number], delivery?: [number, number] }> = {};
       
       for (const entrega of entregas) {
-        if (deliveryCoords[entrega.id]) continue; 
-
         let pickup: [number, number] | undefined;
         let delivery: [number, number] | undefined;
 
@@ -423,6 +453,77 @@ export function EntregadorPedidosEmAndamentoPanel() {
 
       const newOpcionais = { ...opcionais, timeline };
 
+      if (newStatus === 'entregue' && currentEntrega) {
+        const extras = parseExtraDeliveryPoints(currentEntrega);
+        const currentDestinoIdx = getCurrentDestinationIndex(currentEntrega);
+        const hasNextDestination = currentDestinoIdx < extras.length;
+
+        if (hasNextDestination) {
+          const nextPoint = extras[currentDestinoIdx];
+          const baseAddr = String(nextPoint.endereco_texto || '').trim();
+          const nextAddr = nextPoint.numero ? `${baseAddr}, ${String(nextPoint.numero).trim()}` : baseAddr;
+
+          if (!nextAddr) {
+            await showAlert('Não foi possível avançar: próximo destino sem endereço.', 'Erro');
+            setUpdatingId(null);
+            return;
+          }
+
+          const advanceTimeline = {
+            ...timeline,
+            [`destino_${currentDestinoIdx + 1}_concluido_em`]: now,
+            [`destino_${currentDestinoIdx + 2}_iniciado_em`]: now,
+          };
+          const advancedOpcionais = {
+            ...opcionais,
+            timeline: advanceTimeline,
+            destino_atual_indice: currentDestinoIdx + 1,
+          };
+
+          const { error: advanceError } = await supabase
+            .from('nova_entrega')
+            .update({
+              status: 'em_rota',
+              updated_at: now,
+              opcionais: advancedOpcionais,
+              entrega_contato: nextPoint.contato || null,
+              entrega_telefone: nextPoint.telefone || null,
+              entrega_cep: nextPoint.cep || null,
+              entrega_endereco_texto: nextAddr,
+              entrega_complemento: nextPoint.complemento || null,
+              entrega_observacoes: nextPoint.observacoes || null,
+            } as any)
+            .eq('id', id);
+
+          if (advanceError) throw advanceError;
+
+          const nextCoords = await getCoordsFromAddress(nextAddr);
+          if (nextCoords) {
+            setDeliveryCoords((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), delivery: nextCoords } }));
+          }
+
+          setEntregas((prev) =>
+            prev.map((e) =>
+              e.id === id
+                ? {
+                    ...e,
+                    status: 'em_rota',
+                    opcionais: advancedOpcionais,
+                    entrega_contato: nextPoint.contato || null,
+                    entrega_telefone: nextPoint.telefone || null,
+                    entrega_cep: nextPoint.cep || null,
+                    entrega_endereco_texto: nextAddr,
+                    entrega_complemento: nextPoint.complemento || null,
+                    entrega_observacoes: nextPoint.observacoes || null,
+                  }
+                : e,
+            ),
+          );
+
+          return;
+        }
+      }
+
       const { error } = await supabase
         .from('nova_entrega')
         .update({ 
@@ -578,6 +679,11 @@ export function EntregadorPedidosEmAndamentoPanel() {
         <div className="space-y-6">
           {entregas.map((entrega) => {
             const coords = deliveryCoords[entrega.id];
+            const extraPoints = parseExtraDeliveryPoints(entrega);
+            const currentDestinationIndex = getCurrentDestinationIndex(entrega);
+            const hasNextDestination = currentDestinationIndex < extraPoints.length;
+            const totalDestinations = 1 + extraPoints.length;
+            const currentDestinationNumber = Math.min(currentDestinationIndex + 1, totalDestinations);
             
             const isPickupPhase = ['criada', 'atribuida', 'chegou_coleta'].includes(entrega.status);
             const destCoords = isPickupPhase ? coords?.pickup : coords?.delivery;
@@ -615,6 +721,11 @@ export function EntregadorPedidosEmAndamentoPanel() {
                      <span className={`inline-block px-2 py-1 rounded text-xs font-bold uppercase mb-2 ${statusColor}`}>
                        {statusLabel}
                      </span>
+                     {totalDestinations > 1 && (
+                      <div className="mb-2 text-xs text-slate-500">
+                        Destino {currentDestinationNumber} de {totalDestinations}
+                      </div>
+                     )}
                      <h3 className="font-bold text-gray-800">#{entrega.entrega_codigo_pedido || String(entrega.id).slice(0, 8)}</h3>
                    </div>
                    <div className="text-right">
@@ -828,7 +939,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
                     {updatingId === entrega.id ? 'Atualizando...' : (
                       <>
                         <CheckCircle size={18} />
-                        Finalizar Entrega
+                        {hasNextDestination ? 'Ir para Próximo Destino' : 'Finalizar Entrega'}
                       </>
                     )}
                   </button>

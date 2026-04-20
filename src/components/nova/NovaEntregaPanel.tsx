@@ -779,9 +779,10 @@ export function NovaEntregaPanel() {
         if (calcId !== distanceCalcIdRef.current) return;
 
         const points: { lat: number; lon: number }[] = [];
+       
         points.push({ lat: startCoords[0], lon: startCoords[1] });
-        extraCoords.forEach((c) => points.push({ lat: c[0], lon: c[1] }));
         points.push({ lat: endCoords[0], lon: endCoords[1] });
+        extraCoords.forEach((c) => points.push({ lat: c[0], lon: c[1] }));
 
         let totalDist = await getDrivingRouteDistance(points);
 
@@ -1676,7 +1677,7 @@ export function NovaEntregaPanel() {
         <div className="flex items-center justify-between">
           <div className="text-sm font-semibold text-slate-900">Serviços Opcionais</div>
           <div className="flex items-center gap-3">
-            <button onClick={() => { setDistanceError(null); setForm({ ...form, pontos: [...form.pontos, { contato: '', telefone: '', cep: '', endereco_texto: '', numero: '', complemento: '', observacoes: '', coords: undefined }] }); }} className="px-3 py-2 rounded bg-green-600 text-white text-sm">Adicionar Ponto +</button>
+            <button onClick={() => { setDistanceError(null); setForm({ ...form, pontos: [...form.pontos, { contato: '', telefone: '', cep: '', endereco_texto: '', numero: '', complemento: '', observacoes: '', coords: undefined }] }); }} className="px-3 py-2 rounded bg-green-600 text-white text-sm">Adicionar Ponto de Entrega +</button>
             <div className="flex items-center gap-2">
               <input id="retorno" type="checkbox" checked={form.retorno} onChange={(e) => setForm({ ...form, retorno: e.target.checked })} />
               <label htmlFor="retorno" className="text-sm text-slate-700">Adicionar Retorno</label>
