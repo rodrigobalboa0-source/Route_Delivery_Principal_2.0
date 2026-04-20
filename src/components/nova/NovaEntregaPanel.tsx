@@ -391,6 +391,7 @@ export function NovaEntregaPanel() {
   const [clientSaldo, setClientSaldo] = useState<number | null>(null);
 
   const [distanciaKm, setDistanciaKm] = useState<string>('');
+  const [segmentDistancesKm, setSegmentDistancesKm] = useState<number[]>([]);
   const [calculatingDistance, setCalculatingDistance] = useState(false);
   const [distanceError, setDistanceError] = useState<string | null>(null);
   const [selectedTabelaId, setSelectedTabelaId] = useState<string>('');
@@ -747,6 +748,7 @@ export function NovaEntregaPanel() {
 
         if (!startCoords || !endCoords) {
           setDistanciaKm('');
+          setSegmentDistancesKm([]);
           if (!startCoords && !endCoords) {
             setDistanceError('Não foi possível localizar coleta e entrega. Selecione uma sugestão da lista.');
           } else if (!startCoords) {
@@ -770,6 +772,7 @@ export function NovaEntregaPanel() {
           const c = await getCoordsFromAddress(addr);
           if (!c) {
             setDistanciaKm('');
+            setSegmentDistancesKm([]);
             setDistanceError('Não foi possível localizar um ponto adicional. Selecione uma sugestão da lista.');
             return;
           }
@@ -795,11 +798,20 @@ export function NovaEntregaPanel() {
           }
         }
 
+        const segmentDistances: number[] = [];
+        for (let i = 0; i < points.length - 1; i++) {
+          const seg = await getDrivingRouteDistance([points[i], points[i + 1]]);
+          const fallback = calculateDistance(points[i].lat, points[i].lon, points[i + 1].lat, points[i + 1].lon);
+          segmentDistances.push(typeof seg === 'number' && seg > 0 ? seg : fallback);
+        }
+
         setDistanciaKm(totalDist > 0 ? totalDist.toFixed(2) : '');
+        setSegmentDistancesKm(segmentDistances);
         setDistanceError(null);
       } catch (e) {
         if (calcId !== distanceCalcIdRef.current) return;
         setDistanciaKm('');
+        setSegmentDistancesKm([]);
         setDistanceError('Erro ao calcular a distância. Tente novamente.');
       } finally {
         if (calcId === distanceCalcIdRef.current) {
@@ -817,15 +829,16 @@ export function NovaEntregaPanel() {
 
   useEffect(() => {
     calculatePrice();
-  }, [distanciaKm, selectedTabelaId, pricingMode, pricePerPoint, form.pontos, form.retorno, dynamicRules, faixasPreco]);
+  }, [distanciaKm, segmentDistancesKm, selectedTabelaId, pricingMode, pricePerPoint, form.pontos, form.retorno, dynamicRules, faixasPreco]);
 
   useEffect(() => {
     const kmValue = distanciaKm ? parseFloat(distanciaKm.replace(',', '.')) : 0;
+    const extraPointsFilled = (form.pontos || []).filter((p) => (p?.endereco_texto || '').trim().length > 0).length;
     
     const { total } = calculateDriverCommission(
       kmValue,
       form.retorno,
-      form.pontos.length,
+      extraPointsFilled,
       form.entregador_id || null,
       dynamicDriverRules
     );
@@ -837,7 +850,7 @@ export function NovaEntregaPanel() {
              const { total: totalSemRetorno } = calculateDriverCommission(
               kmValue,
               false, 
-              form.pontos.length,
+              extraPointsFilled,
               form.entregador_id || null,
               dynamicDriverRules
             );
@@ -856,6 +869,7 @@ export function NovaEntregaPanel() {
   const calculatePrice = () => {
     let price = 0;
     let shouldCalculate = false;
+    const extraPointsFilled = (form.pontos || []).filter((p) => (p?.endereco_texto || '').trim().length > 0).length;
 
     if (pricingMode === 'Zerar') {
       setForm(prev => ({ ...prev, valor_entrega: '0.00', valor_manual: false }));
@@ -866,8 +880,7 @@ export function NovaEntregaPanel() {
 
     if (pricingMode === 'Fixo') {
       const basePoints = 2; 
-      const extraPoints = form.pontos.length;
-      const totalPoints = basePoints + extraPoints;
+      const totalPoints = basePoints + extraPointsFilled;
       price = totalPoints * pricePerPoint;
       shouldCalculate = true;
     } else {
@@ -880,31 +893,49 @@ export function NovaEntregaPanel() {
 
       const km = distanciaKm ? parseFloat(distanciaKm.replace(',', '.')) : NaN;
       const kmValid = !Number.isNaN(km) && km > 0;
+      const fallbackMin =
+        (Number(tabela.valor_minimo) > 0 ? Number(tabela.valor_minimo) : 0) ||
+        (faixasPreco.length > 0 && Number(faixasPreco[0].valor) > 0 ? Number(faixasPreco[0].valor) : 0);
 
-      if (!kmValid) {
-        const fallback =
-          (Number(tabela.valor_minimo) > 0 ? Number(tabela.valor_minimo) : 0) ||
-          (faixasPreco.length > 0 && Number(faixasPreco[0].valor) > 0 ? Number(faixasPreco[0].valor) : 0);
+      const calcPriceForKm = (kmSegment: number) => {
+        const kmSegValid = !Number.isNaN(kmSegment) && kmSegment > 0;
+        if (!kmSegValid) return fallbackMin;
 
-        if (fallback > 0) {
-          price = fallback;
-          shouldCalculate = true;
-        }
-      } else {
-        const faixa = faixasPreco.find(f => Number(f.km_ate) >= km);
+        const faixa = faixasPreco.find((f) => Number(f.km_ate) >= kmSegment);
+        let p = 0;
 
         if (faixa) {
-          price = Number(faixa.valor);
+          p = Number(faixa.valor);
         } else {
           const lastFaixa = faixasPreco[faixasPreco.length - 1];
           const lastKm = Number(lastFaixa?.km_ate || 0);
           const lastValor = Number(lastFaixa?.valor || 0);
-          const extraKm = km - lastKm;
-          price = lastValor + (extraKm * Number(tabela.km_adicional || 0));
+          const extraKm = kmSegment - lastKm;
+          p = lastValor + (extraKm * Number(tabela.km_adicional || 0));
         }
 
-        const min = Number(tabela.valor_minimo || 0);
-        if (!Number.isNaN(min) && min > 0 && price < min) price = min;
+        if (fallbackMin > 0 && p < fallbackMin) p = fallbackMin;
+        return p;
+      };
+
+      if (!kmValid) {
+        if (fallbackMin > 0) {
+          price = fallbackMin;
+          shouldCalculate = true;
+        }
+      } else {
+        const expectedSegments = 1 + extraPointsFilled;
+        const canSplit =
+          extraPointsFilled > 0 &&
+          Array.isArray(segmentDistancesKm) &&
+          segmentDistancesKm.length === expectedSegments &&
+          segmentDistancesKm.every((v) => typeof v === 'number' && !Number.isNaN(v));
+
+        if (canSplit) {
+          price = segmentDistancesKm.reduce((acc, segKm) => acc + calcPriceForKm(segKm), 0);
+        } else {
+          price = calcPriceForKm(km);
+        }
         shouldCalculate = true;
       }
     }

@@ -552,6 +552,7 @@ function PedidoDetailsView({ pedido, entrega, cliente, onClose }: { pedido: Pedi
   const trocoPara = (pedido.troco_para ?? entrega?.troco_para) ?? null;
   const documentoTipo = pedido.documento_tipo || entrega?.documento_tipo || null;
   const documentoNumero = pedido.documento_numero || entrega?.documento_numero || null;
+  const pontosAdicionais = Array.isArray((entrega as any)?.pontos_adicionais) ? ((entrega as any).pontos_adicionais as any[]) : [];
 
   const formatPagamentoMetodo = (m: string) => {
     const v = String(m || '').trim().toLowerCase();
@@ -647,6 +648,28 @@ function PedidoDetailsView({ pedido, entrega, cliente, onClose }: { pedido: Pedi
                 <p className="text-xs font-bold text-blue-600">ENTREGA</p>
                 <p>{retiradaNoLocal ? 'Retirada no local' : (entrega?.entrega_endereco_texto || pedido.endereco_texto || '-')}</p>
               </div>
+              {!retiradaNoLocal && pontosAdicionais.length > 0 && (
+                <div className="pt-2 border-t border-slate-200">
+                  <p className="text-xs font-bold text-slate-700">DESTINOS ADICIONAIS ({pontosAdicionais.length})</p>
+                  <div className="mt-2 space-y-2">
+                    {pontosAdicionais.map((p, idx) => {
+                      const base = String(p?.endereco_texto || '').trim();
+                      const addr = p?.numero ? `${base}, ${String(p.numero).trim()}` : base;
+                      const contato = p?.contato ? String(p.contato).trim() : '';
+                      const tel = p?.telefone ? String(p.telefone).trim() : '';
+                      const obs = p?.observacoes ? String(p.observacoes).trim() : '';
+                      return (
+                        <div key={idx} className="bg-white rounded border border-slate-200 p-2">
+                          <div className="text-xs font-semibold text-slate-700">Destino {idx + 2}</div>
+                          <div className="text-sm text-slate-800">{addr || '-'}</div>
+                          {(contato || tel) && <div className="text-xs text-slate-500">{[contato, tel].filter(Boolean).join(' • ')}</div>}
+                          {obs && <div className="text-xs text-slate-500 mt-1">{obs}</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -3328,6 +3351,9 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                                 <div className="text-xs text-slate-400">{format(new Date(p.created_at), 'dd/MM HH:mm')}</div>
                                 {p.agendar_em && (
                                   <div className="text-xs text-sky-700">Agendado: {format(new Date(p.agendar_em), 'dd/MM HH:mm')}</div>
+                                )}
+                                {Array.isArray((entrega as any)?.pontos_adicionais) && ((entrega as any).pontos_adicionais as any[]).length > 0 && (
+                                  <div className="text-xs text-emerald-700">+{((entrega as any).pontos_adicionais as any[]).length} destino(s)</div>
                                 )}
                             </td>
                             <td className="px-4 py-3">
