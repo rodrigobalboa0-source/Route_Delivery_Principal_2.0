@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
+import { Fragment, useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { getCoordsFromAddress, getDrivingRouteDistance, getDistanceFromLatLonInKm } from '../../utils/geo';
 import { MapView, MapDeliveryPerson } from '../MapView';
@@ -761,6 +761,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [allItems, setAllItems] = useState<Pedido[]>([]);
   const [entregasMap, setEntregasMap] = useState<Record<string, Entrega>>({});
   const [entregadores, setEntregadores] = useState<Record<string, Entregador>>({});
+  const [expandedMultiPedidos, setExpandedMultiPedidos] = useState<Record<string, boolean>>({});
   const [loadingList, setLoadingList] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState({ status: 'todos', cliente_id: '', origem: 'todos', de: '', ate: '', cidade: 'todos' });
@@ -799,6 +800,10 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       dialogConfirmResolveRef.current = resolve;
       setDialog({ open: true, title, message, mode: 'confirm' });
     });
+  }, []);
+
+  const toggleMultiPedido = useCallback((pedidoId: string) => {
+    setExpandedMultiPedidos((prev) => ({ ...prev, [pedidoId]: !prev[pedidoId] }));
   }, []);
 
   const showPrompt = useCallback((message: string, opts?: { title?: string; defaultValue?: string }) => {
@@ -3335,7 +3340,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                     const entregador = entrega?.entregador_id ? entregadores[entrega.entregador_id] : null;
 
                     return (
-                        <tr key={p.id} className={`hover:bg-slate-50 transition-colors group ${selectedIds.has(p.id) ? 'bg-emerald-50 hover:bg-emerald-100' : ''}`}>
+                      <Fragment key={p.id}>
+                        <tr className={`hover:bg-slate-50 transition-colors group ${selectedIds.has(p.id) ? 'bg-emerald-50 hover:bg-emerald-100' : ''}`}>
                             {!isComercio && (
                             <td className="px-4 py-3 text-center">
                                 <input 
@@ -3353,7 +3359,19 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                                   <div className="text-xs text-sky-700">Agendado: {format(new Date(p.agendar_em), 'dd/MM HH:mm')}</div>
                                 )}
                                 {Array.isArray((entrega as any)?.pontos_adicionais) && ((entrega as any).pontos_adicionais as any[]).length > 0 && (
-                                  <div className="text-xs text-emerald-700">+{((entrega as any).pontos_adicionais as any[]).length} destino(s)</div>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleMultiPedido(p.id);
+                                    }}
+                                    className="mt-1 inline-flex items-center gap-2 text-xs font-semibold text-emerald-700 hover:text-emerald-800"
+                                  >
+                                    Pedido múltiplo
+                                    <span className="text-emerald-700/70">
+                                      {expandedMultiPedidos[p.id] ? '▲' : '▼'}
+                                    </span>
+                                  </button>
                                 )}
                             </td>
                             <td className="px-4 py-3">
@@ -3455,6 +3473,54 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                                 </div>
                             </td>
                         </tr>
+                        {Array.isArray((entrega as any)?.pontos_adicionais) &&
+                          ((entrega as any).pontos_adicionais as any[]).length > 0 &&
+                          expandedMultiPedidos[p.id] && (
+                            <tr className="bg-slate-50">
+                              <td colSpan={tableColCount} className="px-4 py-3">
+                                {(() => {
+                                  const pontos = (entrega as any)?.pontos_adicionais as any[];
+                                  const pricingDestinosRaw = (entrega as any)?.opcionais?.pricing_destinos;
+                                  const pricingDestinos = Array.isArray(pricingDestinosRaw) ? pricingDestinosRaw : [];
+
+                                  const getAddr = (pt: any) => {
+                                    const base = String(pt?.endereco_texto || '').trim();
+                                    return pt?.numero ? `${base}, ${String(pt.numero).trim()}` : base;
+                                  };
+
+                                  const destinos = [
+                                    {
+                                      label: 'Destino 1',
+                                      endereco: String(entrega?.entrega_endereco_texto || p.endereco_texto || '').trim(),
+                                      valor: pricingDestinos[0]?.valor,
+                                    },
+                                    ...pontos.map((pt: any, idx: number) => ({
+                                      label: `Destino ${idx + 2}`,
+                                      endereco: getAddr(pt),
+                                      valor: pricingDestinos[idx + 1]?.valor,
+                                    })),
+                                  ];
+
+                                  return (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                      {destinos.map((d, idx) => (
+                                        <div key={idx} className="bg-white border border-slate-200 rounded-lg p-3">
+                                          <div className="flex items-center justify-between gap-3">
+                                            <div className="text-xs font-bold text-slate-700">{d.label}</div>
+                                            <div className="text-xs font-semibold text-slate-700">
+                                              {typeof d.valor === 'number' && !Number.isNaN(d.valor) ? `R$ ${d.valor.toFixed(2)}` : '-'}
+                                            </div>
+                                          </div>
+                                          <div className="text-sm text-slate-700 mt-1">{d.endereco || '-'}</div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  );
+                                })()}
+                              </td>
+                            </tr>
+                          )}
+                      </Fragment>
                     );
                 })
               )}

@@ -1376,6 +1376,58 @@ export function NovaEntregaPanel() {
 
     let insertError: any = null;
     if (!form.retirada_no_local) {
+      const pontosFilled = (form.pontos || []).filter((p) => (p?.endereco_texto || '').trim().length > 0);
+      const extraPointsFilled = pontosFilled.length;
+
+      const buildSegmentPricing = () => {
+        if (pricingMode !== 'Distância') return null;
+        if (!selectedTabelaId) return null;
+        if (!faixasPreco || faixasPreco.length === 0) return null;
+
+        const tabela = tabelasPrecos.find((t) => String(t.id) === String(selectedTabelaId));
+        if (!tabela) return null;
+
+        const expectedSegments = 1 + extraPointsFilled;
+        if (!Array.isArray(segmentDistancesKm) || segmentDistancesKm.length !== expectedSegments) return null;
+
+        const fallbackMin =
+          (Number(tabela.valor_minimo) > 0 ? Number(tabela.valor_minimo) : 0) ||
+          (faixasPreco.length > 0 && Number(faixasPreco[0].valor) > 0 ? Number(faixasPreco[0].valor) : 0);
+
+        const calcPriceForKm = (kmSegment: number) => {
+          const kmSegValid = !Number.isNaN(kmSegment) && kmSegment > 0;
+          if (!kmSegValid) return fallbackMin;
+
+          const faixa = faixasPreco.find((f) => Number(f.km_ate) >= kmSegment);
+          let p = 0;
+
+          if (faixa) {
+            p = Number(faixa.valor);
+          } else {
+            const lastFaixa = faixasPreco[faixasPreco.length - 1];
+            const lastKm = Number(lastFaixa?.km_ate || 0);
+            const lastValor = Number(lastFaixa?.valor || 0);
+            const extraKm = kmSegment - lastKm;
+            p = lastValor + (extraKm * Number(tabela.km_adicional || 0));
+          }
+
+          if (fallbackMin > 0 && p < fallbackMin) p = fallbackMin;
+          return p;
+        };
+
+        return segmentDistancesKm.map((kmSeg, idx) => ({
+          destino: idx + 1,
+          km: kmSeg,
+          valor: calcPriceForKm(kmSeg),
+        }));
+      };
+
+      const segmentPricing = buildSegmentPricing();
+      const opcionaisPayload = {
+        ...(driverBonuses.length > 0 ? { driver_bonuses: driverBonuses } : {}),
+        ...(segmentPricing ? { pricing_destinos: segmentPricing } : {}),
+      };
+
       const res = await supabase
         .from('nova_entrega')
         .insert({
@@ -1417,8 +1469,8 @@ export function NovaEntregaPanel() {
           entrega_complemento: form.entrega_complemento || null,
           entrega_observacoes: form.entrega_observacoes || null,
           retorno: form.retorno,
-          pontos_adicionais: form.pontos.length ? form.pontos.map(({ coords, ...rest }) => rest) : null,
-          opcionais: driverBonuses.length > 0 ? { driver_bonuses: driverBonuses } : null,
+          pontos_adicionais: pontosFilled.length ? pontosFilled.map(({ coords, ...rest }) => rest) : null,
+          opcionais: Object.keys(opcionaisPayload).length ? opcionaisPayload : null,
           observacoes: form.observacoes || null,
           status: entregadorEscolhido ? 'atribuida' : 'criada',
           distancia_km: kmValue > 0 ? kmValue : null,

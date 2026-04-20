@@ -724,6 +724,36 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
     };
   };
 
+  const incomingExtraPoints = Array.isArray(incomingDelivery?.pontos_adicionais) ? incomingDelivery.pontos_adicionais : [];
+  const incomingPricingDestinos = Array.isArray(incomingDelivery?.opcionais?.pricing_destinos) ? incomingDelivery.opcionais.pricing_destinos : [];
+  const incomingDestinos = incomingDelivery
+    ? [
+        {
+          label: 'Destino 1',
+          endereco: String(incomingDelivery.entrega_endereco_texto || '').trim(),
+          valor: incomingPricingDestinos[0]?.valor,
+        },
+        ...incomingExtraPoints.map((pt: any, idx: number) => {
+          const base = String(pt?.endereco_texto || '').trim();
+          const endereco = pt?.numero ? `${base}, ${String(pt.numero).trim()}` : base;
+          return {
+            label: `Destino ${idx + 2}`,
+            endereco,
+            valor: incomingPricingDestinos[idx + 1]?.valor,
+          };
+        }),
+      ]
+    : [];
+  const isIncomingMultiplo = incomingDestinos.length > 1;
+  const totalTaxaDestinos = incomingDestinos.reduce((acc: number, d: any) => {
+    const v = typeof d?.valor === 'number' ? d.valor : Number.NaN;
+    return !Number.isNaN(v) ? acc + v : acc;
+  }, 0);
+  const totalTaxaEntrega =
+    totalTaxaDestinos > 0
+      ? totalTaxaDestinos
+      : Number(incomingDelivery?.valor_entrega || 0);
+
   return (
     <div className="h-full w-full relative bg-slate-100">
       {/* Map covering the full screen */}
@@ -828,6 +858,28 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                                     </div>
                                 </div>
                             </div>
+
+                        {isIncomingMultiplo && (
+                          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <p className="text-xs font-bold text-slate-600 uppercase tracking-wide">Pedido Múltiplo</p>
+                              <p className="text-xs font-semibold text-slate-700">Total Taxa: R$ {totalTaxaEntrega.toFixed(2)}</p>
+                            </div>
+                            <div className="space-y-2">
+                              {incomingDestinos.map((d: any, idx: number) => (
+                                <div key={idx} className="bg-white border border-slate-200 rounded-lg px-2.5 py-2">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <span className="text-xs font-bold text-slate-700">{d.label}</span>
+                                    <span className="text-xs font-semibold text-slate-700">
+                                      {typeof d.valor === 'number' && !Number.isNaN(d.valor) ? `R$ ${d.valor.toFixed(2)}` : '-'}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm text-slate-700 mt-1">{d.endereco || '-'}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
                             {/* Bonuses */}
                             {incomingDelivery.opcionais?.driver_bonuses && Array.isArray(incomingDelivery.opcionais.driver_bonuses) && incomingDelivery.opcionais.driver_bonuses.length > 0 && (
