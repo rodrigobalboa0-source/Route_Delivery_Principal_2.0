@@ -1245,6 +1245,7 @@ export function NovaEntregaPanel() {
 
     
     const kmValue = distanciaKm ? parseFloat(distanciaKm.replace(',', '.')) : 0;
+    const extraPointsFilled = (form.pontos || []).filter((p) => (p?.endereco_texto || '').trim().length > 0).length;
 
     let freshDriverRules = dynamicDriverRules;
     try {
@@ -1298,7 +1299,7 @@ export function NovaEntregaPanel() {
     const { total: driverValueStr, breakdown: driverBonuses } = calculateDriverCommission(
       kmValue,
       form.retorno,
-      form.pontos.length,
+      extraPointsFilled,
       entregadorEscolhido,
       freshDriverRules,
       effectiveFaixasComissoes, 

@@ -29,6 +29,54 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
   const [radiusKm, setRadiusKm] = useState<number | null>(null);
 
   const [rejectedIds, setRejectedIds] = useState<string[]>([]);
+  const [incomingValorEntregadorCalc, setIncomingValorEntregadorCalc] = useState<number | null>(null);
+  const [calculatingIncomingValorEntregador, setCalculatingIncomingValorEntregador] = useState(false);
+
+  const safeParseArray = (value: any) => {
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+
+  const computeCommission = (params: {
+    km: number;
+    hasReturn: boolean;
+    pointsCount: number;
+    faixas: Array<{ km_ate: number; valor: number }>;
+    table: { valor_por_ponto?: number | null; tipo_retorno?: string | null; valor_retorno?: number | null } | null;
+  }) => {
+    const { km, hasReturn, pointsCount, faixas, table } = params;
+    if (!faixas.length) return 0;
+
+    const faixa = faixas.find((f) => Number(f.km_ate) >= km);
+    let val = faixa ? Number(faixa.valor) : Number(faixas[faixas.length - 1]?.valor || 0);
+
+    if (table) {
+      const vpp = Number(table.valor_por_ponto || 0);
+      if (vpp > 0 && pointsCount > 0) val += vpp * pointsCount;
+
+      if (hasReturn && Number(table.valor_retorno || 0) > 0) {
+        let returnVal = Number(table.valor_retorno || 0);
+        const tipo = String(table.tipo_retorno || '').trim().toLowerCase();
+        if (tipo === 'percentual' || tipo === 'porcentagem') {
+          returnVal = val * (Number(table.valor_retorno || 0) / 100);
+        }
+        val += returnVal;
+      }
+    } else if (hasReturn) {
+      val += val * 0.2;
+    }
+
+    const out = Number(val);
+    return Number.isFinite(out) && out > 0 ? out : 0;
+  };
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -88,6 +136,81 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
         setCommerceData(null);
     }
   }, [incomingDelivery?.cliente_id]);
+
+  useEffect(() => {
+    const compute = async () => {
+      if (!incomingDelivery?.id) {
+        setIncomingValorEntregadorCalc(null);
+        return;
+      }
+
+      const stored = Number(incomingDelivery.valor_entregador || 0);
+      if (stored > 0) {
+        setIncomingValorEntregadorCalc(null);
+        return;
+      }
+
+      const km =
+        typeof incomingDelivery.distancia_km === 'number' && incomingDelivery.distancia_km > 0
+          ? Number(incomingDelivery.distancia_km)
+          : typeof deliveryDistance === 'number' && deliveryDistance > 0
+            ? Number(deliveryDistance)
+            : 0;
+
+      const pontos = safeParseArray(incomingDelivery.pontos_adicionais);
+      const pointsCount = pontos.filter((p: any) => String(p?.endereco_texto || '').trim().length > 0).length;
+      const hasReturn = !!incomingDelivery.retorno;
+
+      if (!(km > 0)) {
+        setIncomingValorEntregadorCalc(null);
+        return;
+      }
+
+      setCalculatingIncomingValorEntregador(true);
+      try {
+        const { data: tablesData, error: tablesError } = await supabase
+          .from('tabelas_comissoes')
+          .select('*')
+          .order('updated_at', { ascending: false });
+        if (tablesError) throw tablesError;
+
+        const clientId = String(incomingDelivery.cliente_id || '').trim().toLowerCase();
+        const table = (tablesData || []).find((t: any) => Array.isArray(t.cliente_ids) && t.cliente_ids.some((id: any) => String(id).trim().toLowerCase() === clientId)) || null;
+
+        if (!table) {
+          setIncomingValorEntregadorCalc(null);
+          return;
+        }
+
+        const { data: faixasData, error: faixasError } = await supabase
+          .from('tabelas_comissoes_faixas')
+          .select('km_ate,valor')
+          .eq('tabela_id', table.id)
+          .order('km_ate', { ascending: true });
+        if (faixasError) throw faixasError;
+
+        const faixas = (faixasData || []) as Array<{ km_ate: number; valor: number }>;
+        const computed = computeCommission({ km, hasReturn, pointsCount, faixas, table });
+
+        if (computed > 0) {
+          setIncomingValorEntregadorCalc(computed);
+          await supabase
+            .from('nova_entrega')
+            .update({ valor_entregador: computed, updated_at: new Date().toISOString() } as any)
+            .eq('id', incomingDelivery.id);
+        } else {
+          setIncomingValorEntregadorCalc(null);
+        }
+      } catch (e) {
+        console.error('Falha ao calcular comissão do entregador:', e);
+        setIncomingValorEntregadorCalc(null);
+      } finally {
+        setCalculatingIncomingValorEntregador(false);
+      }
+    };
+
+    void compute();
+  }, [incomingDelivery?.id, incomingDelivery?.cliente_id, incomingDelivery?.valor_entregador, incomingDelivery?.distancia_km, incomingDelivery?.pontos_adicionais, incomingDelivery?.retorno, deliveryDistance]);
 
   useEffect(() => {
     
@@ -724,8 +847,8 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
     };
   };
 
-  const incomingExtraPoints = Array.isArray(incomingDelivery?.pontos_adicionais) ? incomingDelivery.pontos_adicionais : [];
-  const incomingPricingDestinos = Array.isArray(incomingDelivery?.opcionais?.pricing_destinos) ? incomingDelivery.opcionais.pricing_destinos : [];
+  const incomingExtraPoints = safeParseArray(incomingDelivery?.pontos_adicionais);
+  const incomingPricingDestinos = safeParseArray(incomingDelivery?.opcionais?.pricing_destinos);
   const incomingDestinos = incomingDelivery
     ? [
         {
@@ -753,6 +876,13 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
     totalTaxaDestinos > 0
       ? totalTaxaDestinos
       : Number(incomingDelivery?.valor_entrega || 0);
+
+  const valorEntregadorDisplay =
+    typeof incomingDelivery?.valor_entregador === 'number' && incomingDelivery.valor_entregador > 0
+      ? incomingDelivery.valor_entregador
+      : typeof incomingValorEntregadorCalc === 'number' && incomingValorEntregadorCalc > 0
+        ? incomingValorEntregadorCalc
+        : 0;
 
   return (
     <div className="h-full w-full relative bg-slate-100">
@@ -834,7 +964,11 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                             <div className="flex flex-col items-end bg-green-50 px-3 py-1.5 rounded-lg border border-green-100 shadow-sm">
                                 <span className="text-[10px] text-green-700 font-bold uppercase tracking-wide">Você recebe</span>
                                 <span className="font-extrabold text-green-700 text-2xl leading-none">
-                                    R$ {(incomingDelivery.valor_entregador ?? 0).toFixed(2)}
+                                    {calculatingIncomingValorEntregador ? (
+                                      <span className="text-green-700/60 animate-pulse">...</span>
+                                    ) : (
+                                      `R$ ${valorEntregadorDisplay.toFixed(2)}`
+                                    )}
                                 </span>
                             </div>
                        </div>
