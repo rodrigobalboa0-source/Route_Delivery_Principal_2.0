@@ -91,6 +91,41 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
     return Number.isFinite(out) && out > 0 ? out : 0;
   };
 
+  const fetchFullDeliveryAndCalculate = async (deliveryId: string) => {
+    try {
+      const { data: fullDelivery, error } = await supabase
+        .from('nova_entrega')
+        .select('*')
+        .eq('id', deliveryId)
+        .maybeSingle();
+      
+      if (error || !fullDelivery) {
+        console.error('Erro ao buscar entrega completa:', error);
+        return null;
+      }
+
+      const stored = Number(fullDelivery.valor_entregador || 0);
+      if (stored <= 0) {
+        const { data: rpcData, error: rpcError } = await supabase.rpc('get_entrega_comissao', { entrega_id: fullDelivery.id });
+        if (!rpcError && rpcData && (rpcData as any).success) {
+          const { data: updatedDelivery, error: updateError } = await supabase
+            .from('nova_entrega')
+            .select('*')
+            .eq('id', deliveryId)
+            .maybeSingle();
+          if (!updateError && updatedDelivery) {
+            return updatedDelivery;
+          }
+        }
+      }
+      
+      return fullDelivery;
+    } catch (e) {
+      console.error('Erro no fetchFullDeliveryAndCalculate:', e);
+      return null;
+    }
+  };
+
   useEffect(() => {
     const fetchConfig = async () => {
       try {
@@ -526,7 +561,9 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
         }
 
         if (assigned && !rejectedIds.includes(assigned.id)) {
-          setIncomingDelivery(assigned);
+          const fullDelivery = await fetchFullDeliveryAndCalculate(assigned.id);
+          if (fullDelivery) setIncomingDelivery(fullDelivery);
+          else setIncomingDelivery(assigned);
           return;
         }
 
@@ -560,7 +597,9 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                      }
                  }
 
-                 setIncomingDelivery(c);
+                 const fullDelivery = await fetchFullDeliveryAndCalculate(c.id);
+                 if (fullDelivery) setIncomingDelivery(fullDelivery);
+                 else setIncomingDelivery(c);
                  return;
              }
         }
@@ -619,7 +658,9 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                if (newRecord.status === 'atribuida' && newRecord.entregador_id === entregadorId) {
                    
                    if (newRecord.atribuicao_modo === 'automatica') {
-                       setIncomingDelivery(newRecord);
+                       const fullDelivery = await fetchFullDeliveryAndCalculate(newRecord.id);
+                       if (fullDelivery) setIncomingDelivery(fullDelivery);
+                       else setIncomingDelivery(newRecord);
                    } else {
                        
                        if (incomingDelivery?.id === newRecord.id) {
@@ -630,7 +671,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                
               
                else if (newRecord.status === 'criada' && !newRecord.entregador_id) {
-                  
+                   
                    
                    const { data: configData } = await supabase.from('configuracoes_comercio').select('limite_entregas_simultaneas').limit(1).single();
                    const limit = configData?.limite_entregas_simultaneas || 10;
@@ -672,7 +713,9 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                    }
                    
                    if (inRadius) {
-                       setIncomingDelivery(newRecord);
+                       const fullDelivery = await fetchFullDeliveryAndCalculate(newRecord.id);
+                       if (fullDelivery) setIncomingDelivery(fullDelivery);
+                       else setIncomingDelivery(newRecord);
                    }
                }
                
