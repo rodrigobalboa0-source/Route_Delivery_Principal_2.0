@@ -91,7 +91,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
     return Number.isFinite(out) && out > 0 ? out : 0;
   };
 
-  const fetchFullDeliveryAndCalculate = async (deliveryId: string) => {
+  const fetchFullDelivery = async (deliveryId: string) => {
     try {
       const { data: fullDelivery, error } = await supabase
         .from('nova_entrega')
@@ -103,25 +103,10 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
         console.error('Erro ao buscar entrega completa:', error);
         return null;
       }
-
-      const stored = Number(fullDelivery.valor_entregador || 0);
-      if (stored <= 0) {
-        const { data: rpcData, error: rpcError } = await supabase.rpc('get_entrega_comissao', { entrega_id: fullDelivery.id });
-        if (!rpcError && rpcData && (rpcData as any).success) {
-          const { data: updatedDelivery, error: updateError } = await supabase
-            .from('nova_entrega')
-            .select('*')
-            .eq('id', deliveryId)
-            .maybeSingle();
-          if (!updateError && updatedDelivery) {
-            return updatedDelivery;
-          }
-        }
-      }
       
       return fullDelivery;
     } catch (e) {
-      console.error('Erro no fetchFullDeliveryAndCalculate:', e);
+      console.error('Erro no fetchFullDelivery:', e);
       return null;
     }
   };
@@ -194,123 +179,29 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
         return;
       }
 
-      const stored = Number(incomingDelivery.valor_entregador || 0);
-      if (stored > 0) {
-        const comissaoDestinos = safeParseArray(incomingDelivery.opcionais?.comissao_destinos);
-        const comissaoRetorno = typeof incomingDelivery.opcionais?.comissao_retorno === 'number' ? Number(incomingDelivery.opcionais.comissao_retorno) : null;
-        
-        setIncomingValorEntregadorCalc(null);
-        setIncomingComissaoDestinosCalc(comissaoDestinos.length > 0 ? comissaoDestinos : null);
-        setIncomingComissaoRetornoCalc(comissaoRetorno);
-        return;
-      }
-
-      const km =
-        typeof incomingDelivery.distancia_km === 'number' && incomingDelivery.distancia_km > 0
-          ? Number(incomingDelivery.distancia_km)
-          : typeof deliveryDistance === 'number' && deliveryDistance > 0
-            ? Number(deliveryDistance)
-            : 0;
-
-      const pontos = safeParseArray(incomingDelivery.pontos_adicionais);
-      const pointsCount = pontos.filter((p: any) => String(p?.endereco_texto || '').trim().length > 0).length;
-      const hasReturn = !!incomingDelivery.retorno;
-
-      if (!(km > 0)) {
-        setIncomingValorEntregadorCalc(null);
-        return;
-      }
-
       setCalculatingIncomingValorEntregador(true);
       try {
         const { data: rpcData, error: rpcError } = await supabase.rpc('get_entrega_comissao', { entrega_id: incomingDelivery.id });
+        
         if (!rpcError && rpcData && typeof rpcData === 'object') {
           const ok = (rpcData as any).success === true;
           if (ok) {
             const total = Number((rpcData as any).total || 0);
             const retorno = (rpcData as any).retorno;
             const destinos = safeParseArray((rpcData as any).destinos);
+            
             if (total > 0) setIncomingValorEntregadorCalc(total);
             setIncomingComissaoDestinosCalc(destinos.length ? destinos : null);
             setIncomingComissaoRetornoCalc(typeof retorno === 'number' && retorno > 0 ? retorno : null);
+            setCalculatingIncomingValorEntregador(false);
             return;
           }
         }
-
-        const { data: tablesData, error: tablesError } = await supabase
-          .from('tabelas_comissoes')
-          .select('*')
-          .order('updated_at', { ascending: false });
-        if (tablesError) throw tablesError;
-
-        const table = findCommissionTableForClient(tablesData || [], String(incomingDelivery.cliente_id || ''));
-
-        if (!table) {
-          setIncomingValorEntregadorCalc(null);
-          setIncomingComissaoDestinosCalc(null);
-          setIncomingComissaoRetornoCalc(null);
-          return;
-        }
-
-        const { data: faixasData, error: faixasError } = await supabase
-          .from('tabelas_comissoes_faixas')
-          .select('km_ate,valor')
-          .eq('tabela_id', table.id)
-          .order('km_ate', { ascending: true });
-        if (faixasError) throw faixasError;
-
-        const faixas = (faixasData || []) as Array<{ km_ate: number; valor: number }>;
-        const computed = computeCommission({ km, hasReturn, pointsCount, faixas, table });
-
-        const pricingDestinos = safeParseArray(incomingDelivery?.opcionais?.pricing_destinos);
-        const segmentKms = pricingDestinos.map((d: any) => Number(d?.km)).filter((n: any) => typeof n === 'number' && !Number.isNaN(n) && n > 0);
-        const expectedSegments = 1 + pointsCount;
-
-        if (segmentKms.length === expectedSegments) {
-          const vpp = Number((table as any).valor_por_ponto || 0);
-          const comissaoDestinos = segmentKms.map((kmSeg: number, idx: number) => {
-            const base = computeCommission({ km: kmSeg, hasReturn: false, pointsCount: 0, faixas, table: null });
-            const extraPonto = idx >= 1 && vpp > 0 ? vpp : 0;
-            return { destino: idx + 1, km: kmSeg, valor: base + extraPonto };
-          });
-
-          let retornoValor = 0;
-          if (hasReturn && Number((table as any).valor_retorno || 0) > 0) {
-            retornoValor = Number((table as any).valor_retorno || 0);
-            const tipo = String((table as any).tipo_retorno || '').trim().toLowerCase();
-            if (tipo === 'percentual' || tipo === 'porcentagem') {
-              const baseTotal = comissaoDestinos.reduce((acc, d) => acc + Number(d.valor || 0), 0);
-              retornoValor = baseTotal * (Number((table as any).valor_retorno || 0) / 100);
-            }
-          } else if (hasReturn) {
-            const baseTotal = comissaoDestinos.reduce((acc, d) => acc + Number(d.valor || 0), 0);
-            retornoValor = baseTotal * 0.2;
-          }
-
-          setIncomingComissaoDestinosCalc(comissaoDestinos);
-          setIncomingComissaoRetornoCalc(retornoValor > 0 ? retornoValor : null);
-
-          const opcionaisMerged = { ...(incomingDelivery.opcionais || {}), comissao_destinos: comissaoDestinos, comissao_retorno: retornoValor > 0 ? retornoValor : null };
-          await supabase
-            .from('nova_entrega')
-            .update({ opcionais: opcionaisMerged } as any)
-            .eq('id', incomingDelivery.id);
-        } else {
-          setIncomingComissaoDestinosCalc(null);
-          setIncomingComissaoRetornoCalc(null);
-        }
-
-        if (computed > 0) {
-          setIncomingValorEntregadorCalc(computed);
-          await supabase
-            .from('nova_entrega')
-            .update({ valor_entregador: computed, updated_at: new Date().toISOString() } as any)
-            .eq('id', incomingDelivery.id);
-        } else {
-          setIncomingValorEntregadorCalc(null);
-        }
+        
+        setIncomingValorEntregadorCalc(null);
+        setIncomingComissaoDestinosCalc(null);
+        setIncomingComissaoRetornoCalc(null);
       } catch (e) {
-        console.error('Falha ao calcular comissão do entregador:', e);
         setIncomingValorEntregadorCalc(null);
         setIncomingComissaoDestinosCalc(null);
         setIncomingComissaoRetornoCalc(null);
@@ -320,7 +211,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
     };
 
     void compute();
-  }, [incomingDelivery?.id, incomingDelivery?.cliente_id, incomingDelivery?.valor_entregador, incomingDelivery?.distancia_km, incomingDelivery?.pontos_adicionais, incomingDelivery?.retorno, deliveryDistance]);
+  }, [incomingDelivery?.id]);
 
   useEffect(() => {
     
@@ -561,7 +452,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
         }
 
         if (assigned && !rejectedIds.includes(assigned.id)) {
-          const fullDelivery = await fetchFullDeliveryAndCalculate(assigned.id);
+          const fullDelivery = await fetchFullDelivery(assigned.id);
           if (fullDelivery) setIncomingDelivery(fullDelivery);
           else setIncomingDelivery(assigned);
           return;
@@ -597,7 +488,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                      }
                  }
 
-                 const fullDelivery = await fetchFullDeliveryAndCalculate(c.id);
+                 const fullDelivery = await fetchFullDelivery(c.id);
                  if (fullDelivery) setIncomingDelivery(fullDelivery);
                  else setIncomingDelivery(c);
                  return;
@@ -658,7 +549,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                if (newRecord.status === 'atribuida' && newRecord.entregador_id === entregadorId) {
                    
                    if (newRecord.atribuicao_modo === 'automatica') {
-                       const fullDelivery = await fetchFullDeliveryAndCalculate(newRecord.id);
+                       const fullDelivery = await fetchFullDelivery(newRecord.id);
                        if (fullDelivery) setIncomingDelivery(fullDelivery);
                        else setIncomingDelivery(newRecord);
                    } else {
@@ -713,7 +604,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                    }
                    
                    if (inRadius) {
-                       const fullDelivery = await fetchFullDeliveryAndCalculate(newRecord.id);
+                       const fullDelivery = await fetchFullDelivery(newRecord.id);
                        if (fullDelivery) setIncomingDelivery(fullDelivery);
                        else setIncomingDelivery(newRecord);
                    }
@@ -989,24 +880,31 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
     : [];
   const isIncomingMultiplo = incomingDestinos.length > 1;
 
+  const toFiniteNumberOrNull = (value: any) => {
+    const n = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
+    return Number.isFinite(n) ? n : null;
+  };
+
   const valorEntregadorDisplay =
-    typeof incomingDelivery?.valor_entregador === 'number' && incomingDelivery.valor_entregador > 0
-      ? incomingDelivery.valor_entregador
-      : typeof incomingValorEntregadorCalc === 'number' && incomingValorEntregadorCalc > 0
-        ? incomingValorEntregadorCalc
-        : 0;
+    typeof incomingValorEntregadorCalc === 'number' && incomingValorEntregadorCalc > 0
+      ? incomingValorEntregadorCalc
+      : (toFiniteNumberOrNull(incomingDelivery?.valor_entregador) ?? 0) > 0
+        ? (toFiniteNumberOrNull(incomingDelivery?.valor_entregador) as number)
+        : (toFiniteNumberOrNull(incomingDelivery?.valor_entrega) ?? 0) > 0
+          ? (toFiniteNumberOrNull(incomingDelivery?.valor_entrega) as number)
+          : 0;
 
   const comissaoDestinosDisplay =
-    incomingComissaoDestinos.length > 0
-      ? incomingComissaoDestinos
-      : Array.isArray(incomingComissaoDestinosCalc) && incomingComissaoDestinosCalc.length > 0
-        ? incomingComissaoDestinosCalc
+    Array.isArray(incomingComissaoDestinosCalc) && incomingComissaoDestinosCalc.length > 0
+      ? incomingComissaoDestinosCalc
+      : incomingComissaoDestinos.length > 0
+        ? incomingComissaoDestinos
         : [];
   const comissaoRetornoDisplay =
-    typeof incomingComissaoRetorno === 'number' && incomingComissaoRetorno > 0
-      ? incomingComissaoRetorno
-      : typeof incomingComissaoRetornoCalc === 'number' && incomingComissaoRetornoCalc > 0
-        ? incomingComissaoRetornoCalc
+    typeof incomingComissaoRetornoCalc === 'number' && incomingComissaoRetornoCalc > 0
+      ? incomingComissaoRetornoCalc
+      : typeof incomingComissaoRetorno === 'number' && incomingComissaoRetorno > 0
+        ? incomingComissaoRetorno
         : null;
 
   return (

@@ -1024,6 +1024,7 @@ export interface Database {
             tipo_retorno: string | null
             valor_retorno: number | null
             cliente_ids: string[] | null
+            ativo?: boolean
             created_at: string
             updated_at: string
           }
@@ -1035,6 +1036,7 @@ export interface Database {
             tipo_retorno?: string | null
             valor_retorno?: number | null
             cliente_ids?: string[] | null
+            ativo?: boolean
             created_at?: string
             updated_at?: string
           }
@@ -1046,6 +1048,7 @@ export interface Database {
             tipo_retorno?: string | null
             valor_retorno?: number | null
             cliente_ids?: string[] | null
+            ativo?: boolean
             created_at?: string
             updated_at?: string
           }
@@ -2083,6 +2086,12 @@ export interface Database {
           nome_completo: string
           foto_url: string | null
         }[]
+      }
+      get_entrega_comissao: {
+        Args: {
+          entrega_id: string
+        }
+        Returns: Json
       }
       integracoes_ze: {
         Row: {

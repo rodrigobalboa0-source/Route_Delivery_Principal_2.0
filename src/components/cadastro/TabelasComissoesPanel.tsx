@@ -213,7 +213,8 @@ export function TabelasComissoesPanel() {
       valor_por_ponto: form.valor_por_ponto ? parseFloat(form.valor_por_ponto.replace(',', '.')) : 0,
       tipo_retorno: form.tipo_retorno,
       valor_retorno: form.valor_retorno ? parseFloat(form.valor_retorno.replace(',', '.')) : 0,
-      cliente_ids: selectedClientIds
+      cliente_ids: selectedClientIds,
+      ativo: editingTabela?.ativo ?? true
     };
 
     let error;
@@ -230,6 +231,31 @@ export function TabelasComissoesPanel() {
       setIsModalOpen(false);
       fetchTabelas();
     }
+  };
+
+  const handleToggleAtivo = async (tabela: TabelaComissao) => {
+    const current = tabela.ativo ?? true;
+    const { error } = await (supabase as any)
+      .from('tabelas_comissoes')
+      .update({ ativo: !current })
+      .eq('id', tabela.id);
+    if (error) {
+      console.error(error);
+      alert('Erro ao atualizar status da tabela');
+      return;
+    }
+    setTabelas(prev => prev.map(t => t.id === tabela.id ? { ...t, ativo: !current } : t));
+  };
+
+  const handleDeleteTabela = async (tabela: TabelaComissao) => {
+    if (!confirm(`Excluir a tabela "${tabela.nome}"? Essa ação não pode ser desfeita.`)) return;
+    const { error } = await supabase.from('tabelas_comissoes').delete().eq('id', tabela.id);
+    if (error) {
+      console.error(error);
+      alert('Erro ao excluir tabela');
+      return;
+    }
+    setTabelas(prev => prev.filter(t => t.id !== tabela.id));
   };
 
   const toggleClient = (id: string) => {
@@ -285,7 +311,16 @@ export function TabelasComissoesPanel() {
             <tbody className="divide-y divide-slate-200">
               {tabelas.map((t) => (
                 <tr key={t.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-medium text-slate-900">{t.nome}</td>
+                  <td className="px-4 py-3 font-medium text-slate-900">
+                    <div className="flex items-center gap-2">
+                      <span>{t.nome}</span>
+                      {(t.ativo ?? true) ? (
+                        <span className="text-[10px] font-bold uppercase tracking-wide bg-green-100 text-green-700 px-2 py-0.5 rounded">Ativa</span>
+                      ) : (
+                        <span className="text-[10px] font-bold uppercase tracking-wide bg-slate-200 text-slate-700 px-2 py-0.5 rounded">Inativa</span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-slate-600">{t.valor_por_ponto?.toFixed(2)}</td>
                   <td className="px-4 py-3 text-center">
                     <button
@@ -296,12 +331,30 @@ export function TabelasComissoesPanel() {
                     </button>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => handleOpenModal(t)}
-                      className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-1.5 rounded flex items-center gap-2 ml-auto text-xs font-bold uppercase"
-                    >
-                      <Edit size={14} /> Editar
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => handleToggleAtivo(t)}
+                        className={`px-3 py-1.5 rounded text-xs font-bold uppercase ${
+                          (t.ativo ?? true)
+                            ? 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                            : 'bg-green-600 hover:bg-green-700 text-white'
+                        }`}
+                      >
+                        {(t.ativo ?? true) ? 'Desativar' : 'Ativar'}
+                      </button>
+                      <button
+                        onClick={() => handleOpenModal(t)}
+                        className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-1.5 rounded flex items-center gap-2 text-xs font-bold uppercase"
+                      >
+                        <Edit size={14} /> Editar
+                      </button>
+                      <button
+                        onClick={() => handleDeleteTabela(t)}
+                        className="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 rounded flex items-center gap-2 text-xs font-bold uppercase"
+                      >
+                        <Trash2 size={14} /> Excluir
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
