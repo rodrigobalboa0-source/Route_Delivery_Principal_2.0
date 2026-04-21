@@ -161,9 +161,12 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
 
       const stored = Number(incomingDelivery.valor_entregador || 0);
       if (stored > 0) {
+        const comissaoDestinos = safeParseArray(incomingDelivery.opcionais?.comissao_destinos);
+        const comissaoRetorno = typeof incomingDelivery.opcionais?.comissao_retorno === 'number' ? Number(incomingDelivery.opcionais.comissao_retorno) : null;
+        
         setIncomingValorEntregadorCalc(null);
-        setIncomingComissaoDestinosCalc(null);
-        setIncomingComissaoRetornoCalc(null);
+        setIncomingComissaoDestinosCalc(comissaoDestinos.length > 0 ? comissaoDestinos : null);
+        setIncomingComissaoRetornoCalc(comissaoRetorno);
         return;
       }
 
@@ -185,6 +188,20 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
 
       setCalculatingIncomingValorEntregador(true);
       try {
+        const { data: rpcData, error: rpcError } = await supabase.rpc('get_entrega_comissao', { entrega_id: incomingDelivery.id });
+        if (!rpcError && rpcData && typeof rpcData === 'object') {
+          const ok = (rpcData as any).success === true;
+          if (ok) {
+            const total = Number((rpcData as any).total || 0);
+            const retorno = (rpcData as any).retorno;
+            const destinos = safeParseArray((rpcData as any).destinos);
+            if (total > 0) setIncomingValorEntregadorCalc(total);
+            setIncomingComissaoDestinosCalc(destinos.length ? destinos : null);
+            setIncomingComissaoRetornoCalc(typeof retorno === 'number' && retorno > 0 ? retorno : null);
+            return;
+          }
+        }
+
         const { data: tablesData, error: tablesError } = await supabase
           .from('tabelas_comissoes')
           .select('*')
