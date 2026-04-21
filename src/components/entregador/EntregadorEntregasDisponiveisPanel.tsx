@@ -532,7 +532,7 @@ export function EntregadorEntregasDisponiveisPanel() {
                    <div className="flex flex-col items-end">
                      <div className="flex items-center gap-1 text-green-600 font-bold text-lg">
                        <DollarSign size={18} />
-                       {Number(entrega.valor_entregador ?? entrega.valor_entrega ?? 0).toFixed(2)}
+                      {Number(entrega.valor_entregador ?? 0).toFixed(2)}
                      </div>
                      {entrega.opcionais?.driver_bonuses && Array.isArray(entrega.opcionais.driver_bonuses) && (
                        <div className="text-xs text-right flex flex-col items-end gap-1 mb-1">

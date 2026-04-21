@@ -182,7 +182,7 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
       setExtrato(entregas || []);
       setAcertos(acertosData || []);
       
-      const totalGanhos = (entregas || []).reduce((acc, curr) => acc + (curr.valor_entregador || curr.valor_entrega || 0), 0);
+      const totalGanhos = (entregas || []).reduce((acc, curr) => acc + (Number(curr.valor_entregador) || 0), 0);
       
       const totalSaques = (acertosData || [])
         .filter((a: any) => a.status === 'pago' || a.status === 'pendente')
@@ -598,7 +598,7 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
                {[...extrato, ...acertos].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map((item) => {
                  // Identify type
                  const isAcerto = 'valor_pago' in item;
-                 const valor = isAcerto ? -((Number(item.valor_pago) || 0) + (Number(item.taxa_aplicada) || 0)) : (item.valor_entregador || item.valor_entrega || 0);
+                const valor = isAcerto ? -((Number(item.valor_pago) || 0) + (Number(item.taxa_aplicada) || 0)) : (Number((item as any).valor_entregador) || 0);
                  const descricao = isAcerto ? 
                     (item.status === 'pendente' ? (item.tipo_saque === 'rapido' ? 'Saque Rápido (Pendente)' : 'Saque (Pendente)') : (item.tipo_saque === 'rapido' ? 'Saque Rápido Realizado' : 'Saque Realizado')) : 
                     (item.descricao || 'Comissão de Entrega');

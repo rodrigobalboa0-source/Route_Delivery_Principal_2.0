@@ -325,7 +325,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                .in('status', ['pendente', 'pago']);
               
              if (entregasData) {
-               const totalEntregas = entregasData.reduce((acc, curr) => acc + (curr.valor_entregador || curr.valor_entrega || 0), 0);
+               const totalEntregas = entregasData.reduce((acc, curr) => acc + (Number(curr.valor_entregador) || 0), 0);
                const totalAcertos =
                  acertosData?.reduce(
                    (acc, curr: any) => acc + (Number(curr.valor_pago) || 0) + (Number(curr.taxa_aplicada) || 0),
@@ -639,7 +639,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
     const fetchBalance = async () => {
         const { data: entregasData } = await supabase
             .from('nova_entrega')
-            .select('valor_entrega, valor_entregador')
+            .select('valor_entregador')
             .eq('entregador_id', entregadorId)
             .eq('status', 'entregue');
 
@@ -649,7 +649,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
             .eq('entregador_id', entregadorId)
             .in('status', ['pendente', 'pago']);
 
-        const totalEntregas = entregasData?.reduce((acc, curr) => acc + (curr.valor_entregador || curr.valor_entrega || 0), 0) || 0;
+        const totalEntregas = entregasData?.reduce((acc, curr) => acc + (Number(curr.valor_entregador) || 0), 0) || 0;
         const totalAcertos = acertosData?.reduce((acc, curr) => acc + (Number(curr.valor_pago) || 0) + (Number((curr as any).taxa_aplicada) || 0), 0) || 0;
         
         setGanhos(totalEntregas - totalAcertos);
@@ -890,9 +890,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
       ? incomingValorEntregadorCalc
       : (toFiniteNumberOrNull(incomingDelivery?.valor_entregador) ?? 0) > 0
         ? (toFiniteNumberOrNull(incomingDelivery?.valor_entregador) as number)
-        : (toFiniteNumberOrNull(incomingDelivery?.valor_entrega) ?? 0) > 0
-          ? (toFiniteNumberOrNull(incomingDelivery?.valor_entrega) as number)
-          : 0;
+        : 0;
 
   const comissaoDestinosDisplay =
     Array.isArray(incomingComissaoDestinosCalc) && incomingComissaoDestinosCalc.length > 0
