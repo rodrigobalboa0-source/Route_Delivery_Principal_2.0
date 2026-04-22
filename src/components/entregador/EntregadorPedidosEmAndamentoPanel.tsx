@@ -50,7 +50,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number; accuracyM?: number } | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   
-  const [deliveryCoords, setDeliveryCoords] = useState<Record<string, { pickup?: [number, number], delivery?: [number, number] }>>({});
+  const [deliveryCoords, setDeliveryCoords] = useState<Record<string, { pickup?: [number, number], delivery?: [number, number], additional?: Record<number, [number, number]> }>>({});
   const [distances, setDistances] = useState<Record<string, { userToPickup: number, pickupToDelivery: number, userToDelivery: number }>>({});
   const [persistedDistanceIds, setPersistedDistanceIds] = useState<Record<string, boolean>>({});
 
@@ -83,11 +83,12 @@ export function EntregadorPedidosEmAndamentoPanel() {
 
   useEffect(() => {
     const fetchCoords = async () => {
-      const newCoords: Record<string, { pickup?: [number, number], delivery?: [number, number] }> = {};
+      const newCoords: Record<string, { pickup?: [number, number], delivery?: [number, number], additional?: Record<number, [number, number]> }> = {};
       
       for (const entrega of entregas) {
         let pickup: [number, number] | undefined;
         let delivery: [number, number] | undefined;
+        const additional: Record<number, [number, number]> = {};
 
         if (entrega.coleta_endereco_texto) {
             await new Promise(r => setTimeout(r, 1000)); 
@@ -97,11 +98,24 @@ export function EntregadorPedidosEmAndamentoPanel() {
             await new Promise(r => setTimeout(r, 1000)); 
             delivery = await getCoordsFromAddress(entrega.entrega_endereco_texto);
         }
+
+        // Buscar coordenadas dos pontos adicionais
+        const extraPoints = parseExtraDeliveryPoints(entrega);
+        for (let i = 0; i < extraPoints.length; i++) {
+          const point = extraPoints[i];
+          if (point.endereco_texto) {
+            await new Promise(r => setTimeout(r, 1000)); 
+            const coords = await getCoordsFromAddress(point.endereco_texto);
+            if (coords) {
+              additional[i + 2] = coords; // +2 porque: 1=coleta, 2=primeira entrega
+            }
+          }
+        }
         
-        if (pickup || delivery) {
-            newCoords[entrega.id] = { pickup, delivery };
+        if (pickup || delivery || Object.keys(additional).length > 0) {
+            newCoords[entrega.id] = { pickup, delivery, additional };
             
-            setDeliveryCoords(prev => ({ ...prev, [entrega.id]: { pickup, delivery } }));
+            setDeliveryCoords(prev => ({ ...prev, [entrega.id]: { pickup, delivery, additional } }));
         }
       }
     };
@@ -846,16 +860,27 @@ export function EntregadorPedidosEmAndamentoPanel() {
                       <MapView 
                         deliveryPersons={getFakeDeliveryPerson() ? [getFakeDeliveryPerson()!] : []}
                         center={userLocation ? [userLocation.lat, userLocation.lng] : undefined}
+                        origin={coords?.pickup}
                         destination={destCoords}
+                        originTitle="Coleta"
+                        destinationTitle={`Destino ${currentDestinationNumber}`}
+                        originIconType="store"
+                        additionalDestinations={Object.entries(coords?.additional || {})
+                          .filter(([order]) => Number(order) >= currentDestinationIndex + 2) // Apenas destinos futuros
+                          .map(([order, coords]) => ({
+                            coords,
+                            title: `Destino ${order}`,
+                            order: Number(order)
+                          }))}
                       />
                     ) : (
                       <div className="absolute inset-0 flex items-center justify-center bg-slate-50 text-slate-500 text-sm">
                         Obtendo sua localização...
                       </div>
                     )}
-                    {!destCoords && (
+                    {(!coords?.pickup && !coords?.delivery && (!coords?.additional || Object.keys(coords.additional).length === 0)) && (
                        <div className="absolute bottom-2 left-2 right-2 bg-white/90 p-2 rounded text-xs text-center text-slate-600 shadow-sm">
-                         Destino sem coordenadas. O mapa mostra apenas sua localização.
+                         Endereços sem coordenadas. O mapa mostra apenas sua localização.
                        </div>
                     )}
                   </div>

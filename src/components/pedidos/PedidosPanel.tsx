@@ -1205,7 +1205,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [destinationCoords, setDestinationCoords] = useState<[number, number] | undefined>(undefined);
   const [originTitle, setOriginTitle] = useState<string>('');
   const [destinationTitle, setDestinationTitle] = useState<string>('');
-  
+  const [additionalDestinationsCoords, setAdditionalDestinationsCoords] = useState<Array<{ coords: [number, number]; title: string; order: number }>>([]);
   
   const [commerceDefaultCoords, setCommerceDefaultCoords] = useState<[number, number] | undefined>(undefined);
   const [commerceDefaultTitle, setCommerceDefaultTitle] = useState<string>('');
@@ -2016,6 +2016,28 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         setDestinationCoords(coords);
       }
     }
+
+    // Buscar coordenadas dos pontos adicionais para pedidos múltiplos
+    const pontosAdicionais = Array.isArray((entrega as any)?.pontos_adicionais) ? ((entrega as any).pontos_adicionais as any[]) : [];
+    const additionalDestinations: Array<{ coords: [number, number]; title: string; order: number }> = [];
+    
+    for (let i = 0; i < pontosAdicionais.length; i++) {
+      const ponto = pontosAdicionais[i];
+      const enderecoCompleto = ponto.numero ? `${ponto.endereco_texto}, ${ponto.numero}` : ponto.endereco_texto;
+      
+      if (enderecoCompleto) {
+        const coords = await resolveCoordsWithFallback(enderecoCompleto);
+        if (coords && isValidCoords(coords)) {
+          additionalDestinations.push({
+            coords,
+            title: `Destino ${i + 2}`,
+            order: i + 2
+          });
+        }
+      }
+    }
+    
+    setAdditionalDestinationsCoords(additionalDestinations);
   };
 
   const isValidCoords = (coords: [number, number]) => {
@@ -2179,8 +2201,6 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       supabase.removeChannel(channel);
     };
   }, []);
-
-
 
   useEffect(() => {
     const displayedItems = filters.status === 'todos' 
@@ -3072,6 +3092,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             originTitle={originTitle}
             destinationTitle={destinationTitle}
             originIconType={isComercio ? 'store' : 'truck'}
+            additionalDestinations={additionalDestinationsCoords}
           />
         </div>
       </div>

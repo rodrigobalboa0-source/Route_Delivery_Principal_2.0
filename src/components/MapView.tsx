@@ -28,9 +28,10 @@ interface MapViewProps {
   originTitle?: string;
   destinationTitle?: string;
   originIconType?: 'truck' | 'store';
+  additionalDestinations?: Array<{ coords: [number, number]; title: string; order: number }>;
 }
 
-export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [-23.5505, -46.6333], origin, destination, route, originTitle, destinationTitle, originIconType = 'truck' }: MapViewProps) {
+export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [-23.5505, -46.6333], origin, destination, route, originTitle, destinationTitle, originIconType = 'truck', additionalDestinations = [] }: MapViewProps) {
   useEffect(() => {
     console.log('MapView initialized (Leaflet version)');
   }, []);
@@ -44,6 +45,7 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
   const destMarker = useRef<any | null>(null);
   const originMarker = useRef<any | null>(null);
   const routePolyline = useRef<any | null>(null);
+  const additionalMarkers = useRef<Map<number, any>>(new Map());
 
   useEffect(() => {
     return () => {
@@ -439,6 +441,54 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
     if (!mapLoaded || !map.current) return;
     const L = (window as any).L;
 
+    const currentMarkerOrders = new Set<number>();
+
+    additionalDestinations.forEach((dest) => {
+      currentMarkerOrders.add(dest.order);
+      const existingMarker = additionalMarkers.current.get(dest.order);
+
+      const html = `
+        <div style="position: relative; width: 40px; height: 48px;">
+          <div style="position: absolute; top: 0; left: 0; width: 40px; height: 40px; background: white; border-radius: 50%; border: 3px solid #8b5cf6; box-shadow: 0 4px 6px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: 50;">
+            <span style="font-size: 12px; font-weight: bold; color: #8b5cf6;">${dest.order}</span>
+          </div>
+          <div style="position: absolute; width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 10px solid #8b5cf6; bottom: 0; left: 50%; transform: translateX(-50%);"></div>
+        </div>
+      `;
+
+      const icon = L.divIcon({
+        html: html,
+        className: '',
+        iconSize: [40, 48],
+        iconAnchor: [20, 48],
+        popupAnchor: [0, -50]
+      });
+
+      if (existingMarker) {
+        existingMarker.setLatLng(dest.coords);
+        existingMarker.setIcon(icon);
+        existingMarker.getPopup().setContent(`<div style="padding:6px; color: #8b5cf6;"><strong>${dest.title}</strong></div>`);
+      } else {
+        const marker = L.marker(dest.coords, { icon })
+          .bindPopup(`<div style="padding:6px; color: #8b5cf6;"><strong>${dest.title}</strong></div>`)
+          .addTo(map.current);
+        additionalMarkers.current.set(dest.order, marker);
+      }
+    });
+
+    additionalMarkers.current.forEach((marker, order) => {
+      if (!currentMarkerOrders.has(order)) {
+        marker.remove();
+        additionalMarkers.current.delete(order);
+      }
+    });
+  }, [additionalDestinations, mapLoaded]);
+
+  
+  useEffect(() => {
+    if (!mapLoaded || !map.current) return;
+    const L = (window as any).L;
+
     if (!route || route.length < 2) {
         if (routePolyline.current) {
             routePolyline.current.remove();
@@ -463,7 +513,8 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
     const points: [number, number][] = [];
 
     if (origin) points.push(origin); 
-    if (destination) points.push(destination); 
+    if (destination) points.push(destination);
+    additionalDestinations.forEach(dest => points.push(dest.coords)); 
 
     if (selectedEntregadorId) {
       const person = deliveryPersons.find(p => p.id === selectedEntregadorId);
