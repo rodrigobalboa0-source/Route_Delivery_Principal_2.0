@@ -686,6 +686,25 @@ function PedidoDetailsView({ pedido, entrega, cliente, onClose }: { pedido: Pedi
 }
 
 function PedidoCancelamentoModal({ pedido, onClose }: { pedido: Pedido, onClose: () => void }) {
+  // Separar título e descrição do motivo se tiver formato com \n\n
+  const parseMotivo = (motivo: string) => {
+    if (!motivo) return { titulo: '', descricao: '' };
+    
+    const parts = motivo.split('\n\n');
+    if (parts.length > 1) {
+      return {
+        titulo: parts[0].trim(),
+        descricao: parts.slice(1).join('\n\n').trim()
+      };
+    }
+    return {
+      titulo: '',
+      descricao: motivo.trim()
+    };
+  };
+
+  const { titulo, descricao } = parseMotivo(pedido.cancelamento_motivo || '');
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-start">
@@ -725,11 +744,24 @@ function PedidoCancelamentoModal({ pedido, onClose }: { pedido: Pedido, onClose:
                 </div>
               )}
               
-              {pedido.cancelamento_motivo && (
+              {/* Exibir título do motivo se existir */}
+              {titulo && (
                 <div>
-                  <span className="text-sm font-medium text-red-700 block mb-2">Motivo:</span>
-                  <div className="text-sm text-red-600 bg-white border border-red-50 rounded p-3">
-                    {pedido.cancelamento_motivo}
+                  <span className="text-sm font-medium text-red-700 block mb-2">Título do Motivo:</span>
+                  <div className="text-sm font-semibold text-red-800 bg-red-50 border border-red-100 rounded p-3">
+                    {titulo}
+                  </div>
+                </div>
+              )}
+              
+              {/* Exibir descrição do motivo */}
+              {descricao && (
+                <div>
+                  <span className="text-sm font-medium text-red-700 block mb-2">
+                    {titulo ? 'Descrição do Cliente:' : 'Motivo do Cancelamento:'}
+                  </span>
+                  <div className="text-sm text-red-600 bg-white border border-red-50 rounded p-3 whitespace-pre-wrap">
+                    {descricao}
                   </div>
                 </div>
               )}
@@ -739,7 +771,7 @@ function PedidoCancelamentoModal({ pedido, onClose }: { pedido: Pedido, onClose:
           {pedido.origem === 'online' && pedido.cancelamento_origem === 'ifood' && (
             <div className="bg-blue-50 border border-blue-200 rounded p-3">
               <p className="text-xs text-blue-700">
-                <strong>Informação iFood:</strong> O cancelamento foi processado através da plataforma iFood e o motivo foi informado pelo cliente ou pelo sistema.
+                <strong>Informação iFood:</strong> O cancelamento foi processado através da plataforma iFood e o motivo foi informado diretamente pelo cliente no momento do cancelamento.
               </p>
             </div>
           )}
@@ -2635,9 +2667,12 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     if (!ok) return;
     
     try {
+        let showCancellationModal = false;
+        
         // Para pedidos iFood, usar o serviço especializado que captura o motivo
         if ((p.origem === 'online' || !!(p as any).ifood_order_id)) {
-            await IfoodService.handleCancellation(p.id, (p as any).ifood_order_id);
+            const result = await IfoodService.handleCancellation(p.id, (p as any).ifood_order_id);
+            showCancellationModal = result?.showModal || false;
         } else {
             // Para pedidos manuais, apenas atualizar o status
             await supabase.from('pedidos').update({ 
@@ -2654,7 +2689,18 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             { status: 'cancelado' }
         );
         
-        fetchPedidos();
+        // Buscar dados atualizados do pedido para exibir no modal
+        await fetchPedidos();
+        
+        // Se for cancelamento iFood com motivo, mostrar o modal automaticamente
+        if (showCancellationModal) {
+            const updatedPedido = items.find(item => item.id === p.id);
+            if (updatedPedido && (updatedPedido.cancelamento_motivo || updatedPedido.cancelamento_codigo)) {
+                setSelectedPedido(updatedPedido);
+                setIsCancelamentoModalOpen(true);
+            }
+        }
+        
         setOpenMenuId(null);
         await showAlert('Pedido cancelado com sucesso!', 'Sucesso');
     } catch (e) {

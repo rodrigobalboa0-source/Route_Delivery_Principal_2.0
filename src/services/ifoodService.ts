@@ -36,17 +36,41 @@ export class IfoodService {
       
       if (error) throw error;
       
-      // Se a resposta contiver motivo de cancelamento, atualiza o pedido
-      if (data?.cancellationReason && data?.cancellationCode) {
-        await supabase.from('pedidos').update({
-          cancelamento_motivo: data.cancellationReason,
-          cancelamento_codigo: data.cancellationCode,
-          cancelamento_origem: 'ifood',
-          cancelado_em: new Date().toISOString()
-        }).eq('id', pedidoId);
+      // Capturar informações detalhadas do cancelamento do iFood
+      const cancelamentoData: any = {
+        cancelamento_codigo: data?.cancellationCode || null,
+        cancelamento_origem: 'ifood',
+        cancelado_em: new Date().toISOString()
+      };
+      
+      // Verificar se o iFood enviou título e descrição separados
+      let motivoCompleto = '';
+      
+      if (data?.cancellationTitle && data?.cancellationDescription) {
+        // Se tiver título e descrição separados, formatar bonito
+        motivoCompleto = `${data.cancellationTitle}\n\n${data.cancellationDescription}`;
+      } else if (data?.cancellationReason) {
+        // Se só tiver motivo completo, usar como está
+        motivoCompleto = data.cancellationReason;
+      } else if (data?.reason) {
+        // Campo alternativo para motivo
+        motivoCompleto = data.reason;
       }
       
-      return data;
+      if (motivoCompleto) {
+        cancelamentoData.cancelamento_motivo = motivoCompleto;
+      }
+      
+      // Atualizar o pedido com as informações de cancelamento
+      if (motivoCompleto || cancelamentoData.cancelamento_codigo) {
+        await supabase.from('pedidos').update(cancelamentoData).eq('id', pedidoId);
+      }
+      
+      return {
+        ...data,
+        showModal: true, // Indicar que deve mostrar o modal
+        cancellationData: cancelamentoData
+      };
     } catch (error: any) {
       console.error('iFood cancellation error:', error);
       return { success: false, message: error.message };
