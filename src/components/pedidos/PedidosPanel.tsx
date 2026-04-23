@@ -685,6 +685,70 @@ function PedidoDetailsView({ pedido, entrega, cliente, onClose }: { pedido: Pedi
   );
 }
 
+function PedidoCancelamentoModal({ pedido, onClose }: { pedido: Pedido, onClose: () => void }) {
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-start">
+        <h3 className="text-xl font-bold text-red-800">Motivo do Cancelamento</h3>
+        <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={24}/></button>
+      </div>
+
+      <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="text-red-600" size={24} />
+            <div>
+              <h4 className="font-semibold text-red-800">Pedido #{pedido.numero || pedido.id.slice(0,6)} Cancelado</h4>
+              <p className="text-sm text-red-600">
+                {pedido.cancelado_em ? `Cancelado em ${format(new Date(pedido.cancelado_em), 'dd/MM/yyyy HH:mm')}` : 'Data não disponível'}
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded border border-red-100 p-4">
+            <div className="space-y-3">
+              {pedido.cancelamento_origem && (
+                <div>
+                  <span className="text-sm font-medium text-red-700">Origem: </span>
+                  <span className="text-sm text-red-600 font-semibold">
+                    {String(pedido.cancelamento_origem).toUpperCase() === 'IFOOD' ? 'iFood' : String(pedido.cancelamento_origem).toUpperCase()}
+                  </span>
+                </div>
+              )}
+              
+              {pedido.cancelamento_codigo && (
+                <div>
+                  <span className="text-sm font-medium text-red-700">Código: </span>
+                  <span className="text-sm text-red-600 font-mono bg-red-50 px-2 py-1 rounded">
+                    {pedido.cancelamento_codigo}
+                  </span>
+                </div>
+              )}
+              
+              {pedido.cancelamento_motivo && (
+                <div>
+                  <span className="text-sm font-medium text-red-700 block mb-2">Motivo:</span>
+                  <div className="text-sm text-red-600 bg-white border border-red-50 rounded p-3">
+                    {pedido.cancelamento_motivo}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {pedido.origem === 'online' && pedido.cancelamento_origem === 'ifood' && (
+            <div className="bg-blue-50 border border-blue-200 rounded p-3">
+              <p className="text-xs text-blue-700">
+                <strong>Informação iFood:</strong> O cancelamento foi processado através da plataforma iFood e o motivo foi informado pelo cliente ou pelo sistema.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PedidoHistoryModal({ pedido, entregaId }: { pedido: Pedido, entregaId?: string }) {
   const [logs, setLogs] = useState<DeliveryLog[]>([]);
   const [loading, setLoading] = useState(false);
@@ -1219,6 +1283,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [isCancelamentoModalOpen, setIsCancelamentoModalOpen] = useState(false);
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null);
 
   
@@ -1360,6 +1425,12 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const handleHistory = (p: Pedido) => {
     setSelectedPedido(p);
     setIsHistoryModalOpen(true);
+    setOpenMenuId(null);
+  };
+
+  const handleViewCancelamento = (p: Pedido) => {
+    setSelectedPedido(p);
+    setIsCancelamentoModalOpen(true);
     setOpenMenuId(null);
   };
 
@@ -2564,20 +2635,19 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     if (!ok) return;
     
     try {
-        
-        await supabase.from('pedidos').update({ status: 'cancelado' }).eq('id', p.id);
-        
+        // Para pedidos iFood, usar o serviço especializado que captura o motivo
+        if ((p.origem === 'online' || !!(p as any).ifood_order_id)) {
+            await IfoodService.handleCancellation(p.id, (p as any).ifood_order_id);
+        } else {
+            // Para pedidos manuais, apenas atualizar o status
+            await supabase.from('pedidos').update({ 
+                status: 'cancelado',
+                cancelamento_origem: 'manual',
+                cancelado_em: new Date().toISOString()
+            }).eq('id', p.id);
+        }
         
         await supabase.from('nova_entrega').update({ status: 'cancelada' }).eq('pedido_id', p.id);
-        await supabase.from('nova_entrega').update({ status: 'cancelada' }).eq('id', p.id);
-
-        if (p.origem === 'online' || !!(p as any).ifood_order_id) {
-            supabase.functions.invoke('ifood-update-status', {
-                body: { action: 'requestCancellation', pedidoId: p.id }
-            }).then(({ data, error }) => {
-                if (error || data?.success === false) console.warn('iFood update failed', error || data);
-            });
-        }
         
         await logAction(p.id, 'CANCELAR_PEDIDO', 'Pedido cancelado via menu', 
             { status: 'ativo' }, 
@@ -3596,6 +3666,9 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                         )}
                         <button onClick={() => handleCopyLink(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2"><Link size={16}/> Copiar link de rastreio</button>
                         <button onClick={() => handleHistory(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2"><Clock size={16}/> Logs</button>
+                        {p.status === 'cancelado' && (p.cancelamento_motivo || p.cancelamento_codigo || p.cancelamento_origem) && (
+                          <button onClick={() => handleViewCancelamento(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-red-600 flex items-center gap-2"><AlertCircle size={16}/> Motivo do Cancelamento</button>
+                        )}
                         <button onClick={() => handleClone(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-slate-700 flex items-center gap-2"><Copy size={16}/> Clonar</button>
                         
                         {isAdmin && (
@@ -3810,6 +3883,16 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
              <PedidoHistoryModal
                 pedido={selectedPedido}
                 entregaId={entregasMap[selectedPedido.id]?.id}
+             />
+         )}
+      </Modal>
+
+      {/* Cancelamento Modal */}
+      <Modal open={isCancelamentoModalOpen} onClose={() => setIsCancelamentoModalOpen(false)} title="" cancelText="Fechar">
+         {selectedPedido && (
+             <PedidoCancelamentoModal
+                pedido={selectedPedido}
+                onClose={() => setIsCancelamentoModalOpen(false)}
              />
          )}
       </Modal>

@@ -27,4 +27,29 @@ export class IfoodService {
     if (!data?.success) throw new Error(data?.error || data?.message || 'Falha ao aceitar pedido no iFood');
     return data;
   }
+
+  static async handleCancellation(pedidoId: string, ifoodOrderId?: string) {
+    try {
+      const { data, error } = await supabase.functions.invoke('ifood-update-status', {
+        body: { action: 'requestCancellation', pedidoId, ifoodOrderId }
+      });
+      
+      if (error) throw error;
+      
+      // Se a resposta contiver motivo de cancelamento, atualiza o pedido
+      if (data?.cancellationReason && data?.cancellationCode) {
+        await supabase.from('pedidos').update({
+          cancelamento_motivo: data.cancellationReason,
+          cancelamento_codigo: data.cancellationCode,
+          cancelamento_origem: 'ifood',
+          cancelado_em: new Date().toISOString()
+        }).eq('id', pedidoId);
+      }
+      
+      return data;
+    } catch (error: any) {
+      console.error('iFood cancellation error:', error);
+      return { success: false, message: error.message };
+    }
+  }
 }
