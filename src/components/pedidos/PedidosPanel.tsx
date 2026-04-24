@@ -685,6 +685,50 @@ function PedidoDetailsView({ pedido, entrega, cliente, onClose }: { pedido: Pedi
   );
 }
 
+function IfoodCancellationReasonsModal({ 
+  reasons, 
+  onSelect, 
+  onClose 
+}: { 
+  reasons: Array<{ code: string; title: string; description?: string }>, 
+  onSelect: (reason: { code: string; title: string }) => void, 
+  onClose: () => void 
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-start">
+        <h3 className="text-xl font-bold text-red-800">Selecione o Motivo do Cancelamento</h3>
+        <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={24}/></button>
+      </div>
+
+      <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+        <p className="text-sm text-red-700 mb-4">
+          Selecione o motivo do cancelamento conforme as opções disponíveis na plataforma iFood:
+        </p>
+        
+        <div className="space-y-2 max-h-[400px] overflow-y-auto">
+          {reasons.length === 0 ? (
+            <p className="text-sm text-slate-500">Nenhum motivo disponível. Tente novamente mais tarde.</p>
+          ) : (
+            reasons.map((reason) => (
+              <button
+                key={reason.code}
+                onClick={() => onSelect(reason)}
+                className="w-full text-left p-4 bg-white border border-red-100 rounded-lg hover:bg-red-50 hover:border-red-200 transition-colors"
+              >
+                <div className="font-medium text-red-800">{reason.title}</div>
+                {reason.description && (
+                  <div className="text-sm text-red-600 mt-1">{reason.description}</div>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PedidoCancelamentoModal({ pedido, onClose }: { pedido: Pedido, onClose: () => void }) {
   // Separar título e descrição do motivo se tiver formato com \n\n
   const parseMotivo = (motivo: string) => {
@@ -1316,7 +1360,10 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isCancelamentoModalOpen, setIsCancelamentoModalOpen] = useState(false);
+  const [isIfoodCancellationReasonsModalOpen, setIsIfoodCancellationReasonsModalOpen] = useState(false);
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null);
+  const [ifoodCancellationReasons, setIfoodCancellationReasons] = useState<Array<{ code: string; title: string; description?: string }>>([]);
+  const [selectedCancellationReason, setSelectedCancellationReason] = useState<{ code: string; title: string } | null>(null);
 
   
   useEffect(() => {
@@ -2663,15 +2710,43 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   }, [queueSilentPedidosRefresh]);
 
   const handleDelete = async (p: Pedido) => {
+    // Para pedidos iFood, mostrar modal de motivos de cancelamento
+    if ((p.origem === 'online' || !!(p as any).ifood_order_id)) {
+        setSelectedPedido(p);
+        setOpenMenuId(null);
+        
+        // Carregar motivos de cancelamento do iFood
+        const reasons = await IfoodService.getCancellationReasons();
+        setIfoodCancellationReasons(reasons);
+        
+        if (reasons.length > 0) {
+            setIsIfoodCancellationReasonsModalOpen(true);
+        } else {
+            // Se não conseguir carregar motivos, prosseguir com cancelamento normal
+            await handleDeleteWithReason(p, null);
+        }
+        return;
+    }
+    
+    // Para pedidos manuais, confirmar diretamente
     const ok = await showConfirm('Tem certeza que deseja cancelar este pedido?');
     if (!ok) return;
     
+    await handleDeleteWithReason(p, null);
+  };
+
+  const handleDeleteWithReason = async (p: Pedido, reason: { code: string; title: string } | null) => {
     try {
         let showCancellationModal = false;
         
         // Para pedidos iFood, usar o serviço especializado que captura o motivo
         if ((p.origem === 'online' || !!(p as any).ifood_order_id)) {
-            const result = await IfoodService.handleCancellation(p.id, (p as any).ifood_order_id);
+            const result = await IfoodService.handleCancellation(
+                p.id, 
+                (p as any).ifood_order_id,
+                reason?.title,
+                reason?.code
+            );
             showCancellationModal = result?.showModal || false;
         } else {
             // Para pedidos manuais, apenas atualizar o status
@@ -3941,6 +4016,22 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                 onClose={() => setIsCancelamentoModalOpen(false)}
              />
          )}
+      </Modal>
+
+      {/* iFood Cancellation Reasons Modal */}
+      <Modal open={isIfoodCancellationReasonsModalOpen} onClose={() => setIsIfoodCancellationReasonsModalOpen(false)} title="" cancelText="Cancelar">
+         <IfoodCancellationReasonsModal
+            reasons={ifoodCancellationReasons}
+            onSelect={(reason) => {
+              setSelectedCancellationReason(reason);
+              setIsIfoodCancellationReasonsModalOpen(false);
+              // Prosseguir com o cancelamento usando o motivo selecionado
+              if (selectedPedido) {
+                handleDeleteWithReason(selectedPedido, reason);
+              }
+            }}
+            onClose={() => setIsIfoodCancellationReasonsModalOpen(false)}
+         />
       </Modal>
 
       <Modal
