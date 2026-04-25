@@ -75,7 +75,13 @@ import { ComercioFaturamentoPanel } from './components/comercio/ComercioFaturame
 import { EntregadorBottomBar } from './components/entregador/EntregadorBottomBar';
 
 function App() {
-  const [activeMenu, setActiveMenu] = useState('pedidos');
+  const [activeMenu, setActiveMenu] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('activeMenu');
+      return saved || 'pedidos';
+    }
+    return 'pedidos';
+  });
   const [authenticated, setAuthenticated] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userName, setUserName] = useState<string | undefined>(undefined);
@@ -114,6 +120,12 @@ function App() {
       setShowPendingWithdrawalsModal(true);
     }
   }, [userRole]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('activeMenu', activeMenu);
+    }
+  }, [activeMenu]);
 
   useEffect(() => {
     if (!authenticated || userRole !== 'entregador') return;
@@ -250,6 +262,9 @@ function App() {
     setIsRecoveryMode(false);
     setResolvedClienteId(null);
     setResolvedEntregadorId(null);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('activeMenu');
+    }
     window.location.href = '/';
   };
 
@@ -259,6 +274,15 @@ function App() {
 
     const setInitialMenu = (resolvedRole: string, defaultMenu: string) => {
       void resolvedRole;
+      if (typeof window !== 'undefined') {
+        const savedMenu = localStorage.getItem('activeMenu');
+        if (savedMenu) {
+          setActiveMenu(savedMenu);
+          setMenuParams(null);
+          isMenuRestored.current = true;
+          return;
+        }
+      }
       setActiveMenu(defaultMenu);
       setMenuParams(null);
       isMenuRestored.current = true;

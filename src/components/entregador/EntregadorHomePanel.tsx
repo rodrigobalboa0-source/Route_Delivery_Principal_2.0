@@ -678,6 +678,32 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
     };
   }, [entregadorId]);
 
+  useEffect(() => {
+    if (!entregadorId) return;
+
+    const channel = supabase
+      .channel('entregador_online_status')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'entregadores',
+          filter: `id=eq.${entregadorId}`
+        },
+        (payload) => {
+          if (payload.new && typeof (payload.new as any).is_online === 'boolean') {
+            setIsOnline((payload.new as any).is_online);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [entregadorId]);
+
   const handleAceitar = async () => {
       if (!incomingDelivery) return;
 
