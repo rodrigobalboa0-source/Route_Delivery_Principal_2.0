@@ -21,6 +21,7 @@ interface MapViewProps {
 }
 
 let googleMapsLoadingPromise: Promise<void> | null = null;
+let googleMapsMarkerLibraryPromise: Promise<void> | null = null;
 
 function loadGoogleMapsJs(apiKey: string) {
   if ((window as any)?.google?.maps) return Promise.resolve();
@@ -53,6 +54,18 @@ function loadGoogleMapsJs(apiKey: string) {
   });
 
   return googleMapsLoadingPromise;
+}
+
+async function loadGoogleMapsMarkerLibrary() {
+  const g = (window as any).google as any;
+  if (!g?.maps) throw new Error('Google Maps não carregou.');
+  if (g?.maps?.marker?.AdvancedMarkerElement) return;
+
+  if (typeof g.maps.importLibrary !== 'function') return;
+  if (googleMapsMarkerLibraryPromise) return googleMapsMarkerLibraryPromise;
+
+  googleMapsMarkerLibraryPromise = Promise.resolve(g.maps.importLibrary('marker')).then(() => void 0);
+  return googleMapsMarkerLibraryPromise;
 }
 
 function escapeHtml(value: unknown) {
@@ -94,6 +107,7 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
   const lastUserInteractionAtRef = useRef<number>(0);
   const lastBoundsKeyRef = useRef<string>('');
   const prevSelectedIdRef = useRef<string | undefined>(undefined);
+  const driverPhotoIconCacheRef = useRef<Map<string, string>>(new Map());
   const [mapLoaded, setMapLoaded] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const destMarker = useRef<any | null>(null);
@@ -119,6 +133,7 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
       return;
     }
 
+    const mapId = String(import.meta.env.VITE_GOOGLE_MAPS_MAP_ID ?? '').trim();
     let cancelled = false;
 
     const initMap = async () => {
@@ -139,6 +154,7 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
         const m = new g.maps.Map(mapContainer.current, {
           center: { lat: center[0], lng: center[1] },
           zoom: 12,
+          mapId: mapId ? mapId : undefined,
           mapTypeControl: false,
           fullscreenControl: false,
           streetViewControl: false,
@@ -148,6 +164,13 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
 
         map.current = m;
         infoWindowRef.current = new g.maps.InfoWindow();
+        if (mapId) {
+          try {
+            await loadGoogleMapsMarkerLibrary();
+          } catch (e) {
+            console.error('Failed to load Google Maps marker library:', e);
+          }
+        }
         setMapLoaded(true);
 
         const markInteraction = () => {
@@ -263,6 +286,8 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
     if (!mapLoaded || !map.current) return;
     const g = (window as any).google as any;
     if (!g?.maps) return;
+    const mapId = String(import.meta.env.VITE_GOOGLE_MAPS_MAP_ID ?? '').trim();
+    const canUseAdvancedMarkers = !!mapId && !!g?.maps?.marker?.AdvancedMarkerElement;
 
     const currentMarkerIds = new Set<string>();
 
@@ -279,8 +304,8 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
     const setMarkerPosition = (marker: any, lat: number, lng: number) => {
       if (!marker) return;
       const next = { lat, lng };
-      if ('position' in marker) marker.position = next;
-      else marker.setPosition?.(next);
+      if (typeof marker.setPosition === 'function') marker.setPosition(next);
+      else if ('position' in marker) marker.position = next;
     };
 
     const animateMarkerTo = (marker: any, markerId: string, to: [number, number], durationMs: number) => {
@@ -339,6 +364,148 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
       };
     };
 
+    const loadImage = (url: string) => {
+      return new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('Falha ao carregar imagem'));
+        img.src = url;
+      });
+    };
+
+    const cropToCover = (imgW: number, imgH: number, targetW: number, targetH: number) => {
+      const scale = Math.max(targetW / imgW, targetH / imgH);
+      const sw = targetW / scale;
+      const sh = targetH / scale;
+      const sx = (imgW - sw) / 2;
+      const sy = (imgH - sh) / 2;
+      return { sx, sy, sw, sh };
+    };
+
+    const buildDriverPhotoIconPng = async (photoUrl: string, color: string, scale: number, selected: boolean) => {
+      const baseW = 56;
+      const baseH = 68;
+      const w = Math.round(baseW * scale);
+      const h = Math.round(baseH * scale);
+
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return undefined;
+
+      const cx = w / 2;
+
+      const photoRadius = 18 * scale;
+      const photoCy = 22 * scale;
+      const ringWidth = (selected ? 4 : 3) * scale;
+
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,0.35)';
+      ctx.shadowBlur = 8 * scale;
+      ctx.shadowOffsetY = 3 * scale;
+
+      const pinCy = 34 * scale;
+      const pinR = 20 * scale;
+      const tipY = h - 6 * scale;
+      const triHalf = 10 * scale;
+
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(cx, pinCy, pinR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(cx - triHalf, pinCy + 10 * scale);
+      ctx.lineTo(cx + triHalf, pinCy + 10 * scale);
+      ctx.lineTo(cx, tipY);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.restore();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(cx, photoCy, photoRadius + ringWidth + 1 * scale, 0, Math.PI * 2);
+      ctx.fill();
+
+      const img = await loadImage(photoUrl);
+      const imgW = img.naturalWidth || img.width;
+      const imgH = img.naturalHeight || img.height;
+      const { sx, sy, sw, sh } = cropToCover(imgW, imgH, photoRadius * 2, photoRadius * 2);
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, photoCy, photoRadius, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.drawImage(img, sx, sy, sw, sh, cx - photoRadius, photoCy - photoRadius, photoRadius * 2, photoRadius * 2);
+      ctx.restore();
+
+      ctx.beginPath();
+      ctx.arc(cx, photoCy, photoRadius + ringWidth / 2, 0, Math.PI * 2);
+      ctx.lineWidth = ringWidth;
+      ctx.strokeStyle = selected ? '#f59e0b' : '#ffffff';
+      ctx.stroke();
+
+      return {
+        url: canvas.toDataURL('image/png'),
+        scaledSize: new g.maps.Size(w, h),
+        anchor: new g.maps.Point(cx, tipY),
+      };
+    };
+
+    const applyDriverPhotoIcon = async (markerId: string, marker: any, photoUrl: string, color: string, scale: number, selected: boolean) => {
+      const normalizedPhotoUrl = String(photoUrl || '').trim();
+      if (!normalizedPhotoUrl) return;
+
+      const key = `${normalizedPhotoUrl}|${color}|${scale.toFixed(3)}|${selected ? '1' : '0'}`;
+      let dataUrl = driverPhotoIconCacheRef.current.get(key);
+      if (!dataUrl) {
+        try {
+          const icon = await buildDriverPhotoIconPng(normalizedPhotoUrl, color, scale, selected);
+          if (!icon?.url) return;
+          dataUrl = icon.url;
+          driverPhotoIconCacheRef.current.set(key, dataUrl);
+        } catch {
+          return;
+        }
+      }
+
+      const current = markers.current.get(markerId);
+      if (current !== marker) return;
+      marker.setIcon({
+        url: dataUrl,
+        scaledSize: new g.maps.Size(Math.round(56 * scale), Math.round(68 * scale)),
+        anchor: new g.maps.Point(Math.round((56 * scale) / 2), Math.round(68 * scale - 6 * scale)),
+      });
+    };
+
+    const createAdvancedMarker = (position: [number, number], html: string, title?: string, zIndex?: number) => {
+      const AdvancedMarkerElement = g?.maps?.marker?.AdvancedMarkerElement;
+      if (!AdvancedMarkerElement) return undefined;
+      const content = document.createElement('div');
+      content.innerHTML = html;
+      return new AdvancedMarkerElement({
+        map: map.current,
+        position: { lat: position[0], lng: position[1] },
+        content,
+        title,
+        zIndex,
+      });
+    };
+
+    const attachMarkerClick = (marker: any, html: string, pos: [number, number]) => {
+      if (!marker) return;
+      if (typeof marker.addListener === 'function') {
+        marker.addListener('gmp-click', () => openInfo(marker, html, pos));
+        marker.addListener('click', () => openInfo(marker, html, pos));
+      } else if (g?.maps?.event?.addListener) {
+        g.maps.event.addListener(marker, 'gmp-click', () => openInfo(marker, html, pos));
+        g.maps.event.addListener(marker, 'click', () => openInfo(marker, html, pos));
+      }
+    };
+
     (deliveryPersons || []).forEach((person) => {
       if (!person.current_latitude || !person.current_longitude) return;
 
@@ -354,32 +521,24 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
 
       const getMarkerHtml = (p: MapDeliveryPerson) => {
         const color = getMarkerColor(p);
-        const formatStatus = (s: string) => {
-           if (s === 'disponivel') return 'Disponível';
-           if (s === 'inativo') return 'Indisponível';
-           if (s === 'em_entrega') return 'Em Entrega';
-           return s;
-        };
-        const statusText = formatStatus(p.status);
         const isSelected = p.id === selectedEntregadorId;
-        const scale = isSelected ? 'scale(1.2)' : 'scale(1)';
+        const scale = isSelected ? 'scale(1.15)' : 'scale(1)';
         const zIndex = isSelected ? '50' : '10';
-        const border = isSelected ? 'border: 3px solid #f59e0b;' : 'border: 3px solid white;';
+        const ring = isSelected ? '4px solid #f59e0b' : '3px solid #ffffff';
 
         const photoUrl = String(p.foto_url || '').trim();
         const photoHtml = photoUrl
-          ? `<div style="position: absolute; bottom: 45px; left: 50%; transform: translateX(-50%); width: 48px; height: 48px; border-radius: 50%; overflow: hidden; ${border} background: white; box-shadow: 0 4px 6px rgba(0,0,0,0.2); z-index: 20;">
-               <img src="${escapeAttr(photoUrl)}" style="width: 100%; height: 100%; object-fit: cover;" />
+          ? `<div style="position:absolute; left:50%; top:9px; transform:translateX(-50%); width:30px; height:30px; border-radius:50%; overflow:hidden; border:${ring}; background:#ffffff;">
+               <img src="${escapeAttr(photoUrl)}" style="width:100%; height:100%; object-fit:cover; display:block;" />
              </div>`
-          : '';
+          : `<div style="position:absolute; left:50%; top:16px; transform:translateX(-50%); width:14px; height:14px; border-radius:50%; background: rgba(255,255,255,0.35); border:2px solid rgba(255,255,255,0.6);"></div>`;
         
         return `
-          <div style="position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; overflow: visible; transform: ${scale}; z-index: ${zIndex};">
-            ${photoHtml}
-            <svg viewBox="0 0 24 24" width="56" height="56" style="color: ${color}; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); transform: translateY(-4px);">
-               <path fill="currentColor" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
-               <circle cx="12" cy="9" r="3.5" fill="white" fill-opacity="0.4" />
+          <div style="position: relative; width: 56px; height: 62px; transform: ${scale}; z-index: ${zIndex};">
+            <svg xmlns="http://www.w3.org/2000/svg" width="56" height="62" viewBox="0 0 40 48" style="filter: drop-shadow(0 4px 6px rgba(0,0,0,0.35));">
+              <path d="M20 46c-6.6-7.6-14-17.2-14-26C6 10.1 12.3 4 20 4s14 6.1 14 16c0 8.8-7.4 18.4-14 26z" fill="${color}" stroke="#ffffff" stroke-width="2" />
             </svg>
+            ${photoHtml}
           </div>
         `;
       };
@@ -399,11 +558,47 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
         </div>
       `;
 
+      const pos: [number, number] = [person.current_latitude, person.current_longitude];
+      const zIndex = person.id === selectedEntregadorId ? 1000 : 0;
+      const color = getMarkerColor(person);
+      const isSelected = person.id === selectedEntregadorId;
+
+      const isClassicMarker = !!existingMarker && typeof (existingMarker as any).setIcon === 'function';
+      const isAdvancedMarker = !!existingMarker && !isClassicMarker && !!(existingMarker as any).content && 'position' in (existingMarker as any);
+
       if (existingMarker) {
         const newLatLng: [number, number] = [person.current_latitude, person.current_longitude];
-        const color = getMarkerColor(person);
-        const isSelected = person.id === selectedEntregadorId;
-        existingMarker.setIcon(makeMarkerIcon(color, isSelected ? 1.15 : 1));
+        if (canUseAdvancedMarkers) {
+          if (!isAdvancedMarker) {
+            removeMarker(existingMarker);
+            const adv = createAdvancedMarker(pos, getMarkerHtml(person), person.name ?? undefined, zIndex);
+            if (adv) {
+              attachMarkerClick(adv, popupContent, pos);
+              markers.current.set(person.id, adv);
+            }
+            return;
+          }
+          if ((existingMarker as any)?.content) (existingMarker as any).content.innerHTML = getMarkerHtml(person);
+          (existingMarker as any).zIndex = zIndex;
+        } else {
+          if (!isClassicMarker) {
+            removeMarker(existingMarker);
+            const mk = new g.maps.Marker({
+              map: map.current,
+              position: { lat: pos[0], lng: pos[1] },
+              title: person.name ?? undefined,
+              zIndex,
+              icon: makeMarkerIcon(color, isSelected ? 1.15 : 1),
+            });
+            mk.addListener('click', () => openInfo(mk, popupContent, pos));
+            markers.current.set(person.id, mk);
+            if (person.foto_url) void applyDriverPhotoIcon(person.id, mk, person.foto_url, color, isSelected ? 1.15 : 1, isSelected);
+            return;
+          }
+          (existingMarker as any).setIcon(makeMarkerIcon(color, isSelected ? 1.15 : 1));
+          (existingMarker as any).setZIndex(zIndex);
+          if (person.foto_url) void applyDriverPhotoIcon(person.id, existingMarker, person.foto_url, color, isSelected ? 1.15 : 1, isSelected);
+        }
 
         if (person.id === selectedEntregadorId) {
           animateMarkerTo(existingMarker, person.id, newLatLng, 900);
@@ -415,24 +610,26 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
           }
           setMarkerPosition(existingMarker, newLatLng[0], newLatLng[1]);
         }
-
-        existingMarker.setZIndex(person.id === selectedEntregadorId ? 1000 : 0);
       } else {
-        const pos: [number, number] = [person.current_latitude, person.current_longitude];
-        const zIndex = person.id === selectedEntregadorId ? 1000 : 0;
-        const color = getMarkerColor(person);
-        const isSelected = person.id === selectedEntregadorId;
-        const marker = new g.maps.Marker({
-          map: map.current,
-          position: { lat: pos[0], lng: pos[1] },
-          title: person.name ?? undefined,
-          zIndex,
-          icon: makeMarkerIcon(color, isSelected ? 1.15 : 1),
-        });
+        if (canUseAdvancedMarkers) {
+          const adv = createAdvancedMarker(pos, getMarkerHtml(person), person.name ?? undefined, zIndex);
+          if (adv) {
+            attachMarkerClick(adv, popupContent, pos);
+            markers.current.set(person.id, adv);
+          }
+        } else {
+          const marker = new g.maps.Marker({
+            map: map.current,
+            position: { lat: pos[0], lng: pos[1] },
+            title: person.name ?? undefined,
+            zIndex,
+            icon: makeMarkerIcon(color, isSelected ? 1.15 : 1),
+          });
 
-        marker.addListener('click', () => openInfo(marker, popupContent, pos));
-
-        markers.current.set(person.id, marker);
+          marker.addListener('click', () => openInfo(marker, popupContent, pos));
+          markers.current.set(person.id, marker);
+          if (person.foto_url) void applyDriverPhotoIcon(person.id, marker, person.foto_url, color, isSelected ? 1.15 : 1, isSelected);
+        }
       }
     });
 
