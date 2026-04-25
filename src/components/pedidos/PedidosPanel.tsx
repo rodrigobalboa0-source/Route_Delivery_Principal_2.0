@@ -119,7 +119,20 @@ function AddressAutocomplete({
       setDidSearch(true);
 
       try {
-        let query = trimmed;
+        let query = String(trimmed || '')
+          .replace(/\s+-\s+/g, ', ')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+        const queryParts = query
+          .split(',')
+          .map((p) => p.trim())
+          .filter(Boolean);
+        if (queryParts[0]) {
+          queryParts[0] = queryParts[0].replace(/([^\d,])\s+(\d{1,6}[a-zA-Z]?)\b/, '$1, $2');
+        }
+        query = queryParts.join(', ');
+
         const queryNormalized = query
           .normalize('NFD')
           .replace(/[\u0300-\u036f]/g, '')
@@ -152,23 +165,21 @@ function AddressAutocomplete({
         const callMapbox = async (bounded: boolean) => {
           if (!mapboxToken) return [] as any[];
 
-          const cleanQuery = String(query || '')
-            .replace(/\s+-\s+/g, ', ')
-            .replace(/\s*,\s*/g, ', ')
-            .replace(/\s+/g, ' ')
-            .trim();
+          const cleanQuery = String(query || '').replace(/\s*,\s*/g, ', ').replace(/\s+/g, ' ').trim();
 
           const base = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(cleanQuery)}.json`;
           const params = new URLSearchParams({
             access_token: mapboxToken,
-            limit: '8',
+            limit: '10',
             autocomplete: 'true',
+            fuzzyMatch: 'true',
             country: 'br',
             language: 'pt',
             types: 'address,street,neighborhood,locality,postcode',
             proximity: '-47.0608,-22.9056',
           });
-          if (bounded) params.set('bbox', '-47.60,-23.35,-46.60,-22.55');
+          const bbox = { minLon: -47.6, minLat: -23.35, maxLon: -46.6, maxLat: -22.55 };
+          if (bounded) params.set('bbox', `${bbox.minLon},${bbox.minLat},${bbox.maxLon},${bbox.maxLat}`);
 
           const res = await fetch(`${base}?${params.toString()}`);
           if (!res.ok) return [] as any[];
@@ -178,12 +189,17 @@ function AddressAutocomplete({
           const pickCtx = (context: any[], prefixes: string[]) =>
             context.find((c: any) => typeof c?.id === 'string' && prefixes.some((p) => c.id.startsWith(p)));
 
-          return features
+          const mapped = features
             .map((f: any) => {
               const coords = Array.isArray(f?.geometry?.coordinates) ? f.geometry.coordinates : [];
-              const lon = typeof coords[0] === 'number' ? String(coords[0]) : '';
-              const lat = typeof coords[1] === 'number' ? String(coords[1]) : '';
-              if (!lat || !lon) return null;
+              const lonNum = typeof coords[0] === 'number' ? coords[0] : NaN;
+              const latNum = typeof coords[1] === 'number' ? coords[1] : NaN;
+              if (Number.isNaN(latNum) || Number.isNaN(lonNum)) return null;
+              if (bounded) {
+                const inside =
+                  lonNum >= bbox.minLon && lonNum <= bbox.maxLon && latNum >= bbox.minLat && latNum <= bbox.maxLat;
+                if (!inside) return null;
+              }
 
               const context = Array.isArray(f?.context) ? f.context : [];
               const neighborhood = pickCtx(context, ['neighborhood.']);
@@ -220,14 +236,41 @@ function AddressAutocomplete({
                 typeof f?.relevance === 'number' ? f.relevance : (typeof f?.score === 'number' ? f.score : undefined);
 
               return {
-                lat,
-                lon,
+                lat: String(latNum),
+                lon: String(lonNum),
                 display_name,
                 importance,
                 address: { road, house_number: houseNumber, suburb, city, state, postcode: zip },
               };
             })
             .filter(Boolean) as any[];
+
+          if (bounded) return mapped;
+
+          const campinasCenter: [number, number] = [-22.9056, -47.0608];
+          const deg2rad = (deg: number) => deg * (Math.PI / 180);
+          const haversineKm = (a: [number, number], b: [number, number]) => {
+            const R = 6371;
+            const dLat = deg2rad(b[0] - a[0]);
+            const dLon = deg2rad(b[1] - a[1]);
+            const x =
+              Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(deg2rad(a[0])) * Math.cos(deg2rad(b[0])) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            return R * (2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x)));
+          };
+
+          return mapped.filter((m: any) => {
+            const city = String(m?.address?.city || '');
+            const cityNorm = city
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .toLowerCase();
+            if (cityNorm.includes('campinas')) return true;
+            const lat = Number(m?.lat);
+            const lon = Number(m?.lon);
+            if (Number.isNaN(lat) || Number.isNaN(lon)) return false;
+            return haversineKm(campinasCenter, [lat, lon]) <= 35;
+          });
         };
 
         const callProxy = async (bounded: boolean) => {
@@ -292,15 +335,21 @@ function AddressAutocomplete({
             const lat = typeof item.lat === 'string' ? item.lat : undefined;
             const lon = typeof item.lon === 'string' ? item.lon : undefined;
 
+            const number = addr.house_number || '';
+            const escapedNumber = String(number || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const numberAlreadyInRoad = !!escapedNumber && new RegExp(`\\b${escapedNumber}\\b`).test(String(road || ''));
+
             const parts = [
               road || '',
+              number && !numberAlreadyInRoad ? `, ${number}` : '',
               district ? ` - ${district}` : '',
               city ? ` - ${city}` : '',
               state ? ` - ${state}` : '',
             ].join('');
 
+            const displayFromApi = typeof item?.display_name === 'string' ? item.display_name : '';
             const display =
-              (road ? parts : (item.display_name || '')).replace(/, ,/g, ',').replace(/\s+/g, ' ').replace(/ ,/g, ',').trim();
+              (displayFromApi || (road ? parts : '')).replace(/, ,/g, ',').replace(/\s+/g, ' ').replace(/ ,/g, ',').trim();
 
             const cityNorm = String(city || '')
               .normalize('NFD')
