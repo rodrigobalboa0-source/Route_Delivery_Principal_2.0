@@ -148,6 +148,88 @@ function AddressAutocomplete({
           query = `${query}, Campinas, SP`;
         }
 
+        const mapboxToken = (import.meta as any)?.env?.VITE_MAPBOX_TOKEN as string | undefined;
+        const callMapbox = async (bounded: boolean) => {
+          if (!mapboxToken) return [] as any[];
+
+          const cleanQuery = String(query || '')
+            .replace(/\s+-\s+/g, ', ')
+            .replace(/\s*,\s*/g, ', ')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+          const base = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(cleanQuery)}.json`;
+          const params = new URLSearchParams({
+            access_token: mapboxToken,
+            limit: '8',
+            autocomplete: 'true',
+            country: 'br',
+            language: 'pt',
+            types: 'address,street,neighborhood,locality,postcode',
+            proximity: '-47.0608,-22.9056',
+          });
+          if (bounded) params.set('bbox', '-47.60,-23.35,-46.60,-22.55');
+
+          const res = await fetch(`${base}?${params.toString()}`);
+          if (!res.ok) return [] as any[];
+          const data = await res.json().catch(() => null) as any;
+          const features = Array.isArray(data?.features) ? data.features : [];
+
+          const pickCtx = (context: any[], prefixes: string[]) =>
+            context.find((c: any) => typeof c?.id === 'string' && prefixes.some((p) => c.id.startsWith(p)));
+
+          return features
+            .map((f: any) => {
+              const coords = Array.isArray(f?.geometry?.coordinates) ? f.geometry.coordinates : [];
+              const lon = typeof coords[0] === 'number' ? String(coords[0]) : '';
+              const lat = typeof coords[1] === 'number' ? String(coords[1]) : '';
+              if (!lat || !lon) return null;
+
+              const context = Array.isArray(f?.context) ? f.context : [];
+              const neighborhood = pickCtx(context, ['neighborhood.']);
+              const locality = pickCtx(context, ['locality.']);
+              const place = pickCtx(context, ['place.']);
+              const region = pickCtx(context, ['region.']);
+              const postcode = pickCtx(context, ['postcode.']);
+
+              const houseNumber = String(f?.address ?? f?.properties?.address ?? '').trim();
+              const roadBase = String(f?.text ?? '').trim();
+              const road = roadBase ? `${roadBase}${houseNumber ? `, ${houseNumber}` : ''}` : '';
+              const suburb =
+                String(neighborhood?.text ?? '').trim() ||
+                String(locality?.text ?? '').trim() ||
+                String(f?.properties?.neighborhood ?? '').trim() ||
+                String(f?.properties?.locality ?? '').trim();
+              const city =
+                String(place?.text ?? '').trim() ||
+                String(f?.properties?.city ?? '').trim() ||
+                String(f?.properties?.place ?? '').trim();
+              const state =
+                String(region?.text ?? '').trim() ||
+                String(f?.properties?.state ?? '').trim() ||
+                String(f?.properties?.region ?? '').trim();
+              const zip =
+                String(postcode?.text ?? '').trim() ||
+                String(f?.properties?.postcode ?? '').trim() ||
+                String(f?.properties?.zip ?? '').trim();
+
+              const displaySegments = [road, suburb, city, state, zip].filter((s) => !!String(s || '').trim());
+              const display_name = displaySegments.join(' - ').replace(/\s+/g, ' ').trim() || String(f?.place_name || '').trim();
+
+              const importance =
+                typeof f?.relevance === 'number' ? f.relevance : (typeof f?.score === 'number' ? f.score : undefined);
+
+              return {
+                lat,
+                lon,
+                display_name,
+                importance,
+                address: { road, house_number: houseNumber, suburb, city, state, postcode: zip },
+              };
+            })
+            .filter(Boolean) as any[];
+        };
+
         const callProxy = async (bounded: boolean) => {
           const { data, error } = await supabase.functions.invoke('geocode', {
             body: { q: query, limit: 8, bounded },
@@ -169,8 +251,14 @@ function AddressAutocomplete({
           return Array.isArray(data) ? data : [];
         };
 
-        const first = await callProxy(true);
-        let results = first.ok ? first.results : [];
+        let results = await callMapbox(true);
+        if (results.length === 0) {
+          results = await callMapbox(false);
+        }
+        if (results.length === 0) {
+          const first = await callProxy(true);
+          results = first.ok ? first.results : [];
+        }
         if (results.length === 0) {
           results = (await callProxy(false)).results;
         }
@@ -1363,7 +1451,6 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [isIfoodCancellationReasonsModalOpen, setIsIfoodCancellationReasonsModalOpen] = useState(false);
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null);
   const [ifoodCancellationReasons, setIfoodCancellationReasons] = useState<Array<{ code: string; title: string; description?: string }>>([]);
-  const [selectedCancellationReason, setSelectedCancellationReason] = useState<{ code: string; title: string } | null>(null);
 
   
   useEffect(() => {
@@ -2710,24 +2797,35 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   }, [queueSilentPedidosRefresh]);
 
   const handleDelete = async (p: Pedido) => {
+    console.log('handleDelete chamado para pedido:', p.id);
+    console.log('origem:', p.origem, 'ifood_order_id:', (p as any).ifood_order_id);
+    
+    const ifoodOrderId = typeof (p as any).ifood_order_id === 'string' ? String((p as any).ifood_order_id).trim() : '';
+    const isIfoodOrder = !!ifoodOrderId;
+
     // Para pedidos iFood, mostrar modal de motivos de cancelamento
-    if ((p.origem === 'online' || !!(p as any).ifood_order_id)) {
+    if (isIfoodOrder) {
+        console.log('Pedido detectado como iFood, carregando motivos...');
         setSelectedPedido(p);
         setOpenMenuId(null);
         
         // Carregar motivos de cancelamento do iFood
-        const reasons = await IfoodService.getCancellationReasons();
+        const reasons = await IfoodService.getCancellationReasons(p.id, p.cliente_id, ifoodOrderId);
+        console.log('Motivos carregados:', reasons);
         setIfoodCancellationReasons(reasons);
         
         if (reasons.length > 0) {
+            console.log('Abrindo modal de motivos');
             setIsIfoodCancellationReasonsModalOpen(true);
         } else {
+            console.log('Nenhum motivo encontrado, prosseguindo com cancelamento normal');
             // Se não conseguir carregar motivos, prosseguir com cancelamento normal
             await handleDeleteWithReason(p, null);
         }
         return;
     }
     
+    console.log('Pedido não é iFood, usando fluxo normal');
     // Para pedidos manuais, confirmar diretamente
     const ok = await showConfirm('Tem certeza que deseja cancelar este pedido?');
     if (!ok) return;
@@ -2740,13 +2838,18 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         let showCancellationModal = false;
         
         // Para pedidos iFood, usar o serviço especializado que captura o motivo
-        if ((p.origem === 'online' || !!(p as any).ifood_order_id)) {
+        const ifoodOrderId = typeof (p as any).ifood_order_id === 'string' ? String((p as any).ifood_order_id).trim() : '';
+        const isIfoodOrder = !!ifoodOrderId;
+        if (isIfoodOrder) {
             const result = await IfoodService.handleCancellation(
                 p.id, 
-                (p as any).ifood_order_id,
+                ifoodOrderId,
                 reason?.title,
                 reason?.code
             );
+            if (result?.success === false) {
+              throw new Error(result?.message || 'Falha ao cancelar pedido no iFood');
+            }
             showCancellationModal = result?.showModal || false;
         } else {
             // Para pedidos manuais, apenas atualizar o status
@@ -2765,17 +2868,21 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         );
         
         // Buscar dados atualizados do pedido para exibir no modal
-        await fetchPedidos();
+        const { data: updatedPedido } = await supabase
+          .from('pedidos')
+          .select('*')
+          .eq('id', p.id)
+          .maybeSingle();
         
         // Se for cancelamento iFood com motivo, mostrar o modal automaticamente
         if (showCancellationModal) {
-            const updatedPedido = items.find(item => item.id === p.id);
             if (updatedPedido && (updatedPedido.cancelamento_motivo || updatedPedido.cancelamento_codigo)) {
                 setSelectedPedido(updatedPedido);
                 setIsCancelamentoModalOpen(true);
             }
         }
         
+        await fetchPedidos();
         setOpenMenuId(null);
         await showAlert('Pedido cancelado com sucesso!', 'Sucesso');
     } catch (e) {
@@ -4023,7 +4130,6 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
          <IfoodCancellationReasonsModal
             reasons={ifoodCancellationReasons}
             onSelect={(reason) => {
-              setSelectedCancellationReason(reason);
               setIsIfoodCancellationReasonsModalOpen(false);
               // Prosseguir com o cancelamento usando o motivo selecionado
               if (selectedPedido) {

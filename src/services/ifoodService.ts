@@ -32,7 +32,7 @@ export class IfoodService {
     try {
       const body: any = { action: 'requestCancellation', pedidoId, ifoodOrderId };
       
-      // Se motivo e código foram fornecidos, enviar para a API
+      
       if (cancellationReason && cancellationCode) {
         body.cancellationReason = cancellationReason;
         body.cancellationCode = cancellationCode;
@@ -43,28 +43,31 @@ export class IfoodService {
       });
       
       if (error) throw error;
+      if (data?.success === false) {
+        throw new Error(data?.error || data?.message || 'Falha ao cancelar pedido no iFood');
+      }
       
-      // Capturar informações detalhadas do cancelamento do iFood
+      
       const cancelamentoData: any = {
         cancelamento_codigo: cancellationCode || data?.cancellationCode || null,
         cancelamento_origem: 'ifood',
         cancelado_em: new Date().toISOString()
       };
       
-      // Verificar se o iFood enviou título e descrição separados
+      
       let motivoCompleto = '';
       
       if (data?.cancellationTitle && data?.cancellationDescription) {
-        // Se tiver título e descrição separados, formatar bonito
+        
         motivoCompleto = `${data.cancellationTitle}\n\n${data.cancellationDescription}`;
       } else if (cancellationReason) {
-        // Usar o motivo fornecido
+        
         motivoCompleto = cancellationReason;
       } else if (data?.cancellationReason) {
-        // Se só tiver motivo completo, usar como está
+        
         motivoCompleto = data.cancellationReason;
       } else if (data?.reason) {
-        // Campo alternativo para motivo
+        
         motivoCompleto = data.reason;
       }
       
@@ -72,14 +75,16 @@ export class IfoodService {
         cancelamentoData.cancelamento_motivo = motivoCompleto;
       }
       
-      // Atualizar o pedido com as informações de cancelamento
-      if (motivoCompleto || cancelamentoData.cancelamento_codigo) {
-        await supabase.from('pedidos').update(cancelamentoData).eq('id', pedidoId);
-      }
+      
+      await supabase.from('pedidos').update({
+        ...cancelamentoData,
+        status: 'cancelado',
+        updated_at: new Date().toISOString(),
+      }).eq('id', pedidoId);
       
       return {
         ...data,
-        showModal: true, // Indicar que deve mostrar o modal
+        showModal: true, 
         cancellationData: cancelamentoData
       };
     } catch (error: any) {
@@ -88,15 +93,32 @@ export class IfoodService {
     }
   }
 
-  static async getCancellationReasons() {
+  static async getCancellationReasons(pedidoId: string, clienteId?: string, ifoodOrderId?: string) {
     try {
+      console.log('Buscando motivos de cancelamento do iFood...');
       const { data, error } = await supabase.functions.invoke('ifood-update-status', {
-        body: { action: 'getCancellationReasons' }
+        body: { action: 'getCancellationReasons', pedidoId, clienteId, ifoodOrderId }
       });
       
-      if (error) throw error;
+      console.log('Resposta da edge function:', { data, error });
       
-      return data?.reasons || [];
+      if (error) {
+        console.error('Erro na edge function:', error);
+        throw error;
+      }
+      
+      const rawReasons = Array.isArray(data?.reasons) ? data.reasons : [];
+      const reasons = rawReasons
+        .map((r: any) => {
+          const code = String(r?.code ?? r?.cancellationCode ?? r?.id ?? '').trim();
+          const title = String(r?.title ?? r?.reason ?? r?.description ?? '').trim();
+          const description = String(r?.description ?? r?.details ?? '').trim();
+          if (!code || !title) return null;
+          return { code, title, description: description || undefined };
+        })
+        .filter(Boolean) as Array<{ code: string; title: string; description?: string }>;
+      console.log('Motivos retornados:', reasons);
+      return reasons;
     } catch (error: any) {
       console.error('iFood get cancellation reasons error:', error);
       return [];

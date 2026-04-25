@@ -188,6 +188,88 @@ function AddressAutocomplete({
           query = `${query}, Campinas, SP`;
         }
 
+        const mapboxToken = (import.meta as any)?.env?.VITE_MAPBOX_TOKEN as string | undefined;
+        const callMapbox = async (bounded: boolean) => {
+          if (!mapboxToken) return [] as any[];
+
+          const cleanQuery = String(query || '')
+            .replace(/\s+-\s+/g, ', ')
+            .replace(/\s*,\s*/g, ', ')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+          const base = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(cleanQuery)}.json`;
+          const params = new URLSearchParams({
+            access_token: mapboxToken,
+            limit: '8',
+            autocomplete: 'true',
+            country: 'br',
+            language: 'pt',
+            types: 'address,street,neighborhood,locality,postcode',
+            proximity: '-47.0608,-22.9056',
+          });
+          if (bounded) params.set('bbox', '-47.60,-23.35,-46.60,-22.55');
+
+          const res = await fetch(`${base}?${params.toString()}`);
+          if (!res.ok) return [] as any[];
+          const data = await res.json().catch(() => null) as any;
+          const features = Array.isArray(data?.features) ? data.features : [];
+
+          const pickCtx = (context: any[], prefixes: string[]) =>
+            context.find((c: any) => typeof c?.id === 'string' && prefixes.some((p) => c.id.startsWith(p)));
+
+          return features
+            .map((f: any) => {
+              const coords = Array.isArray(f?.geometry?.coordinates) ? f.geometry.coordinates : [];
+              const lon = typeof coords[0] === 'number' ? String(coords[0]) : '';
+              const lat = typeof coords[1] === 'number' ? String(coords[1]) : '';
+              if (!lat || !lon) return null;
+
+              const context = Array.isArray(f?.context) ? f.context : [];
+              const neighborhood = pickCtx(context, ['neighborhood.']);
+              const locality = pickCtx(context, ['locality.']);
+              const place = pickCtx(context, ['place.']);
+              const region = pickCtx(context, ['region.']);
+              const postcode = pickCtx(context, ['postcode.']);
+
+              const houseNumber = String(f?.address ?? f?.properties?.address ?? '').trim();
+              const roadBase = String(f?.text ?? '').trim();
+              const road = roadBase ? `${roadBase}${houseNumber ? `, ${houseNumber}` : ''}` : '';
+              const suburb =
+                String(neighborhood?.text ?? '').trim() ||
+                String(locality?.text ?? '').trim() ||
+                String(f?.properties?.neighborhood ?? '').trim() ||
+                String(f?.properties?.locality ?? '').trim();
+              const city =
+                String(place?.text ?? '').trim() ||
+                String(f?.properties?.city ?? '').trim() ||
+                String(f?.properties?.place ?? '').trim();
+              const state =
+                String(region?.text ?? '').trim() ||
+                String(f?.properties?.state ?? '').trim() ||
+                String(f?.properties?.region ?? '').trim();
+              const zip =
+                String(postcode?.text ?? '').trim() ||
+                String(f?.properties?.postcode ?? '').trim() ||
+                String(f?.properties?.zip ?? '').trim();
+
+              const displaySegments = [road, suburb, city, state, zip].filter((s) => !!String(s || '').trim());
+              const display_name = displaySegments.join(' - ').replace(/\s+/g, ' ').trim() || String(f?.place_name || '').trim();
+
+              const importance =
+                typeof f?.relevance === 'number' ? f.relevance : (typeof f?.score === 'number' ? f.score : undefined);
+
+              return {
+                lat,
+                lon,
+                display_name,
+                importance,
+                address: { road, house_number: houseNumber, suburb, city, state, postcode: zip },
+              };
+            })
+            .filter(Boolean) as any[];
+        };
+
         const call = async (bounded: boolean) => {
           const { data, error } = await supabase.functions.invoke('geocode', {
             body: { q: query, limit: 8, bounded },
@@ -197,8 +279,14 @@ function AddressAutocomplete({
           return { ok: true as const, results };
         };
 
-        const first = await call(true);
-        const results = first.ok && first.results.length > 0 ? first.results : (await call(false)).results;
+        let results = await callMapbox(true);
+        if (results.length === 0) {
+          results = await callMapbox(false);
+        }
+        if (results.length === 0) {
+          const first = await call(true);
+          results = first.ok && first.results.length > 0 ? first.results : (await call(false)).results;
+        }
         if (seq !== requestSeqRef.current) return;
 
         const campinasCenter: [number, number] = [-22.9056, -47.0608];
