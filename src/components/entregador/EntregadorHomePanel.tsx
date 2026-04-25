@@ -18,7 +18,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [loadingLocation, setLoadingLocation] = useState(true);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
-  const [isOnline, setIsOnline] = useState(false);
+  const [isOnline, setIsOnline] = useState<boolean | null>(null);
   const [entregadorId, setEntregadorId] = useState<string | null>(null);
   const [ganhos, setGanhos] = useState(0);
   const [incomingDelivery, setIncomingDelivery] = useState<any>(null);
@@ -545,7 +545,13 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                
                if (rejectedIds.includes(newRecord.id)) return;
 
-               
+               if (newRecord.status === 'cancelada') {
+                   if (incomingDelivery?.id === newRecord.id) {
+                       setIncomingDelivery(null);
+                   }
+                   return;
+               }
+
                if (newRecord.status === 'atribuida' && newRecord.entregador_id === entregadorId) {
                    
                    if (newRecord.atribuicao_modo === 'automatica') {
@@ -820,8 +826,6 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
   };
 
   const toggleOnline = async () => {
-    if (!entregadorId) return;
-
     if (!isOnline && !photoUrl) {
       alert('Você precisa cadastrar uma foto de perfil antes de ficar online.');
       onNavigate('conta_minha_conta');
@@ -844,23 +848,23 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
           return;
         }
       } catch (e) {
-        console.error('Erro ao verificar entregas ativas:', e);
         alert('Não foi possível verificar suas entregas. Tente novamente.');
         return;
       }
     }
 
     const newState = !isOnline;
-    setIsOnline(newState);
-    
+
     try {
-      await supabase.from('entregadores').update({
-        is_online: newState,
-        last_location_update: new Date().toISOString()
-      }).eq('id', entregadorId);
+      const { error } = await supabase.rpc('toggle_entregador_online_status', {
+        new_status: newState
+      });
+
+      if (error) throw error;
+
+      setIsOnline(newState);
     } catch (e) {
-      console.error('Erro ao atualizar status online:', e);
-      setIsOnline(!newState); 
+      alert('Não foi possível atualizar seu status. Tente novamente.');
     }
   };
 
@@ -931,6 +935,10 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
         ? incomingComissaoRetorno
         : null;
 
+  const valorEntregadorDisplayFinal = isIncomingMultiplo
+    ? comissaoDestinosDisplay.reduce((sum: number, d: any) => sum + (typeof d?.valor === 'number' ? d.valor : 0), 0) + (comissaoRetornoDisplay || 0)
+    : valorEntregadorDisplay;
+
   return (
     <div className="h-full w-full relative bg-slate-100">
       {/* Map covering the full screen */}
@@ -958,14 +966,17 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
       <div className="absolute top-4 left-4 z-10">
         <button
           onClick={toggleOnline}
+          disabled={isOnline === null}
           className={`flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition-all shadow-md ${
-            isOnline 
-              ? 'bg-green-500 text-white border-2 border-green-600 hover:bg-green-600' 
+            isOnline === null
+              ? 'bg-slate-400 text-slate-300 cursor-not-allowed'
+              : isOnline
+              ? 'bg-green-500 text-white border-2 border-green-600 hover:bg-green-600'
               : 'bg-slate-700 text-white border-2 border-slate-800 hover:bg-slate-800'
           }`}
         >
           <Power size={18} />
-          {isOnline ? 'Online' : 'Offline'}
+          {isOnline === null ? '...' : isOnline ? 'Online' : 'Offline'}
         </button>
       </div>
 
@@ -1014,7 +1025,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                                     {calculatingIncomingValorEntregador ? (
                                       <span className="text-green-700/60 animate-pulse">...</span>
                                     ) : (
-                                      `R$ ${valorEntregadorDisplay.toFixed(2)}`
+                                      `R$ ${valorEntregadorDisplayFinal.toFixed(2)}`
                                     )}
                                 </span>
                             </div>
@@ -1044,7 +1055,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
                             <div className="flex items-center justify-between">
                               <p className="text-xs font-bold text-slate-600 uppercase tracking-wide">Pedido Múltiplo</p>
-                              <p className="text-xs font-semibold text-slate-700">Total: R$ {valorEntregadorDisplay.toFixed(2)}</p>
+                              <p className="text-xs font-semibold text-slate-700">Total: R$ {valorEntregadorDisplayFinal.toFixed(2)}</p>
                             </div>
                             <div className="space-y-2">
                               {incomingDestinos.map((d: any, idx: number) => {

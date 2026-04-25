@@ -1950,7 +1950,7 @@ export function NovaEntregaPanel() {
                 <AddressAutocomplete
                   placeholder="Endereço completo"
                   value={p.endereco_texto}
-                  onChange={(val) => { setDistanceError(null); const arr = [...form.pontos]; arr[idx] = { ...arr[idx], endereco_texto: val, coords: undefined }; setForm({ ...form, pontos: arr }); }}
+                  onChange={(val) => { setDistanceError(null); const arr = [...form.pontos]; arr[idx] = { ...arr[idx], endereco_texto: val }; setForm({ ...form, pontos: arr }); }}
                   onSelectCoords={(coords) => { setDistanceError(null); const arr = [...form.pontos]; arr[idx] = { ...arr[idx], coords }; setForm({ ...form, pontos: arr }); }}
                   containerClassName="md:col-span-2"
                 />

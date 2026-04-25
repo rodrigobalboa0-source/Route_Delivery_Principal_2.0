@@ -277,10 +277,18 @@ function App() {
       if (typeof window !== 'undefined') {
         const savedMenu = localStorage.getItem('activeMenu');
         if (savedMenu) {
-          setActiveMenu(savedMenu);
-          setMenuParams(null);
-          isMenuRestored.current = true;
-          return;
+          const validMenusForRole: Record<string, string[]> = {
+            operador: ['pedidos', 'cadastro', 'entregas', 'mensagens', 'financeiro', 'nova', 'relatorios', 'configuracoes'],
+            cliente: ['pedidos', 'nova', 'mensagens', 'comercio_notificacoes', 'comercio_creditos', 'comercio_faturamento'],
+            entregador: ['home_entregador', 'entregas', 'mensagens', 'carteira', 'conta']
+          };
+          const validMenus = validMenusForRole[resolvedRole] || [];
+          if (validMenus.includes(savedMenu)) {
+            setActiveMenu(savedMenu);
+            setMenuParams(null);
+            isMenuRestored.current = true;
+            return;
+          }
         }
       }
       setActiveMenu(defaultMenu);
