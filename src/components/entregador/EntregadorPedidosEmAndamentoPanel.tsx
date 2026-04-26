@@ -512,77 +512,6 @@ export function EntregadorPedidosEmAndamentoPanel() {
 
       const newOpcionais = { ...opcionais, timeline };
 
-      if (newStatus === 'entregue' && currentEntrega) {
-        const extras = parseExtraDeliveryPoints(currentEntrega);
-        const currentDestinoIdx = getCurrentDestinationIndex(currentEntrega);
-        const hasNextDestination = currentDestinoIdx < extras.length;
-
-        if (hasNextDestination) {
-          const nextPoint = extras[currentDestinoIdx];
-          const baseAddr = String(nextPoint.endereco_texto || '').trim();
-          const nextAddr = nextPoint.numero ? `${baseAddr}, ${String(nextPoint.numero).trim()}` : baseAddr;
-
-          if (!nextAddr) {
-            await showAlert('Não foi possível avançar: próximo destino sem endereço.', 'Erro');
-            setUpdatingId(null);
-            return;
-          }
-
-          const advanceTimeline = {
-            ...timeline,
-            [`destino_${currentDestinoIdx + 1}_concluido_em`]: now,
-            [`destino_${currentDestinoIdx + 2}_iniciado_em`]: now,
-          };
-          const advancedOpcionais = {
-            ...opcionais,
-            timeline: advanceTimeline,
-            destino_atual_indice: currentDestinoIdx + 1,
-          };
-
-          const { error: advanceError } = await supabase
-            .from('nova_entrega')
-            .update({
-              status: 'em_rota',
-              updated_at: now,
-              opcionais: advancedOpcionais,
-              entrega_contato: nextPoint.contato || null,
-              entrega_telefone: nextPoint.telefone || null,
-              entrega_cep: nextPoint.cep || null,
-              entrega_endereco_texto: nextAddr,
-              entrega_complemento: nextPoint.complemento || null,
-              entrega_observacoes: nextPoint.observacoes || null,
-            } as any)
-            .eq('id', id);
-
-          if (advanceError) throw advanceError;
-
-          const nextCoords = await getCoordsFromAddress(nextAddr);
-          if (nextCoords) {
-            setDeliveryCoords((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), delivery: nextCoords } }));
-          }
-
-          setEntregas((prev) =>
-            prev.map((e) =>
-              e.id === id
-                ? {
-                    ...e,
-                    status: 'em_rota',
-                    opcionais: advancedOpcionais,
-                    entrega_contato: nextPoint.contato || null,
-                    entrega_telefone: nextPoint.telefone || null,
-                    entrega_cep: nextPoint.cep || null,
-                    entrega_endereco_texto: nextAddr,
-                    entrega_complemento: nextPoint.complemento || null,
-                    entrega_observacoes: nextPoint.observacoes || null,
-                  }
-                : e,
-            ),
-          );
-
-          return;
-        }
-      }
-
       const { error } = await supabase
         .from('nova_entrega')
         .update({ 
@@ -659,6 +588,168 @@ export function EntregadorPedidosEmAndamentoPanel() {
     } catch (error: any) {
       console.error('Erro ao rejeitar:', error);
       await showAlert('Erro ao rejeitar: ' + error.message, 'Erro');
+    } finally {
+      setUpdatingId(null);
+    }
+  }
+
+  async function advanceToNextDestination(id: string) {
+    setUpdatingId(id);
+    try {
+      const currentEntrega = entregas.find(e => e.id === id);
+      const dists = distances[id];
+      const coords = deliveryCoords[id];
+
+      if (!currentEntrega) {
+        await showAlert('Entrega não encontrada.', 'Erro');
+        setUpdatingId(null);
+        return;
+      }
+
+      // Validação de GPS - mesma lógica de updateStatus para chegou_entrega
+      if (!userLocation) {
+        await showAlert('Aguardando localização do dispositivo...', 'Localização');
+        setUpdatingId(null);
+        return;
+      }
+
+      const hasDeliveryAddress = !!currentEntrega.entrega_endereco_texto;
+      const accuracyKm = typeof userLocation.accuracyM === 'number' ? userLocation.accuracyM / 1000 : 0;
+      const effectiveMaxDistanceKm = Math.max(BASE_MAX_DISTANCE_KM, 0.25, Math.min(1, accuracyKm * 3.5));
+
+      if (hasDeliveryAddress) {
+        let deliveryCoordsResolved = coords?.delivery;
+        if (!deliveryCoordsResolved && currentEntrega.entrega_endereco_texto) {
+          deliveryCoordsResolved = await getCoordsFromAddress(currentEntrega.entrega_endereco_texto);
+          if (deliveryCoordsResolved) {
+            setDeliveryCoords(prev => ({ ...prev, [id]: { ...(prev[id] || {}), delivery: deliveryCoordsResolved } }));
+          }
+        }
+
+        if (!deliveryCoordsResolved) {
+          const acc = userLocation.accuracyM ? `\nPrecisão do GPS: ~${Math.round(userLocation.accuracyM)}m` : '';
+          const canBypass = typeof userLocation.accuracyM === 'number' && userLocation.accuracyM <= 120;
+          if (canBypass) {
+            const ok = await showConfirm(
+              `Não foi possível localizar o endereço de entrega para validar sua presença.\n\nEndereço de entrega: ${String(currentEntrega.entrega_endereco_texto || '').trim()}${acc}\n\nDeseja confirmar mesmo assim?`,
+              'Confirmação'
+            );
+            if (!ok) {
+              setUpdatingId(null);
+              return;
+            }
+          } else {
+            await showAlert(
+              `Não foi possível localizar o endereço de entrega para validar sua presença.\n\nEndereço de entrega: ${String(currentEntrega.entrega_endereco_texto || '').trim()}${acc}`,
+              'Localização'
+            );
+            setUpdatingId(null);
+            return;
+          }
+        } else {
+          const distKm = getDistanceFromLatLonInKm(
+            userLocation.lat,
+            userLocation.lng,
+            deliveryCoordsResolved[0],
+            deliveryCoordsResolved[1]
+          );
+
+          if (distKm > effectiveMaxDistanceKm) {
+            const acc = userLocation.accuracyM ? `\nPrecisão do GPS: ~${Math.round(userLocation.accuracyM)}m` : '';
+            await showAlert(
+              `Você ainda não chegou no local de entrega para confirmar.\n\nEndereço de entrega: ${String(currentEntrega.entrega_endereco_texto || '').trim()}\nDistância: ${distKm.toFixed(2)} km (máx: ${effectiveMaxDistanceKm.toFixed(2)} km)${acc}`,
+              'Localização'
+            );
+            setUpdatingId(null);
+            return;
+          }
+        }
+      }
+
+      // Após validação GPS, avança para próximo destino
+      const extras = parseExtraDeliveryPoints(currentEntrega);
+      const currentDestinoIdx = getCurrentDestinationIndex(currentEntrega);
+      
+      if (currentDestinoIdx >= extras.length) {
+        await showAlert('Não há mais destinos para avançar.', 'Aviso');
+        setUpdatingId(null);
+        return;
+      }
+
+      const nextPoint = extras[currentDestinoIdx];
+      if (!nextPoint) {
+        await showAlert('Não foi possível avançar: próximo destino inválido.', 'Erro');
+        setUpdatingId(null);
+        return;
+      }
+
+      const baseAddr = String(nextPoint.endereco_texto || '').trim();
+      const nextAddr = nextPoint.numero ? `${baseAddr}, ${String(nextPoint.numero).trim()}` : baseAddr;
+
+      if (!nextAddr || nextAddr === ',') {
+        await showAlert('Não foi possível avançar: próximo destino sem endereço válido.', 'Erro');
+        setUpdatingId(null);
+        return;
+      }
+
+      const opcionais = currentEntrega?.opcionais || {};
+      const timeline = opcionais.timeline || {};
+      const now = new Date().toISOString();
+
+      const advanceTimeline = {
+        ...timeline,
+        [`destino_${currentDestinoIdx + 1}_concluido_em`]: now,
+        [`destino_${currentDestinoIdx + 2}_iniciado_em`]: now,
+      };
+      const advancedOpcionais = {
+        ...opcionais,
+        timeline: advanceTimeline,
+        destino_atual_indice: currentDestinoIdx + 1,
+      };
+
+      const { error: advanceError } = await supabase
+        .from('nova_entrega')
+        .update({
+          status: 'em_rota',
+          updated_at: now,
+          opcionais: advancedOpcionais,
+          entrega_contato: nextPoint.contato || null,
+          entrega_telefone: nextPoint.telefone || null,
+          entrega_cep: nextPoint.cep || null,
+          entrega_endereco_texto: nextAddr,
+          entrega_complemento: nextPoint.complemento || null,
+          entrega_observacoes: nextPoint.observacoes || null,
+        } as any)
+        .eq('id', id);
+
+      if (advanceError) throw advanceError;
+
+      const nextCoords = await getCoordsFromAddress(nextAddr);
+      if (nextCoords) {
+        setDeliveryCoords((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), delivery: nextCoords } }));
+      }
+
+      setEntregas((prev) =>
+        prev.map((e) =>
+          e.id === id
+            ? {
+                ...e,
+                status: 'em_rota',
+                opcionais: advancedOpcionais,
+                entrega_contato: nextPoint.contato || null,
+                entrega_telefone: nextPoint.telefone || null,
+                entrega_cep: nextPoint.cep || null,
+                entrega_endereco_texto: nextAddr,
+                entrega_complemento: nextPoint.complemento || null,
+                entrega_observacoes: nextPoint.observacoes || null,
+              }
+            : e,
+        ),
+      );
+
+    } catch (error: any) {
+      console.error('Erro ao avançar destino:', error);
+      await showAlert('Erro ao avançar destino: ' + error.message, 'Erro');
     } finally {
       setUpdatingId(null);
     }
@@ -1002,7 +1093,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
                 {/* FINALIZAR (Se chegou_entrega) */}
                 {entrega.status === 'chegou_entrega' && (
                   <button
-                    onClick={() => updateStatus(entrega.id, 'entregue')}
+                    onClick={() => hasNextDestination ? advanceToNextDestination(entrega.id) : updateStatus(entrega.id, 'entregue')}
                     disabled={updatingId === entrega.id}
                     className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
                   >

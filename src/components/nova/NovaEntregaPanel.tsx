@@ -80,6 +80,7 @@ function AddressAutocomplete({
   const inputRef = useRef<HTMLInputElement | null>(null);
   const requestSeqRef = useRef(0);
   const cacheRef = useRef<Map<string, AddressSuggestion[]>>(new Map());
+  const sessionTokenRef = useRef<string>(crypto.randomUUID());
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
@@ -99,6 +100,7 @@ function AddressAutocomplete({
     }
     setOpen(false);
     setActiveIndex(-1);
+    sessionTokenRef.current = crypto.randomUUID();
   };
 
   useEffect(() => {
@@ -184,6 +186,27 @@ function AddressAutocomplete({
           'santo antonio',
           'santo antônio',
           'itupeva',
+          
+          'jardim sao marcos',
+          'jardim são marcos',
+          'jardim das industrias',
+          'jardim das indústrias',
+          'jardim guanabara',
+          'jardim planalto',
+          'jardim novo horizonte',
+          'jardim santa genebra',
+          'jardim santa edwiges',
+          'jardim sao jose',
+          'jardim são josé',
+          'jardim eldorado',
+          'jardim flor da serra',
+          'barao geraldo',
+          'barão geraldo',
+          'vila industrial',
+          'centro',
+          'nova campinas',
+          'taquaral',
+          'lagoa do codorna',
         ];
 
         const hasCityHint = regionCities.some((c) => queryNormalized.includes(c));
@@ -192,204 +215,35 @@ function AddressAutocomplete({
           query = `${query}, Campinas, SP`;
         }
 
-        const mapboxToken = (import.meta as any)?.env?.VITE_MAPBOX_TOKEN as string | undefined;
-        const callMapbox = async (bounded: boolean) => {
-          if (!mapboxToken) return [] as any[];
-
-          const cleanQuery = String(query || '').replace(/\s*,\s*/g, ', ').replace(/\s+/g, ' ').trim();
-
-          const base = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(cleanQuery)}.json`;
-          const params = new URLSearchParams({
-            access_token: mapboxToken,
-            limit: '10',
-            autocomplete: 'true',
-            fuzzyMatch: 'true',
-            country: 'br',
-            language: 'pt',
-            types: 'address,street,neighborhood,locality,postcode',
-            proximity: '-47.0608,-22.9056',
-          });
-          const bbox = { minLon: -47.6, minLat: -23.35, maxLon: -46.6, maxLat: -22.55 };
-          if (bounded) params.set('bbox', `${bbox.minLon},${bbox.minLat},${bbox.maxLon},${bbox.maxLat}`);
-
-          const res = await fetch(`${base}?${params.toString()}`);
-          if (!res.ok) return [] as any[];
-          const data = await res.json().catch(() => null) as any;
-          const features = Array.isArray(data?.features) ? data.features : [];
-
-          const pickCtx = (context: any[], prefixes: string[]) =>
-            context.find((c: any) => typeof c?.id === 'string' && prefixes.some((p) => c.id.startsWith(p)));
-
-          const mapped = features
-            .map((f: any) => {
-              const coords = Array.isArray(f?.geometry?.coordinates) ? f.geometry.coordinates : [];
-              const lonNum = typeof coords[0] === 'number' ? coords[0] : NaN;
-              const latNum = typeof coords[1] === 'number' ? coords[1] : NaN;
-              if (Number.isNaN(latNum) || Number.isNaN(lonNum)) return null;
-              if (bounded) {
-                const inside =
-                  lonNum >= bbox.minLon && lonNum <= bbox.maxLon && latNum >= bbox.minLat && latNum <= bbox.maxLat;
-                if (!inside) return null;
-              }
-
-              const context = Array.isArray(f?.context) ? f.context : [];
-              const neighborhood = pickCtx(context, ['neighborhood.']);
-              const locality = pickCtx(context, ['locality.']);
-              const place = pickCtx(context, ['place.']);
-              const region = pickCtx(context, ['region.']);
-              const postcode = pickCtx(context, ['postcode.']);
-
-              const houseNumber = String(f?.address ?? f?.properties?.address ?? '').trim();
-              const roadBase = String(f?.text ?? '').trim();
-              const road = roadBase ? `${roadBase}${houseNumber ? `, ${houseNumber}` : ''}` : '';
-              const suburb =
-                String(neighborhood?.text ?? '').trim() ||
-                String(locality?.text ?? '').trim() ||
-                String(f?.properties?.neighborhood ?? '').trim() ||
-                String(f?.properties?.locality ?? '').trim();
-              const city =
-                String(place?.text ?? '').trim() ||
-                String(f?.properties?.city ?? '').trim() ||
-                String(f?.properties?.place ?? '').trim();
-              const state =
-                String(region?.text ?? '').trim() ||
-                String(f?.properties?.state ?? '').trim() ||
-                String(f?.properties?.region ?? '').trim();
-              const zip =
-                String(postcode?.text ?? '').trim() ||
-                String(f?.properties?.postcode ?? '').trim() ||
-                String(f?.properties?.zip ?? '').trim();
-
-              const displaySegments = [road, suburb, city, state, zip].filter((s) => !!String(s || '').trim());
-              const display_name = displaySegments.join(' - ').replace(/\s+/g, ' ').trim() || String(f?.place_name || '').trim();
-
-              const importance =
-                typeof f?.relevance === 'number' ? f.relevance : (typeof f?.score === 'number' ? f.score : undefined);
-
-              return {
-                lat: String(latNum),
-                lon: String(lonNum),
-                display_name,
-                importance,
-                address: { road, house_number: houseNumber, suburb, city, state, postcode: zip },
-              };
-            })
-            .filter(Boolean) as any[];
-
-          if (bounded) return mapped;
-
-          const campinasCenter: [number, number] = [-22.9056, -47.0608];
-          const deg2rad = (deg: number) => deg * (Math.PI / 180);
-          const haversineKm = (a: [number, number], b: [number, number]) => {
-            const R = 6371;
-            const dLat = deg2rad(b[0] - a[0]);
-            const dLon = deg2rad(b[1] - a[1]);
-            const x =
-              Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(deg2rad(a[0])) * Math.cos(deg2rad(b[0])) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-            return R * (2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x)));
-          };
-
-          return mapped.filter((m: any) => {
-            const city = String(m?.address?.city || '');
-            const cityNorm = city
-              .normalize('NFD')
-              .replace(/[\u0300-\u036f]/g, '')
-              .toLowerCase();
-            if (cityNorm.includes('campinas')) return true;
-            const lat = Number(m?.lat);
-            const lon = Number(m?.lon);
-            if (Number.isNaN(lat) || Number.isNaN(lon)) return false;
-            return haversineKm(campinasCenter, [lat, lon]) <= 35;
-          });
-        };
-
         const call = async (bounded: boolean) => {
           const { data, error } = await supabase.functions.invoke('geocode', {
-            body: { q: query, limit: 8, bounded },
+            body: { q: query, limit: 8, bounded, sessionToken: sessionTokenRef.current, provider: 'google-geocode' },
           });
           if (error) return { ok: false as const, results: [] as any[] };
           const results = Array.isArray((data as any)?.results) ? (data as any).results : [];
           return { ok: true as const, results };
         };
 
-        let results = await callMapbox(true);
+        const first = await call(true);
+        let results = first.ok ? first.results : [];
         if (results.length === 0) {
-          results = await callMapbox(false);
-        }
-        if (results.length === 0) {
-          const first = await call(true);
-          results = first.ok && first.results.length > 0 ? first.results : (await call(false)).results;
+          const second = await call(false);
+          results = second.ok ? second.results : [];
         }
         if (seq !== requestSeqRef.current) return;
 
-        const campinasCenter: [number, number] = [-22.9056, -47.0608];
-        const deg2rad = (deg: number) => deg * (Math.PI / 180);
-        const haversineKm = (a: [number, number], b: [number, number]) => {
-          const R = 6371;
-          const dLat = deg2rad(b[0] - a[0]);
-          const dLon = deg2rad(b[1] - a[1]);
-          const x =
-            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(deg2rad(a[0])) * Math.cos(deg2rad(b[0])) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-          return R * (2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x)));
-        };
-
-        const suggestionsScored = (Array.isArray(results) ? results : [])
-          .map((item: any) => {
-            const addr = item.address || {};
-            const road = addr.road || addr.pedestrian || addr.street || item.name || '';
-            const number = addr.house_number || userNumber || '';
-            const district = addr.suburb || addr.neighbourhood || addr.city_district || '';
-            const city = addr.city || addr.town || addr.municipality || addr.village || '';
-            const state = addr.state || '';
-
-            const lat = typeof item.lat === 'string' ? item.lat : undefined;
-            const lon = typeof item.lon === 'string' ? item.lon : undefined;
-
-            const escapedNumber = String(number || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const numberAlreadyInRoad = !!escapedNumber && new RegExp(`\\b${escapedNumber}\\b`).test(String(road || ''));
-
-            const parts = [
-              road || '',
-              number && !numberAlreadyInRoad ? `, ${number}` : '',
-              district ? ` - ${district}` : '',
-              city ? ` - ${city}` : '',
-              state ? ` - ${state}` : '',
-            ].join('');
-
-            const displayFromApi = typeof item?.display_name === 'string' ? item.display_name : '';
-            const display =
-              (displayFromApi || (road ? parts : '')).replace(/, ,/g, ',').replace(/\s+/g, ' ').replace(/ ,/g, ',').trim();
-
-            const cityNorm = String(city || '')
-              .normalize('NFD')
-              .replace(/[\u0300-\u036f]/g, '')
-              .toLowerCase();
-
-            let score = 0;
-            if (cityNorm.includes('campinas')) score += 50;
-            else if (cityNorm) score += 20;
-            if (number) score += 5;
-            if (district) score += 3;
-            if (typeof item.importance === 'number') score += item.importance * 10;
-
-            const nLat = Number(lat);
-            const nLon = Number(lon);
-            if (!Number.isNaN(nLat) && !Number.isNaN(nLon)) {
-              const dist = haversineKm(campinasCenter, [nLat, nLon]);
-              score += Math.max(0, 40 - dist);
-            }
-
-            return { display_name: display, lat, lon, score };
-          })
-          .filter((s: any) => !!s.display_name)
-          .sort((a: any, b: any) => (b.score || 0) - (a.score || 0))
-          .map((s: any) => ({ display_name: s.display_name, lat: s.lat, lon: s.lon } as AddressSuggestion));
+        // Usar exatamente a ordem e display_name original da API
+        const suggestionsRaw = (Array.isArray(results) ? results : [])
+          .map((item: any) => ({
+            display_name: String(item.display_name || '').trim(),
+            lat: typeof item.lat === 'string' ? item.lat : undefined,
+            lon: typeof item.lon === 'string' ? item.lon : undefined,
+          }))
+          .filter((s: any) => !!s.display_name && !!s.lat && !!s.lon);
 
         const deduped: AddressSuggestion[] = [];
         const seen = new Set<string>();
-        for (const s of suggestionsScored) {
+        for (const s of suggestionsRaw) {
           const k = s.display_name
             .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '')
@@ -404,13 +258,7 @@ function AddressAutocomplete({
         cacheRef.current.set(normalizedKey, deduped);
         setSuggestions(deduped);
 
-        if (onSuggestCoords && trimmedValue.length >= 6) {
-          const top = deduped[0];
-          const lat = Number(top?.lat);
-          const lon = Number(top?.lon);
-          const coords = !Number.isNaN(lat) && !Number.isNaN(lon) ? ([lat, lon] as [number, number]) : undefined;
-          onSuggestCoords(coords, trimmedValue);
-        }
+        
       } catch (e) {
         setSuggestions([]);
         setSuggestionsError('Falha ao buscar endereços. Tente novamente.');
@@ -418,7 +266,7 @@ function AddressAutocomplete({
         const isLatest = seq === requestSeqRef.current;
         if (isLatest) setLoadingSuggestions(false);
       }
-    }, 250);
+    }, 700);
 
     return () => {
       clearTimeout(timer);
