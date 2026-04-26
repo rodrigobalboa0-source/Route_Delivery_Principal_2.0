@@ -1596,29 +1596,35 @@ export function NovaEntregaPanel() {
         return { destinos, retornoValor: retornoValor && retornoValor > 0 ? retornoValor : null, total: total > 0 ? total : null };
       };
 
-      const commission = buildCommissionDestinos();
-      const opcionaisPayload = {
-        ...(driverBonuses.length > 0 ? { driver_bonuses: driverBonuses } : {}),
-        ...(segmentPricing ? { pricing_destinos: segmentPricing } : {}),
-        ...(commission ? { comissao_destinos: commission.destinos, comissao_retorno: commission.retornoValor, comissao_total: commission.total } : {}),
-      };
+    const commission = buildCommissionDestinos();
+    
 
-      const res = await supabase
-        .from('nova_entrega')
-        .insert({
-          pedido_id: pedidoId,
-          cliente_id: form.cliente_id,
-          endereco_id: form.endereco_id || null,
-          tipo_servico_id: form.tipo_servico_id || (tipos.length > 0 ? tipos[0].id : null),
-          modal_tipo: (form.modal_tipo || (modais.length > 0 ? modais[0].tipo : 'moto')) as ModalRow['tipo'],
-          atribuicao_modo: form.atribuicao_modo,
-          entregador_id: entregadorEscolhido,
-          solicitar_comprovante: form.solicitar_comprovante,
-          agendar_em: agendarIso,
-          retirada_no_local: false,
-          valor_manual: form.valor_manual,
-          valor_entrega: form.valor_entrega ? Number(form.valor_entrega.replace(',', '.')) : null,
-          valor_entregador: driverValue,
+    const finalDriverValue = (commission && commission.total && extraPointsFilled > 0) 
+      ? commission.total 
+      : driverValue;
+
+    const opcionaisPayload = {
+      ...(driverBonuses.length > 0 ? { driver_bonuses: driverBonuses } : {}),
+      ...(segmentPricing ? { pricing_destinos: segmentPricing } : {}),
+      ...(commission ? { comissao_destinos: commission.destinos, comissao_retorno: commission.retornoValor, comissao_total: commission.total } : {}),
+    };
+
+    const res = await supabase
+      .from('nova_entrega')
+      .insert({
+        pedido_id: pedidoId,
+        cliente_id: form.cliente_id,
+        endereco_id: form.endereco_id || null,
+        tipo_servico_id: form.tipo_servico_id || (tipos.length > 0 ? tipos[0].id : null),
+        modal_tipo: (form.modal_tipo || (modais.length > 0 ? modais[0].tipo : 'moto')) as ModalRow['tipo'],
+        atribuicao_modo: form.atribuicao_modo,
+        entregador_id: entregadorEscolhido,
+        solicitar_comprovante: form.solicitar_comprovante,
+        agendar_em: agendarIso,
+        retirada_no_local: false,
+        valor_manual: form.valor_manual,
+        valor_entrega: form.valor_entrega ? Number(form.valor_entrega.replace(',', '.')) : null,
+        valor_entregador: finalDriverValue,
           tipo_cobranca: form.tipo_cobranca as 'fatura' | 'avista' | 'pix' | 'cartao',
           pagamento_metodo: form.pagamento_metodo || null,
           pagamento_na_entrega: !!form.pagamento_na_entrega,

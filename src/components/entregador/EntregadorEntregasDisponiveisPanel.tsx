@@ -20,6 +20,31 @@ export function EntregadorEntregasDisponiveisPanel() {
   const [currentTime, setCurrentTime] = useState(Date.now());
   const lastCountRef = useRef(0);
 
+  const safeParseArray = (value: any) => {
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+
+  const calculateMultiDestinoTotal = (entrega: any) => {
+    const extraPoints = safeParseArray(entrega?.pontos_adicionais);
+    const comissaoDestinos = safeParseArray(entrega?.opcionais?.comissao_destinos);
+    const comissaoRetorno = typeof entrega?.opcionais?.comissao_retorno === 'number' ? Number(entrega.opcionais.comissao_retorno) : 0;
+    
+    const numDestinos = 1 + extraPoints.length;
+    if (numDestinos <= 1) return Number(entrega.valor_entregador || 0);
+
+    const totalDestinos = comissaoDestinos.reduce((sum: number, d: any) => sum + (typeof d?.valor === 'number' ? d.valor : 0), 0);
+    return totalDestinos + comissaoRetorno;
+  };
+
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(Date.now());
@@ -441,6 +466,19 @@ export function EntregadorEntregasDisponiveisPanel() {
       if (error) throw error;
       
       if (data && data.success) {
+        // Atualizar o valor_entregador no banco de dados com o valor calculado para pedidos múltiplos
+        const entrega = entregas.find(e => e.id === id);
+        if (entrega) {
+          const valorCalculado = calculateMultiDestinoTotal(entrega);
+          if (valorCalculado > 0 && valorCalculado !== Number(entrega.valor_entregador || 0)) {
+            console.log('Atualizando valor_entregador para pedido múltiplo (Disponíveis):', valorCalculado);
+            await supabase
+              .from('nova_entrega')
+              .update({ valor_entregador: valorCalculado })
+              .eq('id', id);
+          }
+        }
+
         if (currentActive + 1 >= effectiveLimit) {
             setEntregas([]);
         } else {
@@ -550,7 +588,7 @@ export function EntregadorEntregasDisponiveisPanel() {
                    <div className="flex flex-col items-end">
                      <div className="flex items-center gap-1 text-green-600 font-bold text-lg">
                        <DollarSign size={18} />
-                      {Number(entrega.valor_entregador ?? 0).toFixed(2)}
+                       {calculateMultiDestinoTotal(entrega).toFixed(2)}
                      </div>
                      {entrega.opcionais?.driver_bonuses && Array.isArray(entrega.opcionais.driver_bonuses) && (
                        <div className="text-xs text-right flex flex-col items-end gap-1 mb-1">

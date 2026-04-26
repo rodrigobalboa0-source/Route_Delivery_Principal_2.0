@@ -23,6 +23,42 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
   const [acertos, setAcertos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saldo, setSaldo] = useState(0);
+
+  function safeParseArray(value: any) {
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  }
+
+  function calculateMultiDestinoTotal(entrega: any) {
+    // Se o valor_entregador já parece estar correto (maior que zero e não é o valor base simples)
+    // ou se não temos os dados necessários para recalcular, usamos o que está no banco.
+    // No entanto, para garantir a regra de "sumatória dos destinos", recalculamos se houver pontos adicionais.
+    
+    const extraPoints = safeParseArray(entrega?.pontos_adicionais);
+    const comissaoDestinos = safeParseArray(entrega?.opcionais?.comissao_destinos);
+    const comissaoRetorno = typeof entrega?.opcionais?.comissao_retorno === 'number' ? Number(entrega.opcionais.comissao_retorno) : 0;
+    
+    // Se não houver destinos extras, usamos o valor_entregador do banco
+    const numDestinos = 1 + extraPoints.length;
+    if (numDestinos <= 1) return Number(entrega.valor_entregador || 0);
+
+    // Se houver comissões detalhadas nos opcionais, usamos a soma delas
+    if (comissaoDestinos.length > 0) {
+      const totalDestinos = comissaoDestinos.reduce((sum: number, d: any) => sum + (typeof d?.valor === 'number' ? d.valor : 0), 0);
+      return totalDestinos + comissaoRetorno;
+    }
+
+    // Fallback para o valor do banco se não houver detalhamento
+    return Number(entrega.valor_entregador || 0);
+  }
   
   
   const [showBankModal, setShowBankModal] = useState(false);
@@ -182,7 +218,7 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
       setExtrato(entregas || []);
       setAcertos(acertosData || []);
       
-      const totalGanhos = (entregas || []).reduce((acc, curr) => acc + (Number(curr.valor_entregador) || 0), 0);
+      const totalGanhos = (entregas || []).reduce((acc, curr) => acc + calculateMultiDestinoTotal(curr), 0);
       
       const totalSaques = (acertosData || [])
         .filter((a: any) => a.status === 'pago' || a.status === 'pendente')
@@ -598,7 +634,7 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
                {[...extrato, ...acertos].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map((item) => {
                  // Identify type
                  const isAcerto = 'valor_pago' in item;
-                const valor = isAcerto ? -((Number(item.valor_pago) || 0) + (Number(item.taxa_aplicada) || 0)) : (Number((item as any).valor_entregador) || 0);
+                const valor = isAcerto ? -((Number(item.valor_pago) || 0) + (Number(item.taxa_aplicada) || 0)) : calculateMultiDestinoTotal(item);
                  const descricao = isAcerto ? 
                     (item.status === 'pendente' ? (item.tipo_saque === 'rapido' ? 'Saque Rápido (Pendente)' : 'Saque (Pendente)') : (item.tipo_saque === 'rapido' ? 'Saque Rápido Realizado' : 'Saque Realizado')) : 
                     (item.descricao || 'Comissão de Entrega');

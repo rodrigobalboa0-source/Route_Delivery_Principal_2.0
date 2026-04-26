@@ -41,6 +41,31 @@ function getCurrentDestinationIndex(entrega: any): number {
   return Math.floor(idx);
 }
 
+function safeParseArray(value: any) {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function calculateMultiDestinoTotal(entrega: any) {
+  const extraPoints = safeParseArray(entrega?.pontos_adicionais);
+  const comissaoDestinos = safeParseArray(entrega?.opcionais?.comissao_destinos);
+  const comissaoRetorno = typeof entrega?.opcionais?.comissao_retorno === 'number' ? Number(entrega.opcionais.comissao_retorno) : 0;
+  
+  const numDestinos = 1 + extraPoints.length;
+  if (numDestinos <= 1) return Number(entrega.valor_entregador || 0);
+
+  const totalDestinos = comissaoDestinos.reduce((sum: number, d: any) => sum + (typeof d?.valor === 'number' ? d.valor : 0), 0);
+  return totalDestinos + comissaoRetorno;
+}
+
 export function EntregadorPedidosEmAndamentoPanel() {
   const [entregas, setEntregas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -766,7 +791,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
                      <div className="flex flex-col items-end">
                        <div className="flex items-center gap-1 text-green-600 font-bold text-lg justify-end mb-1">
                          <DollarSign size={18} />
-                         {Number(entrega.valor_entregador ?? 0).toFixed(2)}
+                         {calculateMultiDestinoTotal(entrega).toFixed(2)}
                        </div>
                        {entrega.opcionais?.driver_bonuses && Array.isArray(entrega.opcionais.driver_bonuses) && (
                          <div className="text-xs text-right flex flex-col items-end gap-1">

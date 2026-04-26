@@ -786,6 +786,19 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
               if (data && !data.success) {
                   throw new Error(data.message || 'Erro ao aceitar entrega');
               }
+
+              
+              if (isIncomingMultiplo && valorEntregadorDisplayFinal > 0) {
+                  console.log('Atualizando valor_entregador para pedido múltiplo:', valorEntregadorDisplayFinal);
+                  const { error: updateError } = await supabase
+                      .from('nova_entrega')
+                      .update({ valor_entregador: valorEntregadorDisplayFinal })
+                      .eq('id', incomingDelivery.id);
+                  
+                  if (updateError) {
+                      console.error('Erro ao atualizar valor_entregador:', updateError);
+                  }
+              }
               
               setIncomingDelivery(null);
               

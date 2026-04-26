@@ -6,6 +6,35 @@ export function EntregadorHistoricoPanel() {
   const [historico, setHistorico] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  function safeParseArray(value: any) {
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  }
+
+  function calculateMultiDestinoTotal(entrega: any) {
+    const extraPoints = safeParseArray(entrega?.pontos_adicionais);
+    const comissaoDestinos = safeParseArray(entrega?.opcionais?.comissao_destinos);
+    const comissaoRetorno = typeof entrega?.opcionais?.comissao_retorno === 'number' ? Number(entrega.opcionais.comissao_retorno) : 0;
+    
+    const numDestinos = 1 + extraPoints.length;
+    if (numDestinos <= 1) return Number(entrega.valor_entregador || 0);
+
+    if (comissaoDestinos.length > 0) {
+      const totalDestinos = comissaoDestinos.reduce((sum: number, d: any) => sum + (typeof d?.valor === 'number' ? d.valor : 0), 0);
+      return totalDestinos + comissaoRetorno;
+    }
+
+    return Number(entrega.valor_entregador || 0);
+  }
+
   useEffect(() => {
     fetchHistorico();
   }, []);
@@ -153,7 +182,7 @@ export function EntregadorHistoricoPanel() {
               </div>
               <div className="mt-4 pt-4 border-t border-gray-100 flex justify-between items-center">
                  <span className="text-sm text-gray-500">Valor da entrega</span>
-                 <span className="font-bold text-gray-800">R$ {Number(entrega.valor_entregador || 0).toFixed(2)}</span>
+                 <span className="font-bold text-gray-800">R$ {calculateMultiDestinoTotal(entrega).toFixed(2)}</span>
               </div>
             </div>
           ))}
