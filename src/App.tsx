@@ -77,6 +77,8 @@ import { EntregadorBottomBar } from './components/entregador/EntregadorBottomBar
 function App() {
   const [activeMenu, setActiveMenu] = useState(() => {
     if (typeof window !== 'undefined') {
+      const hash = window.location.hash.replace('#', '');
+      if (hash) return hash;
       const saved = localStorage.getItem('activeMenu');
       return saved || 'pedidos';
     }
@@ -124,6 +126,9 @@ function App() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('activeMenu', activeMenu);
+      if (activeMenu) {
+        window.location.hash = activeMenu;
+      }
     }
   }, [activeMenu]);
 
@@ -275,12 +280,31 @@ function App() {
     const setInitialMenu = (resolvedRole: string, defaultMenu: string) => {
       void resolvedRole;
       if (typeof window !== 'undefined') {
-        const savedMenu = localStorage.getItem('activeMenu');
+        const hash = window.location.hash.replace('#', '');
+        const savedMenu = hash || localStorage.getItem('activeMenu');
         if (savedMenu) {
           const validMenusForRole: Record<string, string[]> = {
-            operador: ['pedidos', 'cadastro', 'entregas', 'mensagens', 'financeiro', 'nova', 'relatorios', 'configuracoes'],
-            cliente: ['pedidos', 'nova', 'mensagens', 'comercio_notificacoes', 'comercio_creditos', 'comercio_faturamento'],
-            entregador: ['home_entregador', 'entregas', 'mensagens', 'carteira', 'conta']
+            operador: [
+              'pedidos', 'cadastro', 'entregas', 'mensagens', 'financeiro', 'nova', 'relatorios', 'configuracoes',
+              'nova_criar',
+              'financeiro_dashboard', 'financeiro_contas_receber', 'financeiro_contas_pagar', 'financeiro_emissao_notas', 'financeiro_emissao_recibos', 'financeiro_credito_clientes', 'financeiro_comissao_entregadores', 'financeiro_acertos_entregadores', 'financeiro_faturamento_mensal', 'financeiro_revisao_agendamentos',
+              'cadastro_clientes', 'cadastro_contas', 'cadastro_entregadores', 'cadastro_grupos', 'cadastro_modais', 'cadastro_precificacao', 'cadastro_tabela_precos', 'cadastro_tabela_comissoes', 'cadastro_preco_espera', 'cadastro_preco_dinamico_demanda', 'cadastro_preco_dinamico_entregador', 'cadastro_servicos_opcionais', 'cadastro_promocoes',
+              'config_comercio', 'config_customizacao', 'config_acesso', 'config_fiscal', 'config_integracoes_externas', 'config_integracoes_open_delivery', 'config_integracao_ifood', 'config_integracao_cardapioweb', 'config_integracao_ze_delivery', 'config_operacao',
+              'mensagens_entregadores', 'mensagens_clientes', 'mensagens_historico',
+              'relatorios_clientes_analitico', 'relatorios_entregadores_analitico', 'relatorios_roteirizacao', 'relatorios_operacao_analitico', 'relatorios_entregas', 'relatorios_notas_fiscais', 'relatorios_recorrencia', 'relatorios_trajeto_entregadores', 'relatorios_entregadores_periodo', 'relatorios_diagnostico_entregadores', 'relatorios_log_atividades', 'relatorios_historico_vagas',
+              'entregas_disponiveis', 'entregas_andamento', 'entregas_promocoes'
+            ],
+            cliente: [
+              'pedidos', 'nova', 'mensagens', 'comercio_notificacoes', 'comercio_creditos', 'comercio_faturamento',
+              'nova_criar', 'mensagens_entregadores', 'mensagens_historico'
+            ],
+            entregador: [
+              'home_entregador', 'entregas', 'mensagens', 'carteira', 'conta',
+              'entregas_disponiveis', 'entregas_andamento', 'entregas_promocoes',
+              'mensagens_clientes', 'mensagens_historico',
+              'carteira_extrato',
+              'conta_minha_conta', 'conta_ranking', 'conta_historico', 'conta_notificacoes'
+            ]
           };
           const validMenus = validMenusForRole[resolvedRole] || [];
           if (validMenus.includes(savedMenu)) {
