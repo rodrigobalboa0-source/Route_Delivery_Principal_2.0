@@ -187,6 +187,12 @@ export function EntregadorPedidosEmAndamentoPanel() {
   useEffect(() => {
     fetchEntregas();
 
+    
+    const intervalId = setInterval(() => {
+      console.log('Polling fallback: fetching deliveries in progress...');
+      fetchEntregas();
+    }, 5000);
+
     const fetchPhoto = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -205,7 +211,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
         schema: 'public', 
         table: 'nova_entrega' 
       }, (payload) => {
-        
+        console.log('Real-time change detected in nova_entrega (andamento):', payload.eventType, payload.new?.id || payload.old?.id);
         if (payload.eventType === 'UPDATE') {
              const newRecord = payload.new;
              
@@ -219,7 +225,20 @@ export function EntregadorPedidosEmAndamentoPanel() {
              setEntregas(prev => prev.filter(e => e.id !== payload.old.id));
         }
 
-        fetchEntregas();
+        setTimeout(fetchEntregas, 1000);
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'pedidos'
+      }, (payload) => {
+        const newPedido = payload.new as any;
+        console.log('Real-time change detected in pedidos (andamento):', newPedido.id, 'Status:', newPedido.status);
+        if (newPedido.status === 'cancelado') {
+            console.log('Order canceled, removing from in-progress list:', newPedido.id);
+            setEntregas(prev => prev.filter(e => e.pedido_id !== newPedido.id));
+            setTimeout(fetchEntregas, 1000);
+        }
       })
       .subscribe();
 
@@ -277,6 +296,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
     startWatching();
 
     return () => {
+      clearInterval(intervalId);
       subscription.unsubscribe();
       if (watchId) {
         Geolocation.clearWatch({ id: watchId });

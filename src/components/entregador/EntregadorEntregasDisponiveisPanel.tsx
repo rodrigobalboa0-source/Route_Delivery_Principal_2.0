@@ -125,7 +125,7 @@ export function EntregadorEntregasDisponiveisPanel() {
       gain.connect(ctx.destination);
       
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, ctx.currentTime); // A5
+      osc.frequency.setValueAtTime(880, ctx.currentTime); 
       osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.5);
       
       gain.gain.setValueAtTime(0.1, ctx.currentTime);
@@ -160,7 +160,7 @@ export function EntregadorEntregasDisponiveisPanel() {
               let delivery: [number, number] | undefined;
 
               if (entrega.coleta_endereco_texto) {
-                  await new Promise(r => setTimeout(r, 1000)); // Rate limit
+                  await new Promise(r => setTimeout(r, 1000)); 
                   pickup = await getCoordsFromAddress(entrega.coleta_endereco_texto);
               } else {
                   
@@ -211,7 +211,7 @@ export function EntregadorEntregasDisponiveisPanel() {
               }
               
               if (entrega.entrega_endereco_texto) {
-                  await new Promise(r => setTimeout(r, 1000)); // Rate limit
+                  await new Promise(r => setTimeout(r, 1000)); 
                   delivery = await getCoordsFromAddress(entrega.entrega_endereco_texto);
               }
               
@@ -268,7 +268,7 @@ export function EntregadorEntregasDisponiveisPanel() {
   useEffect(() => {
     if (!entregadorId) return;
 
-    // Monitor status changes (Offline/Online)
+    
     const statusChannel = supabase
         .channel('entregador_status_monitor')
         .on('postgres_changes', {
@@ -291,8 +291,11 @@ export function EntregadorEntregasDisponiveisPanel() {
 
     fetchEntregas();
     
-    // Polling fallback every 5 seconds
-    const intervalId = setInterval(fetchEntregas, 5000);
+    
+    const intervalId = setInterval(() => {
+      console.log('Polling fallback: fetching available deliveries...');
+      fetchEntregas();
+    }, 5000);
 
     const subscription = supabase
       .channel('nova_entrega_disponiveis')
@@ -301,13 +304,14 @@ export function EntregadorEntregasDisponiveisPanel() {
         schema: 'public', 
         table: 'nova_entrega' 
       }, (payload) => {
-        // Optimistic updates (Atualização em tempo real)
+        console.log('Real-time change detected in nova_entrega (disponiveis):', payload.eventType, payload.new?.id || payload.old?.id);
+        
         if (payload.eventType === 'DELETE') {
             setEntregas(prev => prev.filter(e => e.id !== payload.old.id));
         } else if (payload.eventType === 'UPDATE') {
             const newRecord = payload.new as any;
             
-            // Se o status mudou para algo diferente de 'criada' e não é atribuído a mim, remove da lista
+            
             if (newRecord.status !== 'criada') {
                 const isAssignedToMe = newRecord.status === 'atribuida' && 
                                      newRecord.entregador_id === entregadorId &&
@@ -319,7 +323,21 @@ export function EntregadorEntregasDisponiveisPanel() {
             }
         }
         
-        fetchEntregas();
+        
+        setTimeout(fetchEntregas, 1000);
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'pedidos'
+      }, (payload) => {
+        const newPedido = payload.new as any;
+        console.log('Real-time change detected in pedidos (disponiveis):', newPedido.id, 'Status:', newPedido.status);
+        if (newPedido.status === 'cancelado') {
+            console.log('Order canceled, removing from available list:', newPedido.id);
+            setEntregas(prev => prev.filter(e => e.pedido_id !== newPedido.id));
+            setTimeout(fetchEntregas, 1000);
+        }
       })
       .subscribe();
 
@@ -468,7 +486,7 @@ export function EntregadorEntregasDisponiveisPanel() {
       if (hiddenIds.includes(e.id)) return false;
       if (e.status === 'atribuida' && e.entregador_id === entregadorId) return true;
       
-      // Prioridade de busca: se não tenho prioridade, verifico o tempo de liberação
+      
       if (!hasPriority && e.liberado_em) {
         const releaseTime = new Date(e.liberado_em).getTime();
         if (releaseTime > currentTime) return false;
