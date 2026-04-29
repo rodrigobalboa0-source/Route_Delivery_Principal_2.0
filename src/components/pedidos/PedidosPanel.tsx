@@ -7,6 +7,12 @@ import type { Database } from '../../lib/database.types';
 import { format } from 'date-fns';
 import { Trash2, User, CheckCircle, Truck, Plus, ArrowRight, MapPin, Settings, Edit, FileText, CheckSquare, Link, Clock, Copy, MoreVertical, X, RefreshCw, Ban, RotateCcw, MessageSquare, UserCog, Store, Search, DollarSign, AlertCircle } from 'lucide-react';
 import { IfoodService } from '../../services/ifoodService';
+import {
+  hasMultipleDestinations,
+  hasNextDestination,
+  isLastDestination,
+  calculateAdvanceDestination
+} from '../../utils/multiDestination';
 
 type Cliente = { 
   id: string; 
@@ -681,7 +687,7 @@ function PedidoEditForm({
   );
 }
 
-function PedidoDetailsView({ pedido, entrega, cliente, onClose }: { pedido: Pedido, entrega?: Entrega, cliente?: Cliente, onClose: () => void }) {
+function PedidoDetailsView({ pedido, entrega, cliente, onClose, onAlert, onRefresh }: { pedido: Pedido, entrega?: Entrega, cliente?: Cliente, onClose: () => void, onAlert?: (message: string, title?: string) => Promise<void>, onRefresh?: () => void }) {
   const agendadoEm = pedido.agendar_em || entrega?.agendar_em || null;
   const retiradaNoLocal = Boolean(pedido.retirada_no_local || entrega?.retirada_no_local);
   const pagamentoMetodo = pedido.pagamento_metodo || entrega?.pagamento_metodo || null;
@@ -690,6 +696,53 @@ function PedidoDetailsView({ pedido, entrega, cliente, onClose }: { pedido: Pedi
   const documentoTipo = pedido.documento_tipo || entrega?.documento_tipo || null;
   const documentoNumero = pedido.documento_numero || entrega?.documento_numero || null;
   const pontosAdicionais = Array.isArray((entrega as any)?.pontos_adicionais) ? ((entrega as any).pontos_adicionais as any[]) : [];
+  const [removingDestino, setRemovingDestino] = useState<number | null>(null);
+
+  const handleRemoveDestino = async (destinoIndex: number) => {
+    if (!entrega) return;
+    
+    const destinoLabel = `Destino ${destinoIndex + 2}`;
+    const confirmMessage = `Tem certeza que deseja remover ${destinoLabel}? Esta ação não pode ser desfeita.`;
+    
+    if (!window.confirm(confirmMessage)) return;
+    
+    setRemovingDestino(destinoIndex);
+    
+    try {
+      const { data, error } = await supabase.rpc('remove_destino_adicional', {
+        p_entrega_id: entrega.id,
+        p_destino_index: destinoIndex,
+        p_motivo: null
+      });
+      
+      if (error) throw error;
+      
+      if (!data || data.success === false) {
+        const errorMsg = data?.message || data?.error || 'Erro ao remover destino';
+        if (data?.error === 'invalid_status') {
+          throw new Error('Apenas é possível remover destinos quando a entrega está com status "criada"');
+        }
+        throw new Error(errorMsg);
+      }
+      
+      if (onAlert) {
+        await onAlert(`${destinoLabel} removido com sucesso`, 'Sucesso');
+      }
+      
+      if (onRefresh) {
+        onRefresh();
+      } else {
+        onClose();
+      }
+    } catch (e: any) {
+      console.error('Erro ao remover destino:', e);
+      if (onAlert) {
+        await onAlert(e.message || 'Erro ao remover destino', 'Erro');
+      }
+    } finally {
+      setRemovingDestino(null);
+    }
+  };
 
   const formatPagamentoMetodo = (m: string) => {
     const v = String(m || '').trim().toLowerCase();
@@ -785,7 +838,39 @@ function PedidoDetailsView({ pedido, entrega, cliente, onClose }: { pedido: Pedi
                 <p className="text-xs font-bold text-blue-600">ENTREGA</p>
                 <p>{retiradaNoLocal ? 'Retirada no local' : (entrega?.entrega_endereco_texto || pedido.endereco_texto || '-')}</p>
               </div>
-              {!retiradaNoLocal && pontosAdicionais.length > 0 && (
+              {!retiradaNoLocal && pontosAdicionais.length > 0 && entrega?.status === 'criada' && (
+                <div className="pt-2 border-t border-slate-200">
+                  <p className="text-xs font-bold text-slate-700">DESTINOS ADICIONAIS ({pontosAdicionais.length})</p>
+                  <div className="mt-2 space-y-2">
+                    {pontosAdicionais.map((p, idx) => {
+                      const base = String(p?.endereco_texto || '').trim();
+                      const addr = p?.numero ? `${base}, ${String(p.numero).trim()}` : base;
+                      const contato = p?.contato ? String(p.contato).trim() : '';
+                      const tel = p?.telefone ? String(p.telefone).trim() : '';
+                      const obs = p?.observacoes ? String(p.observacoes).trim() : '';
+                      return (
+                        <div key={idx} className="bg-white rounded border border-slate-200 p-2">
+                          <div className="flex justify-between items-start">
+                            <div className="text-xs font-semibold text-slate-700">Destino {idx + 2}</div>
+                            <button
+                              onClick={() => handleRemoveDestino(idx)}
+                              disabled={removingDestino === idx}
+                              className="text-red-500 hover:text-red-700 disabled:text-red-300 disabled:cursor-not-allowed"
+                              title="Remover destino"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                          <div className="text-sm text-slate-800">{addr || '-'}</div>
+                          {(contato || tel) && <div className="text-xs text-slate-500">{[contato, tel].filter(Boolean).join(' • ')}</div>}
+                          {obs && <div className="text-xs text-slate-500 mt-1">{obs}</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {!retiradaNoLocal && pontosAdicionais.length > 0 && entrega?.status !== 'criada' && (
                 <div className="pt-2 border-t border-slate-200">
                   <p className="text-xs font-bold text-slate-700">DESTINOS ADICIONAIS ({pontosAdicionais.length})</p>
                   <div className="mt-2 space-y-2">
@@ -805,6 +890,7 @@ function PedidoDetailsView({ pedido, entrega, cliente, onClose }: { pedido: Pedi
                       );
                     })}
                   </div>
+                  <p className="text-xs text-slate-500 mt-2 italic">Destinos não podem ser removidos após a entrega entrar em execução.</p>
                 </div>
               )}
             </div>
@@ -867,7 +953,7 @@ function IfoodCancellationReasonsModal({
 }
 
 function PedidoCancelamentoModal({ pedido, onClose }: { pedido: Pedido, onClose: () => void }) {
-  // Separar título e descrição do motivo se tiver formato com \n\n
+  
   const parseMotivo = (motivo: string) => {
     if (!motivo) return { titulo: '', descricao: '' };
     
@@ -925,7 +1011,7 @@ function PedidoCancelamentoModal({ pedido, onClose }: { pedido: Pedido, onClose:
                 </div>
               )}
               
-              {/* Exibir título do motivo se existir */}
+              {}
               {titulo && (
                 <div>
                   <span className="text-sm font-medium text-red-700 block mb-2">Título do Motivo:</span>
@@ -935,7 +1021,7 @@ function PedidoCancelamentoModal({ pedido, onClose }: { pedido: Pedido, onClose:
                 </div>
               )}
               
-              {/* Exibir descrição do motivo */}
+              {}
               {descricao && (
                 <div>
                   <span className="text-sm font-medium text-red-700 block mb-2">
@@ -1051,6 +1137,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     mode: 'alert',
   });
   const [dialogInput, setDialogInput] = useState('');
+  const [removingDestino, setRemovingDestino] = useState<{ pedidoId: string; destinoIndex: number } | null>(null);
   const dialogAlertResolveRef = useRef<(() => void) | null>(null);
   const dialogConfirmResolveRef = useRef<((v: boolean) => void) | null>(null);
   const dialogPromptResolveRef = useRef<((v: string | null) => void) | null>(null);
@@ -1082,6 +1169,44 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const toggleMultiPedido = useCallback((pedidoId: string) => {
     setExpandedMultiPedidos((prev) => ({ ...prev, [pedidoId]: !prev[pedidoId] }));
   }, []);
+
+  const handleRemoveDestino = async (pedidoId: string, destinoIndex: number) => {
+    const entrega = entregasMap[pedidoId];
+    if (!entrega) return;
+    
+    const destinoLabel = `Destino ${destinoIndex + 2}`;
+    const confirmMessage = `Tem certeza que deseja remover ${destinoLabel}? Esta ação não pode ser desfeita.`;
+    
+    if (!window.confirm(confirmMessage)) return;
+    
+    setRemovingDestino({ pedidoId, destinoIndex });
+    
+    try {
+      const { data, error } = await supabase.rpc('remove_destino_adicional', {
+        p_entrega_id: entrega.id,
+        p_destino_index: destinoIndex,
+        p_motivo: null
+      });
+      
+      if (error) throw error;
+      
+      if (!data || data.success === false) {
+        const errorMsg = data?.message || data?.error || 'Erro ao remover destino';
+        if (data?.error === 'invalid_status') {
+          throw new Error('Apenas é possível remover destinos quando a entrega está com status "criada"');
+        }
+        throw new Error(errorMsg);
+      }
+      
+      await showAlert(`${destinoLabel} removido com sucesso`, 'Sucesso');
+      await fetchPedidos(true);
+    } catch (e: any) {
+      console.error('Erro ao remover destino:', e);
+      await showAlert(e.message || 'Erro ao remover destino', 'Erro');
+    } finally {
+      setRemovingDestino(null);
+    }
+  };
 
   const showPrompt = useCallback((message: string, opts?: { title?: string; defaultValue?: string }) => {
     return new Promise<string | null>((resolve) => {
@@ -1589,6 +1714,15 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     const entrega = entregasMap[pedidoId];
     if (!entrega?.id) return;
     const nowIso = new Date().toISOString();
+    
+    if (newStatus === 'entregue' && hasMultipleDestinations(entrega)) {
+      if (hasNextDestination(entrega)) {
+        
+        await showAlert('Este pedido tem múltiplos destinos. Use "Avançar Destino" para ir para o próximo destino antes de finalizar.', 'Aviso');
+        return;
+      }
+      
+    }
 
     setEntregasMap(prev => ({ ...prev, [pedidoId]: { ...prev[pedidoId], status: newStatus as any, updated_at: nowIso } as any }));
     queueSilentPedidosRefresh();
@@ -1605,6 +1739,58 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     }
 
     if (newStatus === 'entregue') {
+      void handleManualPedidoStatusChange(pedidoId, 'entregue');
+    }
+
+    setOpenStatusMenuId(null);
+  };
+
+  const handleManualAdvanceDestination = async (pedidoId: string) => {
+    const entrega = entregasMap[pedidoId];
+    if (!entrega?.id) return;
+    const nowIso = new Date().toISOString();
+
+    
+    if (!hasMultipleDestinations(entrega)) {
+      await showAlert('Este pedido não tem múltiplos destinos.', 'Aviso');
+      return;
+    }
+
+    
+    if (!hasNextDestination(entrega)) {
+      await showAlert('Não há mais destinos para avançar. Finalize a entrega.', 'Aviso');
+      return;
+    }
+
+    
+    const result = calculateAdvanceDestination(entrega, nowIso);
+
+    if (!result.success) {
+      await showAlert(result.error || 'Erro ao avançar destino', 'Erro');
+      return;
+    }
+
+    if (!result.updatedFields) {
+      await showAlert('Erro ao calcular campos atualizados', 'Erro');
+      return;
+    }
+
+    setEntregasMap(prev => ({ ...prev, [pedidoId]: { ...prev[pedidoId], ...result.updatedFields } as any }));
+    queueSilentPedidosRefresh();
+
+    const { error } = await supabase
+      .from('nova_entrega')
+      .update(result.updatedFields as any)
+      .eq('id', entrega.id);
+
+    if (error) {
+      await showAlert('Erro ao avançar destino: ' + error.message, 'Erro');
+      queueSilentPedidosRefresh();
+      return;
+    }
+
+    
+    if (result.shouldFinalize) {
       void handleManualPedidoStatusChange(pedidoId, 'entregue');
     }
 
@@ -2303,7 +2489,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       }
     }
 
-    // Buscar coordenadas dos pontos adicionais para pedidos múltiplos
+    
     const pontosAdicionais = Array.isArray((entrega as any)?.pontos_adicionais) ? ((entrega as any).pontos_adicionais as any[]) : [];
     const additionalDestinations: Array<{ coords: [number, number]; title: string; order: number }> = [];
     
@@ -2798,7 +2984,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             if (newPedido?.id) {
               setAllItems(prev => {
                 const idx = prev.findIndex(p => p.id === newPedido.id);
-                if (idx === -1) return [newPedido, ...prev];
+                if (idx === -1) return prev;
                 return prev.map(p => (p.id === newPedido.id ? { ...p, ...newPedido } : p));
               });
             }
@@ -2852,13 +3038,13 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     const ifoodOrderId = typeof (p as any).ifood_order_id === 'string' ? String((p as any).ifood_order_id).trim() : '';
     const isIfoodOrder = !!ifoodOrderId;
 
-    // Para pedidos iFood, mostrar modal de motivos de cancelamento
+    
     if (isIfoodOrder) {
         console.log('Pedido detectado como iFood, carregando motivos...');
         setSelectedPedido(p);
         setOpenMenuId(null);
         
-        // Carregar motivos de cancelamento do iFood
+        
         const reasons = await IfoodService.getCancellationReasons(p.id, p.cliente_id, ifoodOrderId);
         console.log('Motivos carregados:', reasons);
         setIfoodCancellationReasons(reasons);
@@ -2868,14 +3054,14 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             setIsIfoodCancellationReasonsModalOpen(true);
         } else {
             console.log('Nenhum motivo encontrado, prosseguindo com cancelamento normal');
-            // Se não conseguir carregar motivos, prosseguir com cancelamento normal
+            
             await handleDeleteWithReason(p, null);
         }
         return;
     }
     
     console.log('Pedido não é iFood, usando fluxo normal');
-    // Para pedidos manuais, confirmar diretamente
+    
     const ok = await showConfirm('Tem certeza que deseja cancelar este pedido?');
     if (!ok) return;
     
@@ -2886,7 +3072,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     try {
         let showCancellationModal = false;
         
-        // Para pedidos iFood, usar o serviço especializado que captura o motivo
+        
         const ifoodOrderId = typeof (p as any).ifood_order_id === 'string' ? String((p as any).ifood_order_id).trim() : '';
         const isIfoodOrder = !!ifoodOrderId;
         if (isIfoodOrder) {
@@ -2901,7 +3087,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             }
             showCancellationModal = result?.showModal || false;
         } else {
-            // Para pedidos manuais, apenas atualizar o status
+            
             await supabase.from('pedidos').update({ 
                 status: 'cancelado',
                 cancelamento_origem: 'manual',
@@ -2916,14 +3102,14 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             { status: 'cancelado' }
         );
         
-        // Buscar dados atualizados do pedido para exibir no modal
+        
         const { data: updatedPedido } = await supabase
           .from('pedidos')
           .select('*')
           .eq('id', p.id)
           .maybeSingle();
         
-        // Se for cancelamento iFood com motivo, mostrar o modal automaticamente
+        
         if (showCancellationModal) {
             if (updatedPedido && (updatedPedido.cancelamento_motivo || updatedPedido.cancelamento_codigo)) {
                 setSelectedPedido(updatedPedido);
@@ -3276,14 +3462,14 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-slate-800">Pedidos • Acompanhamento</h2>
         </div>
       </div>
 
-      {/* Quick Launch Bar (Comercio Only) */}
+      {}
       {isComercio && (
         <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 animate-in fade-in slide-in-from-top-4">
             <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
@@ -3294,7 +3480,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             </h3>
             
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-                {/* Row 1 */}
+                {}
                 <div className="md:col-span-4">
                     <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Endereço de Entrega</label>
                     <AddressAutocomplete 
@@ -3354,7 +3540,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                     />
                 </div>
 
-                {/* Row 2 */}
+                {}
                 <div className="md:col-span-4">
                     <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">
                         Valor Entrega {quickDistance > 0 ? <span className="text-sky-600 font-normal">({quickDistance} km)</span> : quickDistanceLoading ? <span className="text-slate-400 font-normal">(calculando...)</span> : null}
@@ -3427,7 +3613,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         </div>
       )}
 
-      {/* Map View */}
+      {}
       <div className="bg-white p-1 rounded-lg shadow-sm border border-slate-200">
         <div className="h-[400px] bg-slate-100 rounded-lg overflow-hidden relative">
           <MapView 
@@ -3444,7 +3630,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         </div>
       </div>
 
-      {/* Summary Cards & Actions */}
+      {}
       {!isComercio && (
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {!isComercio && (
@@ -3500,7 +3686,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       </div>
       )}
 
-      {/* Filters */}
+      {}
       {!isComercio && (
       <>
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -3630,7 +3816,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       </>
       )}
 
-      {/* Status Counters */}
+      {}
       {!isComercio && (
       <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         {['Criado', 'Confirmado', 'Em Preparo', 'Pronto', 'Cancelado', 'Entregue'].map(status => (
@@ -3644,7 +3830,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       </div>
       )}
 
-      {/* Table */}
+      {}
       {!isComercio && selectedIds.size > 0 && (
         <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-lg flex items-center justify-between shadow-sm animate-in fade-in slide-in-from-top-2">
             <div className="flex items-center gap-3">
@@ -3882,8 +4068,20 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                                         <div key={idx} className="bg-white border border-slate-200 rounded-lg p-3">
                                           <div className="flex items-center justify-between gap-3">
                                             <div className="text-xs font-bold text-slate-700">{d.label}</div>
-                                            <div className="text-xs font-semibold text-slate-700">
-                                              {typeof d.valor === 'number' && !Number.isNaN(d.valor) ? `R$ ${d.valor.toFixed(2)}` : '-'}
+                                            <div className="flex items-center gap-2">
+                                              <div className="text-xs font-semibold text-slate-700">
+                                                {typeof d.valor === 'number' && !Number.isNaN(d.valor) ? `R$ ${d.valor.toFixed(2)}` : '-'}
+                                              </div>
+                                              {idx > 0 && entrega?.status === 'criada' && (
+                                                <button
+                                                  onClick={() => handleRemoveDestino(p.id, idx - 1)}
+                                                  disabled={removingDestino?.pedidoId === p.id && removingDestino?.destinoIndex === idx - 1}
+                                                  className="text-red-500 hover:text-red-700 disabled:text-red-300 disabled:cursor-not-allowed"
+                                                  title="Remover destino"
+                                                >
+                                                  <Trash2 size={14} />
+                                                </button>
+                                              )}
                                             </div>
                                           </div>
                                           <div className="text-sm text-slate-700 mt-1">{d.endereco || '-'}</div>
@@ -3904,7 +4102,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         </div>
       </div>
 
-      {/* Floating Action Menu */}
+      {}
       {openMenuId && menuPos && (
           <div 
             className="fixed bg-white border border-slate-200 rounded-lg shadow-xl z-[9999] py-1 text-left flex flex-col w-56"
@@ -3979,7 +4177,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
           </div>
       )}
 
-      {/* Status Menu */}
+      {}
       {openStatusMenuId && statusMenuPos && (
         <div
           className="fixed bg-white border border-slate-200 rounded-lg shadow-xl z-[9999] py-1 text-left flex flex-col w-64"
@@ -4049,7 +4247,24 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                   <>
                     <div className="border-t border-slate-100 mt-1" />
                     <div className="px-4 py-2 text-xs font-bold text-slate-500 uppercase">Status da Entrega</div>
+                    
+                    {}
+                    {hasMultipleDestinations(entrega) && hasNextDestination(entrega) && canEditEntrega && (
+                      <button
+                        onClick={() => handleManualAdvanceDestination(p.id)}
+                        className="px-4 py-2 hover:bg-emerald-50 text-sm text-emerald-700 flex items-center justify-between font-medium"
+                      >
+                        <span>AVANÇAR DESTINO</span>
+                        <ArrowRight size={16} className="text-emerald-600" />
+                      </button>
+                    )}
+                    
                     {filteredEntregaOptions.map(opt => {
+                      
+                      if (opt.value === 'entregue' && hasMultipleDestinations(entrega) && !isLastDestination(entrega)) {
+                        return null;
+                      }
+                      
                       const disabled = !canEditEntrega;
                       return (
                         <button
@@ -4073,7 +4288,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         </div>
       )}
 
-      {/* Allocation Modal */}
+      {}
       <Modal
         open={isAllocationModalOpen}
         onClose={() => setIsAllocationModalOpen(false)}
@@ -4113,8 +4328,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                   <div>
                     <div className="font-medium text-slate-800">{entregador.nome_completo}</div>
                     <div className="text-xs text-slate-500 flex items-center gap-1">
-                        <span className={`w-2 h-2 rounded-full ${entregador.status === 'ativo' ? 'bg-emerald-500' : 'bg-slate-300'}`}></span>
-                        {entregador.status.toUpperCase()}
+                        <span className={`w-2 h-2 rounded-full ${entregador.status === 'ativo' && entregador.is_online ? 'bg-emerald-500' : 'bg-slate-300'}`}></span>
+                        {entregador.status === 'ativo' && entregador.is_online ? 'ONLINE' : 'OFFLINE'}
                     </div>
                   </div>
                 </div>
@@ -4129,7 +4344,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         </div>
       </Modal>
 
-      {/* Edit Modal */}
+      {}
       <Modal open={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title="" hideFooter={true}>
          {selectedPedido && (
             <PedidoEditForm 
@@ -4142,7 +4357,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
          )}
       </Modal>
 
-      {/* Details Modal */}
+      {}
       <Modal open={isDetailsModalOpen} onClose={() => setIsDetailsModalOpen(false)} title="" cancelText="Fechar">
          {selectedPedido && (
             <PedidoDetailsView
@@ -4150,11 +4365,13 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                 entrega={entregasMap[selectedPedido.id]}
                 cliente={clientes.find(c => c.id === selectedPedido.cliente_id)}
                 onClose={() => setIsDetailsModalOpen(false)}
+                onAlert={showAlert}
+                onRefresh={fetchPedidos}
             />
          )}
       </Modal>
 
-      {/* History Modal */}
+      {}
       <Modal open={isHistoryModalOpen} onClose={() => setIsHistoryModalOpen(false)} title="" cancelText="Fechar">
          {selectedPedido && (
              <PedidoHistoryModal
@@ -4164,7 +4381,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
          )}
       </Modal>
 
-      {/* Cancelamento Modal */}
+      {}
       <Modal open={isCancelamentoModalOpen} onClose={() => setIsCancelamentoModalOpen(false)} title="" cancelText="Fechar">
          {selectedPedido && (
              <PedidoCancelamentoModal
@@ -4174,13 +4391,13 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
          )}
       </Modal>
 
-      {/* iFood Cancellation Reasons Modal */}
+      {}
       <Modal open={isIfoodCancellationReasonsModalOpen} onClose={() => setIsIfoodCancellationReasonsModalOpen(false)} title="" cancelText="Cancelar">
          <IfoodCancellationReasonsModal
             reasons={ifoodCancellationReasons}
             onSelect={(reason) => {
               setIsIfoodCancellationReasonsModalOpen(false);
-              // Prosseguir com o cancelamento usando o motivo selecionado
+              
               if (selectedPedido) {
                 handleDeleteWithReason(selectedPedido, reason);
               }

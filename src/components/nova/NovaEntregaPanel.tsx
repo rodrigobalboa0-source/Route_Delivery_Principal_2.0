@@ -432,8 +432,6 @@ export function NovaEntregaPanel() {
     entrega_contato: '',
     entrega_telefone: '',
     entrega_codigo_pedido: '',
-    entrega_centro_custo: '',
-    entrega_solicitante: '',
     entrega_cep: '',
     entrega_endereco_texto: '',
     entrega_numero: '',
@@ -1491,8 +1489,6 @@ export function NovaEntregaPanel() {
           entrega_contato: form.entrega_contato || null,
           entrega_telefone: form.entrega_telefone || null,
           entrega_codigo_pedido: form.entrega_codigo_pedido || null,
-          entrega_centro_custo: form.entrega_centro_custo || null,
-          entrega_solicitante: form.entrega_solicitante || null,
           entrega_cep: form.entrega_cep || null,
           entrega_endereco_texto: form.entrega_numero ? `${form.entrega_endereco_texto}, ${form.entrega_numero}` : (form.entrega_endereco_texto || null),
           entrega_complemento: form.entrega_complemento || null,
@@ -1563,8 +1559,6 @@ export function NovaEntregaPanel() {
         entrega_contato: '', 
         entrega_telefone: '', 
         entrega_codigo_pedido: '', 
-        entrega_centro_custo: '', 
-        entrega_solicitante: '', 
         entrega_cep: '', 
         entrega_endereco_texto: '', 
         entrega_numero: '',
@@ -1758,11 +1752,9 @@ export function NovaEntregaPanel() {
             <label htmlFor="entrega_mesmo" className="text-sm text-slate-700">Usar o mesmo endereço de cadastro</label>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <input placeholder="Contato" value={form.entrega_contato} onChange={(e) => { const v = e.target.value; setForm(prev => ({ ...prev, entrega_contato: v })); }} className="px-3 py-2 border border-slate-300 rounded" />
+            <input placeholder="Cliente" value={form.entrega_contato} onChange={(e) => { const v = e.target.value; setForm(prev => ({ ...prev, entrega_contato: v })); }} className="px-3 py-2 border border-slate-300 rounded" />
             <input placeholder="Telefone" value={form.entrega_telefone} onChange={(e) => { const v = e.target.value; setForm(prev => ({ ...prev, entrega_telefone: v })); }} className="px-3 py-2 border border-slate-300 rounded" />
             <input placeholder="Código do pedido" value={form.entrega_codigo_pedido} onChange={(e) => { const v = e.target.value; setForm(prev => ({ ...prev, entrega_codigo_pedido: v })); }} className="px-3 py-2 border border-slate-300 rounded" />
-            <input placeholder="Centro de Custo" value={form.entrega_centro_custo} onChange={(e) => { const v = e.target.value; setForm(prev => ({ ...prev, entrega_centro_custo: v })); }} className="px-3 py-2 border border-slate-300 rounded" />
-            <input placeholder="Solicitante" value={form.entrega_solicitante} onChange={(e) => { const v = e.target.value; setForm(prev => ({ ...prev, entrega_solicitante: v })); }} className="px-3 py-2 border border-slate-300 rounded" />
             <input placeholder="CEP" value={form.entrega_cep} onChange={(e) => { const v = e.target.value; setForm(prev => ({ ...prev, entrega_cep: v })); }} onBlur={(e) => handleCepBlur(e.target.value, 'entrega')} className="px-3 py-2 border border-slate-300 rounded" />
             <AddressAutocomplete
               placeholder="Endereço completo"

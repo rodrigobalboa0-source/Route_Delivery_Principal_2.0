@@ -6,53 +6,15 @@ import type { Database } from '../../lib/database.types';
 import { Geolocation } from '@capacitor/geolocation';
 import { getDistanceFromLatLonInKm, getCoordsFromAddress } from '../../utils/geo';
 import { Modal } from '../Modal';
+import {
+  parseExtraDeliveryPoints,
+  getCurrentDestinationIndex,
+  safeParseArray,
+  calculateAdvanceDestination,
+  buildFullAddress
+} from '../../utils/multiDestination';
 
 type DeliveryPerson = Database['public']['Tables']['delivery_persons']['Row'];
-
-type ExtraDeliveryPoint = {
-  contato?: string;
-  telefone?: string;
-  cep?: string;
-  endereco_texto?: string;
-  numero?: string;
-  complemento?: string;
-  observacoes?: string;
-};
-
-function parseExtraDeliveryPoints(entrega: any): ExtraDeliveryPoint[] {
-  const raw = entrega?.pontos_adicionais;
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .map((p: any) => ({
-      contato: p?.contato || '',
-      telefone: p?.telefone || '',
-      cep: p?.cep || '',
-      endereco_texto: p?.endereco_texto || '',
-      numero: p?.numero || '',
-      complemento: p?.complemento || '',
-      observacoes: p?.observacoes || '',
-    }))
-    .filter((p) => String(p.endereco_texto || '').trim().length > 0);
-}
-
-function getCurrentDestinationIndex(entrega: any): number {
-  const idx = entrega?.opcionais?.destino_atual_indice;
-  if (typeof idx !== 'number' || !Number.isFinite(idx) || idx < 0) return 0;
-  return Math.floor(idx);
-}
-
-function safeParseArray(value: any) {
-  if (Array.isArray(value)) return value;
-  if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  }
-  return [];
-}
 
 function calculateMultiDestinoTotal(entrega: any) {
   const extraPoints = safeParseArray(entrega?.pontos_adicionais);
@@ -124,7 +86,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
             delivery = await getCoordsFromAddress(entrega.entrega_endereco_texto);
         }
 
-        // Buscar coordenadas dos pontos adicionais
+        
         const extraPoints = parseExtraDeliveryPoints(entrega);
         for (let i = 0; i < extraPoints.length; i++) {
           const point = extraPoints[i];
@@ -132,7 +94,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
             await new Promise(r => setTimeout(r, 1000)); 
             const coords = await getCoordsFromAddress(point.endereco_texto);
             if (coords) {
-              additional[i + 2] = coords; // +2 porque: 1=coleta, 2=primeira entrega
+              additional[i + 2] = coords; 
             }
           }
         }
@@ -666,65 +628,31 @@ export function EntregadorPedidosEmAndamentoPanel() {
         }
       }
 
-      // Após validação GPS, avança para próximo destino
-      const extras = parseExtraDeliveryPoints(currentEntrega);
-      const currentDestinoIdx = getCurrentDestinationIndex(currentEntrega);
-      
-      if (currentDestinoIdx >= extras.length) {
-        await showAlert('Não há mais destinos para avançar.', 'Aviso');
-        setUpdatingId(null);
-        return;
-      }
-
-      const nextPoint = extras[currentDestinoIdx];
-      if (!nextPoint) {
-        await showAlert('Não foi possível avançar: próximo destino inválido.', 'Erro');
-        setUpdatingId(null);
-        return;
-      }
-
-      const baseAddr = String(nextPoint.endereco_texto || '').trim();
-      const nextAddr = nextPoint.numero ? `${baseAddr}, ${String(nextPoint.numero).trim()}` : baseAddr;
-
-      if (!nextAddr || nextAddr === ',') {
-        await showAlert('Não foi possível avançar: próximo destino sem endereço válido.', 'Erro');
-        setUpdatingId(null);
-        return;
-      }
-
-      const opcionais = currentEntrega?.opcionais || {};
-      const timeline = opcionais.timeline || {};
+      // Após validação GPS, usa helper compartilhado para calcular avanço
       const now = new Date().toISOString();
+      const result = calculateAdvanceDestination(currentEntrega, now);
 
-      const advanceTimeline = {
-        ...timeline,
-        [`destino_${currentDestinoIdx + 1}_concluido_em`]: now,
-        [`destino_${currentDestinoIdx + 2}_iniciado_em`]: now,
-      };
-      const advancedOpcionais = {
-        ...opcionais,
-        timeline: advanceTimeline,
-        destino_atual_indice: currentDestinoIdx + 1,
-      };
+      if (!result.success) {
+        await showAlert(result.error || 'Erro ao avançar destino', 'Erro');
+        setUpdatingId(null);
+        return;
+      }
+
+      if (!result.updatedFields) {
+        await showAlert('Erro ao calcular campos atualizados', 'Erro');
+        setUpdatingId(null);
+        return;
+      }
 
       const { error: advanceError } = await supabase
         .from('nova_entrega')
-        .update({
-          status: 'em_rota',
-          updated_at: now,
-          opcionais: advancedOpcionais,
-          entrega_contato: nextPoint.contato || null,
-          entrega_telefone: nextPoint.telefone || null,
-          entrega_cep: nextPoint.cep || null,
-          entrega_endereco_texto: nextAddr,
-          entrega_complemento: nextPoint.complemento || null,
-          entrega_observacoes: nextPoint.observacoes || null,
-        } as any)
+        .update(result.updatedFields as any)
         .eq('id', id);
 
       if (advanceError) throw advanceError;
 
-      const nextCoords = await getCoordsFromAddress(nextAddr);
+      const nextAddr = result.updatedFields.entrega_endereco_texto;
+      const nextCoords = await getCoordsFromAddress(nextAddr || '');
       if (nextCoords) {
         setDeliveryCoords((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), delivery: nextCoords } }));
       }
@@ -732,17 +660,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
       setEntregas((prev) =>
         prev.map((e) =>
           e.id === id
-            ? {
-                ...e,
-                status: 'em_rota',
-                opcionais: advancedOpcionais,
-                entrega_contato: nextPoint.contato || null,
-                entrega_telefone: nextPoint.telefone || null,
-                entrega_cep: nextPoint.cep || null,
-                entrega_endereco_texto: nextAddr,
-                entrega_complemento: nextPoint.complemento || null,
-                entrega_observacoes: nextPoint.observacoes || null,
-              }
+            ? { ...e, ...result.updatedFields }
             : e,
         ),
       );

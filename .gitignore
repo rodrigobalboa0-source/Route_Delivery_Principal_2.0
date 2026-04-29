@@ -28,4 +28,4 @@ dist-ssr
 !.env.template
 
 firebase-service-account.json
-# supabase/
+supabase/

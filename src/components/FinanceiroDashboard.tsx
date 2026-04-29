@@ -17,12 +17,10 @@ export function FinanceiroDashboard() {
   const [filteredEntregas, setFilteredEntregas] = useState<Entrega[]>([]);
   const [statusFilter, setStatusFilter] = useState<'todos' | 'finalizados' | 'cancelados'>('todos');
   const [startDate, setStartDate] = useState(() => {
-    const d = new Date();
-    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
+    return new Date().toLocaleDateString('en-CA');
   });
   const [endDate, setEndDate] = useState(() => {
-    const d = new Date();
-    return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0];
+    return new Date().toLocaleDateString('en-CA');
   });
   const [activeTab, setActiveTab] = useState<'pedidos' | 'dashboard'>('pedidos');
   const [metrics, setMetrics] = useState({
@@ -206,7 +204,7 @@ export function FinanceiroDashboard() {
             />
           </div>
           
-          {/* Status Filter */}
+          {}
           <div className="flex bg-white rounded-lg shadow-sm p-1 border border-slate-200">
             <button
               onClick={() => setStatusFilter('todos')}
@@ -244,9 +242,9 @@ export function FinanceiroDashboard() {
           </div>
         </div>
 
-        {/* Cards */}
+        {}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {/* Valor Total Cobrado - Green */}
+          {}
           <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500 flex items-start justify-between">
             <div>
               <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Valor Total Cobrado</div>
@@ -260,7 +258,7 @@ export function FinanceiroDashboard() {
             </div>
           </div>
 
-          {/* Valor Total Repasse - Red */}
+          {}
           <div className="bg-white rounded-lg shadow p-4 border-l-4 border-red-500 flex items-start justify-between">
             <div>
               <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Valor Total Repasse</div>
@@ -274,7 +272,7 @@ export function FinanceiroDashboard() {
             </div>
           </div>
 
-          {/* Valor Total Comissão - Orange */}
+          {}
           <div className="bg-white rounded-lg shadow p-4 border-l-4 border-orange-500 flex items-start justify-between">
             <div>
               <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Valor Total Comissão</div>
@@ -288,7 +286,7 @@ export function FinanceiroDashboard() {
             </div>
           </div>
 
-          {/* Pedidos - Blue */}
+          {}
           <div className="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500 flex items-start justify-between">
             <div>
               <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Pedidos</div>
@@ -300,7 +298,7 @@ export function FinanceiroDashboard() {
           </div>
         </div>
 
-        {/* Tabs & Content */}
+        {}
         <div className="bg-white rounded-lg shadow">
           <div className="border-b border-slate-200 px-6 pt-4 flex gap-6">
             <button 
@@ -407,7 +405,7 @@ export function FinanceiroDashboard() {
                   </table>
                 </div>
 
-                {/* Pagination */}
+                {}
                 <div className="flex items-center justify-end gap-2 mt-4">
                   <button 
                     onClick={() => setPage(p => Math.max(1, p - 1))}
@@ -443,7 +441,7 @@ export function FinanceiroDashboard() {
               </>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Revenue Chart */}
+                {}
                 <div className="bg-white p-4 rounded-lg border border-slate-100">
                   <h3 className="text-lg font-semibold text-slate-800 mb-4">Evolução Financeira (Últimos 30 dias)</h3>
                   <div className="h-[300px]">
@@ -474,7 +472,7 @@ export function FinanceiroDashboard() {
                   </div>
                 </div>
 
-                {/* Costs vs Profit Chart */}
+                {}
                 <div className="bg-white p-4 rounded-lg border border-slate-100">
                   <h3 className="text-lg font-semibold text-slate-800 mb-4">Repasse vs Comissão (Diário)</h3>
                   <div className="h-[300px]">
