@@ -1003,14 +1003,15 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
 
        {incomingDelivery && createPortal(
          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm p-4 overflow-y-auto" style={{ zIndex: 2147483647 }}>
-            <div className="flex flex-col items-center gap-4 py-4">
+            <div className="flex flex-col items-center gap-4 py-4 max-h-[90vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-transparent">
               {isIncomingMultiplo ? (
-                incomingDestinos.map((d: any, idx: number) => {
-                  const c = comissaoDestinosDisplay.find((x: any) => Number(x?.destino) === idx + 1);
+                [...incomingDestinos].reverse().map((d: any, idx: number) => {
+                  const originalIdx = incomingDestinos.length - 1 - idx;
+                  const c = comissaoDestinosDisplay.find((x: any) => Number(x?.destino) === originalIdx + 1);
                   const v = c && typeof c.valor === 'number' ? c.valor : null;
-                  const isFirstDestination = idx === 0;
+                  const isFirstDestination = originalIdx === 0;
                   return (
-                    <div key={`${incomingDelivery.id}-${idx}`} className="bg-white w-full max-w-[450px] rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom duration-300">
+                    <div key={`${incomingDelivery.id}-${originalIdx}`} className="bg-white w-full max-w-[450px] rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom duration-300">
                       <div className="p-5 overflow-y-auto">
                         <div className="flex flex-col gap-5">
                           <div className="flex items-center gap-3 w-full border-b border-slate-100 pb-4">
