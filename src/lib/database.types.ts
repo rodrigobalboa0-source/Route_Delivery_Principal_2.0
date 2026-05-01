@@ -673,6 +673,7 @@ export interface Database {
           is_online: boolean
           current_latitude: number | null
           current_longitude: number | null
+          heading: number | null
           last_location_update: string | null
           cep: string | null
           rua: string | null
@@ -713,6 +714,7 @@ export interface Database {
           is_online?: boolean
           current_latitude?: number | null
           current_longitude?: number | null
+          heading?: number | null
           last_location_update?: string | null
           cep?: string | null
           rua?: string | null
@@ -753,6 +755,7 @@ export interface Database {
           is_online?: boolean
           current_latitude?: number | null
           current_longitude?: number | null
+          heading?: number | null
           last_location_update?: string | null
           cep?: string | null
           rua?: string | null

@@ -2635,6 +2635,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
               !prev ||
               prev.current_latitude !== next.current_latitude ||
               prev.current_longitude !== next.current_longitude ||
+              prev.heading !== next.heading ||
               prev.last_location_update !== next.last_location_update ||
               prev.is_online !== next.is_online ||
               prev.status !== next.status ||
@@ -2670,6 +2671,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                    is_online: updatedEntregador.is_online || false,
                    current_latitude: updatedEntregador.current_latitude,
                    current_longitude: updatedEntregador.current_longitude,
+                   heading: updatedEntregador.heading,
                    last_location_update: updatedEntregador.last_location_update,
                    created_at: updatedEntregador.created_at,
                    updated_at: updatedEntregador.updated_at,
@@ -2753,6 +2755,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       'is_online',
       'current_latitude',
       'current_longitude',
+      'heading',
       'last_location_update',
       'created_at',
       'updated_at',
@@ -2784,6 +2787,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
               is_online: e.is_online || false,
               current_latitude: e.current_latitude,
               current_longitude: e.current_longitude,
+              heading: e.heading,
               last_location_update: e.last_location_update,
               created_at: e.created_at,
               updated_at: e.updated_at,

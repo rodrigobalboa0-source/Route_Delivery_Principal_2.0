@@ -5,6 +5,7 @@ type DeliveryPerson = Database['public']['Tables']['delivery_persons']['Row'];
 
 export interface MapDeliveryPerson extends DeliveryPerson {
   foto_url?: string | null;
+  heading?: number | null;
 }
 
 interface MapViewProps {
@@ -85,12 +86,15 @@ function svgToDataUrl(svg: string) {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
-function makePinSvg(fill: string, innerSvg?: string) {
+function makePinSvg(fill: string, innerSvg?: string, rotation?: number) {
+  const rotationTransform = rotation !== undefined && !Number.isNaN(rotation) ? `transform="rotate(${rotation} 20 20)"` : '';
   return `
     <svg xmlns="http://www.w3.org/2000/svg" width="40" height="48" viewBox="0 0 40 48">
-      <path d="M20 46c-6.6-7.6-14-17.2-14-26C6 10.1 12.3 4 20 4s14 6.1 14 16c0 8.8-7.4 18.4-14 26z" fill="${fill}" stroke="#ffffff" stroke-width="2" />
-      <circle cx="20" cy="20" r="7" fill="white" fill-opacity="0.35" />
-      ${innerSvg ? `<g transform="translate(8 8)">${innerSvg}</g>` : ''}
+      <g ${rotationTransform}>
+        <path d="M20 46c-6.6-7.6-14-17.2-14-26C6 10.1 12.3 4 20 4s14 6.1 14 16c0 8.8-7.4 18.4-14 26z" fill="${fill}" stroke="#ffffff" stroke-width="2" />
+        <circle cx="20" cy="20" r="7" fill="white" fill-opacity="0.35" />
+        ${innerSvg ? `<g transform="translate(8 8)">${innerSvg}</g>` : ''}
+      </g>
     </svg>
   `.trim();
 }
@@ -352,8 +356,8 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
       info.open({ map: map.current });
     };
 
-    const makeMarkerIcon = (fill: string, scale: number) => {
-      const svg = makePinSvg(fill);
+    const makeMarkerIcon = (fill: string, scale: number, rotation?: number) => {
+      const svg = makePinSvg(fill, undefined, rotation);
       const size = 40 * scale;
       const height = 48 * scale;
       return {
@@ -526,15 +530,19 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
         const zIndex = isSelected ? '50' : '10';
         const ring = isSelected ? '4px solid #f59e0b' : '3px solid #ffffff';
 
+        // Apply rotation based on heading if available
+        const heading = typeof p.heading === 'number' && !Number.isNaN(p.heading) ? p.heading : null;
+        const rotation = heading !== null ? `rotate(${heading}deg)` : '';
+
         const photoUrl = String(p.foto_url || '').trim();
         const photoHtml = photoUrl
           ? `<div style="position:absolute; left:50%; top:9px; transform:translateX(-50%); width:30px; height:30px; border-radius:50%; overflow:hidden; border:${ring}; background:#ffffff;">
                <img src="${escapeAttr(photoUrl)}" style="width:100%; height:100%; object-fit:cover; display:block;" />
              </div>`
           : `<div style="position:absolute; left:50%; top:16px; transform:translateX(-50%); width:14px; height:14px; border-radius:50%; background: rgba(255,255,255,0.35); border:2px solid rgba(255,255,255,0.6);"></div>`;
-        
+
         return `
-          <div style="position: relative; width: 56px; height: 62px; transform: ${scale}; z-index: ${zIndex};">
+          <div style="position: relative; width: 56px; height: 62px; transform: ${scale} ${rotation}; z-index: ${zIndex};">
             <svg xmlns="http://www.w3.org/2000/svg" width="56" height="62" viewBox="0 0 40 48" style="filter: drop-shadow(0 4px 6px rgba(0,0,0,0.35));">
               <path d="M20 46c-6.6-7.6-14-17.2-14-26C6 10.1 12.3 4 20 4s14 6.1 14 16c0 8.8-7.4 18.4-14 26z" fill="${color}" stroke="#ffffff" stroke-width="2" />
             </svg>
@@ -588,14 +596,14 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
               position: { lat: pos[0], lng: pos[1] },
               title: person.name ?? undefined,
               zIndex,
-              icon: makeMarkerIcon(color, isSelected ? 1.15 : 1),
+              icon: makeMarkerIcon(color, isSelected ? 1.15 : 1, person.heading),
             });
             mk.addListener('click', () => openInfo(mk, popupContent, pos));
             markers.current.set(person.id, mk);
             if (person.foto_url) void applyDriverPhotoIcon(person.id, mk, person.foto_url, color, isSelected ? 1.15 : 1, isSelected);
             return;
           }
-          (existingMarker as any).setIcon(makeMarkerIcon(color, isSelected ? 1.15 : 1));
+          (existingMarker as any).setIcon(makeMarkerIcon(color, isSelected ? 1.15 : 1, person.heading));
           (existingMarker as any).setZIndex(zIndex);
           if (person.foto_url) void applyDriverPhotoIcon(person.id, existingMarker, person.foto_url, color, isSelected ? 1.15 : 1, isSelected);
         }
@@ -623,7 +631,7 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
             position: { lat: pos[0], lng: pos[1] },
             title: person.name ?? undefined,
             zIndex,
-            icon: makeMarkerIcon(color, isSelected ? 1.15 : 1),
+            icon: makeMarkerIcon(color, isSelected ? 1.15 : 1, person.heading),
           });
 
           marker.addListener('click', () => openInfo(marker, popupContent, pos));
