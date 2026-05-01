@@ -1041,12 +1041,18 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                                 </div>
                               )}
                             </div>
-                            <div className="flex flex-col items-end bg-green-50 px-3 py-1.5 rounded-lg border border-green-100 shadow-sm">
-                              <span className="text-[10px] text-green-700 font-bold uppercase tracking-wide">Você recebe</span>
-                              <span className="font-extrabold text-green-700 text-2xl leading-none">
-                                {typeof v === 'number' && !Number.isNaN(v) ? `R$ ${v.toFixed(2)}` : 'R$ 0.00'}
-                              </span>
-                            </div>
+                            {isFirstDestination && (
+                              <div className="flex flex-col items-end bg-green-50 px-3 py-1.5 rounded-lg border border-green-100 shadow-sm">
+                                <span className="text-[10px] text-green-700 font-bold uppercase tracking-wide">Você recebe</span>
+                                <span className="font-extrabold text-green-700 text-2xl leading-none">
+                                  {calculatingIncomingValorEntregador ? (
+                                    <span className="text-green-700/60 animate-pulse">...</span>
+                                  ) : (
+                                    `R$ ${valorEntregadorDisplayFinal.toFixed(2)}`
+                                  )}
+                                </span>
+                              </div>
+                            )}
                           </div>
 
                           <div className="w-full space-y-4">
@@ -1091,22 +1097,24 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                             )}
                           </div>
 
-                          <div className="flex gap-3 w-full pt-2">
-                            <button
-                              onClick={handleRecusar}
-                              className="flex-1 bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors"
-                            >
-                              <XCircle size={20} />
-                              {incomingDelivery.status === 'criada' ? 'Rejeitar' : 'Recusar'}
-                            </button>
-                            <button
-                              onClick={handleAceitar}
-                              className="flex-[2] bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg shadow-green-200"
-                            >
-                              <CheckCircle size={20} />
-                              {incomingDelivery.status === 'criada' ? 'Pegar Entrega' : 'Aceitar'}
-                            </button>
-                          </div>
+                          {isFirstDestination && (
+                            <div className="flex gap-3 w-full pt-2">
+                              <button
+                                onClick={handleRecusar}
+                                className="flex-1 bg-white border border-red-200 hover:bg-red-50 text-red-600 font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors"
+                              >
+                                <XCircle size={20} />
+                                {incomingDelivery.status === 'criada' ? 'Rejeitar' : 'Recusar'}
+                              </button>
+                              <button
+                                onClick={handleAceitar}
+                                className="flex-[2] bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg shadow-green-200"
+                              >
+                                <CheckCircle size={20} />
+                                {incomingDelivery.status === 'criada' ? 'Pegar Entrega' : 'Aceitar'}
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
