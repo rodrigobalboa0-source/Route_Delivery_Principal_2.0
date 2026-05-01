@@ -2724,20 +2724,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const onlineEntregadoresCount = availableEntregadores.filter(e => e.is_online).length;
   
   const visibleDeliveryPersons = useMemo(() => {
-    if (!isComercio) return mapDeliveryPersons;
-    
-    const assignedIds = new Set<string>();
-    Object.values(entregasMap).forEach(entrega => {
-        if (
-          entrega.entregador_id &&
-          ['atribuida', 'chegou_coleta', 'em_rota', 'chegou_entrega', 'coletando', 'entregando'].includes(entrega.status)
-        ) {
-            assignedIds.add(entrega.entregador_id);
-        }
-    });
-    
-    return mapDeliveryPersons.filter(dp => assignedIds.has(dp.id));
-  }, [isComercio, mapDeliveryPersons, entregasMap]);
+    return mapDeliveryPersons;
+  }, [mapDeliveryPersons]);
 
   const fetchClientes = async () => {
     const { data, error } = await supabase.from('clientes').select('id, nome_completo, telefone, rua, numero, bairro, cidade, cep').order('nome_completo');
@@ -2767,7 +2755,6 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       .from('entregadores')
       .select(selectFields)
       .eq('status', 'ativo')
-      .eq('is_online', true)
       .order('nome_completo');
     setAvailableEntregadores((data || []) as unknown as Entregador[]);
     
@@ -4097,6 +4084,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                                     })),
                                   ];
 
+                                  const totalDestinos = 1 + (entrega?.pontos_adicionais?.length || 0);
+
                                   return (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                       {destinos.map((d, idx) => (
@@ -4107,10 +4096,10 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                                               <div className="text-xs font-semibold text-slate-700">
                                                 {typeof d.valor === 'number' && !Number.isNaN(d.valor) ? `R$ ${d.valor.toFixed(2)}` : '-'}
                                               </div>
-                                              {idx > 0 && entrega?.status === 'criada' && (
+                                              {totalDestinos > 1 && entrega?.status === 'criada' && (
                                                 <button
-                                                  onClick={() => handleRemoveDestino(p.id, idx - 1)}
-                                                  disabled={removingDestino?.pedidoId === p.id && removingDestino?.destinoIndex === idx - 1}
+                                                  onClick={() => handleRemoveDestino(p.id, idx === 0 ? -1 : idx - 1, idx === 0)}
+                                                  disabled={removingDestino?.pedidoId === p.id && removingDestino?.destinoIndex === (idx === 0 ? -1 : idx - 1)}
                                                   className="text-red-500 hover:text-red-700 disabled:text-red-300 disabled:cursor-not-allowed"
                                                   title="Remover destino"
                                                 >

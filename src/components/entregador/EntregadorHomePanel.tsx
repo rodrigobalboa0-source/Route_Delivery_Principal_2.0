@@ -954,7 +954,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
 
   return (
     <div className="h-full w-full relative bg-slate-100">
-      {/* Map covering the full screen */}
+      {}
       <div className="absolute inset-0 z-0">
          {loadingLocation ? (
            <div className="absolute inset-0 flex items-center justify-center bg-slate-50">
@@ -975,7 +975,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
          )}
       </div>
 
-      {/* Floating Header Elements */}
+      {}
       <div className="absolute top-4 left-4 z-10">
         <button
           onClick={toggleOnline}
@@ -1006,7 +1006,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
             <div className="bg-white w-full max-w-[450px] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in slide-in-from-bottom duration-300">
                 <div className="p-5 overflow-y-auto">
                    <div className="flex flex-col gap-5">
-                       {/* Header with image and name */}
+                       {}
                        <div className="flex items-center gap-3 w-full border-b border-slate-100 pb-4">
                            <div className={`w-14 h-14 min-w-[3.5rem] rounded-full flex items-center justify-center overflow-hidden border-2 shadow-sm ${incomingDelivery.status === 'criada' ? 'border-sky-100' : 'border-green-100'}`}>
                                 {commerceData?.foto ? (
@@ -1018,9 +1018,14 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                                 )}
                             </div>
                             <div className="flex-1 min-w-0">
-                                {commerceData?.nome && (
-                                    <h3 className="text-lg font-bold text-slate-800 truncate leading-tight">{commerceData.nome}</h3>
-                                )}
+                                <div className="flex items-center gap-2">
+                                    {commerceData?.nome && (
+                                        <h3 className="text-lg font-bold text-slate-800 truncate leading-tight">{commerceData.nome}</h3>
+                                    )}
+                                    {isIncomingMultiplo && (
+                                        <span className="inline-flex items-center px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold uppercase rounded-full">Pedido Múltiplo</span>
+                                    )}
+                                </div>
                                 {(deliveryDistance !== null || calculatingDistance) && (
                                      <div className="flex items-center gap-1 mt-0.5">
                                          <span className="text-xs text-slate-500 font-medium">Distância:</span>
@@ -1044,65 +1049,75 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                             </div>
                        </div>
 
-                       {/* Addresses */}
+                       {}
                        <div className="w-full space-y-4">
+                            {}
                             <div className="flex gap-3">
                                 <div className="flex flex-col items-center gap-1 pt-1.5">
                                     <div className="w-2.5 h-2.5 rounded-full bg-slate-300 ring-4 ring-slate-50"></div>
-                                    <div className="w-0.5 h-full bg-slate-200 min-h-[30px]"></div>
-                                    <div className="w-2.5 h-2.5 rounded-full bg-sky-500 ring-4 ring-sky-50"></div>
                                 </div>
-                                <div className="flex-1 space-y-4">
-                                    <div>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Retirada</p>
-                                        <p className="text-sm font-medium text-slate-700 leading-snug">{incomingDelivery.coleta_endereco_texto}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Entrega</p>
-                                        <p className="text-sm font-medium text-slate-700 leading-snug">{incomingDelivery.entrega_endereco_texto}</p>
-                                    </div>
+                                <div className="flex-1">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Retirada</p>
+                                    <p className="text-sm font-medium text-slate-700 leading-snug">{incomingDelivery.coleta_endereco_texto}</p>
                                 </div>
                             </div>
 
-                        {isIncomingMultiplo && (
-                          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-3">
-                            <div className="flex items-center justify-between">
-                              <p className="text-xs font-bold text-slate-600 uppercase tracking-wide">Pedido Múltiplo</p>
-                              <p className="text-xs font-semibold text-slate-700">Total: R$ {valorEntregadorDisplayFinal.toFixed(2)}</p>
-                            </div>
-                            <div className="max-h-[300px] overflow-y-auto space-y-4 pr-1">
-                              {incomingDestinos.map((d: any, idx: number) => {
-                                const c = comissaoDestinosDisplay.find((x: any) => Number(x?.destino) === idx + 1);
-                                const v = c && typeof c.valor === 'number' ? c.valor : null;
-                                const isFirstDestination = idx === 0;
-                                return (
-                                <div key={idx} className="bg-white border border-slate-300 rounded-xl p-5 shadow-md">
-                                  <div className="flex items-center justify-between gap-3">
-                                    <div className="flex items-center gap-2">
-                                      {isFirstDestination && (
-                                        <span className="inline-flex items-center justify-center w-5 h-5 bg-sky-100 text-sky-700 text-[10px] font-bold rounded-full">●</span>
+                        {}
+                        {isIncomingMultiplo ? (
+                          <div className="space-y-3">
+                            {incomingDestinos.map((d: any, idx: number) => {
+                              const c = comissaoDestinosDisplay.find((x: any) => Number(x?.destino) === idx + 1);
+                              const v = c && typeof c.valor === 'number' ? c.valor : null;
+                              const isFirstDestination = idx === 0;
+                              return (
+                                <div key={idx} className="bg-white border border-slate-200 rounded-xl p-4 shadow-md">
+                                  <div className="flex items-start gap-3">
+                                    <div className="flex flex-col items-center gap-1 pt-0.5">
+                                      <div className={`w-2.5 h-2.5 rounded-full ring-4 ${isFirstDestination ? 'bg-sky-500 ring-sky-50' : 'bg-purple-500 ring-purple-50'}`}></div>
+                                      {idx < incomingDestinos.length - 1 && (
+                                        <div className="w-0.5 h-8 bg-slate-200"></div>
                                       )}
-                                      <span className="text-base font-bold text-slate-800">{d.label}</span>
                                     </div>
-                                    <span className="text-base font-bold text-green-600">
-                                      {typeof v === 'number' && !Number.isNaN(v) ? `R$ ${v.toFixed(2)}` : '-'}
-                                    </span>
+                                    <div className="flex-1">
+                                      <div className="flex items-center justify-between gap-2 mb-2">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-sm font-bold text-slate-800">{d.label}</span>
+                                          {isFirstDestination && (
+                                            <span className="inline-flex items-center justify-center w-5 h-5 bg-sky-100 text-sky-700 text-[10px] font-bold rounded-full">●</span>
+                                          )}
+                                        </div>
+                                        <span className="text-sm font-bold text-green-600">
+                                          {typeof v === 'number' && !Number.isNaN(v) ? `R$ ${v.toFixed(2)}` : '-'}
+                                        </span>
+                                      </div>
+                                      <p className="text-sm text-slate-600 leading-relaxed">{d.endereco || '-'}</p>
+                                    </div>
                                   </div>
-                                  <p className="text-sm text-slate-600 mt-3 leading-relaxed">{d.endereco || '-'}</p>
                                 </div>
-                                );
-                              })}
-                            </div>
+                              );
+                            })}
                             {comissaoRetornoDisplay !== null && (
-                              <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
-                                <span className="text-xs font-semibold text-slate-600">Com retorno</span>
-                                <span className="text-xs font-semibold text-slate-700">R$ {comissaoRetornoDisplay.toFixed(2)}</span>
+                              <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center justify-between">
+                                <span className="text-xs font-semibold text-green-700">Com retorno</span>
+                                <span className="text-xs font-bold text-green-700">R$ {comissaoRetornoDisplay.toFixed(2)}</span>
                               </div>
                             )}
                           </div>
+                        ) : (
+                          
+                          <div className="flex gap-3">
+                            <div className="flex flex-col items-center gap-1 pt-1.5">
+                              <div className="w-0.5 h-full bg-slate-200 min-h-[30px]"></div>
+                              <div className="w-2.5 h-2.5 rounded-full bg-sky-500 ring-4 ring-sky-50"></div>
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Entrega</p>
+                              <p className="text-sm font-medium text-slate-700 leading-snug">{incomingDelivery.entrega_endereco_texto}</p>
+                            </div>
+                          </div>
                         )}
 
-                            {/* Bonuses */}
+                            {}
                             {incomingDelivery.opcionais?.driver_bonuses && Array.isArray(incomingDelivery.opcionais.driver_bonuses) && incomingDelivery.opcionais.driver_bonuses.length > 0 && (
                                 <div className="flex flex-wrap justify-end gap-1 pt-2 border-t border-slate-50">
                                     {incomingDelivery.opcionais.driver_bonuses.map((bonus: any, idx: number) => {
@@ -1117,7 +1132,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                             )}
                        </div>
 
-                       {/* Actions */}
+                       {}
                         <div className="flex gap-3 w-full pt-2">
                             <button
                                 onClick={handleRecusar}
