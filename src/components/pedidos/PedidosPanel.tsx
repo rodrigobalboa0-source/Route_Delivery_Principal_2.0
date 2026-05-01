@@ -567,7 +567,13 @@ function PedidoEditForm({
         let newEntregaStatus = entregaData.status;
         
         
-        if (formData.status === 'entregue') newEntregaStatus = 'entregue';
+        if (formData.status === 'entregue') {
+          if (hasMultipleDestinations(entrega) && hasNextDestination(entrega)) {
+            newEntregaStatus = 'em_rota';
+          } else {
+            newEntregaStatus = 'entregue';
+          }
+        }
         if (formData.status === 'cancelado') newEntregaStatus = 'cancelada';
 
         const { error: eError } = await supabase.from('nova_entrega').update({
@@ -1703,6 +1709,13 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   };
 
   const handleManualPedidoStatusChange = async (pedidoId: string, newStatus: string) => {
+    const entrega = entregasMap[pedidoId];
+    
+    if (newStatus === 'entregue' && entrega && hasMultipleDestinations(entrega) && hasNextDestination(entrega)) {
+      await handleManualAdvanceDestination(pedidoId);
+      return;
+    }
+    
     const nowIso = new Date().toISOString();
 
     setAllItems(prev => prev.map(p => (p.id === pedidoId ? { ...p, status: newStatus as any, updated_at: nowIso } : p)));
@@ -1729,11 +1742,9 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     
     if (newStatus === 'entregue' && hasMultipleDestinations(entrega)) {
       if (hasNextDestination(entrega)) {
-        
-        await showAlert('Este pedido tem múltiplos destinos. Use "Avançar Destino" para ir para o próximo destino antes de finalizar.', 'Aviso');
+        await handleManualAdvanceDestination(pedidoId);
         return;
       }
-      
     }
 
     setEntregasMap(prev => ({ ...prev, [pedidoId]: { ...prev[pedidoId], status: newStatus as any, updated_at: nowIso } as any }));
@@ -1799,11 +1810,6 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       await showAlert('Erro ao avançar destino: ' + error.message, 'Erro');
       queueSilentPedidosRefresh();
       return;
-    }
-
-    
-    if (result.shouldFinalize) {
-      void handleManualPedidoStatusChange(pedidoId, 'entregue');
     }
 
     setOpenStatusMenuId(null);
