@@ -698,20 +698,20 @@ function PedidoDetailsView({ pedido, entrega, cliente, onClose, onAlert, onRefre
   const pontosAdicionais = Array.isArray((entrega as any)?.pontos_adicionais) ? ((entrega as any).pontos_adicionais as any[]) : [];
   const [removingDestino, setRemovingDestino] = useState<number | null>(null);
 
-  const handleRemoveDestino = async (destinoIndex: number) => {
+  const handleRemoveDestino = async (destinoIndex: number, isPrincipal: boolean = false) => {
     if (!entrega) return;
     
-    const destinoLabel = `Destino ${destinoIndex + 2}`;
+    const destinoLabel = isPrincipal ? 'Destino Principal' : `Destino ${destinoIndex + 2}`;
     const confirmMessage = `Tem certeza que deseja remover ${destinoLabel}? Esta ação não pode ser desfeita.`;
     
     if (!window.confirm(confirmMessage)) return;
     
-    setRemovingDestino(destinoIndex);
+    setRemovingDestino(isPrincipal ? -1 : destinoIndex);
     
     try {
-      const { data, error } = await supabase.rpc('remove_destino_adicional', {
+      const { data, error } = await supabase.rpc('remove_destino', {
         p_entrega_id: entrega.id,
-        p_destino_index: destinoIndex,
+        p_destino_index: isPrincipal ? -1 : destinoIndex,
         p_motivo: null
       });
       
@@ -721,6 +721,12 @@ function PedidoDetailsView({ pedido, entrega, cliente, onClose, onAlert, onRefre
         const errorMsg = data?.message || data?.error || 'Erro ao remover destino';
         if (data?.error === 'invalid_status') {
           throw new Error('Apenas é possível remover destinos quando a entrega está com status "criada"');
+        }
+        if (data?.error === 'cannot_remove_last_destination') {
+          throw new Error('Não é possível remover o único destino da entrega');
+        }
+        if (data?.error === 'no_additional_destinations') {
+          throw new Error('Não é possível remover o destino principal quando não há destinos adicionais');
         }
         throw new Error(errorMsg);
       }
@@ -1170,21 +1176,21 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     setExpandedMultiPedidos((prev) => ({ ...prev, [pedidoId]: !prev[pedidoId] }));
   }, []);
 
-  const handleRemoveDestino = async (pedidoId: string, destinoIndex: number) => {
+  const handleRemoveDestino = async (pedidoId: string, destinoIndex: number, isPrincipal: boolean = false) => {
     const entrega = entregasMap[pedidoId];
     if (!entrega) return;
     
-    const destinoLabel = `Destino ${destinoIndex + 2}`;
+    const destinoLabel = isPrincipal ? 'Destino Principal' : `Destino ${destinoIndex + 2}`;
     const confirmMessage = `Tem certeza que deseja remover ${destinoLabel}? Esta ação não pode ser desfeita.`;
     
     if (!window.confirm(confirmMessage)) return;
     
-    setRemovingDestino({ pedidoId, destinoIndex });
+    setRemovingDestino({ pedidoId, destinoIndex: isPrincipal ? -1 : destinoIndex });
     
     try {
-      const { data, error } = await supabase.rpc('remove_destino_adicional', {
+      const { data, error } = await supabase.rpc('remove_destino', {
         p_entrega_id: entrega.id,
-        p_destino_index: destinoIndex,
+        p_destino_index: isPrincipal ? -1 : destinoIndex,
         p_motivo: null
       });
       
@@ -1194,6 +1200,12 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         const errorMsg = data?.message || data?.error || 'Erro ao remover destino';
         if (data?.error === 'invalid_status') {
           throw new Error('Apenas é possível remover destinos quando a entrega está com status "criada"');
+        }
+        if (data?.error === 'cannot_remove_last_destination') {
+          throw new Error('Não é possível remover o único destino da entrega');
+        }
+        if (data?.error === 'no_additional_destinations') {
+          throw new Error('Não é possível remover o destino principal quando não há destinos adicionais');
         }
         throw new Error(errorMsg);
       }
@@ -1934,6 +1946,20 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       await showAlert('Seu comércio não tem permissão para finalizar pedidos.', 'Aviso');
       return;
     }
+    
+    const entrega = entregasMap[p.id];
+    
+    // Se há múltiplos destinos e ainda existe próximo destino, avança automaticamente
+    if (entrega && hasMultipleDestinations(entrega)) {
+      if (hasNextDestination(entrega)) {
+        await handleManualAdvanceDestination(p.id);
+        fetchPedidos();
+        setOpenMenuId(null);
+        return;
+      }
+      // Se é o último destino, procede com finalização normal abaixo
+    }
+    
     const ok = await showConfirm('Finalizar pedido e marcar como Entregue?');
     if (!ok) return;
     
@@ -2734,7 +2760,12 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       'veiculo_tipo',
     ].join(', ');
 
-    const { data } = await supabase.from('entregadores').select(selectFields).order('nome_completo');
+    const { data } = await supabase
+      .from('entregadores')
+      .select(selectFields)
+      .eq('status', 'ativo')
+      .eq('is_online', true)
+      .order('nome_completo');
     setAvailableEntregadores((data || []) as unknown as Entregador[]);
     
     const map: Record<string, Entregador> = {};
@@ -4307,39 +4338,50 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
           </p>
           
           <div className="space-y-2 max-h-[300px] overflow-y-auto">
-            {availableEntregadores.map(entregador => (
-              <label 
-                key={entregador.id} 
-                className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
-                  selectedEntregadorId === entregador.id 
-                    ? 'border-emerald-500 bg-emerald-50' 
-                    : 'border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <input 
-                    type="radio" 
-                    name="entregador"
-                    value={entregador.id}
-                    checked={selectedEntregadorId === entregador.id}
-                    onChange={(e) => setSelectedEntregadorId(e.target.value)}
-                    className="text-emerald-600 focus:ring-emerald-500"
-                  />
-                  <div>
-                    <div className="font-medium text-slate-800">{entregador.nome_completo}</div>
-                    <div className="text-xs text-slate-500 flex items-center gap-1">
-                        <span className={`w-2 h-2 rounded-full ${entregador.status === 'ativo' && entregador.is_online ? 'bg-emerald-500' : 'bg-slate-300'}`}></span>
-                        {entregador.status === 'ativo' && entregador.is_online ? 'ONLINE' : 'OFFLINE'}
+            {availableEntregadores
+              .filter(entregador => entregador.status === 'ativo' && entregador.is_online)
+              .length === 0 ? (
+              <div className="text-center py-8 text-slate-500">
+                <AlertCircle className="mx-auto mb-2 text-slate-400" size={32} />
+                <p className="text-sm font-medium">Nenhum entregador online disponível</p>
+              </div>
+            ) : (
+              availableEntregadores
+                .filter(entregador => entregador.status === 'ativo' && entregador.is_online)
+                .map(entregador => (
+                  <label 
+                    key={entregador.id} 
+                    className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
+                      selectedEntregadorId === entregador.id 
+                        ? 'border-emerald-500 bg-emerald-50' 
+                        : 'border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <input 
+                        type="radio" 
+                        name="entregador"
+                        value={entregador.id}
+                        checked={selectedEntregadorId === entregador.id}
+                        onChange={(e) => setSelectedEntregadorId(e.target.value)}
+                        className="text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <div>
+                        <div className="font-medium text-slate-800">{entregador.nome_completo}</div>
+                        <div className="text-xs text-slate-500 flex items-center gap-1">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                            ONLINE
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-                {entregador.veiculo_tipo && (
-                  <span className="text-xs px-2 py-1 bg-slate-100 rounded text-slate-600 uppercase">
-                      {entregador.veiculo_tipo}
-                  </span>
-                )}
-              </label>
-            ))}
+                    {entregador.veiculo_tipo && (
+                      <span className="text-xs px-2 py-1 bg-slate-100 rounded text-slate-600 uppercase">
+                          {entregador.veiculo_tipo}
+                      </span>
+                    )}
+                  </label>
+                ))
+            )}
           </div>
         </div>
       </Modal>

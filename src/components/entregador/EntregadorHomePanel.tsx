@@ -1070,25 +1070,25 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                               <p className="text-xs font-bold text-slate-600 uppercase tracking-wide">Pedido Múltiplo</p>
                               <p className="text-xs font-semibold text-slate-700">Total: R$ {valorEntregadorDisplayFinal.toFixed(2)}</p>
                             </div>
-                            <div className="max-h-[300px] overflow-y-auto space-y-3 pr-1">
+                            <div className="max-h-[300px] overflow-y-auto space-y-4 pr-1">
                               {incomingDestinos.map((d: any, idx: number) => {
                                 const c = comissaoDestinosDisplay.find((x: any) => Number(x?.destino) === idx + 1);
                                 const v = c && typeof c.valor === 'number' ? c.valor : null;
                                 const isFirstDestination = idx === 0;
                                 return (
-                                <div key={idx} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                                <div key={idx} className="bg-white border border-slate-300 rounded-xl p-5 shadow-md">
                                   <div className="flex items-center justify-between gap-3">
                                     <div className="flex items-center gap-2">
                                       {isFirstDestination && (
                                         <span className="inline-flex items-center justify-center w-5 h-5 bg-sky-100 text-sky-700 text-[10px] font-bold rounded-full">●</span>
                                       )}
-                                      <span className="text-sm font-bold text-slate-800">{d.label}</span>
+                                      <span className="text-base font-bold text-slate-800">{d.label}</span>
                                     </div>
-                                    <span className="text-sm font-semibold text-green-600">
+                                    <span className="text-base font-bold text-green-600">
                                       {typeof v === 'number' && !Number.isNaN(v) ? `R$ ${v.toFixed(2)}` : '-'}
                                     </span>
                                   </div>
-                                  <p className="text-sm text-slate-600 mt-2 leading-snug">{d.endereco || '-'}</p>
+                                  <p className="text-sm text-slate-600 mt-3 leading-relaxed">{d.endereco || '-'}</p>
                                 </div>
                                 );
                               })}
