@@ -1002,8 +1002,8 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
       </button>
 
        {incomingDelivery && createPortal(
-         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm p-4 overflow-y-auto" style={{ zIndex: 2147483647 }}>
-            <div className="flex flex-col items-center gap-4 py-4 max-h-[90vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-transparent">
+         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-transparent" style={{ zIndex: 2147483647 }}>
+            <div className="flex flex-col items-center gap-4 py-4">
               {isIncomingMultiplo ? (
                 [...incomingDestinos].reverse().map((d: any, idx: number) => {
                   const originalIdx = incomingDestinos.length - 1 - idx;
@@ -1012,7 +1012,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                   const isFirstDestination = originalIdx === 0;
                   return (
                     <div key={`${incomingDelivery.id}-${originalIdx}`} className="bg-white w-full max-w-[450px] rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom duration-300">
-                      <div className="p-5 overflow-y-auto">
+                      <div className="p-5">
                         <div className="flex flex-col gap-5">
                           <div className="flex items-center gap-3 w-full border-b border-slate-100 pb-4">
                             <div className={`w-14 h-14 min-w-[3.5rem] rounded-full flex items-center justify-center overflow-hidden border-2 shadow-sm ${incomingDelivery.status === 'criada' ? 'border-sky-100' : 'border-green-100'}`}>
