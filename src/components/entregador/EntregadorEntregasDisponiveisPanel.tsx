@@ -524,7 +524,6 @@ export function EntregadorEntregasDisponiveisPanel() {
       if (hiddenIds.includes(e.id)) return false;
       if (e.status === 'atribuida' && e.entregador_id === entregadorId) return true;
       
-      
       if (!hasPriority && e.liberado_em) {
         const releaseTime = new Date(e.liberado_em).getTime();
         if (releaseTime > currentTime) return false;
