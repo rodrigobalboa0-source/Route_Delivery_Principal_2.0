@@ -2631,28 +2631,42 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         { event: '*', schema: 'public', table: 'entregadores' },
         (payload) => {
           const { eventType, new: newRecord, old: oldRecord } = payload;
+          console.log('[Realtime entregadores] Event:', eventType, 'New:', newRecord, 'Old:', oldRecord);
 
           if (eventType === 'UPDATE') {
             const prev = (oldRecord || null) as Entregador | null;
             const next = (newRecord || null) as Entregador | null;
             if (!next) return;
 
-            const changed =
+            const locationChanged =
               !prev ||
               prev.current_latitude !== next.current_latitude ||
               prev.current_longitude !== next.current_longitude ||
               prev.heading !== next.heading ||
-              prev.last_location_update !== next.last_location_update ||
+              prev.last_location_update !== next.last_location_update;
+
+            const changed =
+              locationChanged ||
               prev.is_online !== next.is_online ||
               prev.status !== next.status ||
               prev.foto_url !== next.foto_url;
 
-            if (!changed) return;
+            if (!changed) {
+              console.log('[Realtime entregadores] No changes detected, skipping update');
+              return;
+            }
+            console.log('[Realtime entregadores] Changes detected, updating state. Location changed:', locationChanged);
+
+            if (locationChanged) {
+              console.log('[Realtime entregadores] Location changed, forcing fetchEntregadoresList');
+              fetchEntregadoresList();
+              return;
+            }
           }
 
           if (eventType === 'INSERT' || eventType === 'UPDATE') {
              const updatedEntregador = newRecord as Entregador;
-             
+
              setAvailableEntregadores(prev => {
                  const exists = prev.some(e => e.id === updatedEntregador.id);
                  if (exists) {
@@ -2683,6 +2697,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                    updated_at: updatedEntregador.updated_at,
                    foto_url: updatedEntregador.foto_url
                };
+               console.log('[Realtime entregadores] Updating mapDeliveryPersons:', mappedPerson);
 
                if (exists) {
                  return prev.map(p => p.id === updatedEntregador.id ? mappedPerson : p);
@@ -2730,6 +2745,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const onlineEntregadoresCount = availableEntregadores.filter(e => e.is_online).length;
   
   const visibleDeliveryPersons = useMemo(() => {
+    console.log('[visibleDeliveryPersons] mapDeliveryPersons:', mapDeliveryPersons);
     return mapDeliveryPersons;
   }, [mapDeliveryPersons]);
 
@@ -2740,6 +2756,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   };
 
   const fetchEntregadoresList = async () => {
+    console.log('[fetchEntregadoresList] Starting fetch');
     const selectFields = [
       'id',
       'nome_completo',
@@ -2757,19 +2774,34 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       'veiculo_tipo',
     ].join(', ');
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('entregadores')
       .select(selectFields)
       .eq('status', 'ativo')
       .order('nome_completo');
+    
+    if (error) {
+      console.error('[fetchEntregadoresList] Error:', error);
+      return;
+    }
+    
+    console.log('[fetchEntregadoresList] Raw data from DB:', data);
+    console.log('[fetchEntregadoresList] Count:', data?.length);
+    
+    if (data && data.length > 0) {
+      data.forEach((e: any) => {
+        console.log('[fetchEntregadoresList] Entregador:', e.nome_completo, 'lat:', e.current_latitude, 'lng:', e.current_longitude, 'last_update:', e.last_location_update);
+      });
+    }
+    
     setAvailableEntregadores((data || []) as unknown as Entregador[]);
     
     const map: Record<string, Entregador> = {};
     const mapPersons: MapDeliveryPerson[] = [];
 
-    (data || []).forEach((e: any) => { 
+    (data || []).forEach((e: any) => {
         map[e.id] = e;
-        
+
         if (e.current_latitude && e.current_longitude) {
           mapPersons.push({
               id: e.id,
@@ -2786,8 +2818,11 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
               updated_at: e.updated_at,
               foto_url: e.foto_url
           });
+        } else {
+          console.log('[fetchEntregadoresList] Skipping entregador (no lat/lng):', e.id, e.nome_completo, 'lat:', e.current_latitude, 'lng:', e.current_longitude);
         }
     });
+    console.log('[fetchEntregadoresList] Final mapPersons:', mapPersons);
     setEntregadores(prev => ({ ...prev, ...map }));
     setMapDeliveryPersons(mapPersons);
   };

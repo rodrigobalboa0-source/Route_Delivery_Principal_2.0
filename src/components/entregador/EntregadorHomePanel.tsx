@@ -305,25 +305,25 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
              .select('id, foto_url, foto_base64, is_online')
              .ilike('email', user.email || '')
              .single();
-             
+
            if (data) {
              setEntregadorId(data.id);
              setPhotoUrl(data.foto_url || data.foto_base64);
              setIsOnline(data.is_online || false);
-             
-             
+
+
              const { data: entregasData } = await supabase
               .from('nova_entrega')
               .select('*')
               .eq('entregador_id', data.id)
               .eq('status', 'entregue');
-              
+
              const { data: acertosData } = await supabase
                .from('acertos_entregadores')
                .select('valor_pago, taxa_aplicada, status')
                .eq('entregador_id', data.id)
                .in('status', ['pendente', 'pago']);
-              
+
              if (entregasData) {
                const totalEntregas = entregasData.reduce((acc, curr) => acc + (Number(curr.valor_entregador) || 0), 0);
                const totalAcertos =
@@ -340,11 +340,57 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
     fetchProfile();
 
     let watchId: string | null = null;
+    let currentEntregadorId: string | null = null;
+
+    const updateLocationToDB = async (lat: number, lng: number, heading: number | null) => {
+      if (!currentEntregadorId) return;
+
+      try {
+        console.log('[GPS Update] Sending to DB:', { lat, lng, heading, entregadorId: currentEntregadorId });
+
+        const updateData: any = {
+          current_latitude: lat,
+          current_longitude: lng,
+          last_location_update: new Date().toISOString()
+        };
+
+        if (heading !== null) {
+          updateData.heading = heading;
+        }
+
+        const { error } = await supabase
+          .from('entregadores')
+          .update(updateData)
+          .eq('id', currentEntregadorId);
+
+        if (error) {
+          console.error('[GPS Update] Error:', error);
+        } else {
+          console.log('[GPS Update] Success:', { lat, lng, heading });
+        }
+      } catch (e) {
+        console.error('[GPS Update] Exception:', e);
+      }
+    };
 
     const startWatching = async () => {
       try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.email) {
+          const { data: entregador } = await supabase
+            .from('entregadores')
+            .select('id')
+            .ilike('email', user.email)
+            .single();
+
+          if (entregador) {
+            currentEntregadorId = entregador.id;
+            console.log('[GPS Setup] Entregador ID:', currentEntregadorId);
+          }
+        }
+
         let permResult = await Geolocation.checkPermissions();
-        
+
         if (permResult.location !== 'granted') {
           permResult = await Geolocation.requestPermissions();
         }
@@ -355,7 +401,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
           return;
         }
 
-        
+
         let initialPositionLoaded = false;
         try {
           const position = await Geolocation.getCurrentPosition({
@@ -363,34 +409,55 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
             timeout: 5000,
             maximumAge: Infinity
           });
-          
+
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          const heading = typeof position.coords.heading === 'number' ? position.coords.heading : null;
+
+          console.log('[GPS Initial Position]', { lat, lng, heading });
+
           setUserLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
+            lat,
+            lng
           });
+
+          if (currentEntregadorId) {
+            updateLocationToDB(lat, lng, heading);
+          }
+
           initialPositionLoaded = true;
         } catch (e) {
           console.warn('Timeout ou erro ao obter posição inicial, aguardando watchPosition', e);
         }
-        
+
         if (initialPositionLoaded) {
           setLoadingLocation(false);
         }
 
-        watchId = await Geolocation.watchPosition({ 
+        watchId = await Geolocation.watchPosition({
           enableHighAccuracy: true,
-          timeout: 10000 
+          timeout: 10000
         }, (position, err) => {
           if (position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            const heading = typeof position.coords.heading === 'number' ? position.coords.heading : null;
+
+            console.log('[GPS Watch Position]', { lat, lng, heading });
+
             setUserLocation({
-              lat: position.coords.latitude,
-              lng: position.coords.longitude
+              lat,
+              lng
             });
             setLoadingLocation(false);
+
+            if (currentEntregadorId) {
+              updateLocationToDB(lat, lng, heading);
+            }
           }
           if (err) {
             console.error('Erro ao observar localização:', err);
-           
+
             setLoadingLocation((prev) => {
                 if (prev) return false;
                 return prev;

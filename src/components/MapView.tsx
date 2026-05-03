@@ -100,6 +100,7 @@ function makePinSvg(fill: string, innerSvg?: string, rotation?: number) {
 }
 
 export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [-23.5505, -46.6333], origin, destination, route, originTitle, destinationTitle, originIconType = 'truck', additionalDestinations = [] }: MapViewProps) {
+  console.log('[MapView] Received deliveryPersons:', deliveryPersons.map(p => ({ id: p.id, name: p.name, lat: p.current_latitude, lng: p.current_longitude })));
   useEffect(() => {
     console.log('MapView initialized (Google Maps version)');
   }, []);
