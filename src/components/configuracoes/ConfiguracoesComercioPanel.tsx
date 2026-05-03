@@ -66,7 +66,6 @@ export function ConfiguracoesComercioPanel() {
       
       if (data.length > 1) {
           const [keep, ...duplicates] = data;
-          console.log(`Found ${duplicates.length} duplicate configurations. Cleaning up...`);
           
           const { error: deleteError } = await supabase
               .from('configuracoes_comercio')

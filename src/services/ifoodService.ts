@@ -2,16 +2,12 @@ import { supabase } from '../lib/supabase';
 
 export class IfoodService {
   static async syncOrders() {
-    console.log('Starting iFood sync (Edge Function)...');
-    
     try {
       const { data, error } = await supabase.functions.invoke('ifood-sync', {
         body: { mode: 'manual' }
       });
 
       if (error) throw error;
-      
-      console.log('Sync result:', data);
       return data;
     } catch (error: any) {
       console.error('Sync error:', error);
@@ -95,12 +91,9 @@ export class IfoodService {
 
   static async getCancellationReasons(pedidoId: string, clienteId?: string, ifoodOrderId?: string) {
     try {
-      console.log('Buscando motivos de cancelamento do iFood...');
       const { data, error } = await supabase.functions.invoke('ifood-update-status', {
         body: { action: 'getCancellationReasons', pedidoId, clienteId, ifoodOrderId }
       });
-      
-      console.log('Resposta da edge function:', { data, error });
       
       if (error) {
         console.error('Erro na edge function:', error);
@@ -117,7 +110,6 @@ export class IfoodService {
           return { code, title, description: description || undefined };
         })
         .filter(Boolean) as Array<{ code: string; title: string; description?: string }>;
-      console.log('Motivos retornados:', reasons);
       return reasons;
     } catch (error: any) {
       console.error('iFood get cancellation reasons error:', error);

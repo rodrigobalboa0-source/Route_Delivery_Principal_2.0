@@ -176,7 +176,6 @@ export function EntregadorPedidosEmAndamentoPanel() {
 
     
     const intervalId = setInterval(() => {
-      console.log('Polling fallback: fetching deliveries in progress...');
       fetchEntregas();
     }, 5000);
 
@@ -198,7 +197,6 @@ export function EntregadorPedidosEmAndamentoPanel() {
         schema: 'public', 
         table: 'nova_entrega' 
       }, (payload) => {
-        console.log('Real-time change detected in nova_entrega (andamento):', payload.eventType, payload.new?.id || payload.old?.id);
         if (payload.eventType === 'UPDATE') {
              const newRecord = payload.new;
              
@@ -220,9 +218,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
         table: 'pedidos'
       }, (payload) => {
         const newPedido = payload.new as any;
-        console.log('Real-time change detected in pedidos (andamento):', newPedido.id, 'Status:', newPedido.status);
         if (newPedido.status === 'cancelado') {
-            console.log('Order canceled, removing from in-progress list:', newPedido.id);
             setEntregas(prev => prev.filter(e => e.pedido_id !== newPedido.id));
             setTimeout(fetchEntregas, 1000);
         }
@@ -236,8 +232,6 @@ export function EntregadorPedidosEmAndamentoPanel() {
       if (!currentEntregadorId) return;
 
       try {
-        console.log('[GPS Update EmAndamento] Sending to DB:', { lat, lng, heading, entregadorId: currentEntregadorId });
-
         const updateData: any = {
           current_latitude: lat,
           current_longitude: lng,
@@ -255,8 +249,6 @@ export function EntregadorPedidosEmAndamentoPanel() {
 
         if (error) {
           console.error('[GPS Update EmAndamento] Error:', error);
-        } else {
-          console.log('[GPS Update EmAndamento] Success:', { lat, lng, heading });
         }
       } catch (e) {
         console.error('[GPS Update EmAndamento] Exception:', e);
@@ -275,7 +267,6 @@ export function EntregadorPedidosEmAndamentoPanel() {
 
           if (entregador) {
             currentEntregadorId = entregador.id;
-            console.log('[GPS Setup EmAndamento] Entregador ID:', currentEntregadorId);
           }
         }
 
@@ -301,8 +292,6 @@ export function EntregadorPedidosEmAndamentoPanel() {
           const lng = position.coords.longitude;
           const heading = typeof position.coords.heading === 'number' ? position.coords.heading : null;
 
-          console.log('[GPS Initial Position EmAndamento]', { lat, lng, heading });
-
           setUserLocation({
             lat,
             lng,
@@ -324,8 +313,6 @@ export function EntregadorPedidosEmAndamentoPanel() {
             const lat = position.coords.latitude;
             const lng = position.coords.longitude;
             const heading = typeof position.coords.heading === 'number' ? position.coords.heading : null;
-
-            console.log('[GPS Watch Position EmAndamento]', { lat, lng, heading });
 
             setUserLocation({
               lat,

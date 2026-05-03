@@ -205,7 +205,6 @@ export function FaturamentoMensalPanel({ onNavigate }: FaturamentoMensalPanelPro
 
       
       if (invoiceForm.enviarEmail) {
-        console.log('Enviando email para:', selectedClient.faturamento_emails);
         
       }
 

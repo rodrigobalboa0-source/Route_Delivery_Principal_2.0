@@ -533,10 +533,8 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
           if (currentUserData?.cliente_id === id) {
               
               if (['admin', 'operador', 'franquia'].includes(currentUserData.role || '')) {
-                  console.log('Desvinculando usuário administrativo do cliente antes da exclusão...');
                   await supabase.from('users').update({ cliente_id: null }).eq('id', currentUser.id);
               } else {
-                  
                   
               }
           }

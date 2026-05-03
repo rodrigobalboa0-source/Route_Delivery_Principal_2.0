@@ -346,8 +346,6 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
       if (!currentEntregadorId) return;
 
       try {
-        console.log('[GPS Update] Sending to DB:', { lat, lng, heading, entregadorId: currentEntregadorId });
-
         const updateData: any = {
           current_latitude: lat,
           current_longitude: lng,
@@ -365,8 +363,6 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
 
         if (error) {
           console.error('[GPS Update] Error:', error);
-        } else {
-          console.log('[GPS Update] Success:', { lat, lng, heading });
         }
       } catch (e) {
         console.error('[GPS Update] Exception:', e);
@@ -385,7 +381,6 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
 
           if (entregador) {
             currentEntregadorId = entregador.id;
-            console.log('[GPS Setup] Entregador ID:', currentEntregadorId);
           }
         }
 
@@ -414,8 +409,6 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
           const lng = position.coords.longitude;
           const heading = typeof position.coords.heading === 'number' ? position.coords.heading : null;
 
-          console.log('[GPS Initial Position]', { lat, lng, heading });
-
           setUserLocation({
             lat,
             lng
@@ -442,8 +435,6 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
             const lat = position.coords.latitude;
             const lng = position.coords.longitude;
             const heading = typeof position.coords.heading === 'number' ? position.coords.heading : null;
-
-            console.log('[GPS Watch Position]', { lat, lng, heading });
 
             setUserLocation({
               lat,
@@ -665,7 +656,6 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                                  );
                                  if (dist > effectiveRadiusKm) {
                                      inRadius = false;
-                                     console.log(`Entrega fora do raio: ${dist.toFixed(2)}km > ${effectiveRadiusKm}km`);
                                  }
                              } else {
                                  console.warn('Não foi possível obter coordenadas para verificar raio. Assumindo dentro.');
@@ -856,7 +846,6 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
 
               
               if (isIncomingMultiplo && valorEntregadorDisplayFinal > 0) {
-                  console.log('Atualizando valor_entregador para pedido múltiplo:', valorEntregadorDisplayFinal);
                   const { error: updateError } = await supabase
                       .from('nova_entrega')
                       .update({ valor_entregador: valorEntregadorDisplayFinal })

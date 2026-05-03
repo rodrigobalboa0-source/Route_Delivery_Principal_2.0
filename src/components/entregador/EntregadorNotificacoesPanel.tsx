@@ -27,7 +27,6 @@ export function EntregadorNotificacoesPanel() {
             filter: `entregador_id=eq.${user.id}`
           },
           (payload) => {
-            console.log('Nova notificação recebida:', payload);
             setNotificacoes(prev => [payload.new, ...prev]);
           }
         )

@@ -318,7 +318,6 @@ export function EntregadorEntregasDisponiveisPanel() {
     
     
     const intervalId = setInterval(() => {
-      console.log('Polling fallback: fetching available deliveries...');
       fetchEntregas();
     }, 5000);
 
@@ -329,8 +328,6 @@ export function EntregadorEntregasDisponiveisPanel() {
         schema: 'public', 
         table: 'nova_entrega' 
       }, (payload) => {
-        console.log('Real-time change detected in nova_entrega (disponiveis):', payload.eventType, payload.new?.id || payload.old?.id);
-        
         if (payload.eventType === 'DELETE') {
             setEntregas(prev => prev.filter(e => e.id !== payload.old.id));
         } else if (payload.eventType === 'UPDATE') {
@@ -357,9 +354,7 @@ export function EntregadorEntregasDisponiveisPanel() {
         table: 'pedidos'
       }, (payload) => {
         const newPedido = payload.new as any;
-        console.log('Real-time change detected in pedidos (disponiveis):', newPedido.id, 'Status:', newPedido.status);
         if (newPedido.status === 'cancelado') {
-            console.log('Order canceled, removing from available list:', newPedido.id);
             setEntregas(prev => prev.filter(e => e.pedido_id !== newPedido.id));
             setTimeout(fetchEntregas, 1000);
         }
@@ -471,7 +466,6 @@ export function EntregadorEntregasDisponiveisPanel() {
         if (entrega) {
           const valorCalculado = calculateMultiDestinoTotal(entrega);
           if (valorCalculado > 0 && valorCalculado !== Number(entrega.valor_entregador || 0)) {
-            console.log('Atualizando valor_entregador para pedido múltiplo (Disponíveis):', valorCalculado);
             await supabase
               .from('nova_entrega')
               .update({ valor_entregador: valorCalculado })

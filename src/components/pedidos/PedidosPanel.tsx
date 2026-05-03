@@ -2631,7 +2631,6 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         { event: '*', schema: 'public', table: 'entregadores' },
         (payload) => {
           const { eventType, new: newRecord, old: oldRecord } = payload;
-          console.log('[Realtime entregadores] Event:', eventType, 'New:', newRecord, 'Old:', oldRecord);
 
           if (eventType === 'UPDATE') {
             const prev = (oldRecord || null) as Entregador | null;
@@ -2652,13 +2651,10 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
               prev.foto_url !== next.foto_url;
 
             if (!changed) {
-              console.log('[Realtime entregadores] No changes detected, skipping update');
               return;
             }
-            console.log('[Realtime entregadores] Changes detected, updating state. Location changed:', locationChanged);
 
             if (locationChanged) {
-              console.log('[Realtime entregadores] Location changed, forcing fetchEntregadoresList');
               fetchEntregadoresList();
               return;
             }
@@ -2697,7 +2693,6 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                    updated_at: updatedEntregador.updated_at,
                    foto_url: updatedEntregador.foto_url
                };
-               console.log('[Realtime entregadores] Updating mapDeliveryPersons:', mappedPerson);
 
                if (exists) {
                  return prev.map(p => p.id === updatedEntregador.id ? mappedPerson : p);
@@ -2745,7 +2740,6 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const onlineEntregadoresCount = availableEntregadores.filter(e => e.is_online).length;
   
   const visibleDeliveryPersons = useMemo(() => {
-    console.log('[visibleDeliveryPersons] mapDeliveryPersons:', mapDeliveryPersons);
     return mapDeliveryPersons;
   }, [mapDeliveryPersons]);
 
@@ -2756,7 +2750,6 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   };
 
   const fetchEntregadoresList = async () => {
-    console.log('[fetchEntregadoresList] Starting fetch');
     const selectFields = [
       'id',
       'nome_completo',
@@ -2785,15 +2778,6 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       return;
     }
     
-    console.log('[fetchEntregadoresList] Raw data from DB:', data);
-    console.log('[fetchEntregadoresList] Count:', data?.length);
-    
-    if (data && data.length > 0) {
-      data.forEach((e: any) => {
-        console.log('[fetchEntregadoresList] Entregador:', e.nome_completo, 'lat:', e.current_latitude, 'lng:', e.current_longitude, 'last_update:', e.last_location_update);
-      });
-    }
-    
     setAvailableEntregadores((data || []) as unknown as Entregador[]);
     
     const map: Record<string, Entregador> = {};
@@ -2818,11 +2802,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
               updated_at: e.updated_at,
               foto_url: e.foto_url
           });
-        } else {
-          console.log('[fetchEntregadoresList] Skipping entregador (no lat/lng):', e.id, e.nome_completo, 'lat:', e.current_latitude, 'lng:', e.current_longitude);
         }
     });
-    console.log('[fetchEntregadoresList] Final mapPersons:', mapPersons);
     setEntregadores(prev => ({ ...prev, ...map }));
     setMapDeliveryPersons(mapPersons);
   };
@@ -3095,35 +3076,26 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   }, [queueSilentPedidosRefresh]);
 
   const handleDelete = async (p: Pedido) => {
-    console.log('handleDelete chamado para pedido:', p.id);
-    console.log('origem:', p.origem, 'ifood_order_id:', (p as any).ifood_order_id);
-    
     const ifoodOrderId = typeof (p as any).ifood_order_id === 'string' ? String((p as any).ifood_order_id).trim() : '';
     const isIfoodOrder = !!ifoodOrderId;
 
     
     if (isIfoodOrder) {
-        console.log('Pedido detectado como iFood, carregando motivos...');
         setSelectedPedido(p);
         setOpenMenuId(null);
         
         
         const reasons = await IfoodService.getCancellationReasons(p.id, p.cliente_id, ifoodOrderId);
-        console.log('Motivos carregados:', reasons);
         setIfoodCancellationReasons(reasons);
         
         if (reasons.length > 0) {
-            console.log('Abrindo modal de motivos');
             setIsIfoodCancellationReasonsModalOpen(true);
         } else {
-            console.log('Nenhum motivo encontrado, prosseguindo com cancelamento normal');
             
             await handleDeleteWithReason(p, null);
         }
         return;
     }
-    
-    console.log('Pedido não é iFood, usando fluxo normal');
     
     const ok = await showConfirm('Tem certeza que deseja cancelar este pedido?');
     if (!ok) return;

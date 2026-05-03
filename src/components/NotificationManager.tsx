@@ -103,8 +103,6 @@ export function NotificationManager({ userId, userRole, onNavigate }: Notificati
             PushNotifications.removeAllListeners();
 
             PushNotifications.addListener('registration', async (token) => {
-              console.log('Push Registration Token:', token.value);
-              
               try {
                 const { data: { user } } = await supabase.auth.getUser();
                 if (user?.email) {
@@ -114,7 +112,6 @@ export function NotificationManager({ userId, userRole, onNavigate }: Notificati
                     .ilike('email', user.email);
                   
                   if (error) console.error('Erro ao atualizar token FCM:', error);
-                  else console.log('Token FCM salvo com sucesso');
                 }
               } catch (err) {
                 console.error('Erro ao salvar token FCM:', err);
@@ -126,7 +123,6 @@ export function NotificationManager({ userId, userRole, onNavigate }: Notificati
             });
 
             PushNotifications.addListener('pushNotificationReceived', notification => {
-              console.log('Push Received:', notification);
             });
 
             PushNotifications.addListener('pushNotificationActionPerformed', notification => {
@@ -192,7 +188,6 @@ export function NotificationManager({ userId, userRole, onNavigate }: Notificati
                           pickupCoords[1]
                         );
                         if (dist > radiusKm) {
-                          console.log(`Ignorando notificação: Distância ${dist.toFixed(1)}km > Raio ${radiusKm}km`);
                           return;
                         }
                       }

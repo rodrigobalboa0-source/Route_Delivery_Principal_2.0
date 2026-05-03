@@ -90,7 +90,6 @@ function AddressAutocomplete({
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
 
   const selectSuggestion = (s: AddressSuggestion) => {
-    console.log('selectSuggestion called:', s.display_name);
     onChange(s.display_name);
     if (onSelectCoords) {
       const lat = Number(s.lat);
@@ -487,7 +486,6 @@ export function NovaEntregaPanel() {
             return;
         }
         
-        console.log('Searching commission table for client:', form.cliente_id);
         const table = tabelasComissoes.find(t => {
             let ids = t.cliente_ids;
             
@@ -506,10 +504,7 @@ export function NovaEntregaPanel() {
                 const targetId = String(form.cliente_id).trim().toLowerCase();
                 const match = (ids as any[]).some(id => String(id).trim().toLowerCase() === targetId);
                 
-                
                 if (match) {
-                    console.log('Match found in table:', t.nome);
-                } else {
                     
                     
                 }
@@ -518,7 +513,6 @@ export function NovaEntregaPanel() {
             }
             return false;
         });
-        console.log('Commission table found:', table ? table.nome : 'None');
         
         if (table) {
             setComissaoTableFound(table.nome);
@@ -1237,7 +1231,6 @@ export function NovaEntregaPanel() {
     let effectiveSelectedTable = selectedComissaoTable;
 
     if ((!effectiveFaixasComissoes.length || !effectiveSelectedTable) && form.cliente_id && tabelasComissoes.length > 0) {
-        console.log('Commission data missing in submit. Attempting to resolve...');
         const table = tabelasComissoes.find(t => {
             let ids = t.cliente_ids;
             if (typeof ids === 'string') {
@@ -1254,7 +1247,6 @@ export function NovaEntregaPanel() {
         });
 
         if (table) {
-            console.log('Resolved table in submit:', table.nome);
             effectiveSelectedTable = table;
             try {
                 const { data } = await supabase
@@ -1305,7 +1297,6 @@ export function NovaEntregaPanel() {
 
     try {
       const valorTotal = form.valor_entrega ? Number(form.valor_entrega.replace(',', '.')) : null;
-      console.log('Tentando criar pedido para cliente:', form.cliente_id, 'Valor:', valorTotal);
 
       const valorTotalParaPedido = (valorTotal && !isNaN(valorTotal)) ? valorTotal : null;
 
@@ -1341,7 +1332,6 @@ export function NovaEntregaPanel() {
         return;
       }
       
-      console.log('Pedido criado com sucesso:', pData);
       if (pData) pedidoId = pData.id;
     } catch (err) {
       console.error("Erro ao tentar criar pedido:", err);
