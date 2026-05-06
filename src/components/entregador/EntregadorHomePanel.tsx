@@ -5,6 +5,8 @@ import { MapPin, Truck, Home, Power, CheckCircle, XCircle } from 'lucide-react';
 import { Database } from '../../lib/database.types';
 import { supabase } from '../../lib/supabase';
 import { Geolocation } from '@capacitor/geolocation';
+import { ForegroundService } from '@capawesome-team/capacitor-android-foreground-service';
+import { App } from '@capacitor/app';
 import { getCoordsFromAddress, getDistanceFromLatLonInKm } from '../../utils/geo';
 import { Modal } from '../Modal';
 
@@ -341,6 +343,34 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
 
     let watchId: string | null = null;
     let currentEntregadorId: string | null = null;
+    let foregroundServiceStarted = false;
+
+    const startForegroundService = async () => {
+      if (foregroundServiceStarted) return;
+      try {
+        await ForegroundService.startForegroundService({
+          id: 1,
+          title: 'Route Delivery',
+          body: 'Rastreamento de localização ativo',
+          smallIcon: 'ic_stat_name'
+        });
+        foregroundServiceStarted = true;
+        console.log('[Foreground Service] Started');
+      } catch (e) {
+        console.error('[Foreground Service] Error starting:', e);
+      }
+    };
+
+    const stopForegroundService = async () => {
+      if (!foregroundServiceStarted) return;
+      try {
+        await ForegroundService.stopForegroundService();
+        foregroundServiceStarted = false;
+        console.log('[Foreground Service] Stopped');
+      } catch (e) {
+        console.error('[Foreground Service] Error stopping:', e);
+      }
+    };
 
     const updateLocationToDB = async (lat: number, lng: number, heading: number | null) => {
       if (!currentEntregadorId) return;
@@ -463,12 +493,39 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
 
     startWatching();
 
+    // Start foreground service if online
+    if (isOnline) {
+      startForegroundService();
+    }
+
+    // Listen for app state changes
+    const appStateListener = App.addListener('appStateChange', async ({ isActive }) => {
+      if (isActive) {
+        console.log('[App State] App is now active (foreground)');
+        if (isOnline && currentEntregadorId) {
+          // Ensure foreground service is running when app is active and online
+          await startForegroundService();
+        }
+      } else {
+        console.log('[App State] App is now inactive (background)');
+        if (isOnline) {
+          // Keep foreground service running in background when online
+          await startForegroundService();
+        } else {
+          // Stop foreground service when offline
+          await stopForegroundService();
+        }
+      }
+    });
+
     return () => {
       if (watchId) {
         Geolocation.clearWatch({ id: watchId });
       }
+      appStateListener.then(listener => listener.remove());
+      stopForegroundService();
     };
-  }, []);
+  }, [isOnline]);
 
   useEffect(() => {
     if (!entregadorId) return;
@@ -1058,8 +1115,8 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
       </button>
 
        {incomingDelivery && createPortal(
-         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-transparent" style={{ zIndex: 2147483647 }}>
-            <div className="flex flex-col items-center gap-4 py-4">
+         <div className={`fixed inset-0 bg-black/50 backdrop-blur-sm p-4 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-transparent ${!isIncomingMultiplo ? 'flex items-center justify-center' : 'overflow-y-auto'}`} style={{ zIndex: 2147483647 }}>
+            <div className={`flex flex-col ${!isIncomingMultiplo ? '' : 'items-center gap-4 py-4'}`}>
               {isIncomingMultiplo ? (
                 [...incomingDestinos].reverse().map((d: any, idx: number) => {
                   const originalIdx = incomingDestinos.length - 1 - idx;

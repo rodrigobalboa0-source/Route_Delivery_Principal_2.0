@@ -62,10 +62,15 @@ async function loadGoogleMapsMarkerLibrary() {
   if (!g?.maps) throw new Error('Google Maps não carregou.');
   if (g?.maps?.marker?.AdvancedMarkerElement) return;
 
-  if (typeof g.maps.importLibrary !== 'function') return;
+  if (typeof g.maps.importLibrary !== 'function') {
+    throw new Error('Google Maps importLibrary não disponível. Verifique a versão da API.');
+  }
   if (googleMapsMarkerLibraryPromise) return googleMapsMarkerLibraryPromise;
 
-  googleMapsMarkerLibraryPromise = Promise.resolve(g.maps.importLibrary('marker')).then(() => void 0);
+  googleMapsMarkerLibraryPromise = Promise.all([
+    g.maps.importLibrary('maps'),
+    g.maps.importLibrary('marker')
+  ]).then(() => void 0);
   return googleMapsMarkerLibraryPromise;
 }
 
@@ -137,6 +142,10 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
     }
 
     const mapId = String(import.meta.env.VITE_GOOGLE_MAPS_MAP_ID ?? '').trim();
+    if (!mapId) {
+      setMapError('VITE_GOOGLE_MAPS_MAP_ID não configurado. AdvancedMarkerElement requer mapId.');
+      return;
+    }
     let cancelled = false;
 
     const initMap = async () => {
@@ -157,7 +166,7 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
         const m = new g.maps.Map(mapContainer.current, {
           center: { lat: center[0], lng: center[1] },
           zoom: 12,
-          mapId: mapId ? mapId : undefined,
+          mapId: mapId,
           mapTypeControl: false,
           fullscreenControl: false,
           streetViewControl: false,
@@ -167,12 +176,12 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
 
         map.current = m;
         infoWindowRef.current = new g.maps.InfoWindow();
-        if (mapId) {
-          try {
-            await loadGoogleMapsMarkerLibrary();
-          } catch (e) {
-            console.error('Failed to load Google Maps marker library:', e);
-          }
+        try {
+          await loadGoogleMapsMarkerLibrary();
+        } catch (e) {
+          console.error('Failed to load Google Maps marker library:', e);
+          setMapError('Não foi possível carregar a biblioteca de marcadores do Google Maps.');
+          return;
         }
         setMapLoaded(true);
 
@@ -210,26 +219,22 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
 
       if (map.current) {
         markers.current.forEach((mk) => {
-          if (mk?.setMap) mk.setMap(null);
-          else mk.map = null;
+          mk.map = null;
         });
         markers.current.clear();
 
         additionalMarkers.current.forEach((mk) => {
-          if (mk?.setMap) mk.setMap(null);
-          else mk.map = null;
+          mk.map = null;
         });
         additionalMarkers.current.clear();
 
         if (destMarker.current) {
-          if (destMarker.current?.setMap) destMarker.current.setMap(null);
-          else destMarker.current.map = null;
+          destMarker.current.map = null;
           destMarker.current = null;
         }
 
         if (originMarker.current) {
-          if (originMarker.current?.setMap) originMarker.current.setMap(null);
-          else originMarker.current.map = null;
+          originMarker.current.map = null;
           originMarker.current = null;
         }
 
@@ -289,8 +294,11 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
     if (!mapLoaded || !map.current) return;
     const g = (window as any).google as any;
     if (!g?.maps) return;
-    const mapId = String(import.meta.env.VITE_GOOGLE_MAPS_MAP_ID ?? '').trim();
-    const canUseAdvancedMarkers = !!mapId && !!g?.maps?.marker?.AdvancedMarkerElement;
+    const AdvancedMarkerElement = g?.maps?.marker?.AdvancedMarkerElement;
+    if (!AdvancedMarkerElement) {
+      console.error('AdvancedMarkerElement not available');
+      return;
+    }
 
     const currentMarkerIds = new Set<string>();
 
@@ -337,8 +345,7 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
 
     const removeMarker = (marker: any) => {
       if (!marker) return;
-      if (marker?.setMap) marker.setMap(null);
-      else marker.map = null;
+      marker.map = null;
     };
 
     const openInfo = (anchor: any, html: string, pos?: [number, number]) => {
@@ -500,13 +507,7 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
 
     const attachMarkerClick = (marker: any, html: string, pos: [number, number]) => {
       if (!marker) return;
-      if (typeof marker.addListener === 'function') {
-        marker.addListener('gmp-click', () => openInfo(marker, html, pos));
-        marker.addListener('click', () => openInfo(marker, html, pos));
-      } else if (g?.maps?.event?.addListener) {
-        g.maps.event.addListener(marker, 'gmp-click', () => openInfo(marker, html, pos));
-        g.maps.event.addListener(marker, 'click', () => openInfo(marker, html, pos));
-      }
+      marker.addEventListener('gmp-click', () => openInfo(marker, html, pos));
     };
 
     (deliveryPersons || []).forEach((person) => {
@@ -570,72 +571,17 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
       const color = getMarkerColor(person);
       const isSelected = person.id === selectedEntregadorId;
 
-      const isClassicMarker = !!existingMarker && typeof (existingMarker as any).setIcon === 'function';
-      const isAdvancedMarker = !!existingMarker && !isClassicMarker && !!(existingMarker as any).content && 'position' in (existingMarker as any);
-
       if (existingMarker) {
         const newLatLng: [number, number] = [person.current_latitude, person.current_longitude];
-        if (canUseAdvancedMarkers) {
-          if (!isAdvancedMarker) {
-            removeMarker(existingMarker);
-            const adv = createAdvancedMarker(pos, getMarkerHtml(person), person.name ?? undefined, zIndex);
-            if (adv) {
-              attachMarkerClick(adv, popupContent, pos);
-              markers.current.set(person.id, adv);
-            }
-            return;
-          }
-          if ((existingMarker as any)?.content) (existingMarker as any).content.innerHTML = getMarkerHtml(person);
-          (existingMarker as any).zIndex = zIndex;
-        } else {
-          if (!isClassicMarker) {
-            removeMarker(existingMarker);
-            const mk = new g.maps.Marker({
-              map: map.current,
-              position: { lat: pos[0], lng: pos[1] },
-              title: person.name ?? undefined,
-              zIndex,
-              icon: makeMarkerIcon(color, isSelected ? 1.15 : 1, person.heading),
-            });
-            mk.addListener('click', () => openInfo(mk, popupContent, pos));
-            markers.current.set(person.id, mk);
-            if (person.foto_url) void applyDriverPhotoIcon(person.id, mk, person.foto_url, color, isSelected ? 1.15 : 1, isSelected);
-            return;
-          }
-          (existingMarker as any).setIcon(makeMarkerIcon(color, isSelected ? 1.15 : 1, person.heading));
-          (existingMarker as any).setZIndex(zIndex);
-          if (person.foto_url) void applyDriverPhotoIcon(person.id, existingMarker, person.foto_url, color, isSelected ? 1.15 : 1, isSelected);
-        }
+        if ((existingMarker as any)?.content) (existingMarker as any).content.innerHTML = getMarkerHtml(person);
+        (existingMarker as any).zIndex = zIndex;
 
-        if (person.id === selectedEntregadorId) {
-          animateMarkerTo(existingMarker, person.id, newLatLng, 900);
-        } else {
-          const existingAnim = markerAnimations.current.get(person.id);
-          if (typeof existingAnim === 'number') {
-            cancelAnimationFrame(existingAnim);
-            markerAnimations.current.delete(person.id);
-          }
-          setMarkerPosition(existingMarker, newLatLng[0], newLatLng[1]);
-        }
+        animateMarkerTo(existingMarker, person.id, newLatLng, 1000);
       } else {
-        if (canUseAdvancedMarkers) {
-          const adv = createAdvancedMarker(pos, getMarkerHtml(person), person.name ?? undefined, zIndex);
-          if (adv) {
-            attachMarkerClick(adv, popupContent, pos);
-            markers.current.set(person.id, adv);
-          }
-        } else {
-          const marker = new g.maps.Marker({
-            map: map.current,
-            position: { lat: pos[0], lng: pos[1] },
-            title: person.name ?? undefined,
-            zIndex,
-            icon: makeMarkerIcon(color, isSelected ? 1.15 : 1, person.heading),
-          });
-
-          marker.addListener('click', () => openInfo(marker, popupContent, pos));
-          markers.current.set(person.id, marker);
-          if (person.foto_url) void applyDriverPhotoIcon(person.id, marker, person.foto_url, color, isSelected ? 1.15 : 1, isSelected);
+        const adv = createAdvancedMarker(pos, getMarkerHtml(person), person.name ?? undefined, zIndex);
+        if (adv) {
+          attachMarkerClick(adv, popupContent, pos);
+          markers.current.set(person.id, adv);
         }
       }
     });
@@ -658,10 +604,12 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
     if (!mapLoaded || !map.current) return;
     const g = (window as any).google as any;
     if (!g?.maps) return;
+    const AdvancedMarkerElement = g?.maps?.marker?.AdvancedMarkerElement;
+    if (!AdvancedMarkerElement) return;
 
     if (!destination) {
       if (destMarker.current) {
-        destMarker.current.setMap(null);
+        destMarker.current.map = null;
         destMarker.current = null;
       }
       return;
@@ -673,25 +621,23 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
         <line x1="4" y1="22" x2="4" y2="15"></line>
       </svg>
     `.trim();
-    const icon = {
-      url: svgToDataUrl(makePinSvg('#ef4444', inner)),
-      scaledSize: new g.maps.Size(40, 48),
-      anchor: new g.maps.Point(20, 48),
-    };
+
+    const content = document.createElement('div');
+    content.innerHTML = makePinSvg('#ef4444', inner);
 
     if (destMarker.current) {
-      destMarker.current.setPosition({ lat: destination[0], lng: destination[1] });
-      destMarker.current.setIcon(icon);
+      destMarker.current.position = { lat: destination[0], lng: destination[1] };
+      destMarker.current.content = content;
     } else {
       const popup = `<div style="padding:6px; color: #ef4444;"><strong>${escapeHtml(destinationTitle || 'Destino')}</strong></div>`;
-      const marker = new g.maps.Marker({
+      const marker = new AdvancedMarkerElement({
         map: map.current,
         position: { lat: destination[0], lng: destination[1] },
         title: destinationTitle || 'Destino',
         zIndex: 500,
-        icon,
+        content,
       });
-      marker.addListener('click', () => infoWindowRef.current?.setContent(popup) || infoWindowRef.current?.open({ map: map.current, anchor: marker }));
+      marker.addEventListener('gmp-click', () => infoWindowRef.current?.setContent(popup) || infoWindowRef.current?.open({ map: map.current, anchor: marker }));
       destMarker.current = marker;
     }
 
@@ -702,10 +648,12 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
     if (!mapLoaded || !map.current) return;
     const g = (window as any).google as any;
     if (!g?.maps) return;
+    const AdvancedMarkerElement = g?.maps?.marker?.AdvancedMarkerElement;
+    if (!AdvancedMarkerElement) return;
 
     if (!origin) {
       if (originMarker.current) {
-        originMarker.current.setMap(null);
+        originMarker.current.map = null;
         originMarker.current = null;
       }
       return;
@@ -728,25 +676,23 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
         <path d="M22 7v3a2 2 0 0 1-2 2v0a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12v0a2 2 0 0 1-2-2V7"/>
       </svg>
     `.trim();
-    const icon = {
-      url: svgToDataUrl(makePinSvg('#10b981', originIconType === 'store' ? innerStore : innerTruck)),
-      scaledSize: new g.maps.Size(40, 48),
-      anchor: new g.maps.Point(20, 48),
-    };
+
+    const content = document.createElement('div');
+    content.innerHTML = makePinSvg('#10b981', originIconType === 'store' ? innerStore : innerTruck);
 
     if (originMarker.current) {
-      originMarker.current.setPosition({ lat: origin[0], lng: origin[1] });
-      originMarker.current.setIcon(icon);
+      originMarker.current.position = { lat: origin[0], lng: origin[1] };
+      originMarker.current.content = content;
     } else {
       const popup = `<div style="padding:6px; color: #10b981;"><strong>${escapeHtml(originTitle || 'Comércio (Origem)')}</strong></div>`;
-      const marker = new g.maps.Marker({
+      const marker = new AdvancedMarkerElement({
         map: map.current,
         position: { lat: origin[0], lng: origin[1] },
         title: originTitle || 'Comércio (Origem)',
         zIndex: 400,
-        icon,
+        content,
       });
-      marker.addListener('click', () => infoWindowRef.current?.setContent(popup) || infoWindowRef.current?.open({ map: map.current, anchor: marker }));
+      marker.addEventListener('gmp-click', () => infoWindowRef.current?.setContent(popup) || infoWindowRef.current?.open({ map: map.current, anchor: marker }));
       originMarker.current = marker;
     }
 
@@ -757,6 +703,8 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
     if (!mapLoaded || !map.current) return;
     const g = (window as any).google as any;
     if (!g?.maps) return;
+    const AdvancedMarkerElement = g?.maps?.marker?.AdvancedMarkerElement;
+    if (!AdvancedMarkerElement) return;
 
     const currentMarkerOrders = new Set<number>();
 
@@ -764,36 +712,36 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
       currentMarkerOrders.add(dest.order);
       const existingMarker = additionalMarkers.current.get(dest.order);
 
-      const icon = {
-        url: svgToDataUrl(makePinSvg('#8b5cf6')),
-        scaledSize: new g.maps.Size(40, 48),
-        anchor: new g.maps.Point(20, 48),
-        labelOrigin: new g.maps.Point(20, 20),
-      };
+      const content = document.createElement('div');
+      content.style.position = 'relative';
+      content.style.display = 'flex';
+      content.style.alignItems = 'center';
+      content.style.justifyContent = 'center';
+      content.innerHTML = `
+        ${makePinSvg('#8b5cf6')}
+        <span style="position: absolute; top: 20px; color: #ffffff; font-weight: 700; font-size: 12px; text-shadow: 0 1px 2px rgba(0,0,0,0.5);">${dest.order}</span>
+      `;
 
       if (existingMarker) {
-        existingMarker.setPosition({ lat: dest.coords[0], lng: dest.coords[1] });
-        existingMarker.setIcon(icon);
-        existingMarker.setLabel({ text: String(dest.order), color: '#ffffff', fontWeight: '700', fontSize: '12px' });
+        existingMarker.position = { lat: dest.coords[0], lng: dest.coords[1] };
+        existingMarker.content = content;
       } else {
         const popup = `<div style="padding:6px; color: #8b5cf6;"><strong>${escapeHtml(dest.title)}</strong></div>`;
-        const marker = new g.maps.Marker({
+        const marker = new AdvancedMarkerElement({
           map: map.current,
           position: { lat: dest.coords[0], lng: dest.coords[1] },
           title: dest.title,
           zIndex: 300,
-          label: { text: String(dest.order), color: '#ffffff', fontWeight: '700', fontSize: '12px' },
-          icon,
+          content,
         });
-        marker.addListener('click', () => infoWindowRef.current?.setContent(popup) || infoWindowRef.current?.open({ map: map.current, anchor: marker }));
+        marker.addEventListener('gmp-click', () => infoWindowRef.current?.setContent(popup) || infoWindowRef.current?.open({ map: map.current, anchor: marker }));
         additionalMarkers.current.set(dest.order, marker);
       }
     });
 
     additionalMarkers.current.forEach((marker, order) => {
       if (!currentMarkerOrders.has(order)) {
-        if (marker?.setMap) marker.setMap(null);
-        else marker.map = null;
+        marker.map = null;
         additionalMarkers.current.delete(order);
       }
     });

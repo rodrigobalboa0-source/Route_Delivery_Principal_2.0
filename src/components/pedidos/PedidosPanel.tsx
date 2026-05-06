@@ -703,26 +703,27 @@ function PedidoDetailsView({ pedido, entrega, cliente, onClose, onAlert, onRefre
   const documentoNumero = pedido.documento_numero || entrega?.documento_numero || null;
   const pontosAdicionais = Array.isArray((entrega as any)?.pontos_adicionais) ? ((entrega as any).pontos_adicionais as any[]) : [];
   const [removingDestino, setRemovingDestino] = useState<number | null>(null);
+  const [confirmingDestino, setConfirmingDestino] = useState<number | null>(null);
 
   const handleRemoveDestino = async (destinoIndex: number, isPrincipal: boolean = false) => {
     if (!entrega) return;
-    
+
     const destinoLabel = isPrincipal ? 'Destino Principal' : `Destino ${destinoIndex + 2}`;
     const confirmMessage = `Tem certeza que deseja remover ${destinoLabel}? Esta ação não pode ser desfeita.`;
-    
+
     if (!window.confirm(confirmMessage)) return;
-    
+
     setRemovingDestino(isPrincipal ? -1 : destinoIndex);
-    
+
     try {
       const { data, error } = await supabase.rpc('remove_destino', {
         p_entrega_id: entrega.id,
         p_destino_index: isPrincipal ? -1 : destinoIndex,
         p_motivo: null
       });
-      
+
       if (error) throw error;
-      
+
       if (!data || data.success === false) {
         const errorMsg = data?.message || data?.error || 'Erro ao remover destino';
         if (data?.error === 'invalid_status') {
@@ -753,6 +754,58 @@ function PedidoDetailsView({ pedido, entrega, cliente, onClose, onAlert, onRefre
       }
     } finally {
       setRemovingDestino(null);
+    }
+  };
+
+  const handleConfirmDestino = async (destinoIndex: number) => {
+    if (!entrega) return;
+
+    const destinoLabel = destinoIndex === 0 ? 'Destino 1' : `Destino ${destinoIndex + 1}`;
+    const confirmMessage = `Confirmar entrega em ${destinoLabel}?`;
+
+    if (!window.confirm(confirmMessage)) return;
+
+    setConfirmingDestino(destinoIndex);
+
+    try {
+      const opcionais = entrega.opcionais || {};
+      const timeline = opcionais.timeline || {};
+      const nowIso = new Date().toISOString();
+
+      const updatedTimeline = {
+        ...timeline,
+        [`destino_${destinoIndex + 1}_concluido_em`]: nowIso,
+      };
+
+      const { error } = await supabase
+        .from('nova_entrega')
+        .update({
+          opcionais: {
+            ...opcionais,
+            timeline: updatedTimeline,
+          },
+          updated_at: nowIso,
+        })
+        .eq('id', entrega.id);
+
+      if (error) throw error;
+
+      if (onAlert) {
+        await onAlert(`${destinoLabel} marcado como concluído`, 'Sucesso');
+      }
+
+      if (onRefresh) {
+        onRefresh();
+      } else {
+        onClose();
+      }
+    } catch (e: any) {
+      console.error('Erro ao confirmar destino:', e);
+      if (onAlert) {
+        await onAlert(e.message || 'Erro ao confirmar destino', 'Erro');
+      }
+    } finally {
+      setConfirmingDestino(null);
     }
   };
 
@@ -2637,25 +2690,17 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             const next = (newRecord || null) as Entregador | null;
             if (!next) return;
 
-            const locationChanged =
+            const changed =
               !prev ||
               prev.current_latitude !== next.current_latitude ||
               prev.current_longitude !== next.current_longitude ||
               prev.heading !== next.heading ||
-              prev.last_location_update !== next.last_location_update;
-
-            const changed =
-              locationChanged ||
+              prev.last_location_update !== next.last_location_update ||
               prev.is_online !== next.is_online ||
               prev.status !== next.status ||
               prev.foto_url !== next.foto_url;
 
             if (!changed) {
-              return;
-            }
-
-            if (locationChanged) {
-              fetchEntregadoresList();
               return;
             }
           }
@@ -4098,32 +4143,55 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                                   ];
 
                                   const totalDestinos = 1 + (entrega?.pontos_adicionais?.length || 0);
+                                  const timeline = (entrega as any)?.opcionais?.timeline || {};
+
+                                  const isDestinoCompleted = (idx: number) => {
+                                    return !!timeline[`destino_${idx + 1}_concluido_em`];
+                                  };
 
                                   return (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                      {destinos.map((d, idx) => (
-                                        <div key={idx} className="bg-white border border-slate-200 rounded-lg p-3">
-                                          <div className="flex items-center justify-between gap-3">
-                                            <div className="text-xs font-bold text-slate-700">{d.label}</div>
-                                            <div className="flex items-center gap-2">
-                                              <div className="text-xs font-semibold text-slate-700">
-                                                {typeof d.valor === 'number' && !Number.isNaN(d.valor) ? `R$ ${d.valor.toFixed(2)}` : '-'}
+                                      {destinos.map((d, idx) => {
+                                        const isCompleted = isDestinoCompleted(idx);
+                                        return (
+                                          <div key={idx} className={`bg-white border rounded-lg p-3 ${isCompleted ? 'border-green-300 bg-green-50/50' : 'border-slate-200'}`}>
+                                            <div className="flex items-center justify-between gap-3">
+                                              <div className="flex items-center gap-2">
+                                                <div className={`text-xs font-bold ${isCompleted ? 'text-green-700' : 'text-slate-700'}`}>{d.label}</div>
+                                                {isCompleted && (
+                                                  <span className="inline-flex items-center px-1.5 py-0.5 bg-green-100 text-green-700 text-[9px] font-bold uppercase rounded-full">Concluído</span>
+                                                )}
                                               </div>
-                                              {totalDestinos > 1 && entrega?.status === 'criada' && (
-                                                <button
-                                                  onClick={() => handleRemoveDestino(p.id, idx === 0 ? -1 : idx - 1, idx === 0)}
-                                                  disabled={removingDestino?.pedidoId === p.id && removingDestino?.destinoIndex === (idx === 0 ? -1 : idx - 1)}
-                                                  className="text-red-500 hover:text-red-700 disabled:text-red-300 disabled:cursor-not-allowed"
-                                                  title="Remover destino"
-                                                >
-                                                  <Trash2 size={14} />
-                                                </button>
-                                              )}
+                                              <div className="flex items-center gap-2">
+                                                <div className={`text-xs font-semibold ${isCompleted ? 'text-green-600' : 'text-slate-700'}`}>
+                                                  {typeof d.valor === 'number' && !Number.isNaN(d.valor) ? `R$ ${d.valor.toFixed(2)}` : '-'}
+                                                </div>
+                                                {totalDestinos > 1 && entrega?.status === 'criada' && (
+                                                  <button
+                                                    onClick={() => handleRemoveDestino(p.id, idx === 0 ? -1 : idx - 1, idx === 0)}
+                                                    disabled={removingDestino?.pedidoId === p.id && removingDestino?.destinoIndex === (idx === 0 ? -1 : idx - 1)}
+                                                    className="text-red-500 hover:text-red-700 disabled:text-red-300 disabled:cursor-not-allowed"
+                                                    title="Remover destino"
+                                                  >
+                                                    <Trash2 size={14} />
+                                                  </button>
+                                                )}
+                                                {!isCompleted && entrega?.status !== 'criada' && entrega?.status !== 'cancelado' && (
+                                                  <button
+                                                    onClick={() => handleConfirmDestino(idx)}
+                                                    disabled={confirmingDestino === idx}
+                                                    className="text-green-600 hover:text-green-700 disabled:text-green-300 disabled:cursor-not-allowed"
+                                                    title="Confirmar entrega"
+                                                  >
+                                                    <CheckCircle size={14} />
+                                                  </button>
+                                                )}
+                                              </div>
                                             </div>
+                                            <div className={`text-sm mt-1 ${isCompleted ? 'text-green-700/70 line-through' : 'text-slate-700'}`}>{d.endereco || '-'}</div>
                                           </div>
-                                          <div className="text-sm text-slate-700 mt-1">{d.endereco || '-'}</div>
-                                        </div>
-                                      ))}
+                                        );
+                                      })}
                                     </div>
                                   );
                                 })()}

@@ -4,6 +4,8 @@ import { MapPin, CheckCircle, Truck, AlertCircle, Phone, Navigation, Map as MapI
 import { MapView, MapDeliveryPerson } from '../MapView';
 import type { Database } from '../../lib/database.types';
 import { Geolocation } from '@capacitor/geolocation';
+import { ForegroundService } from '@capawesome-team/capacitor-android-foreground-service';
+import { App } from '@capacitor/app';
 import { getDistanceFromLatLonInKm, getCoordsFromAddress } from '../../utils/geo';
 import { Modal } from '../Modal';
 import {
@@ -227,6 +229,34 @@ export function EntregadorPedidosEmAndamentoPanel() {
 
     let watchId: string | null = null;
     let currentEntregadorId: string | null = null;
+    let foregroundServiceStarted = false;
+
+    const startForegroundService = async () => {
+      if (foregroundServiceStarted) return;
+      try {
+        await ForegroundService.startForegroundService({
+          id: 1,
+          title: 'Route Delivery',
+          body: 'Rastreamento de localização ativo',
+          smallIcon: 'ic_stat_name'
+        });
+        foregroundServiceStarted = true;
+        console.log('[Foreground Service EmAndamento] Started');
+      } catch (e) {
+        console.error('[Foreground Service EmAndamento] Error starting:', e);
+      }
+    };
+
+    const stopForegroundService = async () => {
+      if (!foregroundServiceStarted) return;
+      try {
+        await ForegroundService.stopForegroundService();
+        foregroundServiceStarted = false;
+        console.log('[Foreground Service EmAndamento] Stopped');
+      } catch (e) {
+        console.error('[Foreground Service EmAndamento] Error stopping:', e);
+      }
+    };
 
     const updateLocationToDB = async (lat: number, lng: number, heading: number | null) => {
       if (!currentEntregadorId) return;
@@ -335,12 +365,37 @@ export function EntregadorPedidosEmAndamentoPanel() {
 
     startWatching();
 
+    // Start foreground service when in deliveries panel
+    startForegroundService();
+
+    // Listen for app state changes
+    const appStateListener = App.addListener('appStateChange', async ({ isActive }) => {
+      if (isActive) {
+        console.log('[App State EmAndamento] App is now active (foreground)');
+        if (currentEntregadorId) {
+          // Ensure foreground service is running when app is active
+          await startForegroundService();
+        }
+      } else {
+        console.log('[App State EmAndamento] App is now inactive (background)');
+        if (currentEntregadorId) {
+          // Keep foreground service running in background
+          await startForegroundService();
+        } else {
+          // Stop foreground service when no deliveries
+          await stopForegroundService();
+        }
+      }
+    });
+
     return () => {
       clearInterval(intervalId);
       subscription.unsubscribe();
       if (watchId) {
         Geolocation.clearWatch({ id: watchId });
       }
+      appStateListener.then(listener => listener.remove());
+      stopForegroundService();
     };
   }, []);
 
