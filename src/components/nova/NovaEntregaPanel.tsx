@@ -867,9 +867,14 @@ export function NovaEntregaPanel() {
         (Number(tabela.valor_minimo) > 0 ? Number(tabela.valor_minimo) : 0) ||
         (faixasPreco.length > 0 && Number(faixasPreco[0].valor) > 0 ? Number(faixasPreco[0].valor) : 0);
 
-      const calcPriceForKm = (kmSegment: number) => {
+      const calcPriceForKm = (kmSegment: number, isFirstDelivery: boolean = true) => {
         const kmSegValid = !Number.isNaN(kmSegment) && kmSegment > 0;
         if (!kmSegValid) return fallbackMin;
+
+        // Apply multi-delivery pricing rule for commerce
+        if (!isFirstDelivery && selectedComissaoTable && (selectedComissaoTable.valor_multiplo_comercio || 0) > 0) {
+          return selectedComissaoTable.valor_multiplo_comercio || 0;
+        }
 
         const faixa = faixasPreco.find((f) => Number(f.km_ate) >= kmSegment);
         let p = 0;
@@ -902,9 +907,12 @@ export function NovaEntregaPanel() {
           segmentDistancesKm.every((v) => typeof v === 'number' && !Number.isNaN(v));
 
         if (canSplit) {
-          price = segmentDistancesKm.reduce((acc, segKm) => acc + calcPriceForKm(segKm), 0);
+          // First segment uses normal pricing, subsequent segments use multi-delivery pricing
+          price = segmentDistancesKm.reduce((acc, segKm, index) => {
+            return acc + calcPriceForKm(segKm, index === 0);
+          }, 0);
         } else {
-          price = calcPriceForKm(km);
+          price = calcPriceForKm(km, extraPointsFilled === 0);
         }
         shouldCalculate = true;
       }
@@ -1123,9 +1131,46 @@ export function NovaEntregaPanel() {
          const table = tableToUse;
          
          if (table) {
-             if ((table.valor_por_ponto || 0) > 0 && pointsCount > 0) {
-                 val += ((table.valor_por_ponto || 0) * pointsCount);
+             // Apply multi-delivery pricing rule for driver
+             // First delivery uses normal valor_por_ponto, subsequent deliveries use valor_adicional_entregador
+             if (pointsCount > 0) {
+                 const adicionalEntregador = table.valor_adicional_entregador || 0;
+                 const aplicarDesdePrimeira = table.aplicar_adicional_primeira_entrega || false;
+                 
+                 if (adicionalEntregador > 0) {
+                     if (aplicarDesdePrimeira) {
+                         // Promotional mode: Apply additional to ALL deliveries (including first)
+                         // All deliveries get: base value + additional
+                         const totalDeliveries = 1 + pointsCount; // First + additional points
+                         const baseValue = (table.valor_por_ponto || 0);
+                         const additionalValue = adicionalEntregador * totalDeliveries;
+                         val += (baseValue + additionalValue);
+                         
+                         if (baseValue > 0) {
+                             breakdown.push({ description: `Valor base (${totalDeliveries}x)`, value: baseValue * totalDeliveries });
+                         }
+                         if (adicionalEntregador > 0) {
+                             breakdown.push({ description: `Adicional promocional (${totalDeliveries}x)`, value: additionalValue });
+                         }
+                     } else {
+                         // Standard mode: First delivery gets base value, second+ get base + additional
+                         const firstDeliveryValue = (table.valor_por_ponto || 0);
+                         const additionalDeliveriesValue = adicionalEntregador * pointsCount;
+                         val += (firstDeliveryValue + additionalDeliveriesValue);
+                         
+                         if (firstDeliveryValue > 0) {
+                             breakdown.push({ description: '1ª entrega (base)', value: firstDeliveryValue });
+                         }
+                         if (adicionalEntregador > 0) {
+                             breakdown.push({ description: `Adicional múltipla (${pointsCount}x)`, value: additionalDeliveriesValue });
+                         }
+                     }
+                 } else if ((table.valor_por_ponto || 0) > 0) {
+                     // Fallback to original logic if valor_adicional_entregador is not set
+                     val += ((table.valor_por_ponto || 0) * pointsCount);
+                 }
              }
+             
              if (hasReturn && (table.valor_retorno || 0) > 0) {
              let returnVal = table.valor_retorno || 0;
              let description = 'Adicional Retorno';
