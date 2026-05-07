@@ -872,8 +872,8 @@ export function NovaEntregaPanel() {
         if (!kmSegValid) return fallbackMin;
 
         // Apply multi-delivery pricing rule for commerce
-        if (!isFirstDelivery && selectedComissaoTable && (selectedComissaoTable.valor_multiplo_comercio || 0) > 0) {
-          return selectedComissaoTable.valor_multiplo_comercio || 0;
+        if (!isFirstDelivery && (tabela.valor_multiplo_comercio || 0) > 0) {
+          return tabela.valor_multiplo_comercio || 0;
         }
 
         const faixa = faixasPreco.find((f) => Number(f.km_ate) >= kmSegment);

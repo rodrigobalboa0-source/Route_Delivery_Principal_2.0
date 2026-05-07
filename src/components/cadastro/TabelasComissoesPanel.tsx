@@ -158,7 +158,6 @@ export function TabelasComissoesPanel() {
     valor_por_ponto: '',
     tipo_retorno: 'Percentual',
     valor_retorno: '',
-    valor_multiplo_comercio: '',
     valor_adicional_entregador: '',
     aplicar_adicional_primeira_entrega: false
   });
@@ -191,7 +190,6 @@ export function TabelasComissoesPanel() {
         valor_por_ponto: tabela.valor_por_ponto?.toString() || '',
         tipo_retorno: tabela.tipo_retorno || 'Percentual',
         valor_retorno: tabela.valor_retorno?.toString() || '',
-        valor_multiplo_comercio: tabela.valor_multiplo_comercio?.toString() || '',
         valor_adicional_entregador: tabela.valor_adicional_entregador?.toString() || '',
         aplicar_adicional_primeira_entrega: tabela.aplicar_adicional_primeira_entrega || false
       });
@@ -204,7 +202,6 @@ export function TabelasComissoesPanel() {
         valor_por_ponto: '',
         tipo_retorno: 'Percentual',
         valor_retorno: '',
-        valor_multiplo_comercio: '',
         valor_adicional_entregador: '',
         aplicar_adicional_primeira_entrega: false
       });
@@ -222,7 +219,6 @@ export function TabelasComissoesPanel() {
       valor_por_ponto: form.valor_por_ponto ? parseFloat(form.valor_por_ponto.replace(',', '.')) : 0,
       tipo_retorno: form.tipo_retorno,
       valor_retorno: form.valor_retorno ? parseFloat(form.valor_retorno.replace(',', '.')) : 0,
-      valor_multiplo_comercio: form.valor_multiplo_comercio ? parseFloat(form.valor_multiplo_comercio.replace(',', '.')) : 0,
       valor_adicional_entregador: form.valor_adicional_entregador ? parseFloat(form.valor_adicional_entregador.replace(',', '.')) : 0,
       aplicar_adicional_primeira_entrega: form.aplicar_adicional_primeira_entrega,
       cliente_ids: selectedClientIds,
@@ -316,7 +312,6 @@ export function TabelasComissoesPanel() {
               <tr>
                 <th className="px-4 py-3">Nome</th>
                 <th className="px-4 py-3">Valor por ponto</th>
-                <th className="px-4 py-3">Valor Múltiplo</th>
                 <th className="px-4 py-3">Adicional Entregador</th>
                 <th className="px-4 py-3 text-center">Precificação</th>
                 <th className="px-4 py-3 text-right">Ações</th>
@@ -336,7 +331,6 @@ export function TabelasComissoesPanel() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-slate-600">{t.valor_por_ponto?.toFixed(2)}</td>
-                  <td className="px-4 py-3 text-slate-600">{t.valor_multiplo_comercio?.toFixed(2) || '0.00'}</td>
                   <td className="px-4 py-3 text-slate-600">{t.valor_adicional_entregador?.toFixed(2) || '0.00'}</td>
                   <td className="px-4 py-3 text-center">
                     <button
@@ -376,7 +370,7 @@ export function TabelasComissoesPanel() {
               ))}
               {tabelas.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
                     Nenhuma tabela cadastrada.
                   </td>
                 </tr>
@@ -485,21 +479,6 @@ export function TabelasComissoesPanel() {
                     className="w-full px-3 py-2 border border-slate-300 rounded focus:ring-1 focus:ring-sky-500 outline-none text-sm"
                     placeholder="0.00"
                 />
-            </div>
-            <div className="md:col-span-1">
-                <label className="block text-xs font-bold text-slate-700 mb-1">Valor Múltiplo (Comércio)</label>
-                <div className="flex">
-                    <input
-                        type="number"
-                        value={form.valor_multiplo_comercio}
-                        onChange={(e) => setForm({...form, valor_multiplo_comercio: e.target.value})}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-l focus:ring-1 focus:ring-sky-500 outline-none text-sm"
-                        placeholder="0.00"
-                        step="0.01"
-                    />
-                    <div className="bg-slate-200 px-3 py-2 border border-l-0 border-slate-300 rounded-r text-slate-600 text-sm">R$</div>
-                </div>
-                <p className="text-[10px] text-slate-500 mt-1">Valor fixo para 2ª entrega em diante (pedidos múltiplos)</p>
             </div>
             <div className="md:col-span-1">
                 <label className="block text-xs font-bold text-slate-700 mb-1">Adicional Entregador</label>

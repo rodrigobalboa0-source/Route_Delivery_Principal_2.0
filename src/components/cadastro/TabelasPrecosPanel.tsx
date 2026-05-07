@@ -155,7 +155,8 @@ export function TabelasPrecosPanel() {
     valor_retorno: '',
     valor_por_ponto: '',
     valor_minimo: '',
-    percentual_sobre_valor: ''
+    percentual_sobre_valor: '',
+    valor_multiplo_comercio: ''
   });
 
   useEffect(() => {
@@ -182,7 +183,8 @@ export function TabelasPrecosPanel() {
         valor_retorno: tabela.valor_retorno?.toString() || '',
         valor_por_ponto: tabela.valor_por_ponto?.toString() || '',
         valor_minimo: tabela.valor_minimo?.toString() || '',
-        percentual_sobre_valor: tabela.percentual_sobre_valor?.toString() || ''
+        percentual_sobre_valor: tabela.percentual_sobre_valor?.toString() || '',
+        valor_multiplo_comercio: tabela.valor_multiplo_comercio?.toString() || ''
       });
     } else {
       setEditingTabela(null);
@@ -194,7 +196,8 @@ export function TabelasPrecosPanel() {
         valor_retorno: '',
         valor_por_ponto: '',
         valor_minimo: '',
-        percentual_sobre_valor: ''
+        percentual_sobre_valor: '',
+        valor_multiplo_comercio: ''
       });
     }
     setIsModalOpen(true);
@@ -211,7 +214,8 @@ export function TabelasPrecosPanel() {
       valor_retorno: form.valor_retorno ? parseFloat(form.valor_retorno.replace(',', '.')) : 0,
       valor_por_ponto: form.valor_por_ponto ? parseFloat(form.valor_por_ponto.replace(',', '.')) : 0,
       valor_minimo: form.valor_minimo ? parseFloat(form.valor_minimo.replace(',', '.')) : 0,
-      percentual_sobre_valor: form.percentual_sobre_valor ? parseFloat(form.percentual_sobre_valor.replace(',', '.')) : 0
+      percentual_sobre_valor: form.percentual_sobre_valor ? parseFloat(form.percentual_sobre_valor.replace(',', '.')) : 0,
+      valor_multiplo_comercio: form.valor_multiplo_comercio ? parseFloat(form.valor_multiplo_comercio.replace(',', '.')) : 0
     };
 
     let error;
@@ -266,6 +270,7 @@ export function TabelasPrecosPanel() {
                 <th className="px-4 py-3">Tipo de retorno</th>
                 <th className="px-4 py-3">Valor do retorno</th>
                 <th className="px-4 py-3">Valor por ponto</th>
+                <th className="px-4 py-3">Valor Múltiplo</th>
                 <th className="px-4 py-3 text-center">Precificação</th>
                 <th className="px-4 py-3 text-right">Ações</th>
               </tr>
@@ -279,6 +284,7 @@ export function TabelasPrecosPanel() {
                   <td className="px-4 py-3 text-slate-600">{t.tipo_retorno}</td>
                   <td className="px-4 py-3 text-slate-600">{t.valor_retorno?.toFixed(2)}</td>
                   <td className="px-4 py-3 text-slate-600">{t.valor_por_ponto?.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-slate-600">{t.valor_multiplo_comercio?.toFixed(2) || '0.00'}</td>
                   <td className="px-4 py-3 text-center">
                     <button
                       onClick={() => { setSelectedTabela(t); setView('detalhe'); }}
@@ -299,7 +305,7 @@ export function TabelasPrecosPanel() {
               ))}
               {tabelas.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={9} className="px-4 py-8 text-center text-slate-500">
                     Nenhuma tabela cadastrada.
                   </td>
                 </tr>
@@ -410,6 +416,21 @@ export function TabelasPrecosPanel() {
                     />
                     <div className="bg-slate-200 px-3 py-2 border border-l-0 border-slate-300 rounded-r text-slate-600 text-sm">R$</div>
                 </div>
+            </div>
+            <div className="md:col-span-1">
+                <label className="block text-xs font-bold text-slate-700 mb-1">Valor Múltiplo (Comércio)</label>
+                <div className="flex">
+                    <input
+                        type="number"
+                        value={form.valor_multiplo_comercio}
+                        onChange={(e) => setForm({...form, valor_multiplo_comercio: e.target.value})}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-l focus:ring-1 focus:ring-sky-500 outline-none text-sm"
+                        placeholder="0.00"
+                        step="0.01"
+                    />
+                    <div className="bg-slate-200 px-3 py-2 border border-l-0 border-slate-300 rounded-r text-slate-600 text-sm">R$</div>
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1">Valor fixo para 2ª entrega em diante (pedidos múltiplos)</p>
             </div>
         </div>
       </Modal>

@@ -1028,7 +1028,6 @@ export interface Database {
             valor_retorno: number | null
             cliente_ids: string[] | null
             ativo?: boolean
-            valor_multiplo_comercio?: number | null
             valor_adicional_entregador?: number | null
             aplicar_adicional_primeira_entrega?: boolean
             created_at: string
@@ -1043,7 +1042,6 @@ export interface Database {
             valor_retorno?: number | null
             cliente_ids?: string[] | null
             ativo?: boolean
-            valor_multiplo_comercio?: number | null
             valor_adicional_entregador?: number | null
             aplicar_adicional_primeira_entrega?: boolean
             created_at?: string
@@ -1058,7 +1056,6 @@ export interface Database {
             valor_retorno?: number | null
             cliente_ids?: string[] | null
             ativo?: boolean
-            valor_multiplo_comercio?: number | null
             valor_adicional_entregador?: number | null
             aplicar_adicional_primeira_entrega?: boolean
             created_at?: string
@@ -1099,6 +1096,7 @@ export interface Database {
           valor_por_ponto: number | null
           valor_minimo: number | null
           percentual_sobre_valor: number | null
+          valor_multiplo_comercio?: number | null
           created_at: string
           updated_at: string
         }
@@ -1112,6 +1110,7 @@ export interface Database {
           valor_por_ponto?: number | null
           valor_minimo?: number | null
           percentual_sobre_valor?: number | null
+          valor_multiplo_comercio?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -1125,6 +1124,7 @@ export interface Database {
           valor_por_ponto?: number | null
           valor_minimo?: number | null
           percentual_sobre_valor?: number | null
+          valor_multiplo_comercio?: number | null
           created_at?: string
           updated_at?: string
         }
