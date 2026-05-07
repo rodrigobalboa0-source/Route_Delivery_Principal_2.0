@@ -2823,12 +2823,32 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       return;
     }
     
-    setAvailableEntregadores((data || []) as unknown as Entregador[]);
+    let filteredData = data || [];
+
+    // Para comércio, filtrar apenas entregadores com pedidos aceitos
+    if (isComercio) {
+      const acceptedStatuses = ['atribuida', 'chegou_coleta', 'em_rota', 'chegou_entrega', 'coletando', 'entregando'];
+      const { data: entregasData, error: entregasError } = await supabase
+        .from('nova_entrega')
+        .select('entregador_id')
+        .in('status', acceptedStatuses);
+      
+      if (entregasError) {
+        console.error('[fetchEntregadoresList] Error fetching entregas:', entregasError);
+      } else {
+        const entregadorIdsWithAcceptedOrders = new Set(
+          (entregasData || []).map((e: any) => e.entregador_id).filter(Boolean)
+        );
+        filteredData = filteredData.filter((e: any) => entregadorIdsWithAcceptedOrders.has(e.id));
+      }
+    }
+    
+    setAvailableEntregadores(filteredData as unknown as Entregador[]);
     
     const map: Record<string, Entregador> = {};
     const mapPersons: MapDeliveryPerson[] = [];
 
-    (data || []).forEach((e: any) => {
+    filteredData.forEach((e: any) => {
         map[e.id] = e;
 
         if (e.current_latitude && e.current_longitude) {
