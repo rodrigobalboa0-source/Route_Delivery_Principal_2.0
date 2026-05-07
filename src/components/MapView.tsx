@@ -345,7 +345,8 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
 
     const removeMarker = (marker: any) => {
       if (!marker) return;
-      marker.map = null;
+      if (marker?.setMap) marker.setMap(null);
+      else marker.map = null;
     };
 
     const openInfo = (anchor: any, html: string, pos?: [number, number]) => {
@@ -507,7 +508,13 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
 
     const attachMarkerClick = (marker: any, html: string, pos: [number, number]) => {
       if (!marker) return;
-      marker.addEventListener('gmp-click', () => openInfo(marker, html, pos));
+      if (typeof marker.addListener === 'function') {
+        marker.addListener('gmp-click', () => openInfo(marker, html, pos));
+        marker.addListener('click', () => openInfo(marker, html, pos));
+      } else if (g?.maps?.event?.addListener) {
+        g.maps.event.addListener(marker, 'gmp-click', () => openInfo(marker, html, pos));
+        g.maps.event.addListener(marker, 'click', () => openInfo(marker, html, pos));
+      }
     };
 
     (deliveryPersons || []).forEach((person) => {
@@ -571,18 +578,42 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
       const color = getMarkerColor(person);
       const isSelected = person.id === selectedEntregadorId;
 
+      const isClassicMarker = !!existingMarker && typeof (existingMarker as any).setIcon === 'function';
+
       if (existingMarker) {
         const newLatLng: [number, number] = [person.current_latitude, person.current_longitude];
-        if ((existingMarker as any)?.content) (existingMarker as any).content.innerHTML = getMarkerHtml(person);
-        (existingMarker as any).zIndex = zIndex;
-
-        animateMarkerTo(existingMarker, person.id, newLatLng, 1000);
-      } else {
-        const adv = createAdvancedMarker(pos, getMarkerHtml(person), person.name ?? undefined, zIndex);
-        if (adv) {
-          attachMarkerClick(adv, popupContent, pos);
-          markers.current.set(person.id, adv);
+        if (!isClassicMarker) {
+          removeMarker(existingMarker);
+        } else {
+          (existingMarker as any).setIcon(makeMarkerIcon(color, isSelected ? 1.15 : 1, person.heading));
+          (existingMarker as any).setZIndex(zIndex);
+          if (person.foto_url) void applyDriverPhotoIcon(person.id, existingMarker, person.foto_url, color, isSelected ? 1.15 : 1, isSelected);
         }
+
+        if (person.id === selectedEntregadorId) {
+          animateMarkerTo(existingMarker, person.id, newLatLng, 900);
+        } else {
+          const existingAnim = markerAnimations.current.get(person.id);
+          if (typeof existingAnim === 'number') {
+            cancelAnimationFrame(existingAnim);
+            markerAnimations.current.delete(person.id);
+          }
+          setMarkerPosition(existingMarker, newLatLng[0], newLatLng[1]);
+        }
+      }
+
+      if (!markers.current.has(person.id)) {
+        const marker = new g.maps.Marker({
+          map: map.current,
+          position: { lat: pos[0], lng: pos[1] },
+          title: person.name ?? undefined,
+          zIndex,
+          icon: makeMarkerIcon(color, isSelected ? 1.15 : 1, person.heading),
+        });
+
+        marker.addListener('click', () => openInfo(marker, popupContent, pos));
+        markers.current.set(person.id, marker);
+        if (person.foto_url) void applyDriverPhotoIcon(person.id, marker, person.foto_url, color, isSelected ? 1.15 : 1, isSelected);
       }
     });
 
@@ -604,12 +635,10 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
     if (!mapLoaded || !map.current) return;
     const g = (window as any).google as any;
     if (!g?.maps) return;
-    const AdvancedMarkerElement = g?.maps?.marker?.AdvancedMarkerElement;
-    if (!AdvancedMarkerElement) return;
 
     if (!destination) {
       if (destMarker.current) {
-        destMarker.current.map = null;
+        destMarker.current.setMap(null);
         destMarker.current = null;
       }
       return;
@@ -621,23 +650,25 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
         <line x1="4" y1="22" x2="4" y2="15"></line>
       </svg>
     `.trim();
-
-    const content = document.createElement('div');
-    content.innerHTML = makePinSvg('#ef4444', inner);
+    const icon = {
+      url: svgToDataUrl(makePinSvg('#ef4444', inner)),
+      scaledSize: new g.maps.Size(40, 48),
+      anchor: new g.maps.Point(20, 48),
+    };
 
     if (destMarker.current) {
-      destMarker.current.position = { lat: destination[0], lng: destination[1] };
-      destMarker.current.content = content;
+      destMarker.current.setPosition({ lat: destination[0], lng: destination[1] });
+      destMarker.current.setIcon(icon);
     } else {
       const popup = `<div style="padding:6px; color: #ef4444;"><strong>${escapeHtml(destinationTitle || 'Destino')}</strong></div>`;
-      const marker = new AdvancedMarkerElement({
+      const marker = new g.maps.Marker({
         map: map.current,
         position: { lat: destination[0], lng: destination[1] },
         title: destinationTitle || 'Destino',
         zIndex: 500,
-        content,
+        icon,
       });
-      marker.addEventListener('gmp-click', () => infoWindowRef.current?.setContent(popup) || infoWindowRef.current?.open({ map: map.current, anchor: marker }));
+      marker.addListener('click', () => infoWindowRef.current?.setContent(popup) || infoWindowRef.current?.open({ map: map.current, anchor: marker }));
       destMarker.current = marker;
     }
 
@@ -648,12 +679,10 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
     if (!mapLoaded || !map.current) return;
     const g = (window as any).google as any;
     if (!g?.maps) return;
-    const AdvancedMarkerElement = g?.maps?.marker?.AdvancedMarkerElement;
-    if (!AdvancedMarkerElement) return;
 
     if (!origin) {
       if (originMarker.current) {
-        originMarker.current.map = null;
+        originMarker.current.setMap(null);
         originMarker.current = null;
       }
       return;
@@ -676,23 +705,25 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
         <path d="M22 7v3a2 2 0 0 1-2 2v0a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12v0a2 2 0 0 1-2-2V7"/>
       </svg>
     `.trim();
-
-    const content = document.createElement('div');
-    content.innerHTML = makePinSvg('#10b981', originIconType === 'store' ? innerStore : innerTruck);
+    const icon = {
+      url: svgToDataUrl(makePinSvg('#10b981', originIconType === 'store' ? innerStore : innerTruck)),
+      scaledSize: new g.maps.Size(40, 48),
+      anchor: new g.maps.Point(20, 48),
+    };
 
     if (originMarker.current) {
-      originMarker.current.position = { lat: origin[0], lng: origin[1] };
-      originMarker.current.content = content;
+      originMarker.current.setPosition({ lat: origin[0], lng: origin[1] });
+      originMarker.current.setIcon(icon);
     } else {
       const popup = `<div style="padding:6px; color: #10b981;"><strong>${escapeHtml(originTitle || 'Comércio (Origem)')}</strong></div>`;
-      const marker = new AdvancedMarkerElement({
+      const marker = new g.maps.Marker({
         map: map.current,
         position: { lat: origin[0], lng: origin[1] },
         title: originTitle || 'Comércio (Origem)',
         zIndex: 400,
-        content,
+        icon,
       });
-      marker.addEventListener('gmp-click', () => infoWindowRef.current?.setContent(popup) || infoWindowRef.current?.open({ map: map.current, anchor: marker }));
+      marker.addListener('click', () => infoWindowRef.current?.setContent(popup) || infoWindowRef.current?.open({ map: map.current, anchor: marker }));
       originMarker.current = marker;
     }
 
@@ -703,8 +734,6 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
     if (!mapLoaded || !map.current) return;
     const g = (window as any).google as any;
     if (!g?.maps) return;
-    const AdvancedMarkerElement = g?.maps?.marker?.AdvancedMarkerElement;
-    if (!AdvancedMarkerElement) return;
 
     const currentMarkerOrders = new Set<number>();
 
@@ -712,36 +741,36 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
       currentMarkerOrders.add(dest.order);
       const existingMarker = additionalMarkers.current.get(dest.order);
 
-      const content = document.createElement('div');
-      content.style.position = 'relative';
-      content.style.display = 'flex';
-      content.style.alignItems = 'center';
-      content.style.justifyContent = 'center';
-      content.innerHTML = `
-        ${makePinSvg('#8b5cf6')}
-        <span style="position: absolute; top: 20px; color: #ffffff; font-weight: 700; font-size: 12px; text-shadow: 0 1px 2px rgba(0,0,0,0.5);">${dest.order}</span>
-      `;
+      const icon = {
+        url: svgToDataUrl(makePinSvg('#8b5cf6')),
+        scaledSize: new g.maps.Size(40, 48),
+        anchor: new g.maps.Point(20, 48),
+        labelOrigin: new g.maps.Point(20, 20),
+      };
 
       if (existingMarker) {
-        existingMarker.position = { lat: dest.coords[0], lng: dest.coords[1] };
-        existingMarker.content = content;
+        existingMarker.setPosition({ lat: dest.coords[0], lng: dest.coords[1] });
+        existingMarker.setIcon(icon);
+        existingMarker.setLabel({ text: String(dest.order), color: '#ffffff', fontWeight: '700', fontSize: '12px' });
       } else {
         const popup = `<div style="padding:6px; color: #8b5cf6;"><strong>${escapeHtml(dest.title)}</strong></div>`;
-        const marker = new AdvancedMarkerElement({
+        const marker = new g.maps.Marker({
           map: map.current,
           position: { lat: dest.coords[0], lng: dest.coords[1] },
           title: dest.title,
           zIndex: 300,
-          content,
+          label: { text: String(dest.order), color: '#ffffff', fontWeight: '700', fontSize: '12px' },
+          icon,
         });
-        marker.addEventListener('gmp-click', () => infoWindowRef.current?.setContent(popup) || infoWindowRef.current?.open({ map: map.current, anchor: marker }));
+        marker.addListener('click', () => infoWindowRef.current?.setContent(popup) || infoWindowRef.current?.open({ map: map.current, anchor: marker }));
         additionalMarkers.current.set(dest.order, marker);
       }
     });
 
     additionalMarkers.current.forEach((marker, order) => {
       if (!currentMarkerOrders.has(order)) {
-        marker.map = null;
+        if (marker?.setMap) marker.setMap(null);
+        else marker.map = null;
         additionalMarkers.current.delete(order);
       }
     });
