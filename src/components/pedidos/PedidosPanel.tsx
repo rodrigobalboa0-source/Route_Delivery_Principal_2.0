@@ -2318,40 +2318,40 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             } else if (pricingMode === 'Distância' && selectedTabelaId) {
                  const tabela = pricingTables.find(t => String(t.id) === String(selectedTabelaId));
                  if (tabela) {
-                     // Apply multi-delivery pricing rule for commerce (including first delivery)
-                     if ((tabela.valor_multiplo_comercio || 0) > 0) {
-                         price = tabela.valor_multiplo_comercio || 0;
-                     } else {
-                         const ranges = pricingRanges
-                           .filter(f => String(f.tabela_id) === String(selectedTabelaId))
-                           .sort((a,b) => a.km_ate - b.km_ate);
-                         if (!dist || dist <= 0) {
-                             const fallback =
-                                (Number(tabela.valor_minimo) > 0 ? Number(tabela.valor_minimo) : 0) ||
-                                (ranges.length > 0 && Number(ranges[0].valor) > 0 ? Number(ranges[0].valor) : 0);
+                     const ranges = pricingRanges
+                       .filter(f => String(f.tabela_id) === String(selectedTabelaId))
+                       .sort((a,b) => a.km_ate - b.km_ate);
+                     if (!dist || dist <= 0) {
+                         const fallback =
+                            (Number(tabela.valor_minimo) > 0 ? Number(tabela.valor_minimo) : 0) ||
+                            (ranges.length > 0 && Number(ranges[0].valor) > 0 ? Number(ranges[0].valor) : 0);
 
-                             if (fallback > 0) {
-                                 price = fallback;
-                                 const min = Number(tabela.valor_minimo);
-                                 if (!isNaN(min) && min > 0 && price < min) price = min;
-                             }
-                        } else {
-
-                         const faixa = ranges.find(f => f.km_ate >= dist);
-                         
-                         if (faixa) {
-                             price = Number(faixa.valor);
-                         } else {
-                             const lastFaixa = ranges[ranges.length - 1];
-                             if (lastFaixa) {
-                                 const extraKm = dist - Number(lastFaixa.km_ate);
-                                 price = Number(lastFaixa.valor) + (extraKm * Number(tabela.km_adicional || 0));
-                             }
+                         if (fallback > 0) {
+                             price = fallback;
+                             const min = Number(tabela.valor_minimo);
+                             if (!isNaN(min) && min > 0 && price < min) price = min;
                          }
-                         const min = Number(tabela.valor_minimo);
-                         if (!isNaN(min) && min > 0 && price < min) price = min;
-                        }
+                    } else {
+
+                     const faixa = ranges.find(f => f.km_ate >= dist);
+                     
+                     if (faixa) {
+                         price = Number(faixa.valor);
+                     } else {
+                         const lastFaixa = ranges[ranges.length - 1];
+                         if (lastFaixa) {
+                             const extraKm = dist - Number(lastFaixa.km_ate);
+                             price = Number(lastFaixa.valor) + (extraKm * Number(tabela.km_adicional || 0));
+                         }
                      }
+                     const min = Number(tabela.valor_minimo);
+                     if (!isNaN(min) && min > 0 && price < min) price = min;
+                    }
+
+                    // Apply multi-delivery pricing rule for commerce (including first delivery) - ADD to base price
+                    if ((tabela.valor_multiplo_comercio || 0) > 0) {
+                        price += tabela.valor_multiplo_comercio || 0;
+                    }
                  }
             }
             

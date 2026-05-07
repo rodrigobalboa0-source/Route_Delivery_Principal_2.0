@@ -871,11 +871,6 @@ export function NovaEntregaPanel() {
         const kmSegValid = !Number.isNaN(kmSegment) && kmSegment > 0;
         if (!kmSegValid) return fallbackMin;
 
-        // Apply multi-delivery pricing rule for commerce (including first delivery)
-        if ((tabela.valor_multiplo_comercio || 0) > 0) {
-          return tabela.valor_multiplo_comercio || 0;
-        }
-
         const faixa = faixasPreco.find((f) => Number(f.km_ate) >= kmSegment);
         let p = 0;
 
@@ -890,6 +885,12 @@ export function NovaEntregaPanel() {
         }
 
         if (fallbackMin > 0 && p < fallbackMin) p = fallbackMin;
+
+        // Apply multi-delivery pricing rule for commerce (including first delivery) - ADD to base price
+        if ((tabela.valor_multiplo_comercio || 0) > 0) {
+          p += tabela.valor_multiplo_comercio || 0;
+        }
+
         return p;
       };
 
@@ -907,7 +908,7 @@ export function NovaEntregaPanel() {
           segmentDistancesKm.every((v) => typeof v === 'number' && !Number.isNaN(v));
 
         if (canSplit) {
-          // First segment uses normal pricing, subsequent segments use multi-delivery pricing
+          
           price = segmentDistancesKm.reduce((acc, segKm, index) => {
             return acc + calcPriceForKm(segKm, index === 0);
           }, 0);
@@ -1131,17 +1132,15 @@ export function NovaEntregaPanel() {
          const table = tableToUse;
          
          if (table) {
-             // Apply multi-delivery pricing rule for driver
-             // First delivery uses normal valor_por_ponto, subsequent deliveries use valor_adicional_entregador
+          
              if (pointsCount > 0) {
                  const adicionalEntregador = table.valor_adicional_entregador || 0;
                  const aplicarDesdePrimeira = table.aplicar_adicional_primeira_entrega || false;
                  
                  if (adicionalEntregador > 0) {
                      if (aplicarDesdePrimeira) {
-                         // Promotional mode: Apply additional to ALL deliveries (including first)
-                         // All deliveries get: base value + additional
-                         const totalDeliveries = 1 + pointsCount; // First + additional points
+                         
+                         const totalDeliveries = 1 + pointsCount; 
                          const baseValue = (table.valor_por_ponto || 0);
                          const additionalValue = adicionalEntregador * totalDeliveries;
                          val += (baseValue + additionalValue);
@@ -1153,7 +1152,7 @@ export function NovaEntregaPanel() {
                              breakdown.push({ description: `Adicional promocional (${totalDeliveries}x)`, value: additionalValue });
                          }
                      } else {
-                         // Standard mode: First delivery gets base value, second+ get base + additional
+                        
                          const firstDeliveryValue = (table.valor_por_ponto || 0);
                          const additionalDeliveriesValue = adicionalEntregador * pointsCount;
                          val += (firstDeliveryValue + additionalDeliveriesValue);
@@ -1166,7 +1165,7 @@ export function NovaEntregaPanel() {
                          }
                      }
                  } else if ((table.valor_por_ponto || 0) > 0) {
-                     // Fallback to original logic if valor_adicional_entregador is not set
+                    
                      val += ((table.valor_por_ponto || 0) * pointsCount);
                  }
              }
