@@ -871,8 +871,8 @@ export function NovaEntregaPanel() {
         const kmSegValid = !Number.isNaN(kmSegment) && kmSegment > 0;
         if (!kmSegValid) return fallbackMin;
 
-        // Apply multi-delivery pricing rule for commerce
-        if (!isFirstDelivery && (tabela.valor_multiplo_comercio || 0) > 0) {
+        // Apply multi-delivery pricing rule for commerce (including first delivery)
+        if ((tabela.valor_multiplo_comercio || 0) > 0) {
           return tabela.valor_multiplo_comercio || 0;
         }
 
