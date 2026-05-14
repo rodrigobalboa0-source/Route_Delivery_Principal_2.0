@@ -1229,7 +1229,7 @@ export function NovaEntregaPanel() {
         
         const totalStr = val.toFixed(2);
         return { total: totalStr === 'NaN' ? '0.00' : totalStr, breakdown };
-     } }
+     }
       
       
       return { total: '0.00', breakdown: [] };
