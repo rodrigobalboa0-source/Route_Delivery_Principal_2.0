@@ -91,9 +91,12 @@ export class IfoodService {
 
   static async getCancellationReasons(pedidoId: string, clienteId?: string, ifoodOrderId?: string) {
     try {
+      console.log('[iFood Service] Fetching cancellation reasons:', { pedidoId, clienteId, ifoodOrderId });
       const { data, error } = await supabase.functions.invoke('ifood-update-status', {
         body: { action: 'getCancellationReasons', pedidoId, clienteId, ifoodOrderId }
       });
+      
+      console.log('[iFood Service] Response from edge function:', { data, error });
       
       if (error) {
         console.error('Erro na edge function:', error);
@@ -101,15 +104,19 @@ export class IfoodService {
       }
       
       const rawReasons = Array.isArray(data?.reasons) ? data.reasons : [];
+      console.log('[iFood Service] Raw reasons:', rawReasons);
+      
       const reasons = rawReasons
         .map((r: any) => {
           const code = String(r?.code ?? r?.cancellationCode ?? r?.id ?? '').trim();
-          const title = String(r?.title ?? r?.reason ?? r?.description ?? '').trim();
-          const description = String(r?.description ?? r?.details ?? '').trim();
+          const title = String(r?.description ?? r?.title ?? r?.reason ?? '').trim();
+          const description = String(r?.details ?? '').trim();
           if (!code || !title) return null;
           return { code, title, description: description || undefined };
         })
         .filter(Boolean) as Array<{ code: string; title: string; description?: string }>;
+      
+      console.log('[iFood Service] Formatted reasons:', reasons);
       return reasons;
     } catch (error: any) {
       console.error('iFood get cancellation reasons error:', error);

@@ -886,7 +886,7 @@ export function NovaEntregaPanel() {
 
         if (fallbackMin > 0 && p < fallbackMin) p = fallbackMin;
 
-        // Apply multi-delivery pricing rule for commerce (including first delivery) - ADD to base price
+        
         if ((tabela.valor_multiplo_comercio || 0) > 0) {
           p += tabela.valor_multiplo_comercio || 0;
         }

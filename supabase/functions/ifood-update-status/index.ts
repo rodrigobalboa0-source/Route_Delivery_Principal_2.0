@@ -27,7 +27,7 @@ serve(async (req) => {
   let ifoodErrorBody: string | null = null;
 
   try {
-    const { action, pedidoId, ifoodOrderId, clienteId } = await req.json();
+    const { action, pedidoId, ifoodOrderId, clienteId, cancellationReason, cancellationCode } = await req.json();
     receivedAction = action ?? null;
     receivedPedidoId = pedidoId ?? null;
     receivedIfoodOrderId = ifoodOrderId ?? null;
@@ -123,19 +123,57 @@ serve(async (req) => {
     else if (action === 'dispatch') endpoint = `/order/v1.0/orders/${targetIfoodOrderId}/dispatch`;
     else if (action === 'conclude') endpoint = `/order/v1.0/orders/${targetIfoodOrderId}/conclude`;
     else if (action === 'requestCancellation') endpoint = `/order/v1.0/orders/${targetIfoodOrderId}/requestCancellation`;
+    else if (action === 'getCancellationReasons') endpoint = `/orders/${targetIfoodOrderId}/cancellationReasons`;
     else throw new Error("Invalid action");
     calledEndpoint = endpoint;
 
+    const isGetRequest = action === 'getCancellationReasons';
+    
     let ifoodResp = await fetch(`${baseUrl}${endpoint}`, {
-        method: 'POST',
+        method: isGetRequest ? 'GET' : 'POST',
         headers: { 
             'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
+            ...(isGetRequest ? {} : { 'Content-Type': 'application/json' }),
             ...(integration.merchant_id ? { 'x-merchant-id': String(integration.merchant_id) } : {})
         },
-        body: action === 'requestCancellation' ? JSON.stringify({ reason: 'Cancelado pelo estabelecimento', cancellationCode: '501' }) : undefined
+        body: action === 'requestCancellation' ? JSON.stringify({ 
+        reason: cancellationReason || 'Cancelado pelo estabelecimento', 
+        cancellationCode: cancellationCode || '501' 
+    }) : undefined
     });
     ifoodHttpStatus = ifoodResp.status;
+
+    if (action === 'getCancellationReasons') {
+        if (!ifoodResp.ok) {
+            const errText = await ifoodResp.text();
+            ifoodErrorBody = errText || null;
+            console.error('iFood getCancellationReasons error:', {
+                status: ifoodResp.status,
+                endpoint,
+                error: errText
+            });
+            throw new Error(`iFood API error (${ifoodResp.status}): ${errText}`);
+        }
+        
+        const reasonsData = await ifoodResp.json().catch(() => null);
+        console.log('iFood getCancellationReasons response:', {
+            status: ifoodResp.status,
+            endpoint,
+            rawData: reasonsData
+        });
+        
+        const reasons = Array.isArray(reasonsData) ? reasonsData : [];
+        
+        return new Response(
+            JSON.stringify({
+                success: true,
+                reasons: reasons,
+                ifood: { httpStatus: ifoodResp.status, endpoint },
+                debug: { rawData: reasonsData }
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+    }
 
     if (!ifoodResp.ok) {
         const errText = await ifoodResp.text();

@@ -183,7 +183,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
 
       setCalculatingIncomingValorEntregador(true);
       try {
-        const { data: rpcData, error: rpcError } = await supabase.rpc('get_entrega_comissao', { entrega_id: incomingDelivery.id });
+        const { data: rpcData, error: rpcError } = await supabase.rpc('get_entrega_comissao_debug', { entrega_id: incomingDelivery.id });
         
         if (!rpcError && rpcData && typeof rpcData === 'object') {
           const ok = (rpcData as any).success === true;
@@ -1065,6 +1065,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
     ? comissaoDestinosDisplay.reduce((sum: number, d: any) => sum + (typeof d?.valor === 'number' ? d.valor : 0), 0) + (comissaoRetornoDisplay || 0)
     : valorEntregadorDisplay;
 
+  
   return (
     <div className="h-full w-full relative bg-slate-100">
       {}

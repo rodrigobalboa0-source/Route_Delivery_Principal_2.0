@@ -2348,7 +2348,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                      if (!isNaN(min) && min > 0 && price < min) price = min;
                     }
 
-                    // Apply multi-delivery pricing rule for commerce (including first delivery) - ADD to base price
+                    
                     if ((tabela.valor_multiplo_comercio || 0) > 0) {
                         price += tabela.valor_multiplo_comercio || 0;
                     }
@@ -2790,8 +2790,33 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const onlineEntregadoresCount = availableEntregadores.filter(e => e.is_online).length;
   
   const visibleDeliveryPersons = useMemo(() => {
+    
+    if (isComercio) {
+      const acceptedStatuses = ['atribuida', 'chegue_coleta', 'em_rota', 'chegue_entrega', 'coletando', 'entregando'];
+      
+      
+      if (!items || items.length === 0) {
+        return [];
+      }
+      
+      
+      const acceptedEntregadorIds = new Set<string>();
+      items.forEach(pedido => {
+        const entrega = entregasMap[pedido.id];
+        if (entrega?.entregador_id && acceptedStatuses.includes(entrega.status)) {
+          acceptedEntregadorIds.add(entrega.entregador_id);
+        }
+      });
+      
+      
+      return mapDeliveryPersons.filter(person => 
+        acceptedEntregadorIds.has(person.id)
+      );
+    }
+    
+    
     return mapDeliveryPersons;
-  }, [mapDeliveryPersons]);
+  }, [mapDeliveryPersons, isComercio, items, entregasMap]);
 
   const fetchClientes = async () => {
     const { data, error } = await supabase.from('clientes').select('id, nome_completo, telefone, rua, numero, bairro, cidade, cep').order('nome_completo');
@@ -2830,7 +2855,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     
     let filteredData = data || [];
 
-    // Para comércio, filtrar apenas entregadores com pedidos aceitos
+    
     if (isComercio) {
       const acceptedStatuses = ['atribuida', 'chegou_coleta', 'em_rota', 'chegou_entrega', 'coletando', 'entregando'];
       const { data: entregasData, error: entregasError } = await supabase
