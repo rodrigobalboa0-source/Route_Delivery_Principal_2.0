@@ -1111,7 +1111,8 @@ export function NovaEntregaPanel() {
     entregadorId?: string | null,
     rulesOverride?: DynamicDriverRule[],
     faixasOverride?: FaixaComissao[],
-    tableOverride?: TabelaComissao
+    tableOverride?: TabelaComissao,
+    pricingTableOverride?: TabelaPreco
   ): { total: string, breakdown: { description: string, value: number }[] } => {
       const breakdown: { description: string, value: number }[] = [];
       let val = 0;
@@ -1213,9 +1214,22 @@ export function NovaEntregaPanel() {
            }
          });
          
-         const totalStr = val.toFixed(2);
-         return { total: totalStr === 'NaN' ? '0.00' : totalStr, breakdown };
-      }
+         // Adicionar valor_multiplo_comercio para entregas múltiplas (2ª entrega em diante)
+        if (pointsCount > 0) {
+          const pricingTable = pricingTableOverride || (selectedTabelaId ? tabelasPrecos.find(t => String(t.id) === String(selectedTabelaId)) : null);
+          if (pricingTable && pricingTable.valor_multiplo_comercio && pricingTable.valor_multiplo_comercio > 0) {
+            const multiploValue = pricingTable.valor_multiplo_comercio * pointsCount;
+            val += multiploValue;
+            breakdown.push({ 
+              description: `+${pricingTable.valor_multiplo_comercio.toFixed(2)} por entrega adicional`, 
+              value: multiploValue 
+            });
+          }
+        }
+        
+        const totalStr = val.toFixed(2);
+        return { total: totalStr === 'NaN' ? '0.00' : totalStr, breakdown };
+     } }
       
       
       return { total: '0.00', breakdown: [] };
@@ -1307,6 +1321,7 @@ export function NovaEntregaPanel() {
         }
     }
 
+    const pricingTable = selectedTabelaId ? tabelasPrecos.find(t => String(t.id) === String(selectedTabelaId)) : null;
     const { total: driverValueStr, breakdown: driverBonuses } = calculateDriverCommission(
       kmValue,
       form.retorno,
@@ -1314,7 +1329,8 @@ export function NovaEntregaPanel() {
       entregadorEscolhido,
       freshDriverRules,
       effectiveFaixasComissoes, 
-      effectiveSelectedTable || undefined 
+      effectiveSelectedTable || undefined,
+      pricingTable || undefined
     );
     const parsedDriverValue = parseFloat(driverValueStr);
     const driverValue = isNaN(parsedDriverValue) ? 0 : parsedDriverValue;
