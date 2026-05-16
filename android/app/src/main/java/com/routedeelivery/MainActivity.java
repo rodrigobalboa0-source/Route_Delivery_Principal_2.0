@@ -1,4 +1,4 @@
-package route.delivery;
+package com.routedeelivery;
 
 import com.getcapacitor.BridgeActivity;
 

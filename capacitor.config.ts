@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'route.delivery',
+  appId: 'com.routedeelivery',
   appName: 'Route Delivery',
   webDir: 'dist',
   plugins: {
