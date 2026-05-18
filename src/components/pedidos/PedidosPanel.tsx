@@ -4106,9 +4106,9 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                             )}
                             <td className="px-4 py-3 font-medium text-slate-700">
                                 <div>{taxaTotal ? `R$ ${taxaTotal.toFixed(2)}` : '-'}</div>
-                                {isPedidoMultiplo && valorMultiploStored && valorMultiploStored.total > 0 && (
+                                {isPedidoMultiplo && valorMultiploStored && valorMultiploStored.valorPorPonto > 0 && (
                                   <div className="text-xs text-emerald-600 font-medium whitespace-nowrap">
-                                    + R$ {valorMultiploStored.valorPorPonto.toFixed(2).replace('.', ',')} (Múltiplo)
+                                    + R$ {(valorMultiploStored.valorPorPonto * (1 + ((entrega as any)?.pontos_adicionais as any[]).length)).toFixed(2).replace('.', ',')} (Múltiplo)
                                   </div>
                                 )}
                             </td>
@@ -4244,6 +4244,11 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                                               </div>
                                             </div>
                                             <div className={`text-sm mt-1 ${isCompleted ? 'text-green-700/70 line-through' : 'text-slate-700'}`}>{d.endereco || '-'}</div>
+                                            {valorMultiploStored && valorMultiploStored.valorPorPonto > 0 && (
+                                              <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">
+                                                + R$ {valorMultiploStored.valorPorPonto.toFixed(2).replace('.', ',')} (Múltiplo)
+                                              </div>
+                                            )}
                                           </div>
                                         );
                                       })}

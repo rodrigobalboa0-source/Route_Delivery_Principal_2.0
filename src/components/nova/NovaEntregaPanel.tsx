@@ -926,7 +926,7 @@ export function NovaEntregaPanel() {
     if (!shouldCalculate) return;
 
     if (extraPointsFilled > 0 && valorMultiploPadrao > 0) {
-      const extra = valorMultiploPadrao * extraPointsFilled;
+      const extra = valorMultiploPadrao * (1 + extraPointsFilled);
       price += extra;
       multiploTotalAdded = extra;
     }
@@ -972,7 +972,7 @@ export function NovaEntregaPanel() {
     );
     setValorMultiploInfo(
       multiploTotalAdded > 0 && valorMultiploPadrao > 0
-        ? { valorPorPonto: valorMultiploPadrao, pontos: extraPointsFilled, total: multiploTotalAdded }
+        ? { valorPorPonto: valorMultiploPadrao, pontos: 1 + extraPointsFilled, total: multiploTotalAdded }
         : null
     );
 
@@ -1467,7 +1467,7 @@ export function NovaEntregaPanel() {
         return segmentDistancesKm.map((kmSeg, idx) => ({
           destino: idx + 1,
           km: kmSeg,
-          valor: calcPriceForKm(kmSeg) + (idx > 0 && valorMultiploPadraoLocal > 0 ? valorMultiploPadraoLocal : 0),
+          valor: calcPriceForKm(kmSeg) + (valorMultiploPadraoLocal > 0 ? valorMultiploPadraoLocal : 0),
         }));
       };
 

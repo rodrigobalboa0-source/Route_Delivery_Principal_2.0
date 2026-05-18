@@ -37,12 +37,14 @@ export function EntregadorEntregasDisponiveisPanel() {
     const extraPoints = safeParseArray(entrega?.pontos_adicionais);
     const comissaoDestinos = safeParseArray(entrega?.opcionais?.comissao_destinos);
     const comissaoRetorno = typeof entrega?.opcionais?.comissao_retorno === 'number' ? Number(entrega.opcionais.comissao_retorno) : 0;
-    
+    const valorMultiplo = entrega?.opcionais?.valor_multiplo as { valorPorPonto: number; pontos: number; total: number } | undefined;
+    const multiploTotal = valorMultiplo?.valorPorPonto ? valorMultiplo.valorPorPonto * (1 + extraPoints.length) : 0;
+
     const numDestinos = 1 + extraPoints.length;
-    if (numDestinos <= 1) return Number(entrega.valor_entregador || 0);
+    if (numDestinos <= 1) return Number(entrega.valor_entregador || 0) + multiploTotal;
 
     const totalDestinos = comissaoDestinos.reduce((sum: number, d: any) => sum + (typeof d?.valor === 'number' ? d.valor : 0), 0);
-    return totalDestinos + comissaoRetorno;
+    return totalDestinos + comissaoRetorno + multiploTotal;
   };
 
   useEffect(() => {
@@ -583,6 +585,16 @@ export function EntregadorEntregasDisponiveisPanel() {
                        <DollarSign size={18} />
                        {calculateMultiDestinoTotal(entrega).toFixed(2)}
                      </div>
+                     {(() => {
+                       const vm = entrega?.opcionais?.valor_multiplo as { valorPorPonto: number; pontos: number; total: number } | undefined;
+                       const extraPts = safeParseArray(entrega?.pontos_adicionais);
+                       const mt = vm?.valorPorPonto ? vm.valorPorPonto * (1 + extraPts.length) : 0;
+                       return mt > 0 ? (
+                         <span className="text-[10px] text-emerald-600 font-semibold mb-1">
+                           + R$ {mt.toFixed(2).replace('.', ',')} (Múltiplo)
+                         </span>
+                       ) : null;
+                     })()}
                      {entrega.opcionais?.driver_bonuses && Array.isArray(entrega.opcionais.driver_bonuses) && (
                        <div className="text-xs text-right flex flex-col items-end gap-1 mb-1">
                          {entrega.opcionais.driver_bonuses.map((bonus: any, idx: number) => {

@@ -1062,9 +1062,13 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
         ? incomingComissaoRetorno
         : null;
 
+  const incomingMultiploTotal = incomingValorMultiplo?.valorPorPonto
+    ? incomingValorMultiplo.valorPorPonto * (1 + incomingExtraPoints.length)
+    : 0;
+
   const valorEntregadorDisplayFinal = isIncomingMultiplo
-    ? comissaoDestinosDisplay.reduce((sum: number, d: any) => sum + (typeof d?.valor === 'number' ? d.valor : 0), 0) + (comissaoRetornoDisplay || 0) + (incomingValorMultiplo?.total || 0)
-    : valorEntregadorDisplay + (incomingValorMultiplo?.total || 0);
+    ? comissaoDestinosDisplay.reduce((sum: number, d: any) => sum + (typeof d?.valor === 'number' ? d.valor : 0), 0) + (comissaoRetornoDisplay || 0) + incomingMultiploTotal
+    : valorEntregadorDisplay + incomingMultiploTotal;
 
   
   return (
@@ -1167,9 +1171,9 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                                     `R$ ${valorEntregadorDisplayFinal.toFixed(2)}`
                                   )}
                                 </span>
-                                {incomingValorMultiplo && incomingValorMultiplo.total > 0 && (
+                                {incomingMultiploTotal > 0 && (
                                   <span className="text-[10px] text-emerald-600 font-semibold mt-0.5">
-                                    + R$ {incomingValorMultiplo.valorPorPonto.toFixed(2).replace('.', ',')} (Múltiplo)
+                                    + R$ {incomingMultiploTotal.toFixed(2).replace('.', ',')} (Múltiplo)
                                   </span>
                                 )}
                               </div>
