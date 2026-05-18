@@ -4241,16 +4241,6 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                                                     <Trash2 size={14} />
                                                   </button>
                                                 )}
-                                                {!isCompleted && entrega?.status !== 'criada' && entrega?.status !== 'cancelado' && (
-                                                  <button
-                                                    onClick={() => handleConfirmDestino(idx)}
-                                                    disabled={confirmingDestino === idx}
-                                                    className="text-green-600 hover:text-green-700 disabled:text-green-300 disabled:cursor-not-allowed"
-                                                    title="Confirmar entrega"
-                                                  >
-                                                    <CheckCircle size={14} />
-                                                  </button>
-                                                )}
                                               </div>
                                             </div>
                                             <div className={`text-sm mt-1 ${isCompleted ? 'text-green-700/70 line-through' : 'text-slate-700'}`}>{d.endereco || '-'}</div>
