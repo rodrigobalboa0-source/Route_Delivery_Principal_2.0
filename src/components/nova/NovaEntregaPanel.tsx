@@ -377,6 +377,8 @@ export function NovaEntregaPanel() {
   const [pricePerPoint, setPricePerPoint] = useState<number>(0);
   const [dynamicRules, setDynamicRules] = useState<DynamicRule[]>([]);
   const [activeDynamicRules, setActiveDynamicRules] = useState<{ name: string; value: number }[]>([]);
+  const [valorMultiploExtra, setValorMultiploExtra] = useState<string | null>(null);
+  const [valorMultiploInfo, setValorMultiploInfo] = useState<{ valorPorPonto: number; pontos: number; total: number } | null>(null);
   const [dynamicDriverRules, setDynamicDriverRules] = useState<DynamicDriverRule[]>([]);
   const [faixasPreco, setFaixasPreco] = useState<FaixaPreco[]>([]);
   const coordsCache = useRef<Map<string, { lat: number; lon: number }>>(new Map()); 
@@ -839,12 +841,16 @@ export function NovaEntregaPanel() {
   const calculatePrice = () => {
     let price = 0;
     let shouldCalculate = false;
+    let multiploTotalAdded = 0;
+    let valorMultiploPadrao = 0;
     const extraPointsFilled = (form.pontos || []).filter((p) => (p?.endereco_texto || '').trim().length > 0).length;
 
     if (pricingMode === 'Zerar') {
       setForm(prev => ({ ...prev, valor_entrega: '0.00', valor_manual: false }));
       setValorDinamico(true);
       setActiveDynamicRules([]);
+      setValorMultiploExtra(null);
+      setValorMultiploInfo(null);
       return;
     }
 
@@ -856,9 +862,12 @@ export function NovaEntregaPanel() {
     } else {
       if (!selectedTabelaId) return;
 
+      const tabelaPadraoMultiplo = tabelasPrecos.find(t => (t as any).is_padrao_multiplo === true);
+      valorMultiploPadrao = tabelaPadraoMultiplo?.valor_multiplo_comercio || 0;
+
       const tabela = tabelasPrecos.find(t => String(t.id) === String(selectedTabelaId));
       if (!tabela) return;
-  
+
       if (!faixasPreco || faixasPreco.length === 0) return;
 
       const km = distanciaKm ? parseFloat(distanciaKm.replace(',', '.')) : NaN;
@@ -885,11 +894,6 @@ export function NovaEntregaPanel() {
         }
 
         if (fallbackMin > 0 && p < fallbackMin) p = fallbackMin;
-
-        
-        if ((tabela.valor_multiplo_comercio || 0) > 0) {
-          p += tabela.valor_multiplo_comercio || 0;
-        }
 
         return p;
       };
@@ -920,6 +924,12 @@ export function NovaEntregaPanel() {
     }
 
     if (!shouldCalculate) return;
+
+    if (extraPointsFilled > 0 && valorMultiploPadrao > 0) {
+      const extra = valorMultiploPadrao * extraPointsFilled;
+      price += extra;
+      multiploTotalAdded = extra;
+    }
 
     if (form.retorno) {
         const tabela = tabelasPrecos.find(t => t.id === selectedTabelaId);
@@ -955,6 +965,16 @@ export function NovaEntregaPanel() {
       }
     });
     setActiveDynamicRules(activeRules);
+    setValorMultiploExtra(
+      multiploTotalAdded > 0
+        ? `+ R$ ${multiploTotalAdded.toFixed(2).replace('.', ',')} (Valor Múltiplo)`
+        : null
+    );
+    setValorMultiploInfo(
+      multiploTotalAdded > 0 && valorMultiploPadrao > 0
+        ? { valorPorPonto: valorMultiploPadrao, pontos: extraPointsFilled, total: multiploTotalAdded }
+        : null
+    );
 
     setForm(prev => ({ ...prev, valor_entrega: price.toFixed(2), valor_manual: false }));
     setValorDinamico(true);
@@ -1441,10 +1461,13 @@ export function NovaEntregaPanel() {
           return p;
         };
 
+        const tabelaPadraoMultiplo = tabelasPrecos.find(t => (t as any).is_padrao_multiplo === true);
+        const valorMultiploPadraoLocal = tabelaPadraoMultiplo?.valor_multiplo_comercio || 0;
+
         return segmentDistancesKm.map((kmSeg, idx) => ({
           destino: idx + 1,
           km: kmSeg,
-          valor: calcPriceForKm(kmSeg),
+          valor: calcPriceForKm(kmSeg) + (idx > 0 && valorMultiploPadraoLocal > 0 ? valorMultiploPadraoLocal : 0),
         }));
       };
 
@@ -1502,6 +1525,7 @@ export function NovaEntregaPanel() {
     const opcionaisPayload = {
       ...(driverBonuses.length > 0 ? { driver_bonuses: driverBonuses } : {}),
       ...(segmentPricing ? { pricing_destinos: segmentPricing } : {}),
+      ...(valorMultiploInfo ? { valor_multiplo: valorMultiploInfo } : {}),
       ...(commission ? { comissao_destinos: commission.destinos, comissao_retorno: commission.retornoValor, comissao_total: commission.total } : {}),
     };
 
@@ -1620,6 +1644,8 @@ export function NovaEntregaPanel() {
       setDistanciaKm('');
       setValorDinamico(false);
       setActiveDynamicRules([]);
+      setValorMultiploExtra(null);
+      setValorMultiploInfo(null);
       setDriverValueDisplay('0.00');
       setDriverReturnDisplay(null);
       setSelectedTabelaId('');
@@ -1994,13 +2020,16 @@ export function NovaEntregaPanel() {
                 {!calculatingDistance && (form.coleta_endereco_texto && form.entrega_endereco_texto) && !distanciaKm && !distanceError && (
                   <span className="text-xs text-amber-700 block">Aguardando cálculo da distância...</span>
                 )}
-                {activeDynamicRules.length > 0 && (
+                {(activeDynamicRules.length > 0 || valorMultiploExtra) && (
                   <div className="mt-1">
                     {activeDynamicRules.map((rule, idx) => (
                       <span key={idx} className="block text-xs text-amber-600 font-medium">
                         {rule.name}
                       </span>
                     ))}
+                    {valorMultiploExtra && (
+                      <span className="block text-xs text-emerald-600 font-medium">{valorMultiploExtra}</span>
+                    )}
                   </div>
                 )}
                 {calculatingDistance && <span className="text-xs text-amber-600 block animate-pulse">Calculando rota e distância...</span>}

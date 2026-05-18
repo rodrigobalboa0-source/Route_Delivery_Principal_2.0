@@ -4023,6 +4023,16 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                     const entrega = entregasMap[p.id];
                     const entregador = entrega?.entregador_id ? entregadores[entrega.entregador_id] : null;
                     const isPedidoMultiplo = Array.isArray((entrega as any)?.pontos_adicionais) && ((entrega as any).pontos_adicionais as any[]).length > 0;
+                    const pricingDestinosMulti = isPedidoMultiplo
+                      ? (() => {
+                          const raw = (entrega as any)?.opcionais?.pricing_destinos;
+                          return Array.isArray(raw) ? raw : [];
+                        })()
+                      : [];
+                    const taxaTotal = isPedidoMultiplo && pricingDestinosMulti.length > 0
+                      ? pricingDestinosMulti.reduce((sum: number, pd: any) => sum + (pd?.valor || 0), 0)
+                      : (entrega?.valor_entrega ?? 0);
+                    const valorMultiploStored = (entrega as any)?.opcionais?.valor_multiplo as { valorPorPonto: number; pontos: number; total: number } | undefined;
 
                     return (
                       <Fragment key={p.id}>
@@ -4095,7 +4105,12 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                               </td>
                             )}
                             <td className="px-4 py-3 font-medium text-slate-700">
-                                {entrega?.valor_entrega ? `R$ ${entrega.valor_entrega.toFixed(2)}` : '-'}
+                                <div>{taxaTotal ? `R$ ${taxaTotal.toFixed(2)}` : '-'}</div>
+                                {isPedidoMultiplo && valorMultiploStored && valorMultiploStored.total > 0 && (
+                                  <div className="text-xs text-emerald-600 font-medium whitespace-nowrap">
+                                    + R$ {valorMultiploStored.valorPorPonto.toFixed(2).replace('.', ',')} (Múltiplo)
+                                  </div>
+                                )}
                             </td>
                             <td className="px-4 py-3">
                                 <button

@@ -234,6 +234,12 @@ export function TabelasPrecosPanel() {
     }
   };
 
+  const handleSetPadraoMultiplo = async (id: string) => {
+    await (supabase as any).from('tabelas_precos').update({ is_padrao_multiplo: false }).neq('id', id);
+    await (supabase as any).from('tabelas_precos').update({ is_padrao_multiplo: true }).eq('id', id);
+    setTabelas(prev => prev.map(t => ({ ...t, is_padrao_multiplo: t.id === id })));
+  };
+
   if (view === 'detalhe' && selectedTabela) {
     return <TabelaPrecosDetalhe tabela={selectedTabela} onBack={() => { setView('list'); setSelectedTabela(null); }} />;
   }
@@ -271,6 +277,7 @@ export function TabelasPrecosPanel() {
                 <th className="px-4 py-3">Valor do retorno</th>
                 <th className="px-4 py-3">Valor por ponto</th>
                 <th className="px-4 py-3">Valor Múltiplo</th>
+                <th className="px-4 py-3 text-center">Múltiplo Padrão</th>
                 <th className="px-4 py-3 text-center">Precificação</th>
                 <th className="px-4 py-3 text-right">Ações</th>
               </tr>
@@ -285,6 +292,16 @@ export function TabelasPrecosPanel() {
                   <td className="px-4 py-3 text-slate-600">{t.valor_retorno?.toFixed(2)}</td>
                   <td className="px-4 py-3 text-slate-600">{t.valor_por_ponto?.toFixed(2)}</td>
                   <td className="px-4 py-3 text-slate-600">{t.valor_multiplo_comercio?.toFixed(2) || '0.00'}</td>
+                  <td className="px-4 py-3 text-center">
+                    <input
+                      type="radio"
+                      name="padrao_multiplo"
+                      checked={(t as any).is_padrao_multiplo === true}
+                      onChange={() => handleSetPadraoMultiplo(t.id)}
+                      className="w-4 h-4 accent-emerald-600 cursor-pointer"
+                      title="Usar como tabela padrão para pedidos múltiplos"
+                    />
+                  </td>
                   <td className="px-4 py-3 text-center">
                     <button
                       onClick={() => { setSelectedTabela(t); setView('detalhe'); }}
@@ -305,7 +322,7 @@ export function TabelasPrecosPanel() {
               ))}
               {tabelas.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={10} className="px-4 py-8 text-center text-slate-500">
                     Nenhuma tabela cadastrada.
                   </td>
                 </tr>
