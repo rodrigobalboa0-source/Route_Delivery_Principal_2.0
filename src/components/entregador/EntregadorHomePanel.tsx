@@ -1016,6 +1016,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
   const incomingPricingDestinos = safeParseArray(incomingDelivery?.opcionais?.pricing_destinos);
   const incomingComissaoDestinos = safeParseArray(incomingDelivery?.opcionais?.comissao_destinos);
   const incomingComissaoRetorno = typeof incomingDelivery?.opcionais?.comissao_retorno === 'number' ? Number(incomingDelivery.opcionais.comissao_retorno) : null;
+  const incomingValorMultiplo = (incomingDelivery?.opcionais as any)?.valor_multiplo as { valorPorPonto: number; pontos: number; total: number } | undefined;
   const incomingDestinos = incomingDelivery
     ? [
         {
@@ -1062,8 +1063,8 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
         : null;
 
   const valorEntregadorDisplayFinal = isIncomingMultiplo
-    ? comissaoDestinosDisplay.reduce((sum: number, d: any) => sum + (typeof d?.valor === 'number' ? d.valor : 0), 0) + (comissaoRetornoDisplay || 0)
-    : valorEntregadorDisplay;
+    ? comissaoDestinosDisplay.reduce((sum: number, d: any) => sum + (typeof d?.valor === 'number' ? d.valor : 0), 0) + (comissaoRetornoDisplay || 0) + (incomingValorMultiplo?.total || 0)
+    : valorEntregadorDisplay + (incomingValorMultiplo?.total || 0);
 
   
   return (
@@ -1166,6 +1167,11 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                                     `R$ ${valorEntregadorDisplayFinal.toFixed(2)}`
                                   )}
                                 </span>
+                                {incomingValorMultiplo && incomingValorMultiplo.total > 0 && (
+                                  <span className="text-[10px] text-emerald-600 font-semibold mt-0.5">
+                                    + R$ {incomingValorMultiplo.valorPorPonto.toFixed(2).replace('.', ',')} (Múltiplo)
+                                  </span>
+                                )}
                               </div>
                             )}
                           </div>
@@ -1273,6 +1279,11 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                               `R$ ${valorEntregadorDisplayFinal.toFixed(2)}`
                             )}
                           </span>
+                          {incomingValorMultiplo && incomingValorMultiplo.total > 0 && (
+                            <span className="text-[10px] text-emerald-600 font-semibold mt-0.5">
+                              + R$ {incomingValorMultiplo.valorPorPonto.toFixed(2).replace('.', ',')} (Múltiplo)
+                            </span>
+                          )}
                         </div>
                       </div>
 
