@@ -235,9 +235,16 @@ export function TabelasPrecosPanel() {
   };
 
   const handleSetPadraoMultiplo = async (id: string) => {
-    await (supabase as any).from('tabelas_precos').update({ is_padrao_multiplo: false }).neq('id', id);
-    await (supabase as any).from('tabelas_precos').update({ is_padrao_multiplo: true }).eq('id', id);
-    setTabelas(prev => prev.map(t => ({ ...t, is_padrao_multiplo: t.id === id })));
+    const current = tabelas.find(t => t.id === id);
+    const alreadySelected = (current as any)?.is_padrao_multiplo === true;
+    if (alreadySelected) {
+      await (supabase as any).from('tabelas_precos').update({ is_padrao_multiplo: false }).eq('id', id);
+      setTabelas(prev => prev.map(t => ({ ...t, is_padrao_multiplo: false })));
+    } else {
+      await (supabase as any).from('tabelas_precos').update({ is_padrao_multiplo: false }).neq('id', id);
+      await (supabase as any).from('tabelas_precos').update({ is_padrao_multiplo: true }).eq('id', id);
+      setTabelas(prev => prev.map(t => ({ ...t, is_padrao_multiplo: t.id === id })));
+    }
   };
 
   if (view === 'detalhe' && selectedTabela) {
@@ -297,7 +304,8 @@ export function TabelasPrecosPanel() {
                       type="radio"
                       name="padrao_multiplo"
                       checked={(t as any).is_padrao_multiplo === true}
-                      onChange={() => handleSetPadraoMultiplo(t.id)}
+                      onChange={() => {}}
+                      onClick={() => handleSetPadraoMultiplo(t.id)}
                       className="w-4 h-4 accent-emerald-600 cursor-pointer"
                       title="Usar como tabela padrão para pedidos múltiplos"
                     />
