@@ -51,6 +51,36 @@ export function OperationsDashboard() {
 
   useEffect(() => {
     fetchDeliveryPersons();
+
+    const channel = supabase
+      .channel('operations-entregadores-status')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'entregadores' },
+        (payload) => {
+          const updated = payload.new as any;
+          if (!updated?.id) return;
+          setDeliveryPersons(prev =>
+            prev.map(p => {
+              if (p.id !== updated.id) return p;
+              return {
+                ...p,
+                is_online: updated.is_online === true,
+                current_latitude: updated.current_latitude ?? p.current_latitude,
+                current_longitude: updated.current_longitude ?? p.current_longitude,
+                heading: updated.heading ?? p.heading,
+                last_location_update: updated.last_location_update ?? p.last_location_update,
+                status: updated.status === 'ativo' ? p.status : 'inativo',
+              };
+            })
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   useEffect(() => {
