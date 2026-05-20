@@ -340,7 +340,9 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
       } catch (e) { console.error(e); }
     };
     fetchProfile();
+  }, []);
 
+  useEffect(() => {
     let watchId: string | null = null;
     let currentEntregadorId: string | null = null;
     let foregroundServiceStarted = false;
