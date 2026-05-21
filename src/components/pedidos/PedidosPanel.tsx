@@ -4196,12 +4196,12 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
                                   const destinos = [
                                     {
-                                      label: 'Destino 1',
+                                      label: String((entrega as any)?.entrega_contato || '').trim() || 'Destino 1',
                                       endereco: String(entrega?.entrega_endereco_texto || p.endereco_texto || '').trim(),
                                       valor: pricingDestinos[0]?.valor,
                                     },
                                     ...pontos.map((pt: any, idx: number) => ({
-                                      label: `Destino ${idx + 2}`,
+                                      label: String(pt?.contato || '').trim() || `Destino ${idx + 2}`,
                                       endereco: getAddr(pt),
                                       valor: pricingDestinos[idx + 1]?.valor,
                                     })),
