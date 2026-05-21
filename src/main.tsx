@@ -43,7 +43,7 @@ window.onunhandledrejection = function(event) {
 
 try {
   const isCadastroPage =
-    ['/cadastro', '/comercio', '/entregador'].includes(window.location.pathname) ||
+    window.location.pathname === '/cadastro' ||
     ['#cadastro', '#comercio', '#entregador'].includes(window.location.hash);
   const rootElement = document.getElementById('root');
   

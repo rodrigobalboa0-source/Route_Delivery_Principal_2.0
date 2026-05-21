@@ -7,9 +7,6 @@ export function Cadastro({ onBack, darkMode = false, initialType }: { onBack?: (
   const getInitialType = () => {
     if (initialType) return initialType;
     if (typeof window !== 'undefined') {
-      const pathname = window.location.pathname;
-      if (pathname === '/comercio') return 'cliente';
-      if (pathname === '/entregador') return 'entregador';
       const hash = window.location.hash;
       if (hash === '#comercio') return 'cliente';
       if (hash === '#entregador') return 'entregador';
