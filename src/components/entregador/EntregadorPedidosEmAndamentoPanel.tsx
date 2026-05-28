@@ -1010,15 +1010,23 @@ export function EntregadorPedidosEmAndamentoPanel() {
                     {mapVisibleId === entrega.id ? 'Ocultar Mapa' : 'Ver no App'}
                   </button>
 
-                  <button 
+                  <button
                     onClick={async () => {
                         const address = isPickupPhase ? entrega.coleta_endereco_texto : entrega.entrega_endereco_texto;
                         if (!address) {
                           await showAlert('Endereço não disponível', 'Aviso');
                           return;
                         }
-                        
-                        const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}&travelmode=driving`;
+
+                        const originParam = userLocation
+                          ? `&origin=${userLocation.lat},${userLocation.lng}`
+                          : '';
+
+                        const destination = destCoords
+                          ? `${destCoords[0]},${destCoords[1]}`
+                          : encodeURIComponent(address);
+
+                        const url = `https://www.google.com/maps/dir/?api=1${originParam}&destination=${destination}&travelmode=driving`;
                         window.open(url, '_blank');
                     }}
                     className="flex-1 flex items-center justify-center gap-2 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded transition-colors text-sm font-medium border border-blue-200"

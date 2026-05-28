@@ -2769,8 +2769,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   }, []);
 
   useEffect(() => {
-    const displayedItems = filters.status === 'todos' 
-        ? allItems 
+    const displayedItems = filters.status === 'todos'
+        ? allItems.filter(p => p.status !== 'entregue' && p.status !== 'cancelado')
         : allItems.filter(p => p.status === filters.status);
     setItems(displayedItems);
   }, [filters.status, allItems]);
@@ -2957,7 +2957,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
         entregasList.forEach(e => {
             if (e.pedido_id) {
-                
+
                 if (!eMap[e.pedido_id]) {
                     eMap[e.pedido_id] = e;
                 }
@@ -2966,7 +2966,27 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             }
         });
 
-        
+        // Detecta pedidos out-of-sync: pedido ainda 'pronto' mas delivery já 'entregue'/'cancelada'.
+        // O qEntregas exclui deliveries concluídas da query principal, então precisamos de uma
+        // consulta extra para pegar esses casos e remover o pedido da lista.
+        if (!hasActiveFilters && pedidosList.length > 0) {
+            const pedidoIds = pedidosList.map(p => p.id).filter(Boolean);
+            if (pedidoIds.length > 0) {
+                const { data: completedDeliveries } = await supabase
+                    .from('nova_entrega')
+                    .select('pedido_id, status')
+                    .in('pedido_id', pedidoIds)
+                    .in('status', ['entregue', 'cancelada']);
+                if (completedDeliveries) {
+                    completedDeliveries.forEach(e => {
+                        if (e.pedido_id && !eMap[e.pedido_id]) {
+                            eMap[e.pedido_id] = e as any;
+                        }
+                    });
+                }
+            }
+        }
+
         const syntheticPedidos: Pedido[] = unlinkedEntregas.map(e => ({
             id: e.pedido_id || e.id, 
             cliente_id: e.cliente_id,
