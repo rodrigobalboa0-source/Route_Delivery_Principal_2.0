@@ -66,6 +66,7 @@ function AddressAutocomplete({
   onChange,
   placeholder,
   containerClassName,
+  inputClassName,
   onSelectCoords,
   onSuggestCoords,
 }: {
@@ -73,6 +74,7 @@ function AddressAutocomplete({
   onChange: (val: string) => void,
   placeholder: string,
   containerClassName?: string,
+  inputClassName?: string,
   onSelectCoords?: (coords: [number, number] | undefined, selectedText?: string) => void,
   onSuggestCoords?: (coords: [number, number] | undefined, typedText: string) => void
 }) {
@@ -312,7 +314,7 @@ function AddressAutocomplete({
           }
         }}
         placeholder={placeholder}
-        className="w-full px-3 py-2 border border-slate-300 rounded"
+        className={`w-full px-3 py-2 border rounded ${inputClassName || 'border-slate-300'}`}
       />
       {open && trimmedValue.length > 0 && (
         <div className="absolute z-[10000] w-full mt-1 bg-white border border-slate-200 rounded shadow-lg pointer-events-auto">
@@ -1274,10 +1276,23 @@ export function NovaEntregaPanel() {
         }
     }
 
+    const coletaAddrTrimmed = (form.coleta_endereco_texto || '').trim();
+    const entregaAddrTrimmed = (form.entrega_endereco_texto || '').trim();
+
+    if (coletaAddrTrimmed && !form.coleta_usa_endereco_cadastro && !coletaSelectedCoords) {
+      setError('Selecione o endereço de coleta a partir das sugestões — digite o endereço e clique em uma das opções que aparecem na lista.');
+      return;
+    }
+
+    if (!form.retirada_no_local && entregaAddrTrimmed && !form.entrega_usa_endereco_cadastro && !entregaSelectedCoords) {
+      setError('Selecione o endereço de entrega a partir das sugestões — digite o endereço e clique em uma das opções que aparecem na lista.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
-   
-    
+
+
     let entregadorEscolhido = form.atribuicao_modo === 'manual' ? (form.entregador_id || null) : null;
     
     
@@ -1795,10 +1810,10 @@ export function NovaEntregaPanel() {
           <AddressAutocomplete
             placeholder="Endereço completo"
             value={form.coleta_endereco_texto}
-            onChange={(val) => { 
-              setColetaSelectedCoords(undefined); 
-              setDistanceError(null); 
-              setForm(prev => ({ ...prev, coleta_endereco_texto: val })); 
+            onChange={(val) => {
+              setColetaSelectedCoords(undefined);
+              setDistanceError(null);
+              setForm(prev => ({ ...prev, coleta_endereco_texto: val }));
             }}
             onSelectCoords={(coords, selectedText) => {
               setColetaSelectedCoords(coords);
@@ -1813,6 +1828,11 @@ export function NovaEntregaPanel() {
               if (key) selectedCoordsByTextRef.current.set(key, coords);
             }}
             containerClassName="md:col-span-2"
+            inputClassName={
+              form.coleta_endereco_texto && !form.coleta_usa_endereco_cadastro && !coletaSelectedCoords
+                ? 'border-red-400 bg-red-50 focus:border-red-500 focus:ring-red-200'
+                : 'border-slate-300'
+            }
           />
           <input placeholder="Nº" value={form.coleta_numero} onChange={(e) => { const v = e.target.value; setForm(prev => ({ ...prev, coleta_numero: v })); }} className="px-3 py-2 border border-slate-300 rounded" />
           <input placeholder="Complemento" value={form.coleta_complemento} onChange={(e) => { const v = e.target.value; setForm(prev => ({ ...prev, coleta_complemento: v })); }} className="px-3 py-2 border border-slate-300 rounded" />
@@ -1835,10 +1855,10 @@ export function NovaEntregaPanel() {
             <AddressAutocomplete
               placeholder="Endereço completo"
               value={form.entrega_endereco_texto}
-              onChange={(val) => { 
-                setEntregaSelectedCoords(undefined); 
-                setDistanceError(null); 
-                setForm(prev => ({ ...prev, entrega_endereco_texto: val })); 
+              onChange={(val) => {
+                setEntregaSelectedCoords(undefined);
+                setDistanceError(null);
+                setForm(prev => ({ ...prev, entrega_endereco_texto: val }));
               }}
               onSelectCoords={(coords, selectedText) => {
                 setEntregaSelectedCoords(coords);
@@ -1853,6 +1873,11 @@ export function NovaEntregaPanel() {
                 if (key) selectedCoordsByTextRef.current.set(key, coords);
               }}
               containerClassName="md:col-span-2"
+              inputClassName={
+                form.entrega_endereco_texto && !form.entrega_usa_endereco_cadastro && !entregaSelectedCoords
+                  ? 'border-red-400 bg-red-50 focus:border-red-500 focus:ring-red-200'
+                  : 'border-slate-300'
+              }
             />
             <input placeholder="Nº" value={form.entrega_numero} onChange={(e) => { const v = e.target.value; setForm(prev => ({ ...prev, entrega_numero: v })); }} className="px-3 py-2 border border-slate-300 rounded" />
             <input placeholder="Complemento" value={form.entrega_complemento} onChange={(e) => { const v = e.target.value; setForm(prev => ({ ...prev, entrega_complemento: v })); }} className="px-3 py-2 border border-slate-300 rounded" />
