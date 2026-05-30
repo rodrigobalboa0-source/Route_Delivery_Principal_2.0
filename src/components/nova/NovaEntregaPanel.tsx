@@ -1879,7 +1879,6 @@ export function NovaEntregaPanel() {
                   : 'border-slate-300'
               }
             />
-            <input placeholder="Nº" value={form.entrega_numero} onChange={(e) => { const v = e.target.value; setForm(prev => ({ ...prev, entrega_numero: v })); }} className="px-3 py-2 border border-slate-300 rounded" />
             <input placeholder="Complemento" value={form.entrega_complemento} onChange={(e) => { const v = e.target.value; setForm(prev => ({ ...prev, entrega_complemento: v })); }} className="px-3 py-2 border border-slate-300 rounded" />
             <input placeholder="Observações (Entrega)" value={form.entrega_observacoes} onChange={(e) => { const v = e.target.value; setForm(prev => ({ ...prev, entrega_observacoes: v })); }} className="px-3 py-2 border border-slate-300 rounded md:col-span-2" />
           </div>
@@ -1973,19 +1972,6 @@ export function NovaEntregaPanel() {
                       return { ...prev, pontos: arr };
                     });
                   }}
-                />
-                <input 
-                  placeholder="Nº" 
-                  value={p.numero} 
-                  onChange={(e) => { 
-                    const v = e.target.value; 
-                    setForm(prev => {
-                      const arr = [...prev.pontos];
-                      arr[idx] = { ...arr[idx], numero: v };
-                      return { ...prev, pontos: arr };
-                    });
-                  }} 
-                  className="px-3 py-2 border border-slate-300 rounded" 
                 />
                 <input 
                   placeholder="Complemento" 
