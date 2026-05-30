@@ -22,7 +22,8 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState<boolean | null>(null);
   const [entregadorId, setEntregadorId] = useState<string | null>(null);
-  const [ganhos, setGanhos] = useState(0);
+  const [ganhosDia, setGanhosDia] = useState(0);
+  const currentDayRef = useRef<string>(new Date().toDateString());
   const [incomingDelivery, setIncomingDelivery] = useState<any>(null);
   const [commerceData, setCommerceData] = useState<{ nome: string, foto: string | null } | null>(null);
   const [deliveryDistance, setDeliveryDistance] = useState<number | null>(null);
@@ -314,27 +315,18 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
              setIsOnline(data.is_online || false);
 
 
-             const { data: entregasData } = await supabase
+             const todayStart = new Date();
+             todayStart.setHours(0, 0, 0, 0);
+
+             const { data: entregasHojeData } = await supabase
               .from('nova_entrega')
-              .select('*')
+              .select('valor_entregador')
               .eq('entregador_id', data.id)
-              .eq('status', 'entregue');
+              .eq('status', 'entregue')
+              .gte('updated_at', todayStart.toISOString());
 
-             const { data: acertosData } = await supabase
-               .from('acertos_entregadores')
-               .select('valor_pago, taxa_aplicada, status')
-               .eq('entregador_id', data.id)
-               .in('status', ['pendente', 'pago']);
-
-             if (entregasData) {
-               const totalEntregas = entregasData.reduce((acc, curr) => acc + (Number(curr.valor_entregador) || 0), 0);
-               const totalAcertos =
-                 acertosData?.reduce(
-                   (acc, curr: any) => acc + (Number(curr.valor_pago) || 0) + (Number(curr.taxa_aplicada) || 0),
-                   0
-                 ) || 0;
-               setGanhos(totalEntregas - totalAcertos);
-             }
+             const totalHoje = entregasHojeData?.reduce((acc, curr) => acc + (Number(curr.valor_entregador) || 0), 0) || 0;
+             setGanhosDia(totalHoje);
            }
         }
       } catch (e) { console.error(e); }
@@ -759,22 +751,19 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
     if (!entregadorId) return;
 
     const fetchBalance = async () => {
-        const { data: entregasData } = await supabase
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        const { data: entregasHojeData } = await supabase
             .from('nova_entrega')
             .select('valor_entregador')
             .eq('entregador_id', entregadorId)
-            .eq('status', 'entregue');
+            .eq('status', 'entregue')
+            .gte('updated_at', todayStart.toISOString());
 
-        const { data: acertosData } = await supabase
-            .from('acertos_entregadores')
-            .select('valor_pago, taxa_aplicada, status')
-            .eq('entregador_id', entregadorId)
-            .in('status', ['pendente', 'pago']);
-
-        const totalEntregas = entregasData?.reduce((acc, curr) => acc + (Number(curr.valor_entregador) || 0), 0) || 0;
-        const totalAcertos = acertosData?.reduce((acc, curr) => acc + (Number(curr.valor_pago) || 0) + (Number((curr as any).taxa_aplicada) || 0), 0) || 0;
-        
-        setGanhos(totalEntregas - totalAcertos);
+        const totalHoje = entregasHojeData?.reduce((acc, curr) => acc + (Number(curr.valor_entregador) || 0), 0) || 0;
+        setGanhosDia(totalHoje);
+        currentDayRef.current = new Date().toDateString();
     };
 
     fetchBalance();
@@ -799,6 +788,17 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
       supabase.removeChannel(channel);
     };
   }, [entregadorId]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const today = new Date().toDateString();
+      if (currentDayRef.current !== today) {
+        currentDayRef.current = today;
+        setGanhosDia(0);
+      }
+    }, 60_000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (!entregadorId) return;
@@ -1118,8 +1118,8 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
         onClick={() => onNavigate('carteira_extrato')}
         className="absolute top-4 right-4 z-10 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg px-4 py-2 min-w-[120px] flex flex-col items-center border border-slate-200 hover:bg-slate-50 transition-colors"
       >
-         <span className="text-xs text-slate-500 font-bold uppercase mb-0.5">Ganhos</span>
-         <span className="text-lg font-bold text-slate-800 leading-none">R$ {ganhos.toFixed(2)}</span>
+         <span className="text-xs text-slate-500 font-bold uppercase mb-0.5">Ganhos do dia</span>
+         <span className="text-lg font-bold text-slate-800 leading-none">R$ {ganhosDia.toFixed(2)}</span>
       </button>
 
        {incomingDelivery && createPortal(
