@@ -3382,6 +3382,15 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       setOpenMenuId(null);
   };
 
+  const handleSwapInProgress = (p: Pedido) => {
+      const entrega = entregasMap[p.id];
+      setSelectedPedidoForAllocation(p);
+      setSelectedEntregadorId(entrega?.entregador_id || '');
+      setIsSwappingFinalized(false);
+      setIsAllocationModalOpen(true);
+      setOpenMenuId(null);
+  };
+
   const handleAddObservation = async (p: Pedido) => {
       const currentObs = p.observacoes || '';
       const newObs = await showPrompt('Escrever Observação:', { title: 'Observação', defaultValue: currentObs });
@@ -4340,6 +4349,9 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                                 )}
                                 {entregasMap[p.id]?.entregador_id && (
                                      <button onClick={() => handleBlacklist(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-red-600 flex items-center gap-2 border-t border-slate-100 mt-1"><Ban size={16}/> Bloquear Entregador</button>
+                                )}
+                                {entregasMap[p.id]?.entregador_id && p.status !== 'entregue' && p.status !== 'cancelado' && (
+                                    <button onClick={() => handleSwapInProgress(p)} className="px-4 py-2 hover:bg-slate-50 text-sm text-blue-600 flex items-center gap-2"><RefreshCw size={16}/> Trocar Entregador</button>
                                 )}
                                 {p.status === 'entregue' && (
                                     <>
