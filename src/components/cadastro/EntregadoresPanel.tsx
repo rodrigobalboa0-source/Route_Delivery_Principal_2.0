@@ -408,6 +408,37 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
           return;
         }
 
+        // Fallback: se a RPC não salvou os dados (trigger criou a linha antes),
+        // força um update autenticado com todos os campos.
+        if (authUserId) {
+          const updatePayload: Record<string, unknown> = {
+            nome_completo: insertValues.nome_completo,
+            cpf: insertValues.cpf,
+            rg: insertValues.rg,
+            data_nascimento: insertValues.data_nascimento,
+            telefone: insertValues.telefone,
+            email: insertValues.email,
+            cep: insertValues.cep,
+            rua: insertValues.rua,
+            numero: insertValues.numero,
+            complemento: insertValues.complemento,
+            bairro: insertValues.bairro,
+            cidade: insertValues.cidade,
+            veiculo_tipo: insertValues.veiculo_tipo,
+            veiculo_modelo: insertValues.veiculo_modelo,
+            veiculo_placa: insertValues.veiculo_placa,
+            veiculo_ano: insertValues.veiculo_ano,
+            cnh_valida: insertValues.cnh_valida,
+            tipo_entrega: insertValues.tipo_entrega,
+            status: 'em_analise',
+            foto_base64: insertValues.foto_base64,
+            cnh_foto_base64: insertValues.cnh_foto_base64,
+            comprovante_residencia_base64: insertValues.comprovante_residencia_base64,
+            documento_veiculo_base64: insertValues.documento_veiculo_base64,
+          };
+          await supabase.from('entregadores').update(updatePayload).eq('id', authUserId);
+        }
+
         setRegistrationSuccess(true);
         setLoading(false);
         return;

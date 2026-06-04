@@ -420,6 +420,7 @@ function App() {
           resolvedUidRef.current = uid;
           setResolvedClienteId(null);
           setResolvedEntregadorId(entregadorId);
+          setAccountPending(true); // default: block access until status is confirmed
 
           void (async () => {
             try {
@@ -445,10 +446,14 @@ function App() {
                   const eStatus = (eData as any)?.status;
                   setAccountPending(eStatus !== 'ativo');
                   setResolvedEntregadorId(String((eData as any).id || '').trim() || null);
+                } else {
+                  // entregador row not found — keep pending
+                  setAccountPending(true);
                 }
               }
             } catch (e) {
               void e;
+              setAccountPending(true);
             }
           })();
 
