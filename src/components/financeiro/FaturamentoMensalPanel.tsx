@@ -13,8 +13,58 @@ interface ClientBillingStats {
   total: number;
   minDate: string | null;
   maxDate: string | null;
+  periodStart: Date | null;
+  periodEnd: Date | null;
   deliveries: NovaEntrega[];
 }
+
+// Returns the last completed billing period based on periodicidade and today
+const getBillingPeriod = (periodicidade: string | null, today: Date): { start: Date; end: Date } => {
+  const year = today.getFullYear();
+  const month = today.getMonth(); // 0-indexed
+  const day = today.getDate();
+
+  if (periodicidade === 'quinzenal') {
+    if (day <= 15) {
+      // In first half: last completed period is 16th–last of previous month
+      const prevMonth = month === 0 ? 11 : month - 1;
+      const prevYear = month === 0 ? year - 1 : year;
+      const lastDay = new Date(year, month, 0).getDate();
+      return {
+        start: new Date(prevYear, prevMonth, 16, 0, 0, 0),
+        end: new Date(prevYear, prevMonth, lastDay, 23, 59, 59, 999),
+      };
+    } else {
+      // In second half: last completed period is 1st–15th of current month
+      return {
+        start: new Date(year, month, 1, 0, 0, 0),
+        end: new Date(year, month, 15, 23, 59, 59, 999),
+      };
+    }
+  }
+
+  if (periodicidade === 'semanal') {
+    // Last completed Mon–Sun week
+    const dayOfWeek = today.getDay(); // 0=Sun
+    const daysToLastSunday = dayOfWeek === 0 ? 7 : dayOfWeek;
+    const lastSunday = new Date(today);
+    lastSunday.setDate(today.getDate() - daysToLastSunday);
+    lastSunday.setHours(23, 59, 59, 999);
+    const lastMonday = new Date(lastSunday);
+    lastMonday.setDate(lastSunday.getDate() - 6);
+    lastMonday.setHours(0, 0, 0, 0);
+    return { start: lastMonday, end: lastSunday };
+  }
+
+  // mensal: last completed month
+  const prevMonth = month === 0 ? 11 : month - 1;
+  const prevYear = month === 0 ? year - 1 : year;
+  const lastDay = new Date(year, month, 0).getDate();
+  return {
+    start: new Date(prevYear, prevMonth, 1, 0, 0, 0),
+    end: new Date(prevYear, prevMonth, lastDay, 23, 59, 59, 999),
+  };
+};
 
 interface FaturamentoMensalPanelProps {
   onNavigate?: (menu: string) => void;
@@ -76,35 +126,34 @@ export function FaturamentoMensalPanel({ onNavigate }: FaturamentoMensalPanelPro
       if (deliveriesError) throw deliveriesError;
 
       
+      const today = new Date();
       const newStats: Record<string, ClientBillingStats> = {};
-      
-      
+
       clientsData.forEach(c => {
+        const { start, end } = getBillingPeriod(c.faturamento_periodo, today);
         newStats[c.id] = {
           clientId: c.id,
           count: 0,
           total: 0,
           minDate: null,
           maxDate: null,
+          periodStart: start,
+          periodEnd: end,
           deliveries: []
         };
       });
 
-      
       deliveriesData?.forEach(d => {
-        if (newStats[d.cliente_id]) {
-          const s = newStats[d.cliente_id];
-          s.count++;
-          s.total += Number(d.valor_entrega || 0);
-          s.deliveries.push(d);
-          
-          if (!s.minDate || new Date(d.created_at) < new Date(s.minDate)) {
-            s.minDate = d.created_at;
-          }
-          if (!s.maxDate || new Date(d.created_at) > new Date(s.maxDate)) {
-            s.maxDate = d.created_at;
-          }
-        }
+        const s = newStats[d.cliente_id];
+        if (!s) return;
+        const deliveryDate = new Date(d.created_at);
+        // Only include deliveries within the billing period
+        if (deliveryDate < s.periodStart! || deliveryDate > s.periodEnd!) return;
+        s.count++;
+        s.total += Number(d.valor_entrega || 0);
+        s.deliveries.push(d);
+        if (!s.minDate || deliveryDate < new Date(s.minDate)) s.minDate = d.created_at;
+        if (!s.maxDate || deliveryDate > new Date(s.maxDate)) s.maxDate = d.created_at;
       });
 
       setClients(clientsData);
@@ -156,8 +205,8 @@ export function FaturamentoMensalPanel({ onNavigate }: FaturamentoMensalPanelPro
         deliveries: []
       };
 
-      const periodoInicio = clientStats.minDate || new Date().toISOString();
-      const periodoFim = clientStats.maxDate || new Date().toISOString();
+      const periodoInicio = clientStats.periodStart ? clientStats.periodStart.toISOString() : (clientStats.minDate || new Date().toISOString());
+      const periodoFim = clientStats.periodEnd ? clientStats.periodEnd.toISOString() : (clientStats.maxDate || new Date().toISOString());
 
       
       const { data: invoice, error: invoiceError } = await supabase
@@ -302,7 +351,7 @@ export function FaturamentoMensalPanel({ onNavigate }: FaturamentoMensalPanelPro
                 <div>
                   <label className="block text-sm font-medium text-slate-500 mb-1">Período</label>
                   <div className="text-base text-slate-800">
-                    {stats[selectedClient.id]?.minDate ? format(parseISO(stats[selectedClient.id].minDate!), 'dd/MM/yyyy') : '-'} até {stats[selectedClient.id]?.maxDate ? format(parseISO(stats[selectedClient.id].maxDate!), 'dd/MM/yyyy') : '-'}
+                    {stats[selectedClient.id]?.periodStart ? format(stats[selectedClient.id].periodStart!, 'dd/MM/yyyy') : '-'} até {stats[selectedClient.id]?.periodEnd ? format(stats[selectedClient.id].periodEnd!, 'dd/MM/yyyy') : '-'}
                   </div>
                 </div>
 
@@ -368,7 +417,7 @@ export function FaturamentoMensalPanel({ onNavigate }: FaturamentoMensalPanelPro
                   <div className="flex justify-between">
                     <span className="text-blue-600">Período:</span>
                     <span className="font-medium text-blue-900">
-                      {stats[selectedClient.id]?.minDate ? format(parseISO(stats[selectedClient.id].minDate!), 'dd/MM/yyyy') : '-'} até {stats[selectedClient.id]?.maxDate ? format(parseISO(stats[selectedClient.id].maxDate!), 'dd/MM/yyyy') : '-'}
+                      {stats[selectedClient.id]?.periodStart ? format(stats[selectedClient.id].periodStart!, 'dd/MM/yyyy') : '-'} até {stats[selectedClient.id]?.periodEnd ? format(stats[selectedClient.id].periodEnd!, 'dd/MM/yyyy') : '-'}
                     </span>
                   </div>
                   <div className="flex justify-between items-center pt-2 mt-2 border-t border-blue-200">
