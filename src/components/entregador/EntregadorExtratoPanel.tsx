@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Wallet, ArrowDownUp, X, AlertCircle, CheckCircle, Zap } from 'lucide-react';
+import { Wallet, ArrowDownUp, X, AlertCircle, CheckCircle, Zap, Calendar } from 'lucide-react';
 
 interface EntregadorExtratoPanelProps {
   userId?: string;
@@ -61,6 +61,58 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
   }
   
   
+  type FilterType = 'tudo' | 'semana' | 'mes' | 'personalizado';
+  const [filterType, setFilterType] = useState<FilterType>('tudo');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
+  const getFilterRange = (): { from: Date | null; to: Date | null } => {
+    const today = new Date();
+    if (filterType === 'semana') {
+      const day = today.getDay();
+      const monday = new Date(today);
+      monday.setDate(today.getDate() - (day === 0 ? 6 : day - 1));
+      monday.setHours(0, 0, 0, 0);
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      sunday.setHours(23, 59, 59, 999);
+      return { from: monday, to: sunday };
+    }
+    if (filterType === 'mes') {
+      const from = new Date(today.getFullYear(), today.getMonth(), 1, 0, 0, 0);
+      const to = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+      return { from, to };
+    }
+    if (filterType === 'personalizado' && dateFrom && dateTo) {
+      const from = new Date(dateFrom + 'T00:00:00');
+      const to = new Date(dateTo + 'T23:59:59');
+      return { from, to };
+    }
+    return { from: null, to: null };
+  };
+
+  const filteredItems = useMemo(() => {
+    const all = [...extrato, ...acertos].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+    const { from, to } = getFilterRange();
+    if (!from || !to) return all;
+    return all.filter(item => {
+      const d = new Date(item.created_at);
+      return d >= from && d <= to;
+    });
+  }, [extrato, acertos, filterType, dateFrom, dateTo]);
+
+  const periodTotal = useMemo(() => {
+    return filteredItems.reduce((acc, item) => {
+      const isAcerto = 'valor_pago' in item;
+      const val = isAcerto
+        ? -((Number(item.valor_pago) || 0) + (Number(item.taxa_aplicada) || 0))
+        : calculateMultiDestinoTotal(item);
+      return acc + val;
+    }, 0);
+  }, [filteredItems]);
+
   const [showBankModal, setShowBankModal] = useState(false);
   const [currentEntregadorId, setCurrentEntregadorId] = useState<string | null>(null);
   const [savingBankData, setSavingBankData] = useState(false);
@@ -608,15 +660,69 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
         </div>
       )}
 
-      <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+      <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
          <ArrowDownUp size={20} />
          Histórico de Transações
       </h2>
 
+      {/* Filter bar */}
+      <div className="bg-white rounded-lg border border-slate-100 shadow-sm p-3 mb-4 space-y-3">
+        <div className="flex gap-2 flex-wrap">
+          {(['tudo', 'semana', 'mes', 'personalizado'] as const).map(f => (
+            <button
+              key={f}
+              onClick={() => setFilterType(f)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors border ${
+                filterType === f
+                  ? 'bg-sky-600 text-white border-sky-600'
+                  : 'bg-white text-slate-600 border-slate-300 hover:border-sky-400'
+              }`}
+            >
+              {f === 'personalizado' && <Calendar size={12} />}
+              {{ tudo: 'Tudo', semana: 'Esta semana', mes: 'Este mês', personalizado: 'Personalizado' }[f]}
+            </button>
+          ))}
+        </div>
+
+        {filterType === 'personalizado' && (
+          <div className="flex gap-2 items-center flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-slate-500 whitespace-nowrap">De</span>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={e => setDateFrom(e.target.value)}
+                className="px-2 py-1.5 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-slate-500 whitespace-nowrap">Até</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={e => setDateTo(e.target.value)}
+                className="px-2 py-1.5 border border-slate-300 rounded text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none"
+              />
+            </div>
+          </div>
+        )}
+
+        {filterType !== 'tudo' && (
+          <div className="flex justify-between items-center pt-1 border-t border-slate-100">
+            <span className="text-xs text-slate-500">{filteredItems.length} transação(ões)</span>
+            <span className={`text-sm font-bold ${periodTotal >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+              Total: {periodTotal >= 0 ? '+' : '-'} R$ {Math.abs(periodTotal).toFixed(2)}
+            </span>
+          </div>
+        )}
+      </div>
+
       {loading ? (
         <div className="text-center py-8 text-gray-500">Carregando...</div>
-      ) : extrato.length === 0 && acertos.length === 0 ? (
-        <div className="text-center text-gray-500 py-8 bg-white rounded-lg border border-slate-100">Nenhuma movimentação encontrada.</div>
+      ) : filteredItems.length === 0 ? (
+        <div className="text-center text-gray-500 py-8 bg-white rounded-lg border border-slate-100">
+          {filterType === 'tudo' ? 'Nenhuma movimentação encontrada.' : 'Nenhuma movimentação no período selecionado.'}
+        </div>
       ) : (
         <div className="bg-white rounded-lg shadow-sm overflow-hidden border border-slate-100">
            <table className="w-full text-left">
@@ -628,27 +734,30 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
                </tr>
              </thead>
              <tbody className="divide-y divide-gray-100">
-               {/* Show Withdrawals (Acertos) first or mixed? Let's just append them or sort? 
-                   Ideally sort by date. 
-               */}
-               {[...extrato, ...acertos].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map((item) => {
-                 // Identify type
+               {filteredItems.map((item) => {
                  const isAcerto = 'valor_pago' in item;
-                const valor = isAcerto ? -((Number(item.valor_pago) || 0) + (Number(item.taxa_aplicada) || 0)) : calculateMultiDestinoTotal(item);
-                 const descricao = isAcerto ? 
-                    (item.status === 'pendente' ? (item.tipo_saque === 'rapido' ? 'Saque Rápido (Pendente)' : 'Saque (Pendente)') : (item.tipo_saque === 'rapido' ? 'Saque Rápido Realizado' : 'Saque Realizado')) : 
-                    (item.descricao || 'Comissão de Entrega');
-                 
+                 const valor = isAcerto ? -((Number(item.valor_pago) || 0) + (Number(item.taxa_aplicada) || 0)) : calculateMultiDestinoTotal(item);
+                 const descricao = isAcerto
+                   ? (item.status === 'pendente'
+                       ? (item.tipo_saque === 'rapido' ? 'Saque Rápido (Pendente)' : 'Saque (Pendente)')
+                       : (item.tipo_saque === 'rapido' ? 'Saque Rápido Realizado' : 'Saque Realizado'))
+                   : (item.descricao || 'Comissão de Entrega');
+
                  return (
                    <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                     <td className="p-4 text-sm text-gray-600">{new Date(item.created_at).toLocaleDateString()} <span className="text-xs text-gray-400">{new Date(item.created_at).toLocaleTimeString().slice(0,5)}</span></td>
+                     <td className="p-4 text-sm text-gray-600">
+                       {new Date(item.created_at).toLocaleDateString()}
+                       <span className="text-xs text-gray-400 ml-1">{new Date(item.created_at).toLocaleTimeString().slice(0,5)}</span>
+                     </td>
                      <td className="p-4 text-sm font-medium text-gray-800">
-                        {descricao}
-                        {isAcerto && item.status === 'pendente' && <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">Pendente</span>}
+                       {descricao}
+                       {isAcerto && item.status === 'pendente' && (
+                         <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">Pendente</span>
+                       )}
                      </td>
                      <td className={`p-4 text-right font-medium text-sm ${valor >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                      {valor >= 0 ? '+' : '-'} R$ {Math.abs(valor).toFixed(2)}
-                    </td>
+                       {valor >= 0 ? '+' : '-'} R$ {Math.abs(valor).toFixed(2)}
+                     </td>
                    </tr>
                  );
                })}

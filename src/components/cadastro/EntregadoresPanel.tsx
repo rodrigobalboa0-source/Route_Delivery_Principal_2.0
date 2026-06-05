@@ -595,8 +595,17 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
       
       
       if (email) {
+        // Nullify delivery_logs.created_by to avoid FK violation on users delete
         try {
-          
+          const { data: userRow } = await supabase.from('users').select('id').ilike('email', email).maybeSingle();
+          const userId = (userRow as { id?: string } | null)?.id || id;
+          await supabase.from('delivery_logs').update({ created_by: null }).eq('created_by', userId);
+        } catch (e) {
+          console.warn('Erro ao limpar delivery_logs.created_by:', e);
+        }
+
+        try {
+
           const response = await fetch(`${SUPABASE_URL}/functions/v1/delete-auth-user-by-email`, {
             method: 'POST',
             headers: { 

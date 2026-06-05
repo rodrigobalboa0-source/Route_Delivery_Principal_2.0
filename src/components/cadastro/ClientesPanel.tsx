@@ -570,6 +570,15 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
           } catch (e) { void e; }
 
           
+          // Nullify delivery_logs.created_by to avoid FK violation on users delete
+          try {
+            const { data: userRow } = await supabase.from('users').select('id').ilike('email', email).maybeSingle();
+            const userId = (userRow as { id?: string } | null)?.id;
+            if (userId) await supabase.from('delivery_logs').update({ created_by: null }).eq('created_by', userId);
+          } catch (e) {
+            console.warn('Erro ao limpar delivery_logs.created_by:', e);
+          }
+
           const { error: fnError } = await supabase.functions.invoke('delete-auth-user-by-email', {
               body: { email }
           });
