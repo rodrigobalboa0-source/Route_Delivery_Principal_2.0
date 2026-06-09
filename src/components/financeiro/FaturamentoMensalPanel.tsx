@@ -18,51 +18,47 @@ interface ClientBillingStats {
   deliveries: NovaEntrega[];
 }
 
-// Returns the last completed billing period based on periodicidade and today
+
 const getBillingPeriod = (periodicidade: string | null, today: Date): { start: Date; end: Date } => {
   const year = today.getFullYear();
-  const month = today.getMonth(); // 0-indexed
+  const month = today.getMonth(); 
   const day = today.getDate();
 
   if (periodicidade === 'quinzenal') {
     if (day <= 15) {
-      // In first half: last completed period is 16th–last of previous month
-      const prevMonth = month === 0 ? 11 : month - 1;
-      const prevYear = month === 0 ? year - 1 : year;
-      const lastDay = new Date(year, month, 0).getDate();
-      return {
-        start: new Date(prevYear, prevMonth, 16, 0, 0, 0),
-        end: new Date(prevYear, prevMonth, lastDay, 23, 59, 59, 999),
-      };
-    } else {
-      // In second half: last completed period is 1st–15th of current month
+      
       return {
         start: new Date(year, month, 1, 0, 0, 0),
         end: new Date(year, month, 15, 23, 59, 59, 999),
+      };
+    } else {
+      
+      const lastDay = new Date(year, month + 1, 0).getDate();
+      return {
+        start: new Date(year, month, 16, 0, 0, 0),
+        end: new Date(year, month, lastDay, 23, 59, 59, 999),
       };
     }
   }
 
   if (periodicidade === 'semanal') {
-    // Last completed Mon–Sun week
-    const dayOfWeek = today.getDay(); // 0=Sun
-    const daysToLastSunday = dayOfWeek === 0 ? 7 : dayOfWeek;
-    const lastSunday = new Date(today);
-    lastSunday.setDate(today.getDate() - daysToLastSunday);
-    lastSunday.setHours(23, 59, 59, 999);
-    const lastMonday = new Date(lastSunday);
-    lastMonday.setDate(lastSunday.getDate() - 6);
-    lastMonday.setHours(0, 0, 0, 0);
-    return { start: lastMonday, end: lastSunday };
+    
+    const dayOfWeek = today.getDay(); 
+    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - daysToMonday);
+    monday.setHours(0, 0, 0, 0);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999);
+    return { start: monday, end: sunday };
   }
 
-  // mensal: last completed month
-  const prevMonth = month === 0 ? 11 : month - 1;
-  const prevYear = month === 0 ? year - 1 : year;
-  const lastDay = new Date(year, month, 0).getDate();
+  
+  const lastDay = new Date(year, month + 1, 0).getDate();
   return {
-    start: new Date(prevYear, prevMonth, 1, 0, 0, 0),
-    end: new Date(prevYear, prevMonth, lastDay, 23, 59, 59, 999),
+    start: new Date(year, month, 1, 0, 0, 0),
+    end: new Date(year, month, lastDay, 23, 59, 59, 999),
   };
 };
 
@@ -146,8 +142,8 @@ export function FaturamentoMensalPanel({ onNavigate }: FaturamentoMensalPanelPro
       deliveriesData?.forEach(d => {
         const s = newStats[d.cliente_id];
         if (!s) return;
-        const deliveryDate = new Date(d.created_at);
-        // Only include deliveries within the billing period
+        const deliveryDate = new Date(d.updated_at ?? d.created_at);
+        
         if (deliveryDate < s.periodStart! || deliveryDate > s.periodEnd!) return;
         s.count++;
         s.total += Number(d.valor_entrega || 0);
@@ -379,7 +375,7 @@ export function FaturamentoMensalPanel({ onNavigate }: FaturamentoMensalPanelPro
             <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
                <button 
                 onClick={() => {
-                  // Navigate to report - mock for now or use window.location
+                  
                   alert('Ir para relatório de pedidos filtrado por este cliente');
                 }}
                 className="px-4 py-2 bg-white border border-slate-300 rounded text-slate-700 hover:bg-slate-50 font-medium"

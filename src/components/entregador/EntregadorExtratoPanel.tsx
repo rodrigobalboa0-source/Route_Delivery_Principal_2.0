@@ -354,7 +354,9 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
       }
 
       if (allowedDates.length === 0 && allowedWeekdays.length > 0 && !allowedWeekdays.includes(now.getDay())) {
-        alert(`Saque ${withdrawType === 'rapido' ? 'rápido' : 'normal'} disponível apenas em dias específicos.`);
+        const diasNomes = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+        const diasPermitidos = allowedWeekdays.map((d) => diasNomes[d]).join(', ');
+        alert(`Saque ${withdrawType === 'rapido' ? 'rápido' : 'normal'} disponível apenas em: ${diasPermitidos}.`);
         return;
       }
 
