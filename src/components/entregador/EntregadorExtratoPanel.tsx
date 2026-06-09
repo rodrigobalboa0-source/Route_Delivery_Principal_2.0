@@ -61,28 +61,12 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
   }
   
   
-  type FilterType = 'tudo' | 'semana' | 'mes' | 'personalizado';
+  type FilterType = 'tudo' | 'personalizado';
   const [filterType, setFilterType] = useState<FilterType>('tudo');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
   const getFilterRange = (): { from: Date | null; to: Date | null } => {
-    const today = new Date();
-    if (filterType === 'semana') {
-      const day = today.getDay();
-      const monday = new Date(today);
-      monday.setDate(today.getDate() - (day === 0 ? 6 : day - 1));
-      monday.setHours(0, 0, 0, 0);
-      const sunday = new Date(monday);
-      sunday.setDate(monday.getDate() + 6);
-      sunday.setHours(23, 59, 59, 999);
-      return { from: monday, to: sunday };
-    }
-    if (filterType === 'mes') {
-      const from = new Date(today.getFullYear(), today.getMonth(), 1, 0, 0, 0);
-      const to = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
-      return { from, to };
-    }
     if (filterType === 'personalizado' && dateFrom && dateTo) {
       const from = new Date(dateFrom + 'T00:00:00');
       const to = new Date(dateTo + 'T23:59:59');
@@ -670,7 +654,7 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
       {/* Filter bar */}
       <div className="bg-white rounded-lg border border-slate-100 shadow-sm p-3 mb-4 space-y-3">
         <div className="flex gap-2 flex-wrap">
-          {(['tudo', 'semana', 'mes', 'personalizado'] as const).map(f => (
+          {(['tudo', 'personalizado'] as const).map(f => (
             <button
               key={f}
               onClick={() => setFilterType(f)}
@@ -681,7 +665,7 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
               }`}
             >
               {f === 'personalizado' && <Calendar size={12} />}
-              {{ tudo: 'Tudo', semana: 'Esta semana', mes: 'Este mês', personalizado: 'Personalizado' }[f]}
+              {{ tudo: 'Tudo', personalizado: 'Personalizado' }[f]}
             </button>
           ))}
         </div>
