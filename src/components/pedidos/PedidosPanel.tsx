@@ -49,6 +49,7 @@ function AddressAutocomplete({
   onChange,
   placeholder,
   containerClassName,
+  inputClassName,
   onSelectCoords,
   onSuggestCoords,
 }: {
@@ -56,6 +57,7 @@ function AddressAutocomplete({
   onChange: (val: string) => void,
   placeholder: string,
   containerClassName?: string,
+  inputClassName?: string,
   onSelectCoords?: (coords: [number, number] | undefined) => void,
   onSuggestCoords?: (coords: [number, number] | undefined, typedText: string) => void
 }) {
@@ -456,7 +458,7 @@ function AddressAutocomplete({
           }
         }}
         placeholder={placeholder}
-        className="w-full border rounded p-2"
+        className={`w-full border rounded p-2 ${inputClassName || ''}`}
       />
       {open && trimmedValue.length > 0 && (
         <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded shadow-lg overflow-hidden">
@@ -3490,6 +3492,11 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         return;
     }
 
+    if (!quickDestinationCoords) {
+        await showAlert('Selecione o endereço de entrega a partir das sugestões da lista.', 'Aviso');
+        return;
+    }
+
     const fullAddress = quickNumber ? `${quickAddress}, ${quickNumber}` : quickAddress;
 
     if (!comercioAddress) {
@@ -3570,6 +3577,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         setQuickComplement('');
         setQuickDistance(0);
         setQuickPrice(0);
+        setQuickDestinationCoords(undefined);
         
         fetchPedidos();
 
@@ -3642,16 +3650,20 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                 {}
                 <div className="md:col-span-4">
                     <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Endereço de Entrega</label>
-                    <AddressAutocomplete 
+                    <AddressAutocomplete
                         value={quickAddress}
-                        onChange={setQuickAddress}
-                        onSelectCoords={setQuickDestinationCoords}
-                        onSuggestCoords={(coords) => {
-                          if (!coords) return;
-                          setQuickDestinationCoords(coords);
+                        onChange={(val) => {
+                          setQuickDestinationCoords(undefined);
+                          setQuickAddress(val);
                         }}
+                        onSelectCoords={setQuickDestinationCoords}
                         placeholder="Rua, Bairro..."
                         containerClassName="w-full"
+                        inputClassName={
+                          quickAddress && !quickDestinationCoords
+                            ? 'border-red-400 bg-red-50 focus:border-red-500'
+                            : 'border-slate-300'
+                        }
                     />
                 </div>
 
