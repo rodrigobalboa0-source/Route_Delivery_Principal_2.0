@@ -394,7 +394,13 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
       return { sx, sy, sw, sh };
     };
 
-    const buildDriverPhotoIconPng = async (photoUrl: string, color: string, scale: number, selected: boolean) => {
+    const getInitials = (name: string) => {
+      const parts = (name || '').trim().split(/\s+/).filter(Boolean);
+      if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+      return (name || '??').substring(0, 2).toUpperCase();
+    };
+
+    const buildDriverPhotoIconPng = async (photoUrl: string, color: string, scale: number, selected: boolean, initials: string) => {
       const baseW = 56;
       const baseH = 68;
       const w = Math.round(baseW * scale);
@@ -441,17 +447,40 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
       ctx.arc(cx, photoCy, photoRadius + ringWidth + 1 * scale, 0, Math.PI * 2);
       ctx.fill();
 
-      const img = await loadImage(photoUrl);
-      const imgW = img.naturalWidth || img.width;
-      const imgH = img.naturalHeight || img.height;
-      const { sx, sy, sw, sh } = cropToCover(imgW, imgH, photoRadius * 2, photoRadius * 2);
+      let drewPhoto = false;
+      if (photoUrl) {
+        try {
+          const img = await loadImage(photoUrl);
+          const imgW = img.naturalWidth || img.width;
+          const imgH = img.naturalHeight || img.height;
+          const { sx, sy, sw, sh } = cropToCover(imgW, imgH, photoRadius * 2, photoRadius * 2);
 
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(cx, photoCy, photoRadius, 0, Math.PI * 2);
-      ctx.clip();
-      ctx.drawImage(img, sx, sy, sw, sh, cx - photoRadius, photoCy - photoRadius, photoRadius * 2, photoRadius * 2);
-      ctx.restore();
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(cx, photoCy, photoRadius, 0, Math.PI * 2);
+          ctx.clip();
+          ctx.drawImage(img, sx, sy, sw, sh, cx - photoRadius, photoCy - photoRadius, photoRadius * 2, photoRadius * 2);
+          ctx.restore();
+          drewPhoto = true;
+        } catch {
+          drewPhoto = false;
+        }
+      }
+
+      if (!drewPhoto) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(cx, photoCy, photoRadius, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.fillStyle = color;
+        ctx.fillRect(cx - photoRadius, photoCy - photoRadius, photoRadius * 2, photoRadius * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${Math.round(photoRadius)}px Arial, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(initials.substring(0, 2), cx, photoCy);
+        ctx.restore();
+      }
 
       ctx.beginPath();
       ctx.arc(cx, photoCy, photoRadius + ringWidth / 2, 0, Math.PI * 2);
@@ -466,15 +495,15 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
       };
     };
 
-    const applyDriverPhotoIcon = async (markerId: string, marker: any, photoUrl: string, color: string, scale: number, selected: boolean) => {
+    const applyDriverPhotoIcon = async (markerId: string, marker: any, photoUrl: string, color: string, scale: number, selected: boolean, name: string) => {
       const normalizedPhotoUrl = String(photoUrl || '').trim();
-      if (!normalizedPhotoUrl) return;
+      const initials = getInitials(name);
 
-      const key = `${normalizedPhotoUrl}|${color}|${scale.toFixed(3)}|${selected ? '1' : '0'}`;
+      const key = `${normalizedPhotoUrl || ('__' + initials)}|${color}|${scale.toFixed(3)}|${selected ? '1' : '0'}`;
       let dataUrl = driverPhotoIconCacheRef.current.get(key);
       if (!dataUrl) {
         try {
-          const icon = await buildDriverPhotoIconPng(normalizedPhotoUrl, color, scale, selected);
+          const icon = await buildDriverPhotoIconPng(normalizedPhotoUrl, color, scale, selected, initials);
           if (!icon?.url) return;
           dataUrl = icon.url;
           driverPhotoIconCacheRef.current.set(key, dataUrl);
@@ -585,9 +614,9 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
         if (!isClassicMarker) {
           removeMarker(existingMarker);
         } else {
-          (existingMarker as any).setIcon(makeMarkerIcon(color, isSelected ? 1.15 : 1, person.heading));
+          (existingMarker as any).setIcon(makeMarkerIcon(color, isSelected ? 1.15 : 1));
           (existingMarker as any).setZIndex(zIndex);
-          if (person.foto_url) void applyDriverPhotoIcon(person.id, existingMarker, person.foto_url, color, isSelected ? 1.15 : 1, isSelected);
+          void applyDriverPhotoIcon(person.id, existingMarker, person.foto_url || '', color, isSelected ? 1.15 : 1, isSelected, person.name || '');
         }
 
         if (person.id === selectedEntregadorId) {
@@ -608,12 +637,12 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
           position: { lat: pos[0], lng: pos[1] },
           title: person.name ?? undefined,
           zIndex,
-          icon: makeMarkerIcon(color, isSelected ? 1.15 : 1, person.heading),
+          icon: makeMarkerIcon(color, isSelected ? 1.15 : 1),
         });
 
         marker.addListener('click', () => openInfo(marker, popupContent, pos));
         markers.current.set(person.id, marker);
-        if (person.foto_url) void applyDriverPhotoIcon(person.id, marker, person.foto_url, color, isSelected ? 1.15 : 1, isSelected);
+        void applyDriverPhotoIcon(person.id, marker, person.foto_url || '', color, isSelected ? 1.15 : 1, isSelected, person.name || '');
       }
     });
 

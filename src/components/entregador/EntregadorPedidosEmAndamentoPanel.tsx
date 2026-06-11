@@ -44,6 +44,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
   const [deliveryCoords, setDeliveryCoords] = useState<Record<string, { pickup?: [number, number], delivery?: [number, number], additional?: Record<number, [number, number]> }>>({});
   const [distances, setDistances] = useState<Record<string, { userToPickup: number, pickupToDelivery: number, userToDelivery: number }>>({});
   const [persistedDistanceIds, setPersistedDistanceIds] = useState<Record<string, boolean>>({});
+  const [driverDynamicRules, setDriverDynamicRules] = useState<any[]>([]);
 
   const [dialog, setDialog] = useState<{ open: boolean; title: string; message: string; mode: 'alert' | 'confirm' }>({
     open: false,
@@ -71,6 +72,15 @@ export function EntregadorPedidosEmAndamentoPanel() {
       dialogConfirmResolveRef.current = resolve;
       setDialog({ open: true, title, message, mode: 'confirm' });
     });
+
+  useEffect(() => {
+    supabase
+      .from('preco_dinamico_entregador')
+      .select('criterio, multiplicador, observacao')
+      .eq('ativa', true)
+      .order('created_at', { ascending: true })
+      .then(({ data }) => { if (data) setDriverDynamicRules(data); });
+  }, []);
 
   useEffect(() => {
     const fetchCoords = async () => {
@@ -910,7 +920,17 @@ export function EntregadorPedidosEmAndamentoPanel() {
                      <div className="flex flex-col items-end">
                        <div className="flex items-center gap-1 text-green-600 font-bold text-lg justify-end mb-1">
                          <DollarSign size={18} />
-                         {calculateMultiDestinoTotal(entrega).toFixed(2)}
+                         {(() => {
+                           const base = calculateMultiDestinoTotal(entrega);
+                           if (base > 0 || driverDynamicRules.length === 0) return base.toFixed(2);
+                           let total = 0;
+                           for (const r of driverDynamicRules) {
+                             const c = (r.criterio || '').toUpperCase();
+                             if (c === 'TAXA_FIXA' && r.multiplicador != null) total += Number(r.multiplicador);
+                             else if (c === 'MULTIPLICADOR' && r.multiplicador != null) total *= Number(r.multiplicador);
+                           }
+                           return total.toFixed(2);
+                         })()}
                        </div>
                        {(() => {
                          const vm = entrega?.opcionais?.valor_multiplo as { valorPorPonto: number; pontos: number; total: number } | undefined;
@@ -934,6 +954,33 @@ export function EntregadorPedidosEmAndamentoPanel() {
                            })}
                          </div>
                        )}
+                       {(() => {
+                         const base = calculateMultiDestinoTotal(entrega);
+                         if (base > 0 || driverDynamicRules.length === 0) return null;
+                         let runningTotal = 0;
+                         const applied: Array<{ valor: number; observacao: string }> = [];
+                         for (const r of driverDynamicRules) {
+                           const c = (r.criterio || '').toUpperCase();
+                           if (c === 'TAXA_FIXA' && r.multiplicador != null) {
+                             applied.push({ valor: Number(r.multiplicador), observacao: r.observacao || '' });
+                             runningTotal += Number(r.multiplicador);
+                           } else if (c === 'MULTIPLICADOR' && r.multiplicador != null) {
+                             applied.push({ valor: runningTotal * (Number(r.multiplicador) - 1), observacao: r.observacao || '' });
+                             runningTotal *= Number(r.multiplicador);
+                           }
+                         }
+                         if (applied.length === 0) return null;
+                         return (
+                           <div className="flex flex-wrap justify-end gap-1 mt-1">
+                             {applied.map((rule, idx) => (
+                               <span key={idx} className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 font-semibold">
+                                 + R$ {Number(rule.valor).toFixed(2).replace('.', ',')}
+                                 {rule.observacao ? ` • ${rule.observacao}` : ''}
+                               </span>
+                             ))}
+                           </div>
+                         );
+                       })()}
                      </div>
                      <p className="text-sm font-medium text-gray-600">{entrega.clientes?.nome_completo}</p>
                      {(entrega.clientes?.telefone) && (
