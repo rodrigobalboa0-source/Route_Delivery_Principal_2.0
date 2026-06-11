@@ -1184,8 +1184,9 @@ export interface Database {
       preco_dinamico_entregador: {
         Row: {
           id: string
-          entregador_id: string
+          entregador_id: string | null
           multiplicador: number | null
+          criterio: string | null
           ativa: boolean | null
           observacao: string | null
           created_at: string
@@ -1193,8 +1194,9 @@ export interface Database {
         }
         Insert: {
           id?: string
-          entregador_id: string
+          entregador_id?: string | null
           multiplicador?: number | null
+          criterio?: string | null
           ativa?: boolean | null
           observacao?: string | null
           created_at?: string
@@ -1202,8 +1204,9 @@ export interface Database {
         }
         Update: {
           id?: string
-          entregador_id?: string
+          entregador_id?: string | null
           multiplicador?: number | null
+          criterio?: string | null
           ativa?: boolean | null
           observacao?: string | null
           created_at?: string

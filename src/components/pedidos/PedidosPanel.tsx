@@ -1342,6 +1342,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [commissionTables, setCommissionTables] = useState<any[]>([]);
   const [commissionRanges, setCommissionRanges] = useState<any[]>([]);
   const [dynamicRules, setDynamicRules] = useState<any[]>([]);
+  const [driverDynamicRules, setDriverDynamicRules] = useState<any[]>([]);
   const [activeDynamicRules, setActiveDynamicRules] = useState<{ name: string; value: number }[]>([]);
   const [clientPricingConfig, setClientPricingConfig] = useState<any[]>([]);
   const [selectedTabelaId, setSelectedTabelaId] = useState<string | null>(null);
@@ -1351,12 +1352,13 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   useEffect(() => {
     
     const fetchPricing = async () => {
-        const [tp, tpf, dr, tc, tcf] = await Promise.all([
+        const [tp, tpf, dr, tc, tcf, dde] = await Promise.all([
             supabase.from('tabelas_precos').select('*'),
             supabase.from('tabelas_precos_faixas').select('*'),
             supabase.from('preco_dinamico_demanda').select('*'),
             supabase.from('tabelas_comissoes').select('*'),
-            supabase.from('tabelas_comissoes_faixas').select('*')
+            supabase.from('tabelas_comissoes_faixas').select('*'),
+            supabase.from('preco_dinamico_entregador').select('*'),
         ]);
         if (tp.data) setPricingTables(tp.data);
         if (tpf.data) setPricingRanges(tpf.data);
@@ -1364,11 +1366,12 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         if (tcf.data) setCommissionRanges(tcf.data);
         if (dr.data) {
             setDynamicRules(dr.data);
-            
+
         }
         if (dr.error) {
             console.error('Error fetching dynamic rules:', dr.error);
         }
+        if (dde.data) setDriverDynamicRules(dde.data);
     };
     fetchPricing();
 
@@ -2443,11 +2446,23 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                      }
                  }
             }
+
+            // Aplica regras de preço dinâmico do entregador sobre a comissão base
+            const activeDriverRules = driverDynamicRules.filter(r => r.ativa);
+            activeDriverRules.forEach(rule => {
+                const criterio = (rule.criterio || '').toUpperCase();
+                if (criterio === 'MULTIPLICADOR' && rule.multiplicador) {
+                    driverPrice *= Number(rule.multiplicador);
+                } else if (criterio === 'TAXA_FIXA' && rule.multiplicador) {
+                    driverPrice += Number(rule.multiplicador);
+                }
+            });
+
             setQuickDriverPrice(driverPrice);
         };
-    
+
         calculatePrice();
-      }, [quickAddress, quickNumber, quickDistance, quickRetorno, pricingMode, selectedTabelaId, pricingTables, pricingRanges, pricePerPoint, dynamicRules, filters.cliente_id, commissionTables, commissionRanges]);
+      }, [quickAddress, quickNumber, quickDistance, quickRetorno, pricingMode, selectedTabelaId, pricingTables, pricingRanges, pricePerPoint, dynamicRules, filters.cliente_id, commissionTables, commissionRanges, driverDynamicRules]);
 
   const handleViewMap = async (pedido: Pedido) => {
     
