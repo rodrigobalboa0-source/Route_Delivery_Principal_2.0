@@ -156,7 +156,7 @@ BEGIN
     END LOOP;
   END IF;
 
-  -- Aplica regras de preço dinâmico do entregador (ativas e sem entregador específico, ou para este entregador)
+  
   FOR v_driver_dynamic IN
     SELECT criterio, multiplicador, observacao
     FROM public.preco_dinamico_entregador

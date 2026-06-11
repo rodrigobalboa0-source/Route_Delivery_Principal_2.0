@@ -36,6 +36,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
   const [calculatingIncomingValorEntregador, setCalculatingIncomingValorEntregador] = useState(false);
   const [incomingComissaoDestinosCalc, setIncomingComissaoDestinosCalc] = useState<Array<{ destino: number; km: number; valor: number }> | null>(null);
   const [incomingComissaoRetornoCalc, setIncomingComissaoRetornoCalc] = useState<number | null>(null);
+  const [incomingDriverDynamicRules, setIncomingDriverDynamicRules] = useState<Array<{ criterio: string; valor: number; observacao: string }>>([]);
 
   const safeParseArray = (value: any) => {
     if (Array.isArray(value)) return value;
@@ -179,35 +180,40 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
         setIncomingValorEntregadorCalc(null);
         setIncomingComissaoDestinosCalc(null);
         setIncomingComissaoRetornoCalc(null);
+        setIncomingDriverDynamicRules([]);
         return;
       }
 
       setCalculatingIncomingValorEntregador(true);
       try {
         const { data: rpcData, error: rpcError } = await supabase.rpc('get_entrega_comissao_debug', { entrega_id: incomingDelivery.id });
-        
+
         if (!rpcError && rpcData && typeof rpcData === 'object') {
           const ok = (rpcData as any).success === true;
           if (ok) {
             const total = Number((rpcData as any).total || 0);
             const retorno = (rpcData as any).retorno;
             const destinos = safeParseArray((rpcData as any).destinos);
-            
+            const appliedDriverRules = safeParseArray((rpcData as any).applied_driver_rules);
+
             if (total > 0) setIncomingValorEntregadorCalc(total);
             setIncomingComissaoDestinosCalc(destinos.length ? destinos : null);
             setIncomingComissaoRetornoCalc(typeof retorno === 'number' && retorno > 0 ? retorno : null);
+            setIncomingDriverDynamicRules(appliedDriverRules);
             setCalculatingIncomingValorEntregador(false);
             return;
           }
         }
-        
+
         setIncomingValorEntregadorCalc(null);
         setIncomingComissaoDestinosCalc(null);
         setIncomingComissaoRetornoCalc(null);
+        setIncomingDriverDynamicRules([]);
       } catch (e) {
         setIncomingValorEntregadorCalc(null);
         setIncomingComissaoDestinosCalc(null);
         setIncomingComissaoRetornoCalc(null);
+        setIncomingDriverDynamicRules([]);
       } finally {
         setCalculatingIncomingValorEntregador(false);
       }
@@ -1215,6 +1221,16 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                                 })}
                               </div>
                             )}
+                            {isFirstDestination && incomingDriverDynamicRules.length > 0 && (
+                              <div className="flex flex-wrap justify-end gap-1 pt-2 border-t border-slate-50">
+                                {incomingDriverDynamicRules.map((rule, idx) => (
+                                  <div key={idx} className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 flex items-center gap-1">
+                                    <span className="text-[10px] font-semibold">+ R$ {Number(rule.valor).toFixed(2).replace('.', ',')}</span>
+                                    {rule.observacao && <span className="text-[10px] text-emerald-600 font-medium">• {rule.observacao}</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
 
                             {isFirstDestination && comissaoRetornoDisplay !== null && (
                               <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center justify-between">
@@ -1322,6 +1338,16 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                                 </div>
                               );
                             })}
+                          </div>
+                        )}
+                        {incomingDriverDynamicRules.length > 0 && (
+                          <div className="flex flex-wrap justify-end gap-1 pt-2 border-t border-slate-50">
+                            {incomingDriverDynamicRules.map((rule, idx) => (
+                              <div key={idx} className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 flex items-center gap-1">
+                                <span className="text-[10px] font-semibold">+ R$ {Number(rule.valor).toFixed(2).replace('.', ',')}</span>
+                                {rule.observacao && <span className="text-[10px] text-emerald-600 font-medium">• {rule.observacao}</span>}
+                              </div>
+                            ))}
                           </div>
                         )}
                       </div>
