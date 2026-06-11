@@ -205,10 +205,48 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
           }
         }
 
-        setIncomingValorEntregadorCalc(null);
+        // Fallback: RPC falhou ou retornou sem sucesso.
+        // Quando valor_entregador é 0 (sem tabela de comissão), busca as regras dinâmicas
+        // diretamente e aplica. Quando já há um valor salvo, usa-o como está.
+        const baseValor = Number(incomingDelivery.valor_entregador || 0);
+
+        if (baseValor === 0) {
+          const { data: dynamicRules } = await supabase
+            .from('preco_dinamico_entregador')
+            .select('criterio, multiplicador, observacao')
+            .eq('ativa', true)
+            .order('created_at', { ascending: true });
+
+          if (dynamicRules && dynamicRules.length > 0) {
+            let total = 0;
+            const appliedRules: Array<{ criterio: string; valor: number; observacao: string }> = [];
+
+            for (const rule of dynamicRules) {
+              const criterio = (rule.criterio || '').toUpperCase();
+              if (criterio === 'TAXA_FIXA' && rule.multiplicador != null) {
+                appliedRules.push({ criterio, valor: Number(rule.multiplicador), observacao: rule.observacao || '' });
+                total += Number(rule.multiplicador);
+              } else if (criterio === 'MULTIPLICADOR' && rule.multiplicador != null) {
+                const delta = total * (Number(rule.multiplicador) - 1);
+                appliedRules.push({ criterio, valor: delta, observacao: rule.observacao || '' });
+                total *= Number(rule.multiplicador);
+              }
+            }
+
+            if (total > 0) setIncomingValorEntregadorCalc(total);
+            else setIncomingValorEntregadorCalc(null);
+            setIncomingDriverDynamicRules(appliedRules);
+          } else {
+            setIncomingValorEntregadorCalc(null);
+            setIncomingDriverDynamicRules([]);
+          }
+        } else {
+          setIncomingValorEntregadorCalc(baseValor);
+          setIncomingDriverDynamicRules([]);
+        }
+
         setIncomingComissaoDestinosCalc(null);
         setIncomingComissaoRetornoCalc(null);
-        setIncomingDriverDynamicRules([]);
       } catch (e) {
         setIncomingValorEntregadorCalc(null);
         setIncomingComissaoDestinosCalc(null);
