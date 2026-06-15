@@ -2429,13 +2429,11 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                          const lastFaixa = ranges[ranges.length - 1];
                          if (lastFaixa) driverPrice = Number(lastFaixa.valor);
                      }
-                     
-                     
+
                      if (table.valor_por_ponto && table.valor_por_ponto > 0) {
-                         driverPrice += Number(table.valor_por_ponto); 
+                         driverPrice += Number(table.valor_por_ponto);
                      }
 
-                     
                      if (quickRetorno && table.valor_retorno && table.valor_retorno > 0) {
                           const tipo = (table.tipo_retorno || '').trim().toLowerCase();
                           if (tipo === 'percentual' || tipo === 'porcentagem') {

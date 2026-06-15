@@ -259,8 +259,7 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
 
     const primaryAddress: EnderecoInsert | null = hasEnderecoAtual ? enderecoAtual : (enderecos.length > 0 ? enderecos[0] : null);
 
-    const res = await sbInsert('clientes', {
-      ...(authUserId ? { id: authUserId } : {}),
+    const rpcPayload: Record<string, unknown> = {
       nome_completo: form.nome_completo,
       cpf: form.cpf || null,
       data_nascimento: form.data_nascimento || null,
@@ -278,7 +277,7 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
       lead_por: form.lead_por || null,
       franquia: form.franquia || null,
       hub: form.hub || null,
-      precificacao_config: form.precificacao_config,
+      precificacao_config: form.precificacao_config ?? null,
       cep: primaryAddress?.cep || null,
       rua: primaryAddress?.rua || null,
       numero: primaryAddress?.numero || null,
@@ -286,19 +285,31 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
       bairro: primaryAddress?.bairro || null,
       cidade: primaryAddress?.cidade || null,
       referencia_entrega: primaryAddress?.referencia_entrega || null,
-    });
-    const r = res as unknown as { data?: { id?: string }; error?: { message?: string } };
-    if (r.error?.message) {
-      console.error('Erro ao inserir cliente:', r.error);
-      if (/duplicate key/i.test(r.error.message)) {
-         setError('Já existe um comércio cadastrado com estes dados (e-mail, CPF ou CNPJ).');
+    };
+    if (authUserId) rpcPayload.id = authUserId;
+
+    const { data: rpcData, error: rpcError } = await supabase.rpc('cadastrar_cliente', { payload: rpcPayload });
+    if (rpcError) {
+      if (/duplicate key/i.test(rpcError.message)) {
+        setError('Já existe um comércio cadastrado com estes dados (e-mail, CPF ou CNPJ).');
       } else {
-         setError(r.error.message);
+        setError(rpcError.message);
       }
       setLoading(false);
       return;
     }
-    const cid = (r.data?.id || '') as string;
+    const rpcResult = rpcData as { id?: string; success?: boolean; error?: string; message?: string };
+    if (!rpcResult?.success) {
+      const msg = rpcResult?.message || 'Erro ao salvar o comércio.';
+      if (/duplicate_key/.test(rpcResult?.error || '') || /duplicate key/i.test(msg)) {
+        setError('Já existe um comércio cadastrado com estes dados (e-mail, CPF ou CNPJ).');
+      } else {
+        setError(msg);
+      }
+      setLoading(false);
+      return;
+    }
+    const cid = (rpcResult?.id || '') as string;
     
     if (!cid) {
       setError('Erro ao salvar o comércio: ID não retornado. Tente novamente.');
