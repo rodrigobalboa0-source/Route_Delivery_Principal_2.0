@@ -502,6 +502,7 @@ function PedidoEditForm({
   onSave,
   onAlert,
   pricingTables = [],
+  isAdmin = false,
 }: {
   pedido: Pedido,
   entrega?: Entrega,
@@ -509,6 +510,7 @@ function PedidoEditForm({
   onSave: () => void,
   onAlert?: (message: string, title?: string) => Promise<void>,
   pricingTables?: any[],
+  isAdmin?: boolean,
 }) {
   const [formData, setFormData] = useState<Partial<Pedido>>({ ...pedido });
   const [entregaData, setEntregaData] = useState<Partial<Entrega>>(entrega || {});
@@ -755,7 +757,7 @@ function PedidoEditForm({
               );
             })()}
           </div>
-          {pricingTables.length > 1 && (
+          {isAdmin && pricingTables.length > 1 && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-500">Tabela de preços:</span>
               <select
@@ -4691,6 +4693,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                 onSave={fetchPedidos}
                 onAlert={showAlert}
                 pricingTables={pricingTables}
+                isAdmin={isAdmin}
             />
          )}
       </Modal>
