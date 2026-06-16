@@ -914,14 +914,18 @@ export function EntregadorPedidosEmAndamentoPanel() {
                 className="p-5 border-b border-gray-100 bg-sky-50/50 cursor-pointer active:bg-sky-100 transition-colors"
                 onClick={() => setDetailModalId(entrega.id)}
               >
-                <div className="flex justify-between items-center">
-                  <div>
-                    <span className={`inline-block px-2 py-1 rounded text-xs font-bold uppercase mb-1 ${statusColor}`}>
-                      {statusLabel}
-                    </span>
-                    {entrega.clientes?.nome_completo && (
-                      <p className="text-xs font-semibold text-gray-600 mb-1">{entrega.clientes.nome_completo}</p>
-                    )}
+                <div className="flex justify-between items-start">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <span className={`inline-block px-2 py-1 rounded text-xs font-bold uppercase shrink-0 ${statusColor}`}>
+                        {statusLabel}
+                      </span>
+                      {(entrega.clientes?.nome_completo || entrega.coleta_contato) && (
+                        <span className="text-sm font-semibold text-gray-700 truncate">
+                          {entrega.clientes?.nome_completo || entrega.coleta_contato}
+                        </span>
+                      )}
+                    </div>
                     {totalDestinations > 1 && (
                       <div className="mb-1 text-xs text-slate-500">
                         Destino {currentDestinationNumber} de {totalDestinations}
@@ -929,10 +933,28 @@ export function EntregadorPedidosEmAndamentoPanel() {
                     )}
                     <h3 className="font-bold text-gray-800">#{entrega.entrega_codigo_pedido || String(entrega.id).slice(0, 8)}</h3>
                   </div>
-                  <div className="flex items-center gap-1 text-sky-500">
+                  <div className="flex items-center gap-1 text-sky-500 ml-2 shrink-0">
                     <span className="text-xs font-medium">Detalhes</span>
                     <ChevronRight size={16} />
                   </div>
+                </div>
+              </div>
+
+              {/* Endereços resumidos */}
+              <div className="px-5 py-3 border-b border-gray-100 space-y-2">
+                <div className="flex items-start gap-2 text-sm">
+                  <div className="w-2.5 h-2.5 rounded-full bg-gray-400 mt-1 shrink-0" />
+                  <p className="text-gray-700 leading-snug">
+                    <span className="text-xs font-bold text-gray-400 uppercase mr-1">Coleta:</span>
+                    {entrega.coleta_endereco_texto || 'Endereço cadastrado'}
+                  </p>
+                </div>
+                <div className="flex items-start gap-2 text-sm">
+                  <div className="w-2.5 h-2.5 rounded-full bg-sky-500 mt-1 shrink-0" />
+                  <p className="text-gray-700 leading-snug">
+                    <span className="text-xs font-bold text-gray-400 uppercase mr-1">Entrega:</span>
+                    {entrega.entrega_endereco_texto}
+                  </p>
                 </div>
               </div>
 
@@ -971,49 +993,71 @@ export function EntregadorPedidosEmAndamentoPanel() {
                   </button>
                 )}
 
-                {/* SAIR PARA ENTREGA (Se chegou_coleta) */}
+                {/* SAIR PARA ENTREGA / FINALIZAR RETORNO (Se chegou_coleta) */}
                 {entrega.status === 'chegou_coleta' && (
                   <button
-                    onClick={() => updateStatus(entrega.id, 'em_rota')}
+                    onClick={() => retornoFase === 'retornado'
+                      ? updateStatus(entrega.id, 'entregue')
+                      : updateStatus(entrega.id, 'em_rota')
+                    }
                     disabled={updatingId === entrega.id}
-                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                    className={`flex-1 font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50 text-white ${
+                      retornoFase === 'retornado'
+                        ? 'bg-green-600 hover:bg-green-700'
+                        : 'bg-indigo-600 hover:bg-indigo-700'
+                    }`}
                   >
                     {updatingId === entrega.id ? 'Atualizando...' : (
                       <>
-                        <Navigation size={18} />
-                        Sair para Entrega
+                        {retornoFase === 'retornado' ? <CheckCircle size={18} /> : <Navigation size={18} />}
+                        {retornoFase === 'retornado' ? 'Finalizar Retorno' : 'Sair para Entrega'}
                       </>
                     )}
                   </button>
                 )}
 
-                {/* CHEGUEI NO CLIENTE (Se em_rota) */}
+                {/* CHEGUEI NO CLIENTE / CHEGUEI NO RETORNO (Se em_rota) */}
                 {entrega.status === 'em_rota' && (
                   <button
-                    onClick={() => updateStatus(entrega.id, 'chegou_entrega')}
+                    onClick={() => retornoFase === 'retorno'
+                      ? updateStatus(entrega.id, 'chegou_coleta', { retorno_fase: 'retornado' })
+                      : updateStatus(entrega.id, 'chegou_entrega')
+                    }
                     disabled={updatingId === entrega.id}
-                    className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                    className={`flex-1 font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50 text-white ${
+                      retornoFase === 'retorno'
+                        ? 'bg-amber-600 hover:bg-amber-700'
+                        : 'bg-purple-600 hover:bg-purple-700'
+                    }`}
                   >
                     {updatingId === entrega.id ? 'Atualizando...' : (
                       <>
                         <MapPin size={18} />
-                        Cheguei no Cliente
+                        {retornoFase === 'retorno' ? 'Cheguei no Retorno' : 'Cheguei no Cliente'}
                       </>
                     )}
                   </button>
                 )}
 
-                {/* FINALIZAR (Se chegou_entrega) */}
+                {/* FINALIZAR / INICIAR RETORNO (Se chegou_entrega) */}
                 {entrega.status === 'chegou_entrega' && (
                   <button
-                    onClick={() => hasNextDestination ? advanceToNextDestination(entrega.id) : updateStatus(entrega.id, 'entregue')}
+                    onClick={() => {
+                      if (hasNextDestination) {
+                        advanceToNextDestination(entrega.id);
+                      } else if (temRetorno && !retornoFase) {
+                        updateStatus(entrega.id, 'em_rota', { retorno_fase: 'retorno' });
+                      } else {
+                        updateStatus(entrega.id, 'entregue');
+                      }
+                    }}
                     disabled={updatingId === entrega.id}
                     className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
                   >
                     {updatingId === entrega.id ? 'Atualizando...' : (
                       <>
                         <CheckCircle size={18} />
-                        {hasNextDestination ? 'Ir para Próximo Destino' : 'Finalizar Entrega'}
+                        {hasNextDestination ? 'Ir para Próximo Destino' : (temRetorno && !retornoFase) ? 'Iniciar Retorno' : 'Finalizar Entrega'}
                       </>
                     )}
                   </button>
@@ -1024,11 +1068,12 @@ export function EntregadorPedidosEmAndamentoPanel() {
             {/* Detail modal */}
             {detailModalId === entrega.id && (
               <div
-                className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center"
+                className="fixed inset-0 z-[200] bg-black/60 flex items-end sm:items-center justify-center"
                 onClick={() => { setDetailModalId(null); setMapVisibleId(null); }}
               >
                 <div
-                  className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-xl shadow-2xl max-h-[90vh] overflow-y-auto"
+                  className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-xl shadow-2xl overflow-y-auto"
+                  style={{ maxHeight: 'calc(90dvh - env(safe-area-inset-bottom))' }}
                   onClick={e => e.stopPropagation()}
                 >
                   {/* Modal header */}
@@ -1234,6 +1279,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
                       </div>
                     )}
                   </div>
+                  <div className="h-6" />
                 </div>
               </div>
             )}
