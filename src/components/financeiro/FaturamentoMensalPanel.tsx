@@ -71,8 +71,10 @@ export function FaturamentoMensalPanel({ onNavigate }: FaturamentoMensalPanelPro
   const [stats, setStats] = useState<Record<string, ClientBillingStats>>({});
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
-  
-  
+  const [customDateInicio, setCustomDateInicio] = useState('');
+  const [customDateFim, setCustomDateFim] = useState('');
+  const [usingCustomPeriod, setUsingCustomPeriod] = useState(false);
+
   const [selectedClient, setSelectedClient] = useState<Cliente | null>(null);
   const [modalStep, setModalStep] = useState<'none' | 'preview' | 'invoice'>('none');
   
@@ -89,10 +91,9 @@ export function FaturamentoMensalPanel({ onNavigate }: FaturamentoMensalPanelPro
     fetchData();
   }, []);
 
-  const fetchData = async () => {
+  const fetchData = async (customStart?: string, customEnd?: string) => {
     setLoading(true);
     try {
-      
       const { data: clientsData, error: clientsError } = await supabase
         .from('clientes')
         .select('*')
@@ -101,10 +102,8 @@ export function FaturamentoMensalPanel({ onNavigate }: FaturamentoMensalPanelPro
 
       if (clientsError) throw clientsError;
 
-      
-      
       const clientIds = clientsData.map(c => c.id);
-      
+
       if (clientIds.length === 0) {
         setClients([]);
         setStats({});
@@ -112,29 +111,37 @@ export function FaturamentoMensalPanel({ onNavigate }: FaturamentoMensalPanelPro
         return;
       }
 
-      const { data: deliveriesData, error: deliveriesError } = await supabase
+      let deliveriesQuery = supabase
         .from('nova_entrega')
         .select('*')
         .in('cliente_id', clientIds)
-        .eq('status', 'entregue')
-        .is('fatura_cliente_id', null);
+        .eq('status', 'entregue');
+
+      // Visão padrão: apenas entregas ainda não faturadas
+      // Busca por período personalizado: inclui todas, faturadas ou não
+      if (!customStart || !customEnd) {
+        deliveriesQuery = deliveriesQuery.is('fatura_cliente_id', null);
+      }
+
+      const { data: deliveriesData, error: deliveriesError } = await deliveriesQuery;
 
       if (deliveriesError) throw deliveriesError;
 
-      
       const today = new Date();
       const newStats: Record<string, ClientBillingStats> = {};
 
       clientsData.forEach(c => {
-        const { start, end } = getBillingPeriod(c.faturamento_periodo, today);
+        const period = (customStart && customEnd)
+          ? { start: new Date(`${customStart}T00:00:00`), end: new Date(`${customEnd}T23:59:59`) }
+          : getBillingPeriod(c.faturamento_periodo, today);
         newStats[c.id] = {
           clientId: c.id,
           count: 0,
           total: 0,
           minDate: null,
           maxDate: null,
-          periodStart: start,
-          periodEnd: end,
+          periodStart: period.start,
+          periodEnd: period.end,
           deliveries: []
         };
       });
@@ -143,7 +150,6 @@ export function FaturamentoMensalPanel({ onNavigate }: FaturamentoMensalPanelPro
         const s = newStats[d.cliente_id];
         if (!s) return;
         const deliveryDate = new Date(d.updated_at ?? d.created_at);
-        
         if (deliveryDate < s.periodStart! || deliveryDate > s.periodEnd!) return;
         s.count++;
         s.total += Number(d.valor_entrega || 0);
@@ -161,6 +167,19 @@ export function FaturamentoMensalPanel({ onNavigate }: FaturamentoMensalPanelPro
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSearch = () => {
+    if (!customDateInicio || !customDateFim) return;
+    setUsingCustomPeriod(true);
+    fetchData(customDateInicio, customDateFim);
+  };
+
+  const handleClearFilter = () => {
+    setCustomDateInicio('');
+    setCustomDateFim('');
+    setUsingCustomPeriod(false);
+    fetchData();
   };
 
   const handleOpenPreview = (client: Cliente) => {
@@ -284,6 +303,47 @@ export function FaturamentoMensalPanel({ onNavigate }: FaturamentoMensalPanelPro
         <h2 className="text-2xl font-bold text-slate-800">Faturamento</h2>
       </div>
 
+      <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-4 mb-4 flex flex-wrap items-end gap-3">
+        <div>
+          <label className="block text-xs font-medium text-slate-500 mb-1">Data Início</label>
+          <input
+            type="date"
+            value={customDateInicio}
+            onChange={e => setCustomDateInicio(e.target.value)}
+            className="border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-500 mb-1">Data Fim</label>
+          <input
+            type="date"
+            value={customDateFim}
+            onChange={e => setCustomDateFim(e.target.value)}
+            className="border border-slate-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+        <button
+          onClick={handleSearch}
+          disabled={!customDateInicio || !customDateFim}
+          className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-40 font-medium"
+        >
+          Buscar
+        </button>
+        {usingCustomPeriod && (
+          <button
+            onClick={handleClearFilter}
+            className="px-4 py-2 bg-slate-200 text-slate-700 text-sm rounded hover:bg-slate-300 font-medium"
+          >
+            Limpar filtro
+          </button>
+        )}
+        {usingCustomPeriod && (
+          <span className="text-xs text-blue-600 font-medium self-center">
+            Período personalizado: {customDateInicio.split('-').reverse().join('/')} a {customDateFim.split('-').reverse().join('/')}
+          </span>
+        )}
+      </div>
+
       <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
         <div className="bg-slate-800 text-white px-6 py-3 grid grid-cols-12 gap-4 text-sm font-medium">
           <div className="col-span-5">Cliente</div>
@@ -292,10 +352,10 @@ export function FaturamentoMensalPanel({ onNavigate }: FaturamentoMensalPanelPro
         </div>
 
         <div className="divide-y divide-slate-100">
-          {clients.length === 0 ? (
-            <div className="p-6 text-center text-slate-500">Nenhum cliente em modo faturamento encontrado.</div>
+          {clients.filter(c => stats[c.id]?.count > 0).length === 0 ? (
+            <div className="p-6 text-center text-slate-500">Nenhum comércio com lançamentos no período atual.</div>
           ) : (
-            clients.map(client => {
+            clients.filter(client => stats[client.id]?.count > 0).map(client => {
               const clientStats = stats[client.id];
               const hasDeliveries = clientStats && clientStats.count > 0;
               

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { MapPin, CheckCircle, Truck, AlertCircle, Phone, Navigation, Map as MapIcon, DollarSign } from 'lucide-react';
+import { MapPin, CheckCircle, Truck, AlertCircle, Phone, Navigation, Map as MapIcon, DollarSign, X, ChevronRight } from 'lucide-react';
 import { MapView, MapDeliveryPerson } from '../MapView';
 import type { Database } from '../../lib/database.types';
 import { Geolocation } from '@capacitor/geolocation';
@@ -38,6 +38,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
   const [profileMissing, setProfileMissing] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [mapVisibleId, setMapVisibleId] = useState<string | null>(null);
+  const [detailModalId, setDetailModalId] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number; accuracyM?: number } | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   
@@ -458,7 +459,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
 
   const BASE_MAX_DISTANCE_KM = 0.2;
 
-  async function updateStatus(id: string, newStatus: string) {
+  async function updateStatus(id: string, newStatus: string, extraOpcionais?: Record<string, any>) {
     setUpdatingId(id);
     try {
       const currentEntrega = entregas.find(e => e.id === id);
@@ -592,7 +593,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
       if (newStatus === 'chegou_entrega') timeline.chegou_entrega = now;
       if (newStatus === 'entregue') timeline.finalizado = now;
 
-      const newOpcionais = { ...opcionais, timeline };
+      const newOpcionais = { ...opcionais, timeline, ...(extraOpcionais || {}) };
 
       const { error } = await supabase
         .from('nova_entrega')
@@ -873,8 +874,12 @@ export function EntregadorPedidosEmAndamentoPanel() {
             const totalDestinations = 1 + extraPoints.length;
             const currentDestinationNumber = Math.min(currentDestinationIndex + 1, totalDestinations);
             
-            const isPickupPhase = ['criada', 'atribuida', 'chegou_coleta'].includes(entrega.status);
-            const destCoords = isPickupPhase ? coords?.pickup : coords?.delivery;
+            const temRetorno = Boolean((entrega as any).retorno);
+            const retornoFase = entrega.opcionais?.retorno_fase as string | undefined;
+            const isInReturnPhase = temRetorno && !!retornoFase;
+            const isPickupPhase = ['criada', 'atribuida', 'chegou_coleta'].includes(entrega.status) && !isInReturnPhase;
+            const destCoords = (isPickupPhase || isInReturnPhase) ? coords?.pickup : coords?.delivery;
+
             const pagamentoMetodo = entrega.pagamento_metodo ? String(entrega.pagamento_metodo).toLowerCase() : '';
             const pagamentoLabel =
               pagamentoMetodo === 'dinheiro'
@@ -886,234 +891,49 @@ export function EntregadorPedidosEmAndamentoPanel() {
                     : pagamentoMetodo === 'online'
                       ? 'Online'
                       : entrega.pagamento_metodo || '';
-            
+
             let statusLabel = 'Aguardando Coleta';
             let statusColor = 'bg-yellow-100 text-yellow-700';
 
             if (entrega.status === 'chegou_coleta') {
-                statusLabel = 'Na Loja';
-                statusColor = 'bg-orange-100 text-orange-700';
+                statusLabel = retornoFase === 'retornado' ? 'Retornou à Loja' : 'Na Loja';
+                statusColor = retornoFase === 'retornado' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700';
             } else if (entrega.status === 'em_rota') {
-                statusLabel = 'Em Rota';
-                statusColor = 'bg-blue-100 text-blue-700';
+                statusLabel = retornoFase === 'retorno' ? 'Em Retorno' : 'Em Rota';
+                statusColor = retornoFase === 'retorno' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700';
             } else if (entrega.status === 'chegou_entrega') {
                 statusLabel = 'No Cliente';
                 statusColor = 'bg-purple-100 text-purple-700';
             }
             
             return (
+            <>
             <div key={entrega.id} className="bg-white rounded-lg shadow-lg border-l-4 border-sky-500 overflow-hidden">
-              <div className="p-5 border-b border-gray-100 bg-sky-50/50">
-                 <div className="flex justify-between items-start">
-                   <div>
-                     <span className={`inline-block px-2 py-1 rounded text-xs font-bold uppercase mb-2 ${statusColor}`}>
-                       {statusLabel}
-                     </span>
-                     {totalDestinations > 1 && (
-                      <div className="mb-2 text-xs text-slate-500">
+              {/* Compact header — tap to open details */}
+              <div
+                className="p-5 border-b border-gray-100 bg-sky-50/50 cursor-pointer active:bg-sky-100 transition-colors"
+                onClick={() => setDetailModalId(entrega.id)}
+              >
+                <div className="flex justify-between items-center">
+                  <div>
+                    <span className={`inline-block px-2 py-1 rounded text-xs font-bold uppercase mb-1 ${statusColor}`}>
+                      {statusLabel}
+                    </span>
+                    {entrega.clientes?.nome_completo && (
+                      <p className="text-xs font-semibold text-gray-600 mb-1">{entrega.clientes.nome_completo}</p>
+                    )}
+                    {totalDestinations > 1 && (
+                      <div className="mb-1 text-xs text-slate-500">
                         Destino {currentDestinationNumber} de {totalDestinations}
                       </div>
-                     )}
-                     <h3 className="font-bold text-gray-800">#{entrega.entrega_codigo_pedido || String(entrega.id).slice(0, 8)}</h3>
-                   </div>
-                   <div className="text-right">
-                     <div className="flex flex-col items-end">
-                       <div className="flex items-center gap-1 text-green-600 font-bold text-lg justify-end mb-1">
-                         <DollarSign size={18} />
-                         {(() => {
-                           const base = calculateMultiDestinoTotal(entrega);
-                           if (base > 0 || driverDynamicRules.length === 0) return base.toFixed(2);
-                           let total = 0;
-                           for (const r of driverDynamicRules) {
-                             const c = (r.criterio || '').toUpperCase();
-                             if (c === 'TAXA_FIXA' && r.multiplicador != null) total += Number(r.multiplicador);
-                             else if (c === 'MULTIPLICADOR' && r.multiplicador != null) total *= Number(r.multiplicador);
-                           }
-                           return total.toFixed(2);
-                         })()}
-                       </div>
-                       {(() => {
-                         const vm = entrega?.opcionais?.valor_multiplo as { valorPorPonto: number; pontos: number; total: number } | undefined;
-                         const extraPts = safeParseArray(entrega?.pontos_adicionais);
-                         const mt = vm?.valorPorPonto ? vm.valorPorPonto * (1 + extraPts.length) : 0;
-                         return mt > 0 ? (
-                           <span className="text-[10px] text-emerald-600 font-semibold mb-1">
-                             + R$ {mt.toFixed(2).replace('.', ',')} (Múltiplo)
-                           </span>
-                         ) : null;
-                       })()}
-                       {entrega.opcionais?.driver_bonuses && Array.isArray(entrega.opcionais.driver_bonuses) && (
-                         <div className="text-xs text-right flex flex-col items-end gap-1">
-                           {entrega.opcionais.driver_bonuses.map((bonus: any, idx: number) => {
-                             const isReturn = bonus.description && bonus.description.toLowerCase().includes('retorno');
-                             return (
-                             <div key={idx} className="text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-100 flex items-center gap-1">
-                               <span className="text-[10px] text-green-600 opacity-75">{isReturn ? 'Com retorno' : bonus.description}</span>
-                             </div>
-                             );
-                           })}
-                         </div>
-                       )}
-                       {(() => {
-                         const base = calculateMultiDestinoTotal(entrega);
-                         if (base > 0 || driverDynamicRules.length === 0) return null;
-                         let runningTotal = 0;
-                         const applied: Array<{ valor: number; observacao: string }> = [];
-                         for (const r of driverDynamicRules) {
-                           const c = (r.criterio || '').toUpperCase();
-                           if (c === 'TAXA_FIXA' && r.multiplicador != null) {
-                             applied.push({ valor: Number(r.multiplicador), observacao: r.observacao || '' });
-                             runningTotal += Number(r.multiplicador);
-                           } else if (c === 'MULTIPLICADOR' && r.multiplicador != null) {
-                             applied.push({ valor: runningTotal * (Number(r.multiplicador) - 1), observacao: r.observacao || '' });
-                             runningTotal *= Number(r.multiplicador);
-                           }
-                         }
-                         if (applied.length === 0) return null;
-                         return (
-                           <div className="flex flex-wrap justify-end gap-1 mt-1">
-                             {applied.map((rule, idx) => (
-                               <span key={idx} className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 font-semibold">
-                                 + R$ {Number(rule.valor).toFixed(2).replace('.', ',')}
-                                 {rule.observacao ? ` • ${rule.observacao}` : ''}
-                               </span>
-                             ))}
-                           </div>
-                         );
-                       })()}
-                     </div>
-                     <p className="text-sm font-medium text-gray-600">{entrega.clientes?.nome_completo}</p>
-                     {(entrega.clientes?.telefone) && (
-                       <a href={`tel:${entrega.clientes?.telefone}`} className="inline-flex items-center gap-1 text-xs text-sky-600 mt-1 hover:underline">
-                         <Phone size={12} />
-                         Ligar para cliente
-                       </a>
-                     )}
-                   </div>
-                 </div>
-              </div>
-
-              <div className="p-5 space-y-6">
-                {/* Coleta Info */}
-                <div className="relative pl-6 border-l-2 border-gray-200">
-                  <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-white border-2 border-gray-300" />
-                  <p className="text-xs font-bold text-gray-500 uppercase mb-1">Coleta</p>
-                  <p className="text-gray-800">{entrega.coleta_endereco_texto || 'Endereço cadastrado'}</p>
-                  {entrega.coleta_contato && <p className="text-sm text-gray-500 mt-1">Falar com: {entrega.coleta_contato}</p>}
-                </div>
-
-                {/* Entrega Info */}
-                <div className="relative pl-6 border-l-2 border-gray-200">
-                  <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-white border-2 border-sky-500" />
-                  <p className="text-xs font-bold text-gray-500 uppercase mb-1">Entrega</p>
-                  <p className="text-gray-800">{entrega.entrega_endereco_texto}</p>
-                  {entrega.entrega_complemento && <p className="text-sm text-gray-500">{entrega.entrega_complemento}</p>}
-                  {entrega.entrega_contato && <p className="text-sm text-gray-500 mt-1">Recebedor: {entrega.entrega_contato}</p>}
-                </div>
-                
-                {entrega.observacoes && (
-                  <div className="bg-yellow-50 p-3 rounded text-sm text-yellow-800 flex gap-2">
-                    <AlertCircle size={16} className="shrink-0 mt-0.5" />
-                    <p>{entrega.observacoes}</p>
+                    )}
+                    <h3 className="font-bold text-gray-800">#{entrega.entrega_codigo_pedido || String(entrega.id).slice(0, 8)}</h3>
                   </div>
-                )}
-
-                {(entrega.pagamento_metodo || entrega.pagamento_na_entrega || entrega.troco_para || entrega.documento_numero) && (
-                  <div className="bg-slate-50 p-3 rounded text-sm text-slate-700 border border-slate-100 space-y-1">
-                    {pagamentoLabel && (
-                      <p>
-                        <span className="text-slate-500">Pagamento:</span> {pagamentoLabel}
-                        {entrega.pagamento_na_entrega ? ' (na entrega)' : ''}
-                      </p>
-                    )}
-                    {entrega.troco_para !== null && entrega.troco_para !== undefined && (
-                      <p><span className="text-slate-500">Troco para:</span> R$ {Number(entrega.troco_para || 0).toFixed(2)}</p>
-                    )}
-                    {entrega.documento_numero && (
-                      <p><span className="text-slate-500">Documento:</span> {(entrega.documento_tipo || '').toUpperCase()} {entrega.documento_numero}</p>
-                    )}
+                  <div className="flex items-center gap-1 text-sky-500">
+                    <span className="text-xs font-medium">Detalhes</span>
+                    <ChevronRight size={16} />
                   </div>
-                )}
-
-                {/* Distances */}
-                {(entrega.distancia_km || distances[entrega.id]) && (
-                    <div className="grid grid-cols-1 gap-2 text-xs bg-gray-50 p-2 rounded border border-gray-100">
-                         <div className="text-center">
-                            <span className="block text-gray-400">Entrega</span>
-                            <span className="font-bold text-sky-600 text-lg">
-                                {entrega.distancia_km ? Number(entrega.distancia_km).toFixed(1) : distances[entrega.id]?.pickupToDelivery.toFixed(1)} km
-                            </span>
-                         </div>
-                    </div>
-                )}
-
-                {/* Map & Navigation Actions */}
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => setMapVisibleId(mapVisibleId === entrega.id ? null : entrega.id)}
-                    className="flex-1 flex items-center justify-center gap-2 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded transition-colors text-sm font-medium"
-                  >
-                    <MapIcon size={16} />
-                    {mapVisibleId === entrega.id ? 'Ocultar Mapa' : 'Ver no App'}
-                  </button>
-
-                  <button
-                    onClick={async () => {
-                        const address = isPickupPhase ? entrega.coleta_endereco_texto : entrega.entrega_endereco_texto;
-                        if (!address) {
-                          await showAlert('Endereço não disponível', 'Aviso');
-                          return;
-                        }
-
-                        const originParam = userLocation
-                          ? `&origin=${userLocation.lat},${userLocation.lng}`
-                          : '';
-
-                        const destination = destCoords
-                          ? `${destCoords[0]},${destCoords[1]}`
-                          : encodeURIComponent(address);
-
-                        const url = `https://www.google.com/maps/dir/?api=1${originParam}&destination=${destination}&travelmode=driving`;
-                        window.open(url, '_blank');
-                    }}
-                    className="flex-1 flex items-center justify-center gap-2 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded transition-colors text-sm font-medium border border-blue-200"
-                  >
-                    <Navigation size={16} />
-                    Abrir GPS
-                  </button>
                 </div>
-
-                {mapVisibleId === entrega.id && (
-                  <div className="h-64 rounded-lg overflow-hidden border border-slate-200 relative">
-                    {userLocation ? (
-                      <MapView 
-                        deliveryPersons={getFakeDeliveryPerson() ? [getFakeDeliveryPerson()!] : []}
-                        center={userLocation ? [userLocation.lat, userLocation.lng] : undefined}
-                        origin={coords?.pickup}
-                        destination={destCoords}
-                        originTitle="Coleta"
-                        destinationTitle={`Destino ${currentDestinationNumber}`}
-                        originIconType="store"
-                        additionalDestinations={Object.entries(coords?.additional || {})
-                          .filter(([order]) => Number(order) >= currentDestinationIndex + 2) // Apenas destinos futuros
-                          .map(([order, coords]) => ({
-                            coords,
-                            title: `Destino ${order}`,
-                            order: Number(order)
-                          }))}
-                      />
-                    ) : (
-                      <div className="absolute inset-0 flex items-center justify-center bg-slate-50 text-slate-500 text-sm">
-                        Obtendo sua localização...
-                      </div>
-                    )}
-                    {(!coords?.pickup && !coords?.delivery && (!coords?.additional || Object.keys(coords.additional).length === 0)) && (
-                       <div className="absolute bottom-2 left-2 right-2 bg-white/90 p-2 rounded text-xs text-center text-slate-600 shadow-sm">
-                         Endereços sem coordenadas. O mapa mostra apenas sua localização.
-                       </div>
-                    )}
-                  </div>
-                )}
               </div>
 
               <div className="p-5 bg-gray-50 flex gap-3 flex-wrap">
@@ -1200,6 +1020,224 @@ export function EntregadorPedidosEmAndamentoPanel() {
                 )}
               </div>
             </div>
+
+            {/* Detail modal */}
+            {detailModalId === entrega.id && (
+              <div
+                className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center"
+                onClick={() => { setDetailModalId(null); setMapVisibleId(null); }}
+              >
+                <div
+                  className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-xl shadow-2xl max-h-[90vh] overflow-y-auto"
+                  onClick={e => e.stopPropagation()}
+                >
+                  {/* Modal header */}
+                  <div className="sticky top-0 bg-white flex justify-between items-center px-5 py-4 border-b border-gray-100 z-10">
+                    <div>
+                      <span className={`inline-block px-2 py-1 rounded text-xs font-bold uppercase ${statusColor}`}>{statusLabel}</span>
+                      {entrega.clientes?.nome_completo && (
+                        <span className="ml-2 text-sm font-semibold text-gray-700">{entrega.clientes.nome_completo}</span>
+                      )}
+                      <p className="text-xs text-gray-400 mt-0.5">#{entrega.entrega_codigo_pedido || String(entrega.id).slice(0, 8)}</p>
+                    </div>
+                    <button
+                      onClick={() => { setDetailModalId(null); setMapVisibleId(null); }}
+                      className="p-2 rounded-full hover:bg-gray-100 text-gray-400 transition-colors"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+
+                  <div className="p-5 space-y-5">
+                    {/* Valores */}
+                    <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
+                      <p className="text-xs font-bold text-gray-500 uppercase mb-2">Valores</p>
+                      <div className="flex items-center gap-1 text-green-600 font-bold text-2xl mb-2">
+                        <DollarSign size={22} />
+                        {(() => {
+                          const base = calculateMultiDestinoTotal(entrega);
+                          if (base > 0 || driverDynamicRules.length === 0) return base.toFixed(2);
+                          let total = 0;
+                          for (const r of driverDynamicRules) {
+                            const c = (r.criterio || '').toUpperCase();
+                            if (c === 'TAXA_FIXA' && r.multiplicador != null) total += Number(r.multiplicador);
+                            else if (c === 'MULTIPLICADOR' && r.multiplicador != null) total *= Number(r.multiplicador);
+                          }
+                          return total.toFixed(2);
+                        })()}
+                      </div>
+                      {(() => {
+                        const vm = entrega?.opcionais?.valor_multiplo as { valorPorPonto: number; pontos: number; total: number } | undefined;
+                        const extraPts = safeParseArray(entrega?.pontos_adicionais);
+                        const mt = vm?.valorPorPonto ? vm.valorPorPonto * (1 + extraPts.length) : 0;
+                        return mt > 0 ? (
+                          <span className="inline-block text-xs text-emerald-700 bg-emerald-100 px-2 py-1 rounded font-semibold mb-1">
+                            + R$ {mt.toFixed(2).replace('.', ',')} (Múltiplo)
+                          </span>
+                        ) : null;
+                      })()}
+                      {entrega.opcionais?.driver_bonuses && Array.isArray(entrega.opcionais.driver_bonuses) && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {entrega.opcionais.driver_bonuses.map((bonus: any, idx: number) => {
+                            const isReturn = bonus.description && bonus.description.toLowerCase().includes('retorno');
+                            return (
+                              <span key={idx} className="text-xs text-green-700 bg-green-100 px-2 py-1 rounded font-semibold">
+                                {isReturn ? 'Com retorno' : bonus.description}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {(() => {
+                        const base = calculateMultiDestinoTotal(entrega);
+                        if (base > 0 || driverDynamicRules.length === 0) return null;
+                        let runningTotal = 0;
+                        const applied: Array<{ valor: number; observacao: string }> = [];
+                        for (const r of driverDynamicRules) {
+                          const c = (r.criterio || '').toUpperCase();
+                          if (c === 'TAXA_FIXA' && r.multiplicador != null) {
+                            applied.push({ valor: Number(r.multiplicador), observacao: r.observacao || '' });
+                            runningTotal += Number(r.multiplicador);
+                          } else if (c === 'MULTIPLICADOR' && r.multiplicador != null) {
+                            applied.push({ valor: runningTotal * (Number(r.multiplicador) - 1), observacao: r.observacao || '' });
+                            runningTotal *= Number(r.multiplicador);
+                          }
+                        }
+                        if (applied.length === 0) return null;
+                        return (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {applied.map((rule, idx) => (
+                              <span key={idx} className="text-xs text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-100 font-semibold">
+                                + R$ {Number(rule.valor).toFixed(2).replace('.', ',')}
+                                {rule.observacao ? ` • ${rule.observacao}` : ''}
+                              </span>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                    {/* Endereços */}
+                    <div className="space-y-4">
+                      <div className="relative pl-6 border-l-2 border-gray-200">
+                        <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-white border-2 border-gray-300" />
+                        <p className="text-xs font-bold text-gray-500 uppercase mb-1">Coleta</p>
+                        <p className="text-gray-800">{entrega.coleta_endereco_texto || 'Endereço cadastrado'}</p>
+                        {entrega.coleta_contato && <p className="text-sm text-gray-500 mt-1">Falar com: {entrega.coleta_contato}</p>}
+                      </div>
+                      <div className="relative pl-6 border-l-2 border-gray-200">
+                        <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-white border-2 border-sky-500" />
+                        <p className="text-xs font-bold text-gray-500 uppercase mb-1">Entrega</p>
+                        <p className="text-gray-800">{entrega.entrega_endereco_texto}</p>
+                        {entrega.entrega_complemento && <p className="text-sm text-gray-500">{entrega.entrega_complemento}</p>}
+                        {entrega.entrega_contato && <p className="text-sm text-gray-500 mt-1">Recebedor: {entrega.entrega_contato}</p>}
+                      </div>
+                    </div>
+
+                    {/* Observações */}
+                    {entrega.observacoes && (
+                      <div className="bg-yellow-50 p-3 rounded-lg text-sm text-yellow-800 flex gap-2">
+                        <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                        <p>{entrega.observacoes}</p>
+                      </div>
+                    )}
+
+                    {/* Telefone */}
+                    {entrega.clientes?.telefone && (
+                      <a
+                        href={`tel:${entrega.clientes.telefone}`}
+                        className="flex items-center gap-2 text-sky-600 text-sm font-medium hover:underline"
+                      >
+                        <Phone size={16} />
+                        Ligar para {entrega.clientes.nome_completo}
+                      </a>
+                    )}
+
+                    {/* Pagamento */}
+                    {(entrega.pagamento_metodo || entrega.pagamento_na_entrega || entrega.troco_para || entrega.documento_numero) && (
+                      <div className="bg-slate-50 p-3 rounded-lg text-sm text-slate-700 border border-slate-100 space-y-1">
+                        {pagamentoLabel && (
+                          <p>
+                            <span className="text-slate-500">Pagamento:</span> {pagamentoLabel}
+                            {entrega.pagamento_na_entrega ? ' (na entrega)' : ''}
+                          </p>
+                        )}
+                        {entrega.troco_para !== null && entrega.troco_para !== undefined && (
+                          <p><span className="text-slate-500">Troco para:</span> R$ {Number(entrega.troco_para || 0).toFixed(2)}</p>
+                        )}
+                        {entrega.documento_numero && (
+                          <p><span className="text-slate-500">Documento:</span> {(entrega.documento_tipo || '').toUpperCase()} {entrega.documento_numero}</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Distância */}
+                    {(entrega.distancia_km || distances[entrega.id]) && (
+                      <div className="text-center bg-gray-50 p-3 rounded-lg border border-gray-100">
+                        <span className="block text-gray-400 text-xs mb-1">Distância da Entrega</span>
+                        <span className="font-bold text-sky-600 text-2xl">
+                          {entrega.distancia_km ? Number(entrega.distancia_km).toFixed(1) : distances[entrega.id]?.pickupToDelivery.toFixed(1)} km
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Ver no App / Abrir GPS */}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setMapVisibleId(mapVisibleId === entrega.id ? null : entrega.id)}
+                        className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors text-sm font-medium"
+                      >
+                        <MapIcon size={16} />
+                        {mapVisibleId === entrega.id ? 'Ocultar Mapa' : 'Ver no App'}
+                      </button>
+                      <button
+                        onClick={async () => {
+                          const address = isPickupPhase ? entrega.coleta_endereco_texto : entrega.entrega_endereco_texto;
+                          if (!address) { await showAlert('Endereço não disponível', 'Aviso'); return; }
+                          const originParam = userLocation ? `&origin=${userLocation.lat},${userLocation.lng}` : '';
+                          const destination = destCoords ? `${destCoords[0]},${destCoords[1]}` : encodeURIComponent(address);
+                          window.open(`https://www.google.com/maps/dir/?api=1${originParam}&destination=${destination}&travelmode=driving`, '_blank');
+                        }}
+                        className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition-colors text-sm font-medium border border-blue-200"
+                      >
+                        <Navigation size={16} />
+                        Abrir GPS
+                      </button>
+                    </div>
+
+                    {/* Mapa */}
+                    {mapVisibleId === entrega.id && (
+                      <div className="h-64 rounded-lg overflow-hidden border border-slate-200 relative">
+                        {userLocation ? (
+                          <MapView
+                            deliveryPersons={getFakeDeliveryPerson() ? [getFakeDeliveryPerson()!] : []}
+                            center={[userLocation.lat, userLocation.lng]}
+                            origin={coords?.pickup}
+                            destination={destCoords}
+                            originTitle="Coleta"
+                            destinationTitle={`Destino ${currentDestinationNumber}`}
+                            originIconType="store"
+                            additionalDestinations={Object.entries(coords?.additional || {})
+                              .filter(([order]) => Number(order) >= currentDestinationIndex + 2)
+                              .map(([order, pt]) => ({ coords: pt as [number, number], title: `Destino ${order}`, order: Number(order) }))}
+                          />
+                        ) : (
+                          <div className="absolute inset-0 flex items-center justify-center bg-slate-50 text-slate-500 text-sm">
+                            Obtendo sua localização...
+                          </div>
+                        )}
+                        {(!coords?.pickup && !coords?.delivery && (!coords?.additional || Object.keys(coords.additional).length === 0)) && (
+                          <div className="absolute bottom-2 left-2 right-2 bg-white/90 p-2 rounded text-xs text-center text-slate-600 shadow-sm">
+                            Endereços sem coordenadas. O mapa mostra apenas sua localização.
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+            </>
             );
           })}
         </div>

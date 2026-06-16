@@ -382,7 +382,7 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
 
     const saldoDisponivel = saldo;
 
-    if (amount > saldoDisponivel) {
+    if (Math.round(amount * 100) > Math.round(saldoDisponivel * 100)) {
       alert(`Saldo insuficiente. Seu saldo disponível é R$ ${saldoDisponivel.toFixed(2)}.`);
       return;
     }
@@ -600,7 +600,7 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
                 </div>
               )}
 
-              <button type="submit" disabled={submittingWithdraw || Number(withdrawAmount) > saldo || Number(withdrawAmount) <= 0} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-lg transition-colors mt-2 disabled:opacity-50">
+              <button type="submit" disabled={submittingWithdraw || Math.round(Number(withdrawAmount) * 100) > Math.round(saldo * 100) || Number(withdrawAmount) <= 0} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-lg transition-colors mt-2 disabled:opacity-50">
                 {submittingWithdraw ? 'Solicitando...' : 'Confirmar Saque'}
               </button>
             </form>

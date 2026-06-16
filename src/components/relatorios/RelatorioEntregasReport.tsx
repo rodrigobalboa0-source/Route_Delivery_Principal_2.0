@@ -97,7 +97,7 @@ export function RelatorioEntregasReport({ onNavigate, userRole }: RelatorioEntre
     }
   }, [userRole]);
 
-  // Search clients effect
+  
   useEffect(() => {
     if (clientSearchTerm.length < 3) {
         setFoundClients([]);
@@ -346,8 +346,22 @@ export function RelatorioEntregasReport({ onNavigate, userRole }: RelatorioEntre
 
   const generatePDF = async () => {
     const doc = new jsPDF();
-    
+
     let startY = 30;
+
+    // Dark blue gradient background for logo area
+    const logoAreaHeight = 28;
+    const gradientSteps = 24;
+    const colorStart = [10, 18, 50];
+    const colorEnd = [30, 64, 140];
+    for (let i = 0; i < gradientSteps; i++) {
+        const ratio = i / gradientSteps;
+        const r = Math.round(colorStart[0] + (colorEnd[0] - colorStart[0]) * ratio);
+        const g = Math.round(colorStart[1] + (colorEnd[1] - colorStart[1]) * ratio);
+        const b = Math.round(colorStart[2] + (colorEnd[2] - colorStart[2]) * ratio);
+        doc.setFillColor(r, g, b);
+        doc.rect(0, i * (logoAreaHeight / gradientSteps), 210, (logoAreaHeight / gradientSteps) + 0.5, 'F');
+    }
 
     try {
         const logoUrl = '/Screenshot_20251113_103247-Photoroom.png';
@@ -359,24 +373,28 @@ export function RelatorioEntregasReport({ onNavigate, userRole }: RelatorioEntre
             reader.onloadend = () => resolve(reader.result as string);
         });
 
-        doc.addImage(base64, 'PNG', 14, 10, 35, 12); // Logo
-        startY = 35;
+        doc.addImage(base64, 'PNG', 14, 6, 42, 16);
+        startY = 38;
     } catch (error) {
         console.error('Erro ao carregar logo:', error);
     }
 
+    const formatDateStr = (d: string) => d.split('-').reverse().join('/');
+
     doc.setFontSize(16);
     doc.text('Relatório de Entregas', 14, startY);
-    
+
     doc.setFontSize(10);
-    doc.text(`Período: ${format(new Date(dataInicio), 'dd/MM/yyyy')} a ${format(new Date(dataFim), 'dd/MM/yyyy')}`, 14, startY + 7);
-    
+    doc.text(`Período: ${formatDateStr(dataInicio)} a ${formatDateStr(dataFim)}`, 14, startY + 7);
+
     if (selectedClient) {
         doc.text(`Comércio: ${selectedClient.nome_completo}`, 14, startY + 14);
         startY += 25;
     } else {
         startY += 15;
     }
+
+    const totalValue = entregas.reduce((sum, e) => sum + (e.valor_entrega || 0), 0);
 
     const tableData = entregas.map(entrega => [
         format(new Date(entrega.created_at), 'dd/MM/yyyy HH:mm'),
@@ -394,6 +412,18 @@ export function RelatorioEntregasReport({ onNavigate, userRole }: RelatorioEntre
         styles: { fontSize: 8 },
         headStyles: { fillColor: [22, 163, 74] }
     });
+
+    const finalY = (doc as any).lastAutoTable.finalY + 8;
+    const totalText = `R$ ${totalValue.toFixed(2)}`;
+    doc.setFillColor(15, 23, 42);
+    doc.rect(14, finalY - 5, 182, 10, 'F');
+    doc.setFontSize(10);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TOTAL GERAL', 16, finalY + 1.5);
+    doc.text(totalText, 196 - doc.getTextWidth(totalText), finalY + 1.5);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'normal');
 
     doc.save(`relatorio_entregas_${dataInicio}_${dataFim}.pdf`);
   };

@@ -1,7 +1,3 @@
--- RPC SECURITY DEFINER para inserção de clientes, bypassa RLS.
--- Necessário porque INSERT direto via PostgREST falha com 42501 mesmo com
--- policy WITH CHECK (true) — provavelmente interação entre RLS e o
--- Prefer: return=representation do PostgREST.
 
 CREATE OR REPLACE FUNCTION public.cadastrar_cliente(payload jsonb)
 RETURNS jsonb

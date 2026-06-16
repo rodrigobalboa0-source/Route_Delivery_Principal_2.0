@@ -501,16 +501,64 @@ function PedidoEditForm({
   onClose,
   onSave,
   onAlert,
+  pricingTables = [],
 }: {
   pedido: Pedido,
   entrega?: Entrega,
   onClose: () => void,
   onSave: () => void,
-  onAlert?: (message: string, title?: string) => Promise<void>
+  onAlert?: (message: string, title?: string) => Promise<void>,
+  pricingTables?: any[],
 }) {
   const [formData, setFormData] = useState<Partial<Pedido>>({ ...pedido });
   const [entregaData, setEntregaData] = useState<Partial<Entrega>>(entrega || {});
   const [loading, setLoading] = useState(false);
+  const [retorno, setRetorno] = useState<boolean>(Boolean((entrega as any)?.retorno));
+  const [retornoTabelaId, setRetornoTabelaId] = useState<string>(
+    pricingTables.length > 0 ? String(pricingTables[0].id) : ''
+  );
+
+  const retornoTabela = pricingTables.find((t: any) => String(t.id) === retornoTabelaId);
+
+  const applyRetorno = (base: number, tabela: any): number => {
+    if (!tabela?.valor_retorno || Number(tabela.valor_retorno) <= 0) return base;
+    const tipo = (tabela.tipo_retorno || '').trim().toLowerCase();
+    const vr = Number(tabela.valor_retorno);
+    return tipo === 'percentual' || tipo === 'porcentagem' ? base * (1 + vr / 100) : base + vr;
+  };
+
+  // Preço-base sem retorno, calculado uma vez no mount
+  const baseValorEntrega = useMemo(() => {
+    const cur = Number(entrega?.valor_entrega || 0);
+    if (!Boolean((entrega as any)?.retorno) || !retornoTabela) return cur;
+    const tipo = (retornoTabela.tipo_retorno || '').trim().toLowerCase();
+    const vr = Number(retornoTabela.valor_retorno || 0);
+    if (vr <= 0) return cur;
+    return tipo === 'percentual' || tipo === 'porcentagem' ? cur / (1 + vr / 100) : cur - vr;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const baseValorTotal = useMemo(() => {
+    const cur = Number(pedido.valor_total || 0);
+    if (!Boolean((entrega as any)?.retorno) || !retornoTabela) return cur;
+    const tipo = (retornoTabela.tipo_retorno || '').trim().toLowerCase();
+    const vr = Number(retornoTabela.valor_retorno || 0);
+    if (vr <= 0) return cur;
+    return tipo === 'percentual' || tipo === 'porcentagem' ? cur / (1 + vr / 100) : cur - vr;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleToggleRetorno = (checked: boolean) => {
+    setRetorno(checked);
+    if (!retornoTabela) return;
+    if (checked) {
+      setEntregaData(d => ({ ...d, valor_entrega: +applyRetorno(baseValorEntrega, retornoTabela).toFixed(2) }));
+      setFormData(d => ({ ...d, valor_total: +applyRetorno(baseValorTotal, retornoTabela).toFixed(2) }));
+    } else {
+      setEntregaData(d => ({ ...d, valor_entrega: +baseValorEntrega.toFixed(2) }));
+      setFormData(d => ({ ...d, valor_total: +baseValorTotal.toFixed(2) }));
+    }
+  };
 
   const handleSave = async () => {
     setLoading(true);
@@ -579,12 +627,13 @@ function PedidoEditForm({
         if (formData.status === 'cancelado') newEntregaStatus = 'cancelada';
 
         const { error: eError } = await supabase.from('nova_entrega').update({
-          pedido_id: pedido.id, 
+          pedido_id: pedido.id,
           coleta_endereco_texto: entregaData.coleta_endereco_texto,
           entrega_endereco_texto: entregaData.entrega_endereco_texto,
           status: newEntregaStatus,
           valor_entrega: entregaData.valor_entrega,
-          observacoes: entregaData.observacoes
+          observacoes: entregaData.observacoes,
+          retorno,
         }).eq('id', entrega.id);
         
         if (eError) throw eError;
@@ -677,12 +726,49 @@ function PedidoEditForm({
         </div>
         <div className="col-span-2">
           <label className="block text-sm font-medium text-slate-700">Observações</label>
-          <textarea 
-            className="w-full border rounded p-2" 
+          <textarea
+            className="w-full border rounded p-2"
             rows={3}
-            value={formData.observacoes || ''} 
+            value={formData.observacoes || ''}
             onChange={e => setFormData({...formData, observacoes: e.target.value})}
           />
+        </div>
+        <div className="col-span-2 space-y-2">
+          <div className="flex items-center gap-3 flex-wrap">
+            <label className="flex items-center gap-2 cursor-pointer select-none group">
+              <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${retorno ? 'bg-sky-600 border-sky-600' : 'border-slate-300 bg-white group-hover:border-sky-400'}`}>
+                {retorno && <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+              </div>
+              <input type="checkbox" checked={retorno} onChange={e => handleToggleRetorno(e.target.checked)} className="hidden" />
+              <span className="text-sm text-slate-600 font-medium group-hover:text-sky-600 transition-colors">Adicionar Retorno</span>
+            </label>
+            {retorno && retornoTabela && Number(retornoTabela.valor_retorno) > 0 && (() => {
+              const tipo = (retornoTabela.tipo_retorno || '').trim().toLowerCase();
+              const isPerc = tipo === 'percentual' || tipo === 'porcentagem';
+              const label = isPerc
+                ? `+ ${retornoTabela.valor_retorno}%`
+                : `+ R$ ${Number(retornoTabela.valor_retorno).toFixed(2).replace('.', ',')}`;
+              return (
+                <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-200">
+                  {label}
+                </span>
+              );
+            })()}
+          </div>
+          {pricingTables.length > 1 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500">Tabela de preços:</span>
+              <select
+                value={retornoTabelaId}
+                onChange={e => setRetornoTabelaId(e.target.value)}
+                className="text-xs border border-slate-200 rounded px-2 py-1 text-slate-700"
+              >
+                {pricingTables.map((t: any) => (
+                  <option key={t.id} value={String(t.id)}>{t.nome || `Tabela ${t.id}`}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       </div>
       <div className="flex justify-end gap-2 pt-4">
@@ -1940,7 +2026,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             .update({
                 entregador_id: null,
                 status: 'criada',
-                atribuicao_modo: 'automatica',
+                atribuicao_modo: 'manual',
                 updated_at: new Date().toISOString()
             })
             .eq('id', entrega.id);
@@ -3788,6 +3874,24 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                     />
                     <span className="text-sm text-slate-600 font-medium group-hover:text-sky-600 transition-colors">Adicionar Retorno</span>
                 </label>
+                {quickRetorno && (() => {
+                    const tabela = pricingTables.find((t: any) => String(t.id) === String(selectedTabelaId));
+                    if (!tabela || !tabela.valor_retorno || Number(tabela.valor_retorno) <= 0) return null;
+                    const tipo = (tabela.tipo_retorno || '').trim().toLowerCase();
+                    let label = '';
+                    if (tipo === 'percentual' || tipo === 'porcentagem') {
+                        const priceWithout = quickPrice / (1 + Number(tabela.valor_retorno) / 100);
+                        const retornoAmt = quickPrice - priceWithout;
+                        label = `+ R$ ${retornoAmt.toFixed(2).replace('.', ',')} (${tabela.valor_retorno}%)`;
+                    } else {
+                        label = `+ R$ ${Number(tabela.valor_retorno).toFixed(2).replace('.', ',')}`;
+                    }
+                    return (
+                        <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-200">
+                            {label}
+                        </span>
+                    );
+                })()}
                 
                 <div className="text-xs text-slate-400 ml-auto flex items-center gap-1">
                     <MapPin size={12} />
@@ -4580,12 +4684,13 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       {}
       <Modal open={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title="" hideFooter={true}>
          {selectedPedido && (
-            <PedidoEditForm 
-                pedido={selectedPedido} 
+            <PedidoEditForm
+                pedido={selectedPedido}
                 entrega={entregasMap[selectedPedido.id]}
                 onClose={() => setIsEditModalOpen(false)}
                 onSave={fetchPedidos}
                 onAlert={showAlert}
+                pricingTables={pricingTables}
             />
          )}
       </Modal>
