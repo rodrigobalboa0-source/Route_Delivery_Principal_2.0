@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import { MapPin, CheckCircle, Truck, AlertCircle, Phone, Navigation, Map as MapIcon, DollarSign, X, ChevronRight } from 'lucide-react';
 import { MapView, MapDeliveryPerson } from '../MapView';
@@ -916,22 +917,22 @@ export function EntregadorPedidosEmAndamentoPanel() {
               >
                 <div className="flex justify-between items-start">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <span className={`inline-block px-2 py-1 rounded text-xs font-bold uppercase shrink-0 ${statusColor}`}>
+                    {(entrega.clientes?.nome_completo || entrega.coleta_contato) && (
+                      <p className="text-base font-bold text-gray-900 leading-tight mb-1 truncate">
+                        {entrega.clientes?.nome_completo || entrega.coleta_contato}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold uppercase shrink-0 ${statusColor}`}>
                         {statusLabel}
                       </span>
-                      {(entrega.clientes?.nome_completo || entrega.coleta_contato) && (
-                        <span className="text-sm font-semibold text-gray-700 truncate">
-                          {entrega.clientes?.nome_completo || entrega.coleta_contato}
+                      {totalDestinations > 1 && (
+                        <span className="text-xs text-slate-500">
+                          Destino {currentDestinationNumber} de {totalDestinations}
                         </span>
                       )}
+                      <span className="text-xs text-gray-400">#{entrega.entrega_codigo_pedido || String(entrega.id).slice(0, 8)}</span>
                     </div>
-                    {totalDestinations > 1 && (
-                      <div className="mb-1 text-xs text-slate-500">
-                        Destino {currentDestinationNumber} de {totalDestinations}
-                      </div>
-                    )}
-                    <h3 className="font-bold text-gray-800">#{entrega.entrega_codigo_pedido || String(entrega.id).slice(0, 8)}</h3>
                   </div>
                   <div className="flex items-center gap-1 text-sky-500 ml-2 shrink-0">
                     <span className="text-xs font-medium">Detalhes</span>
@@ -1065,15 +1066,15 @@ export function EntregadorPedidosEmAndamentoPanel() {
               </div>
             </div>
 
-            {/* Detail modal */}
-            {detailModalId === entrega.id && (
+            {/* Detail modal — rendered via portal to escape <main z-0> stacking context */}
+            {detailModalId === entrega.id && createPortal(
               <div
                 className="fixed inset-0 z-[200] bg-black/60 flex items-end sm:items-center justify-center"
                 onClick={() => { setDetailModalId(null); setMapVisibleId(null); }}
               >
                 <div
                   className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-xl shadow-2xl overflow-y-auto"
-                  style={{ maxHeight: 'calc(90dvh - env(safe-area-inset-bottom))' }}
+                  style={{ maxHeight: 'min(90dvh, calc(100dvh - 8rem - env(safe-area-inset-bottom)))' }}
                   onClick={e => e.stopPropagation()}
                 >
                   {/* Modal header */}
@@ -1282,7 +1283,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
                   <div className="h-6" />
                 </div>
               </div>
-            )}
+            , document.body)}
             </>
             );
           })}
