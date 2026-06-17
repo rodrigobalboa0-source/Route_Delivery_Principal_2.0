@@ -1247,18 +1247,25 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                               </div>
                             </div>
 
-                            {isFirstDestination && incomingDelivery.opcionais?.driver_bonuses && Array.isArray(incomingDelivery.opcionais.driver_bonuses) && incomingDelivery.opcionais.driver_bonuses.length > 0 && (
-                              <div className="flex flex-wrap justify-end gap-1 pt-2 border-t border-slate-50">
-                                {incomingDelivery.opcionais.driver_bonuses.map((bonus: any, idx: number) => {
-                                  const isReturn = bonus.description && bonus.description.toLowerCase().includes('retorno');
-                                  return (
-                                    <div key={idx} className="text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-100 flex items-center gap-1">
-                                      <span className="text-[10px] text-green-600 font-medium">{isReturn ? 'Com retorno' : bonus.description}</span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
+                            {isFirstDestination && (() => {
+                              const bonuses = incomingDelivery.opcionais?.driver_bonuses;
+                              if (!bonuses || !Array.isArray(bonuses) || bonuses.length === 0) return null;
+                              const rpcLabels = new Set(incomingDriverDynamicRules.map(r => (r.observacao || '').toLowerCase()));
+                              const nonDynamic = (bonuses as any[]).filter((b: any) => !rpcLabels.has((b.description || '').toLowerCase()));
+                              if (nonDynamic.length === 0) return null;
+                              return (
+                                <div className="flex flex-wrap justify-end gap-1 pt-2 border-t border-slate-50">
+                                  {nonDynamic.map((bonus: any, idx: number) => {
+                                    const isReturn = bonus.description && bonus.description.toLowerCase().includes('retorno');
+                                    return (
+                                      <div key={idx} className="text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-100 flex items-center gap-1">
+                                        <span className="text-[10px] text-green-600 font-medium">{isReturn ? 'Com retorno' : bonus.description}</span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })()}
                             {isFirstDestination && incomingDriverDynamicRules.length > 0 && (
                               <div className="flex flex-wrap justify-end gap-1 pt-2 border-t border-slate-50">
                                 {incomingDriverDynamicRules.map((rule, idx) => (
@@ -1366,18 +1373,25 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                           </div>
                         </div>
 
-                        {incomingDelivery.opcionais?.driver_bonuses && Array.isArray(incomingDelivery.opcionais.driver_bonuses) && incomingDelivery.opcionais.driver_bonuses.length > 0 && (
-                          <div className="flex flex-wrap justify-end gap-1 pt-2 border-t border-slate-50">
-                            {incomingDelivery.opcionais.driver_bonuses.map((bonus: any, idx: number) => {
-                              const isReturn = bonus.description && bonus.description.toLowerCase().includes('retorno');
-                              return (
-                                <div key={idx} className="text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-100 flex items-center gap-1">
-                                  <span className="text-[10px] text-green-600 font-medium">{isReturn ? 'Com retorno' : bonus.description}</span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
+                        {(() => {
+                          const bonuses = incomingDelivery.opcionais?.driver_bonuses;
+                          if (!bonuses || !Array.isArray(bonuses) || bonuses.length === 0) return null;
+                          const rpcLabels = new Set(incomingDriverDynamicRules.map(r => (r.observacao || '').toLowerCase()));
+                          const nonDynamic = (bonuses as any[]).filter((b: any) => !rpcLabels.has((b.description || '').toLowerCase()));
+                          if (nonDynamic.length === 0) return null;
+                          return (
+                            <div className="flex flex-wrap justify-end gap-1 pt-2 border-t border-slate-50">
+                              {nonDynamic.map((bonus: any, idx: number) => {
+                                const isReturn = bonus.description && bonus.description.toLowerCase().includes('retorno');
+                                return (
+                                  <div key={idx} className="text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-100 flex items-center gap-1">
+                                    <span className="text-[10px] text-green-600 font-medium">{isReturn ? 'Com retorno' : bonus.description}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
                         {incomingDriverDynamicRules.length > 0 && (
                           <div className="flex flex-wrap justify-end gap-1 pt-2 border-t border-slate-50">
                             {incomingDriverDynamicRules.map((rule, idx) => (
