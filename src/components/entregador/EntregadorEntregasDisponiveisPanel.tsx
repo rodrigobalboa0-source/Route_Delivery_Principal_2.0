@@ -19,7 +19,7 @@ export function EntregadorEntregasDisponiveisPanel() {
   const [hasPriority, setHasPriority] = useState(false);
   const [currentTime, setCurrentTime] = useState(Date.now());
   const lastCountRef = useRef(0);
-  const [driverDynamicRules, setDriverDynamicRules] = useState<any[]>([]);
+  const [calcValues, setCalcValues] = useState<Record<string, { total: number; rules: any[] }>>({});
 
   const safeParseArray = (value: any) => {
     if (Array.isArray(value)) return value;
@@ -48,14 +48,56 @@ export function EntregadorEntregasDisponiveisPanel() {
     return totalDestinos + comissaoRetorno + multiploTotal;
   };
 
+  
   useEffect(() => {
-    supabase
-      .from('preco_dinamico_entregador')
-      .select('criterio, multiplicador, observacao')
-      .eq('ativa', true)
-      .order('created_at', { ascending: true })
-      .then(({ data }) => { if (data) setDriverDynamicRules(data); });
-  }, []);
+    if (entregas.length === 0) return;
+    const newIds = entregas.map(e => e.id).filter(id => !calcValues[id]);
+    if (newIds.length === 0) return;
+
+    const applyLocalRules = (baseValor: number, rules: any[]) => {
+      if (baseValor > 0 || rules.length === 0) return { total: baseValor, rules: [] };
+      let total = 0;
+      const applied: any[] = [];
+      for (const r of rules) {
+        const c = (r.criterio || '').toUpperCase();
+        if (c === 'TAXA_FIXA' && r.multiplicador != null) {
+          applied.push({ valor: Number(r.multiplicador), observacao: r.observacao || '' });
+          total += Number(r.multiplicador);
+        } else if (c === 'MULTIPLICADOR' && r.multiplicador != null) {
+          applied.push({ valor: total * (Number(r.multiplicador) - 1), observacao: r.observacao || '' });
+          total *= Number(r.multiplicador);
+        }
+      }
+      return { total, rules: applied };
+    };
+
+    Promise.all(
+      entregas.filter(e => newIds.includes(e.id)).map(async (entrega) => {
+        try {
+          const { data: rpcData, error: rpcError } = await supabase.rpc('get_entrega_comissao_debug', { entrega_id: entrega.id });
+          if (!rpcError && rpcData && (rpcData as any).success === true) {
+            const total = Number((rpcData as any).total || 0);
+            const appliedRules = Array.isArray((rpcData as any).applied_driver_rules) ? (rpcData as any).applied_driver_rules : [];
+            if (total > 0) return { id: entrega.id, total, rules: appliedRules };
+          }
+        } catch {}
+
+        
+        const baseValor = calculateMultiDestinoTotal(entrega);
+        const { data: dynRules } = await supabase
+          .from('preco_dinamico_entregador')
+          .select('criterio, multiplicador, observacao')
+          .eq('ativa', true)
+          .order('created_at', { ascending: true });
+        const result = applyLocalRules(baseValor, dynRules || []);
+        return { id: entrega.id, total: result.total, rules: result.rules };
+      })
+    ).then(results => {
+      const map: Record<string, { total: number; rules: any[] }> = {};
+      for (const r of results) if (r) map[r.id] = { total: r.total, rules: r.rules };
+      if (Object.keys(map).length > 0) setCalcValues(prev => ({ ...prev, ...map }));
+    });
+  }, [entregas]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -593,17 +635,9 @@ export function EntregadorEntregasDisponiveisPanel() {
                    <div className="flex flex-col items-end">
                      <div className="flex items-center gap-1 text-green-600 font-bold text-lg">
                        <DollarSign size={18} />
-                       {(() => {
-                         const base = calculateMultiDestinoTotal(entrega);
-                         if (base > 0 || driverDynamicRules.length === 0) return base.toFixed(2);
-                         let total = 0;
-                         for (const r of driverDynamicRules) {
-                           const c = (r.criterio || '').toUpperCase();
-                           if (c === 'TAXA_FIXA' && r.multiplicador != null) total += Number(r.multiplicador);
-                           else if (c === 'MULTIPLICADOR' && r.multiplicador != null) total *= Number(r.multiplicador);
-                         }
-                         return total.toFixed(2);
-                       })()}
+                       {calcValues[entrega.id]
+                         ? calcValues[entrega.id].total.toFixed(2)
+                         : <span className="text-green-600/50 animate-pulse text-sm">...</span>}
                      </div>
                      {(() => {
                        const vm = entrega?.opcionais?.valor_multiplo as { valorPorPonto: number; pontos: number; total: number } | undefined;
@@ -627,33 +661,16 @@ export function EntregadorEntregasDisponiveisPanel() {
                          })}
                        </div>
                      )}
-                     {(() => {
-                       const base = calculateMultiDestinoTotal(entrega);
-                       if (base > 0 || driverDynamicRules.length === 0) return null;
-                       let runningTotal = 0;
-                       const applied: Array<{ valor: number; observacao: string }> = [];
-                       for (const r of driverDynamicRules) {
-                         const c = (r.criterio || '').toUpperCase();
-                         if (c === 'TAXA_FIXA' && r.multiplicador != null) {
-                           applied.push({ valor: Number(r.multiplicador), observacao: r.observacao || '' });
-                           runningTotal += Number(r.multiplicador);
-                         } else if (c === 'MULTIPLICADOR' && r.multiplicador != null) {
-                           applied.push({ valor: runningTotal * (Number(r.multiplicador) - 1), observacao: r.observacao || '' });
-                           runningTotal *= Number(r.multiplicador);
-                         }
-                       }
-                       if (applied.length === 0) return null;
-                       return (
-                         <div className="flex flex-wrap justify-end gap-1 mt-1">
-                           {applied.map((rule, idx) => (
-                             <span key={idx} className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 font-semibold">
-                               + R$ {Number(rule.valor).toFixed(2).replace('.', ',')}
-                               {rule.observacao ? ` • ${rule.observacao}` : ''}
-                             </span>
-                           ))}
-                         </div>
-                       );
-                     })()}
+                     {calcValues[entrega.id]?.rules?.length > 0 && (
+                       <div className="flex flex-wrap justify-end gap-1 mt-1">
+                         {calcValues[entrega.id].rules.map((rule: any, idx: number) => (
+                           <span key={idx} className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 font-semibold">
+                             + R$ {Number(rule.valor ?? rule.multiplicador ?? 0).toFixed(2).replace('.', ',')}
+                             {rule.observacao ? ` • ${rule.observacao}` : ''}
+                           </span>
+                         ))}
+                       </div>
+                     )}
                    </div>
                    <div className="flex items-center gap-1 text-xs text-gray-400 mt-1 justify-end">
                      <Clock size={12} />

@@ -481,7 +481,51 @@ export function EntregadorPedidosEmAndamentoPanel() {
          const effectiveMaxDistanceKm = Math.max(BASE_MAX_DISTANCE_KM, 0.25, Math.min(1, accuracyKm * 3.5));
          
          if (newStatus === 'chegou_coleta' || newStatus === 'em_rota') {
-             if (hasPickupAddress) {
+             // "Iniciar Retorno" (em_rota + retorno_fase=retorno): driver is at the delivery point — validate delivery address
+             const isStartingReturn = newStatus === 'em_rota' && extraOpcionais?.retorno_fase === 'retorno';
+
+             if (isStartingReturn) {
+                 if (hasDeliveryAddress) {
+                     let deliveryCoordsResolved = coords?.delivery;
+                     if (!deliveryCoordsResolved && currentEntrega.entrega_endereco_texto) {
+                       deliveryCoordsResolved = await getCoordsFromAddress(currentEntrega.entrega_endereco_texto);
+                       if (deliveryCoordsResolved) {
+                         setDeliveryCoords(prev => ({ ...prev, [id]: { ...(prev[id] || {}), delivery: deliveryCoordsResolved } }));
+                       }
+                     }
+
+                     if (!deliveryCoordsResolved) {
+                         const acc = userLocation.accuracyM ? `\nPrecisão do GPS: ~${Math.round(userLocation.accuracyM)}m` : '';
+                         const canBypass = typeof userLocation.accuracyM === 'number' && userLocation.accuracyM <= 120;
+                         if (canBypass) {
+                           const ok = await showConfirm(
+                             `Não foi possível localizar o endereço de entrega para validar sua presença.\n\nEndereço de entrega: ${String(currentEntrega.entrega_endereco_texto || '').trim()}${acc}\n\nDeseja confirmar mesmo assim?`,
+                             'Confirmação'
+                           );
+                           if (!ok) { setUpdatingId(null); return; }
+                         } else {
+                           await showAlert(
+                             `Não foi possível localizar o endereço de entrega para validar sua presença.\n\nEndereço de entrega: ${String(currentEntrega.entrega_endereco_texto || '').trim()}${acc}`,
+                             'Localização'
+                           );
+                           setUpdatingId(null); return;
+                         }
+                     } else {
+                         const distKm = getDistanceFromLatLonInKm(
+                             userLocation.lat, userLocation.lng,
+                             deliveryCoordsResolved[0], deliveryCoordsResolved[1]
+                         );
+                         if (distKm > effectiveMaxDistanceKm) {
+                             const acc = userLocation.accuracyM ? `\nPrecisão do GPS: ~${Math.round(userLocation.accuracyM)}m` : '';
+                             await showAlert(
+                               `Você ainda não chegou no local de entrega para iniciar o retorno.\n\nEndereço de entrega: ${String(currentEntrega.entrega_endereco_texto || '').trim()}\nDistância: ${distKm.toFixed(2)} km (máx: ${effectiveMaxDistanceKm.toFixed(2)} km)${acc}`,
+                               'Localização'
+                             );
+                             setUpdatingId(null); return;
+                         }
+                     }
+                 }
+             } else if (hasPickupAddress) {
                  let pickupCoords = coords?.pickup;
                  if (!pickupCoords && currentEntrega.coleta_endereco_texto) {
                    pickupCoords = await getCoordsFromAddress(currentEntrega.coleta_endereco_texto);
@@ -511,14 +555,13 @@ export function EntregadorPedidosEmAndamentoPanel() {
                        return;
                      }
                  } else {
-                     
                      const distKm = getDistanceFromLatLonInKm(
-                         userLocation.lat, 
-                         userLocation.lng, 
-                         pickupCoords[0], 
+                         userLocation.lat,
+                         userLocation.lng,
+                         pickupCoords[0],
                          pickupCoords[1]
                      );
-                     
+
                      if (distKm > effectiveMaxDistanceKm) {
                          const acc = userLocation.accuracyM ? `\nPrecisão do GPS: ~${Math.round(userLocation.accuracyM)}m` : '';
                         await showAlert(
@@ -533,7 +576,52 @@ export function EntregadorPedidosEmAndamentoPanel() {
          }
 
          if (newStatus === 'chegou_entrega' || newStatus === 'entregue') {
-             if (hasDeliveryAddress) {
+             // "Finalizar Retorno" (entregue + retorno_fase=retornado): driver is back at the store — validate pickup address
+             const currentRetornoFase = currentEntrega.opcionais?.retorno_fase as string | undefined;
+             const isFinalizingReturn = newStatus === 'entregue' && currentRetornoFase === 'retornado';
+
+             if (isFinalizingReturn) {
+                 if (hasPickupAddress) {
+                     let pickupCoords = coords?.pickup;
+                     if (!pickupCoords && currentEntrega.coleta_endereco_texto) {
+                       pickupCoords = await getCoordsFromAddress(currentEntrega.coleta_endereco_texto);
+                       if (pickupCoords) {
+                         setDeliveryCoords(prev => ({ ...prev, [id]: { ...(prev[id] || {}), pickup: pickupCoords } }));
+                       }
+                     }
+
+                     if (!pickupCoords) {
+                         const acc = userLocation.accuracyM ? `\nPrecisão do GPS: ~${Math.round(userLocation.accuracyM)}m` : '';
+                         const canBypass = typeof userLocation.accuracyM === 'number' && userLocation.accuracyM <= 120;
+                         if (canBypass) {
+                           const ok = await showConfirm(
+                             `Não foi possível localizar o endereço de retorno para validar sua presença.\n\nEndereço de retorno: ${String(currentEntrega.coleta_endereco_texto || '').trim()}${acc}\n\nDeseja confirmar mesmo assim?`,
+                             'Confirmação'
+                           );
+                           if (!ok) { setUpdatingId(null); return; }
+                         } else {
+                           await showAlert(
+                             `Não foi possível localizar o endereço de retorno para validar sua presença.\n\nEndereço de retorno: ${String(currentEntrega.coleta_endereco_texto || '').trim()}${acc}`,
+                             'Localização'
+                           );
+                           setUpdatingId(null); return;
+                         }
+                     } else {
+                         const distKm = getDistanceFromLatLonInKm(
+                             userLocation.lat, userLocation.lng,
+                             pickupCoords[0], pickupCoords[1]
+                         );
+                         if (distKm > effectiveMaxDistanceKm) {
+                             const acc = userLocation.accuracyM ? `\nPrecisão do GPS: ~${Math.round(userLocation.accuracyM)}m` : '';
+                             await showAlert(
+                               `Você ainda não chegou no local de retorno para confirmar.\n\nEndereço de retorno: ${String(currentEntrega.coleta_endereco_texto || '').trim()}\nDistância: ${distKm.toFixed(2)} km (máx: ${effectiveMaxDistanceKm.toFixed(2)} km)${acc}`,
+                               'Localização'
+                             );
+                             setUpdatingId(null); return;
+                         }
+                     }
+                 }
+             } else if (hasDeliveryAddress) {
                  let deliveryCoordsResolved = coords?.delivery;
                  if (!deliveryCoordsResolved && currentEntrega.entrega_endereco_texto) {
                    deliveryCoordsResolved = await getCoordsFromAddress(currentEntrega.entrega_endereco_texto);
@@ -563,14 +651,13 @@ export function EntregadorPedidosEmAndamentoPanel() {
                        return;
                      }
                  } else {
-                     
                      const distKm = getDistanceFromLatLonInKm(
-                         userLocation.lat, 
-                         userLocation.lng, 
-                         deliveryCoordsResolved[0], 
+                         userLocation.lat,
+                         userLocation.lng,
+                         deliveryCoordsResolved[0],
                          deliveryCoordsResolved[1]
                      );
-                     
+
                      if (distKm > effectiveMaxDistanceKm) {
                          const acc = userLocation.accuracyM ? `\nPrecisão do GPS: ~${Math.round(userLocation.accuracyM)}m` : '';
                         await showAlert(
