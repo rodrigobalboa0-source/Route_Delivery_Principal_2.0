@@ -1167,8 +1167,8 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
       </button>
 
        {incomingDelivery && createPortal(
-         <div className={`fixed inset-0 bg-black/50 backdrop-blur-sm p-4 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-transparent ${!isIncomingMultiplo ? 'flex items-center justify-center' : 'overflow-y-auto'}`} style={{ zIndex: 2147483647 }}>
-            <div className={`flex flex-col ${!isIncomingMultiplo ? '' : 'items-center gap-4 py-4'}`}>
+         <div className={`fixed inset-0 bg-black/50 backdrop-blur-sm scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-transparent ${!isIncomingMultiplo ? 'flex items-end sm:items-center justify-center overflow-y-auto p-0 sm:p-4' : 'overflow-y-auto p-4'}`} style={{ zIndex: 2147483647 }}>
+            <div className={`flex flex-col ${!isIncomingMultiplo ? 'w-full sm:max-w-[450px]' : 'items-center gap-4 py-4'}`}>
               {isIncomingMultiplo ? (
                 [...incomingDestinos].reverse().map((d: any, idx: number) => {
                   const originalIdx = incomingDestinos.length - 1 - idx;
@@ -1208,7 +1208,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                               )}
                             </div>
                             {isFirstDestination && (
-                              <div className="flex flex-col items-end bg-green-50 px-3 py-1.5 rounded-lg border border-green-100 shadow-sm">
+                              <div className="flex flex-col items-end bg-green-50 px-3 py-1.5 rounded-lg border border-green-100 shadow-sm shrink-0">
                                 <span className="text-[10px] text-green-700 font-bold uppercase tracking-wide">Você recebe</span>
                                 <span className="font-extrabold text-green-700 text-2xl leading-none">
                                   {calculatingIncomingValorEntregador ? (
@@ -1309,8 +1309,9 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                   );
                 })
               ) : (
-                <div className="bg-white w-full max-w-[450px] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in slide-in-from-bottom duration-300">
-                  <div className="p-5 overflow-y-auto">
+                <div className="bg-white w-full rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom duration-300" style={{ maxHeight: 'min(90dvh, calc(100dvh - env(safe-area-inset-top) - 2rem))' }}>
+                  <div className="p-5 flex-1 min-h-0 overflow-y-auto"
+                    style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}>
                     <div className="flex flex-col gap-5">
                       <div className="flex items-center gap-3 w-full border-b border-slate-100 pb-4">
                         <div className={`w-14 h-14 min-w-[3.5rem] rounded-full flex items-center justify-center overflow-hidden border-2 shadow-sm ${incomingDelivery.status === 'criada' ? 'border-sky-100' : 'border-green-100'}`}>
@@ -1337,7 +1338,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                             </div>
                           )}
                         </div>
-                        <div className="flex flex-col items-end bg-green-50 px-3 py-1.5 rounded-lg border border-green-100 shadow-sm">
+                        <div className="flex flex-col items-end bg-green-50 px-3 py-1.5 rounded-lg border border-green-100 shadow-sm shrink-0">
                           <span className="text-[10px] text-green-700 font-bold uppercase tracking-wide">Você recebe</span>
                           <span className="font-extrabold text-green-700 text-2xl leading-none">
                             {calculatingIncomingValorEntregador ? (

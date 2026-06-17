@@ -1143,13 +1143,17 @@ export function NovaEntregaPanel() {
       const tableToUse = tableOverride || selectedComissaoTable;
 
       if (faixasToUse.length > 0) {
-         const faixa = faixasToUse.find(f => f.km_ate >= km);
          
+         const sorted = [...faixasToUse].sort((a, b) => a.km_ate - b.km_ate);
+         const achieved = sorted.filter(f => f.km_ate <= km);
+         const faixa = achieved.length > 0
+           ? achieved[achieved.length - 1]   
+           : sorted[0];                       
+
          if (faixa) {
              val = faixa.valor;
          } else {
-             const last = faixasToUse[faixasToUse.length - 1];
-             val = last ? last.valor : 0;
+             val = 0;
          }
 
          const table = tableToUse;
@@ -1236,7 +1240,7 @@ export function NovaEntregaPanel() {
            }
          });
          
-         // Adicionar valor_multiplo_comercio para entregas múltiplas (2ª entrega em diante)
+         
         if (pointsCount > 0) {
           const pricingTable = pricingTableOverride || (selectedTabelaId ? tabelasPrecos.find(t => String(t.id) === String(selectedTabelaId)) : null);
           if (pricingTable && pricingTable.valor_multiplo_comercio && pricingTable.valor_multiplo_comercio > 0) {
