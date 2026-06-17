@@ -651,7 +651,9 @@ export function EntregadorEntregasDisponiveisPanel() {
                      })()}
                      {calcValues[entrega.id]?.rules?.length > 0 && (
                        <div className="flex flex-wrap justify-end gap-1 mt-1">
-                         {calcValues[entrega.id].rules.map((rule: any, idx: number) => (
+                         {(calcValues[entrega.id].rules as any[])
+                           .filter((r: any, i: number, arr: any[]) => arr.findIndex((x: any) => (x.observacao || '') === (r.observacao || '')) === i)
+                           .map((rule: any, idx: number) => (
                            <span key={idx} className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 font-semibold">
                              + R$ {Number(rule.valor ?? rule.multiplicador ?? 0).toFixed(2).replace('.', ',')}
                              {rule.observacao ? ` • ${rule.observacao}` : ''}

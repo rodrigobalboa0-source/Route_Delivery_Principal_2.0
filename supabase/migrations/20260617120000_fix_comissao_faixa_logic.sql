@@ -148,11 +148,11 @@ BEGIN
   
   BEGIN
     FOR v_driver_dynamic IN
-      SELECT criterio, multiplicador, observacao
+      SELECT DISTINCT ON (criterio, observacao) criterio, multiplicador, observacao
       FROM public.preco_dinamico_entregador
       WHERE ativa = true
         AND (entregador_id IS NULL OR entregador_id = v_entrega.entregador_id)
-      ORDER BY created_at
+      ORDER BY criterio, observacao, created_at
     LOOP
       IF v_driver_dynamic.criterio = 'MULTIPLICADOR' AND v_driver_dynamic.multiplicador IS NOT NULL THEN
         v_applied_rules := v_applied_rules || jsonb_build_array(jsonb_build_object(
