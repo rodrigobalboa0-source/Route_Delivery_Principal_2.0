@@ -649,24 +649,6 @@ export function EntregadorEntregasDisponiveisPanel() {
                          </span>
                        ) : null;
                      })()}
-                     {(() => {
-                       if (!entrega.opcionais?.driver_bonuses || !Array.isArray(entrega.opcionais.driver_bonuses)) return null;
-                       const rpcLabels = new Set((calcValues[entrega.id]?.rules || []).map((r: any) => (r.observacao || '').toLowerCase()));
-                       const nonDynamic = (entrega.opcionais.driver_bonuses as any[]).filter((b: any) => !rpcLabels.has((b.description || '').toLowerCase()));
-                       if (nonDynamic.length === 0) return null;
-                       return (
-                         <div className="text-xs text-right flex flex-col items-end gap-1 mb-1">
-                           {nonDynamic.map((bonus: any, idx: number) => {
-                             const isReturn = bonus.description && bonus.description.toLowerCase().includes('retorno');
-                             return (
-                               <div key={idx} className="text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-100 flex items-center gap-1">
-                                 <span className="text-[10px] text-green-600 opacity-75">{isReturn ? 'Com retorno' : bonus.description}</span>
-                               </div>
-                             );
-                           })}
-                         </div>
-                       );
-                     })()}
                      {calcValues[entrega.id]?.rules?.length > 0 && (
                        <div className="flex flex-wrap justify-end gap-1 mt-1">
                          {calcValues[entrega.id].rules.map((rule: any, idx: number) => (
