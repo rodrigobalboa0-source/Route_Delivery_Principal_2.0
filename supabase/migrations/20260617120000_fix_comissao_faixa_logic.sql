@@ -50,8 +50,8 @@ BEGIN
          OR (jsonb_typeof(tc.cliente_ids) = 'array'
              AND v_entrega.cliente_id IS NOT NULL
              AND EXISTS (
-               SELECT 1 FROM jsonb_array_elements(tc.cliente_ids) elem
-               WHERE elem::text = v_entrega.cliente_id::text
+               SELECT 1 FROM jsonb_array_elements_text(tc.cliente_ids) elem
+               WHERE elem = v_entrega.cliente_id::text
              )))
   ORDER BY tc.created_at DESC
   LIMIT 1;
@@ -64,8 +64,8 @@ BEGIN
            OR (jsonb_typeof(tp.cliente_ids) = 'array'
                AND v_entrega.cliente_id IS NOT NULL
                AND EXISTS (
-                 SELECT 1 FROM jsonb_array_elements(tp.cliente_ids) elem
-                 WHERE elem::text = v_entrega.cliente_id::text
+                 SELECT 1 FROM jsonb_array_elements_text(tp.cliente_ids) elem
+                 WHERE elem = v_entrega.cliente_id::text
                )))
     ORDER BY tp.created_at DESC
     LIMIT 1;

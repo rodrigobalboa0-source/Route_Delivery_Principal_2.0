@@ -47,6 +47,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
   const [distances, setDistances] = useState<Record<string, { userToPickup: number, pickupToDelivery: number, userToDelivery: number }>>({});
   const [persistedDistanceIds, setPersistedDistanceIds] = useState<Record<string, boolean>>({});
   const [driverDynamicRules, setDriverDynamicRules] = useState<any[]>([]);
+  const [calcValues, setCalcValues] = useState<Record<string, { total: number; rules: any[] }>>({});
 
   const [dialog, setDialog] = useState<{ open: boolean; title: string; message: string; mode: 'alert' | 'confirm' }>({
     open: false,
@@ -126,6 +127,21 @@ export function EntregadorPedidosEmAndamentoPanel() {
     if (entregas.length > 0) {
         fetchCoords();
     }
+  }, [entregas]);
+
+  useEffect(() => {
+    if (entregas.length === 0) return;
+    const fetchCalcValues = async () => {
+      const results: Record<string, { total: number; rules: any[] }> = {};
+      for (const entrega of entregas) {
+        const { data } = await supabase.rpc('get_entrega_comissao_debug', { entrega_id: entrega.id });
+        if (data?.success) {
+          results[entrega.id] = { total: Number(data.total ?? 0), rules: data.applied_driver_rules ?? [] };
+        }
+      }
+      setCalcValues(results);
+    };
+    fetchCalcValues();
   }, [entregas]);
 
   useEffect(() => {
@@ -1187,67 +1203,20 @@ export function EntregadorPedidosEmAndamentoPanel() {
                       <p className="text-xs font-bold text-gray-500 uppercase mb-2">Valores</p>
                       <div className="flex items-center gap-1 text-green-600 font-bold text-2xl mb-2">
                         <DollarSign size={22} />
-                        {(() => {
-                          const base = calculateMultiDestinoTotal(entrega);
-                          if (base > 0 || driverDynamicRules.length === 0) return base.toFixed(2);
-                          let total = 0;
-                          for (const r of driverDynamicRules) {
-                            const c = (r.criterio || '').toUpperCase();
-                            if (c === 'TAXA_FIXA' && r.multiplicador != null) total += Number(r.multiplicador);
-                            else if (c === 'MULTIPLICADOR' && r.multiplicador != null) total *= Number(r.multiplicador);
-                          }
-                          return total.toFixed(2);
-                        })()}
+                        {(calcValues[entrega.id]?.total ?? calculateMultiDestinoTotal(entrega)).toFixed(2)}
                       </div>
-                      {(() => {
-                        const vm = entrega?.opcionais?.valor_multiplo as { valorPorPonto: number; pontos: number; total: number } | undefined;
-                        const extraPts = safeParseArray(entrega?.pontos_adicionais);
-                        const mt = vm?.valorPorPonto ? vm.valorPorPonto * (1 + extraPts.length) : 0;
-                        return mt > 0 ? (
-                          <span className="inline-block text-xs text-emerald-700 bg-emerald-100 px-2 py-1 rounded font-semibold mb-1">
-                            + R$ {mt.toFixed(2).replace('.', ',')} (Múltiplo)
-                          </span>
-                        ) : null;
-                      })()}
-                      {entrega.opcionais?.driver_bonuses && Array.isArray(entrega.opcionais.driver_bonuses) && (
+                      {calcValues[entrega.id]?.rules?.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1">
-                          {entrega.opcionais.driver_bonuses.map((bonus: any, idx: number) => {
-                            const isReturn = bonus.description && bonus.description.toLowerCase().includes('retorno');
-                            return (
-                              <span key={idx} className="text-xs text-green-700 bg-green-100 px-2 py-1 rounded font-semibold">
-                                {isReturn ? 'Com retorno' : bonus.description}
-                              </span>
-                            );
-                          })}
+                          {(calcValues[entrega.id].rules as any[])
+                            .filter((r: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.observacao === r.observacao) === i)
+                            .map((rule: any, idx: number) => (
+                            <span key={idx} className="text-xs text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-100 font-semibold">
+                              + R$ {Number(rule.valor).toFixed(2).replace('.', ',')}
+                              {rule.observacao ? ` • ${rule.observacao}` : ''}
+                            </span>
+                          ))}
                         </div>
                       )}
-                      {(() => {
-                        const base = calculateMultiDestinoTotal(entrega);
-                        if (base > 0 || driverDynamicRules.length === 0) return null;
-                        let runningTotal = 0;
-                        const applied: Array<{ valor: number; observacao: string }> = [];
-                        for (const r of driverDynamicRules) {
-                          const c = (r.criterio || '').toUpperCase();
-                          if (c === 'TAXA_FIXA' && r.multiplicador != null) {
-                            applied.push({ valor: Number(r.multiplicador), observacao: r.observacao || '' });
-                            runningTotal += Number(r.multiplicador);
-                          } else if (c === 'MULTIPLICADOR' && r.multiplicador != null) {
-                            applied.push({ valor: runningTotal * (Number(r.multiplicador) - 1), observacao: r.observacao || '' });
-                            runningTotal *= Number(r.multiplicador);
-                          }
-                        }
-                        if (applied.length === 0) return null;
-                        return (
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {applied.map((rule, idx) => (
-                              <span key={idx} className="text-xs text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-100 font-semibold">
-                                + R$ {Number(rule.valor).toFixed(2).replace('.', ',')}
-                                {rule.observacao ? ` • ${rule.observacao}` : ''}
-                              </span>
-                            ))}
-                          </div>
-                        );
-                      })()}
                     </div>
 
                     {/* Endereços */}
