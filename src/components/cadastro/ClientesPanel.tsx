@@ -4,6 +4,7 @@ import { Modal } from '../Modal';
 import type { Database } from '../../lib/database.types';
 
 type TabelaPreco = Database['public']['Tables']['tabelas_precos']['Row'];
+type TabelaComissao = Database['public']['Tables']['tabelas_comissoes']['Row'];
 type ModalRow = Database['public']['Tables']['modais']['Row'];
 
 interface PrecificacaoConfigItem {
@@ -74,6 +75,9 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
     precificacao_config: [] as PrecificacaoConfigItem[],
   });
   const [tabelasPrecos, setTabelasPrecos] = useState<TabelaPreco[]>([]);
+  const [tabelasComissoes, setTabelasComissoes] = useState<TabelaComissao[]>([]);
+  const [editTabelaComissaoId, setEditTabelaComissaoId] = useState<string>('');
+  const [formTabelaComissaoId, setFormTabelaComissaoId] = useState<string>('');
   const [modais, setModais] = useState<ModalRow[]>([]);
   const [editEnderecos, setEditEnderecos] = useState<EnderecoEdit[]>([]);
   const [editEnderecoNovo, setEditEnderecoNovo] = useState<EnderecoEdit>({ cep: '', rua: '', numero: '', complemento: '', bairro: '', cidade: '', referencia_entrega: '' });
@@ -150,8 +154,12 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
   }, [initialEditId, clientes]);
 
   const fetchTabelasPrecos = async () => {
-    const { data } = await supabase.from('tabelas_precos').select('*').order('nome');
-    setTabelasPrecos(data || []);
+    const [precosRes, comissoesRes] = await Promise.all([
+      supabase.from('tabelas_precos').select('*').order('nome'),
+      supabase.from('tabelas_comissoes').select('id, nome, cliente_ids, ativo').eq('ativo', true).order('nome'),
+    ]);
+    setTabelasPrecos(precosRes.data || []);
+    setTabelasComissoes((comissoesRes.data || []) as TabelaComissao[]);
     const { data: m } = await supabase.from('modais').select('*').eq('ativo', true).order('tipo');
     setModais(m || []);
   };
@@ -195,6 +203,27 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
       
       return { ...prev, precificacao_config: newConfig };
     });
+  };
+
+  const parseIds = (raw: unknown): string[] => {
+    if (Array.isArray(raw)) return raw as string[];
+    if (typeof raw === 'string') { try { return JSON.parse(raw); } catch { return []; } }
+    return [];
+  };
+
+  const assignComissaoTable = async (clienteId: string, selectedTabelaId: string) => {
+    const { data: allTables } = await supabase.from('tabelas_comissoes').select('id, cliente_ids');
+    if (!allTables) return;
+    await Promise.all(allTables.map(async (table) => {
+      const current = parseIds(table.cliente_ids);
+      const shouldBeIn = table.id === selectedTabelaId;
+      const isIn = current.includes(clienteId);
+      if (shouldBeIn && !isIn) {
+        await supabase.from('tabelas_comissoes').update({ cliente_ids: [...current, clienteId] }).eq('id', table.id);
+      } else if (!shouldBeIn && isIn) {
+        await supabase.from('tabelas_comissoes').update({ cliente_ids: current.filter((id: string) => id !== clienteId) }).eq('id', table.id);
+      }
+    }));
   };
 
   const handleSubmit = async () => {
@@ -443,6 +472,9 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
         .eq('id', cid);
       void e;
     }
+    // Assign commission table for new client
+    if (formTabelaComissaoId) await assignComissaoTable(cid, formTabelaComissaoId);
+    setFormTabelaComissaoId('');
     setForm({
       nome_completo: '',
       cpf: '',
@@ -623,6 +655,10 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
   };
 
   const openEdit = async (c: Cliente) => {
+    // Detect which commission table currently includes this client
+    const { data: allTables } = await supabase.from('tabelas_comissoes').select('id, cliente_ids');
+    const currentTable = (allTables || []).find(t => parseIds(t.cliente_ids).includes(c.id));
+    setEditTabelaComissaoId(currentTable?.id || '');
     setEditing(c);
     const pConfig = (c.precificacao_config as unknown as PrecificacaoConfigItem[]) || [];
     setEditForm({
@@ -881,6 +917,8 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
       const deletes = editEnderecosRemovidos.map((id) => supabase.from('cliente_enderecos').delete().eq('id', id));
       await Promise.all([...updates, ...inserts, ...deletes]);
     }
+    // Update commission table assignment
+    await assignComissaoTable(editing.id, editTabelaComissaoId);
     setEditing(null);
     setLoading(false);
     await fetchClientes();
@@ -1072,6 +1110,22 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
               </div>
             </div>
             )}
+            <div className="md:col-span-2 mt-0 bg-amber-50 border border-amber-100 p-4 rounded-lg">
+              <div className="mb-1 text-sm text-amber-800 font-medium">Tabela de Comissão do Entregador</div>
+              <div className="text-xs text-amber-700 mb-3">
+                Define qual tabela de comissão o entregador recebe ao entregar para este comércio.
+              </div>
+              <select
+                value={formTabelaComissaoId}
+                onChange={e => setFormTabelaComissaoId(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded text-sm bg-white"
+              >
+                <option value="">Sem tabela de comissão</option>
+                {tabelasComissoes.map(t => (
+                  <option key={t.id} value={t.id}>{t.nome}</option>
+                ))}
+              </select>
+            </div>
             <div>
               <label className="text-xs text-slate-700">Cadastro via</label>
               <select value={form.cadastro_via} onChange={(e) => setForm({ ...form, cadastro_via: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded">
@@ -1570,6 +1624,23 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
               );
             })}
           </div>
+        </div>
+
+        <div className="mt-4 bg-amber-50 border border-amber-100 p-4 rounded-lg">
+          <div className="mb-1 text-sm text-amber-800 font-medium">Tabela de Comissão do Entregador</div>
+          <div className="text-xs text-amber-700 mb-3">
+            Define qual tabela de comissão o entregador recebe ao entregar para este comércio.
+          </div>
+          <select
+            value={editTabelaComissaoId}
+            onChange={e => setEditTabelaComissaoId(e.target.value)}
+            className="w-full px-3 py-2 border border-slate-300 rounded text-sm bg-white"
+          >
+            <option value="">Sem tabela de comissão</option>
+            {tabelasComissoes.map(t => (
+              <option key={t.id} value={t.id}>{t.nome}</option>
+            ))}
+          </select>
         </div>
 
         <div className="mt-4">
