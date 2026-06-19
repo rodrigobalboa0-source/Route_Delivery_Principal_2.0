@@ -1,9 +1,10 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Plus, Edit, Trash2, AlertCircle, Store } from 'lucide-react';
+import { Plus, Edit, Trash2, AlertCircle, Store, Settings } from 'lucide-react';
 import { Database } from '../../lib/database.types';
 import { Modal } from '../Modal';
+import { IfoodMerchantPanel } from './IfoodMerchantPanel';
 
 type Integracao = Database['public']['Tables']['integracoes_ifood']['Row'] & {
   clientes?: { nome_completo: string } | null;
@@ -21,6 +22,7 @@ export function IntegracaoPanel() {
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingIntegracao, setEditingIntegracao] = useState<Integracao | null>(null);
+  const [merchantView, setMerchantView] = useState<{ clienteId: string; merchantId?: string } | null>(null);
   
   const [formData, setFormData] = useState<Partial<Database['public']['Tables']['integracoes_ifood']['Insert']>>({
     status: 'inativo'
@@ -228,6 +230,16 @@ export function IntegracaoPanel() {
 
   if (loading) return <div className="p-8 text-center text-slate-500">Carregando integrações...</div>;
 
+  if (merchantView) {
+    return (
+      <IfoodMerchantPanel
+        clienteId={merchantView.clienteId}
+        defaultMerchantId={merchantView.merchantId || undefined}
+        onBack={() => setMerchantView(null)}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -298,7 +310,15 @@ export function IntegracaoPanel() {
               </div>
             </div>
 
-            {int.status !== 'ativo' && (
+            {int.status === 'ativo' ? (
+              <button
+                onClick={() => setMerchantView({ clienteId: int.cliente_id, merchantId: int.merchant_id || undefined })}
+                className="mt-3 w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium flex items-center justify-center gap-2"
+              >
+                <Settings size={16} />
+                Gerenciar Loja
+              </button>
+            ) : (
               <button
                 onClick={() => handleConnect(int.cliente_id)}
                 className="mt-3 w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium"

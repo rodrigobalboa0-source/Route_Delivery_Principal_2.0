@@ -33,9 +33,10 @@ function calculateMultiDestinoTotal(entrega: any) {
   return totalDestinos + comissaoRetorno + multiploTotal;
 }
 
-export function EntregadorPedidosEmAndamentoPanel() {
+export function EntregadorPedidosEmAndamentoPanel({ onNavigate }: { onNavigate?: (menu: string) => void }) {
   const [entregas, setEntregas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const hasLoadedOnceRef = useRef(false);
   const [profileMissing, setProfileMissing] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [mapVisibleId, setMapVisibleId] = useState<string | null>(null);
@@ -75,6 +76,13 @@ export function EntregadorPedidosEmAndamentoPanel() {
       dialogConfirmResolveRef.current = resolve;
       setDialog({ open: true, title, message, mode: 'confirm' });
     });
+
+  useEffect(() => {
+    if (!hasLoadedOnceRef.current || loading) return;
+    if (entregas.length === 0) {
+      onNavigate?.('home_entregador');
+    }
+  }, [entregas, loading]);
 
   useEffect(() => {
     supabase
@@ -395,24 +403,24 @@ export function EntregadorPedidosEmAndamentoPanel() {
 
     startWatching();
 
-    // Start foreground service when in deliveries panel
+    
     startForegroundService();
 
-    // Listen for app state changes
+    
     const appStateListener = App.addListener('appStateChange', async ({ isActive }) => {
       if (isActive) {
         console.log('[App State EmAndamento] App is now active (foreground)');
         if (currentEntregadorId) {
-          // Ensure foreground service is running when app is active
+          
           await startForegroundService();
         }
       } else {
         console.log('[App State EmAndamento] App is now inactive (background)');
         if (currentEntregadorId) {
-          // Keep foreground service running in background
+          
           await startForegroundService();
         } else {
-          // Stop foreground service when no deliveries
+          
           await stopForegroundService();
         }
       }
@@ -466,10 +474,45 @@ export function EntregadorPedidosEmAndamentoPanel() {
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      setEntregas(data || []);
+
+      const entregasList = data || [];
+
+      
+      
+      const missingIds = new Set<string>();
+      entregasList.forEach(e => {
+        if ((e as any).cliente_id && !(e as any).clientes?.nome_completo) {
+          missingIds.add((e as any).cliente_id);
+        }
+      });
+
+      if (missingIds.size > 0) {
+        const nameMap: Record<string, string> = {};
+        await Promise.all(
+          Array.from(missingIds).map(async (cid) => {
+            const { data: info } = await supabase.rpc('get_cliente_public_info', { cid });
+            if (Array.isArray(info) && info[0]?.nome_completo) {
+              nameMap[cid] = info[0].nome_completo;
+            }
+          })
+        );
+
+        const merged = entregasList.map(e => {
+          const cid = (e as any).cliente_id;
+          if (cid && nameMap[cid] && !(e as any).clientes?.nome_completo) {
+            return { ...e, clientes: { nome_completo: nameMap[cid], telefone: (e as any).clientes?.telefone ?? null } };
+          }
+          return e;
+        });
+
+        setEntregas(merged);
+      } else {
+        setEntregas(entregasList);
+      }
     } catch (error) {
       console.error('Erro ao buscar entregas em andamento:', error);
     } finally {
+      hasLoadedOnceRef.current = true;
       setLoading(false);
     }
   }
@@ -497,7 +540,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
          const effectiveMaxDistanceKm = Math.max(BASE_MAX_DISTANCE_KM, 0.25, Math.min(1, accuracyKm * 3.5));
          
          if (newStatus === 'chegou_coleta' || newStatus === 'em_rota') {
-             // "Iniciar Retorno" (em_rota + retorno_fase=retorno): driver is at the delivery point — validate delivery address
+             
              const isStartingReturn = newStatus === 'em_rota' && extraOpcionais?.retorno_fase === 'retorno';
 
              if (isStartingReturn) {
@@ -592,7 +635,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
          }
 
          if (newStatus === 'chegou_entrega' || newStatus === 'entregue') {
-             // "Finalizar Retorno" (entregue + retorno_fase=retornado): driver is back at the store — validate pickup address
+             
              const currentRetornoFase = currentEntrega.opcionais?.retorno_fase as string | undefined;
              const isFinalizingReturn = newStatus === 'entregue' && currentRetornoFase === 'retornado';
 
@@ -793,7 +836,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
         return;
       }
 
-      // Validação de GPS - mesma lógica de updateStatus para chegou_entrega
+      
       if (!userLocation) {
         await showAlert('Aguardando localização do dispositivo...', 'Localização');
         setUpdatingId(null);
@@ -853,7 +896,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
         }
       }
 
-      // Após validação GPS, usa helper compartilhado para calcular avanço
+      
       const now = new Date().toISOString();
       const result = calculateAdvanceDestination(currentEntrega, now);
 
@@ -1013,7 +1056,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
             return (
             <>
             <div key={entrega.id} className="bg-white rounded-lg shadow-lg border-l-4 border-sky-500 overflow-hidden">
-              {/* Compact header — tap to open details */}
+              {}
               <div
                 className="p-5 border-b border-gray-100 bg-sky-50/50 cursor-pointer active:bg-sky-100 transition-colors"
                 onClick={() => setDetailModalId(entrega.id)}
@@ -1044,7 +1087,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
                 </div>
               </div>
 
-              {/* Endereços resumidos */}
+              {}
               <div className="px-5 py-3 border-b border-gray-100 space-y-2">
                 <div className="flex items-start gap-2 text-sm">
                   <div className="w-2.5 h-2.5 rounded-full bg-gray-400 mt-1 shrink-0" />
@@ -1065,7 +1108,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
               <div className="p-5 bg-gray-50 flex gap-3 flex-wrap">
 
 
-                {/* ACEITAR (Se criada) */}
+                {}
                 {entrega.status === 'criada' && (
                   <button
                     onClick={() => updateStatus(entrega.id, 'atribuida')}
@@ -1081,7 +1124,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
                   </button>
                 )}
 
-                {/* CHEGUEI NA LOJA (Se atribuida) */}
+                {}
                 {entrega.status === 'atribuida' && (
                   <button
                     onClick={() => updateStatus(entrega.id, 'chegou_coleta')}
@@ -1097,7 +1140,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
                   </button>
                 )}
 
-                {/* SAIR PARA ENTREGA / FINALIZAR RETORNO (Se chegou_coleta) */}
+                {}
                 {entrega.status === 'chegou_coleta' && (
                   <button
                     onClick={() => retornoFase === 'retornado'
@@ -1120,7 +1163,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
                   </button>
                 )}
 
-                {/* CHEGUEI NO CLIENTE / CHEGUEI NO RETORNO (Se em_rota) */}
+                {}
                 {entrega.status === 'em_rota' && (
                   <button
                     onClick={() => retornoFase === 'retorno'
@@ -1143,7 +1186,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
                   </button>
                 )}
 
-                {/* FINALIZAR / INICIAR RETORNO (Se chegou_entrega) */}
+                {}
                 {entrega.status === 'chegou_entrega' && (
                   <button
                     onClick={() => {
@@ -1169,7 +1212,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
               </div>
             </div>
 
-            {/* Detail modal — rendered via portal to escape <main z-0> stacking context */}
+            {}
             {detailModalId === entrega.id && createPortal(
               <div
                 className="fixed inset-0 z-[200] bg-black/60 flex items-end sm:items-center justify-center"
@@ -1180,7 +1223,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
                   style={{ maxHeight: 'min(90dvh, calc(100dvh - 8rem - env(safe-area-inset-bottom)))' }}
                   onClick={e => e.stopPropagation()}
                 >
-                  {/* Modal header */}
+                  {}
                   <div className="sticky top-0 bg-white flex justify-between items-center px-5 py-4 border-b border-gray-100 z-10">
                     <div>
                       <span className={`inline-block px-2 py-1 rounded text-xs font-bold uppercase ${statusColor}`}>{statusLabel}</span>
@@ -1198,7 +1241,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
                   </div>
 
                   <div className="p-5 space-y-5">
-                    {/* Valores */}
+                    {}
                     <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
                       <p className="text-xs font-bold text-gray-500 uppercase mb-2">Valores</p>
                       <div className="flex items-center gap-1 text-green-600 font-bold text-2xl mb-2">
@@ -1219,7 +1262,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
                       )}
                     </div>
 
-                    {/* Endereços */}
+                    {}
                     <div className="space-y-4">
                       <div className="relative pl-6 border-l-2 border-gray-200">
                         <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-white border-2 border-gray-300" />
@@ -1236,7 +1279,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
                       </div>
                     </div>
 
-                    {/* Observações */}
+                    {}
                     {entrega.observacoes && (
                       <div className="bg-yellow-50 p-3 rounded-lg text-sm text-yellow-800 flex gap-2">
                         <AlertCircle size={16} className="shrink-0 mt-0.5" />
@@ -1244,7 +1287,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
                       </div>
                     )}
 
-                    {/* Telefone */}
+                    {}
                     {entrega.clientes?.telefone && (
                       <a
                         href={`tel:${entrega.clientes.telefone}`}
@@ -1255,7 +1298,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
                       </a>
                     )}
 
-                    {/* Pagamento */}
+                    {}
                     {(entrega.pagamento_metodo || entrega.pagamento_na_entrega || entrega.troco_para || entrega.documento_numero) && (
                       <div className="bg-slate-50 p-3 rounded-lg text-sm text-slate-700 border border-slate-100 space-y-1">
                         {pagamentoLabel && (
@@ -1273,7 +1316,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
                       </div>
                     )}
 
-                    {/* Distância */}
+                    {}
                     {(entrega.distancia_km || distances[entrega.id]) && (
                       <div className="text-center bg-gray-50 p-3 rounded-lg border border-gray-100">
                         <span className="block text-gray-400 text-xs mb-1">Distância da Entrega</span>
@@ -1283,7 +1326,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
                       </div>
                     )}
 
-                    {/* Ver no App / Abrir GPS */}
+                    {}
                     <div className="flex gap-2">
                       <button
                         onClick={() => setMapVisibleId(mapVisibleId === entrega.id ? null : entrega.id)}
@@ -1307,7 +1350,7 @@ export function EntregadorPedidosEmAndamentoPanel() {
                       </button>
                     </div>
 
-                    {/* Mapa */}
+                    {}
                     {mapVisibleId === entrega.id && (
                       <div className="h-64 rounded-lg overflow-hidden border border-slate-200 relative">
                         {userLocation ? (

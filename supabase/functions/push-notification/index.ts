@@ -93,16 +93,82 @@ Deno.serve(async (req) => {
         return new Response('Nenhum entregador disponível encontrado', { status: 200 })
     }
 
-    
+
     let blacklistedIds: string[] = []
     if (record.cliente_id) {
         const { data: blacklist } = await supabase
             .from('entregador_bloqueios_clientes')
             .select('entregador_id')
             .eq('cliente_id', record.cliente_id)
-        
+
         if (blacklist) {
             blacklistedIds = blacklist.map(b => b.entregador_id)
+        }
+    }
+
+    
+    const LIMITE_SIMULTANEAS = 4
+    const activeStatuses = ['atribuida', 'chegou_coleta', 'em_rota', 'chegou_entrega', 'coletando', 'entregando']
+    const entregadorIds = entregadores.map(e => e.id)
+    const { data: activeDeliveries } = await supabase
+        .from('nova_entrega')
+        .select('entregador_id')
+        .in('entregador_id', entregadorIds)
+        .in('status', activeStatuses)
+
+    const activeCountMap: Record<string, number> = {}
+    if (activeDeliveries) {
+        for (const d of activeDeliveries) {
+            if (d.entregador_id) {
+                activeCountMap[d.entregador_id] = (activeCountMap[d.entregador_id] || 0) + 1
+            }
+        }
+    }
+
+    let entregadoresDisponiveis = entregadores.filter(e =>
+        (activeCountMap[e.id] || 0) < LIMITE_SIMULTANEAS
+    )
+
+    console.log(`[Limite] ${entregadores.length} online, ${entregadoresDisponiveis.length} abaixo do limite de ${LIMITE_SIMULTANEAS} entregas simultâneas`)
+
+    
+    if (record.cliente_id) {
+        const { data: limitRules } = await supabase
+            .from('comercio_entregador_limites' as any)
+            .select('entregador_id, limite')
+            .eq('cliente_id', record.cliente_id)
+
+        if (limitRules && limitRules.length > 0) {
+            const defaultRule = (limitRules as any[]).find(r => r.entregador_id === null)
+            const specificRules = (limitRules as any[]).filter(r => r.entregador_id !== null)
+
+            if (defaultRule || specificRules.length > 0) {
+                const { data: commerceDeliveries } = await supabase
+                    .from('nova_entrega')
+                    .select('entregador_id')
+                    .eq('cliente_id', record.cliente_id)
+                    .in('entregador_id', entregadoresDisponiveis.map(e => e.id))
+                    .in('status', activeStatuses)
+
+                const commerceCountMap: Record<string, number> = {}
+                if (commerceDeliveries) {
+                    for (const d of commerceDeliveries) {
+                        if (d.entregador_id) {
+                            commerceCountMap[d.entregador_id] = (commerceCountMap[d.entregador_id] || 0) + 1
+                        }
+                    }
+                }
+
+                const prevCount = entregadoresDisponiveis.length
+                entregadoresDisponiveis = entregadoresDisponiveis.filter(e => {
+                    const specificRule = specificRules.find(r => r.entregador_id === e.id)
+                    const applicableLimit = specificRule ? specificRule.limite : defaultRule?.limite
+                    if (applicableLimit === undefined) return true
+                    return (commerceCountMap[e.id] || 0) < applicableLimit
+                })
+
+                console.log(`[Limite Comércio] ${prevCount} → ${entregadoresDisponiveis.length} disponíveis após limite do comércio ${record.cliente_id}`)
+            }
         }
     }
 
@@ -136,8 +202,7 @@ Deno.serve(async (req) => {
         }
     } else if (record.atribuicao_modo === 'automatica') {
 
-       
-        let candidates = entregadores.filter(e => !blacklistedIds.includes(e.id))
+        let candidates = entregadoresDisponiveis.filter(e => !blacklistedIds.includes(e.id))
         
         
         if (record.coleta_endereco_texto) {
@@ -178,9 +243,9 @@ Deno.serve(async (req) => {
         targetEntregadores = [chosen]
     } else {
         
-        console.log('Atribuição Manual: Notificando todos os disponíveis (exceto blacklist)')
-        
-        let candidates = entregadores.filter(e => !blacklistedIds.includes(e.id))
+        console.log('Atribuição Manual: Notificando todos os disponíveis (exceto blacklist e acima do limite)')
+
+        let candidates = entregadoresDisponiveis.filter(e => !blacklistedIds.includes(e.id))
 
         
         if (record.coleta_endereco_texto) {

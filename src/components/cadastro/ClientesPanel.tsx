@@ -14,6 +14,13 @@ interface PrecificacaoConfigItem {
   tabela_id: string;
 }
 
+interface LimiteRule {
+  id?: string;
+  entregador_id: string | null;
+  limite: number;
+  entregador_nome?: string;
+}
+
 type Cliente = Database['public']['Tables']['clientes']['Row'];
 type EnderecoInsert = Database['public']['Tables']['cliente_enderecos']['Insert'];
 type EnderecoEdit = {
@@ -85,6 +92,11 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
   const [editMembers, setEditMembers] = useState<Array<{ id: string; email: string }>>([]);
   const [newMemberEmail, setNewMemberEmail] = useState('');
   const [newMemberPassword, setNewMemberPassword] = useState('');
+  const [editLimites, setEditLimites] = useState<LimiteRule[]>([]);
+  const [editLimitesRemovidos, setEditLimitesRemovidos] = useState<string[]>([]);
+  const [entregadoresList, setEntregadoresList] = useState<Array<{ id: string; nome_completo: string }>>([]);
+  const [limiteNovoEntregadorId, setLimiteNovoEntregadorId] = useState<string>('todos');
+  const [limiteNovoValor, setLimiteNovoValor] = useState<number>(1);
 
   const [form, setForm] = useState({
     nome_completo: '',
@@ -162,6 +174,8 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
     setTabelasComissoes((comissoesRes.data || []) as TabelaComissao[]);
     const { data: m } = await supabase.from('modais').select('*').eq('ativo', true).order('tipo');
     setModais(m || []);
+    const { data: entregadores } = await supabase.from('entregadores').select('id, nome_completo').eq('status', 'ativo').order('nome_completo');
+    setEntregadoresList((entregadores || []).map(e => ({ id: String(e.id), nome_completo: String(e.nome_completo || '') })));
   };
 
   const fetchClientes = async () => {
@@ -745,6 +759,18 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
     setEditEnderecosRemovidos([]);
     const { data: membros } = await supabase.from('users').select('id,email').eq('cliente_id', c.id);
     setEditMembers((membros || []).map((m: any) => ({ id: String(m.id), email: String(m.email || '') })));
+    const { data: limites } = await (supabase as any).from('comercio_entregador_limites')
+      .select('id, entregador_id, limite')
+      .eq('cliente_id', c.id);
+    setEditLimites((limites || []).map((l: any) => ({
+      id: l.id,
+      entregador_id: l.entregador_id,
+      limite: l.limite,
+      entregador_nome: entregadoresList.find(e => e.id === l.entregador_id)?.nome_completo,
+    })));
+    setEditLimitesRemovidos([]);
+    setLimiteNovoEntregadorId('todos');
+    setLimiteNovoValor(1);
   };
 
   const handleUpdate = async () => {
@@ -919,6 +945,17 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
     }
     // Update commission table assignment
     await assignComissaoTable(editing.id, editTabelaComissaoId);
+    // Save per-commerce delivery limits
+    if (editLimitesRemovidos.length > 0) {
+      await (supabase as any).from('comercio_entregador_limites').delete().in('id', editLimitesRemovidos);
+    }
+    for (const rule of editLimites) {
+      if (rule.id) {
+        await (supabase as any).from('comercio_entregador_limites').update({ limite: rule.limite, updated_at: new Date().toISOString() }).eq('id', rule.id);
+      } else {
+        await (supabase as any).from('comercio_entregador_limites').insert({ cliente_id: editing.id, entregador_id: rule.entregador_id, limite: rule.limite });
+      }
+    }
     setEditing(null);
     setLoading(false);
     await fetchClientes();
@@ -1641,6 +1678,75 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
               <option key={t.id} value={t.id}>{t.nome}</option>
             ))}
           </select>
+        </div>
+
+        <div className="mt-4 bg-indigo-50 border border-indigo-100 p-4 rounded-lg">
+          <div className="mb-1 text-sm text-indigo-800 font-medium">Limite de Entregas Simultâneas por Entregador</div>
+          <div className="text-xs text-indigo-700 mb-3">
+            Define quantas entregas deste comércio cada entregador pode ter em andamento ao mesmo tempo. "Todos" cria uma regra padrão; entregadores específicos sobrepõem a regra padrão.
+          </div>
+          {editLimites.length > 0 && (
+            <div className="space-y-2 mb-3">
+              {editLimites.map((rule, i) => (
+                <div key={rule.id || `lim-${i}`} className="flex items-center gap-2 bg-white border border-indigo-200 rounded px-3 py-2">
+                  <div className="flex-1 text-sm text-slate-700">
+                    {rule.entregador_id === null
+                      ? 'Todos os entregadores'
+                      : (rule.entregador_nome || entregadoresList.find(e => e.id === rule.entregador_id)?.nome_completo || rule.entregador_id)}
+                  </div>
+                  <input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={rule.limite}
+                    onChange={(e) => setEditLimites(prev => prev.map((r, idx) => idx === i ? { ...r, limite: Math.max(1, Number(e.target.value)) } : r))}
+                    className="w-16 px-2 py-1 border border-slate-300 rounded text-sm text-center"
+                  />
+                  <span className="text-xs text-slate-500 whitespace-nowrap">entrega(s)</span>
+                  <button
+                    onClick={() => {
+                      if (rule.id) setEditLimitesRemovidos(prev => [...prev, rule.id!]);
+                      setEditLimites(prev => prev.filter((_, idx) => idx !== i));
+                    }}
+                    className="text-xs text-red-600 hover:text-red-800 whitespace-nowrap"
+                  >Remover</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <select
+              value={limiteNovoEntregadorId}
+              onChange={e => setLimiteNovoEntregadorId(e.target.value)}
+              className="flex-1 px-3 py-2 border border-slate-300 rounded text-sm bg-white"
+            >
+              <option value="todos">Todos os entregadores</option>
+              {entregadoresList
+                .filter(e => !editLimites.some(r => r.entregador_id === e.id))
+                .map(e => <option key={e.id} value={e.id}>{e.nome_completo}</option>)
+              }
+            </select>
+            <input
+              type="number"
+              min={1}
+              max={20}
+              value={limiteNovoValor}
+              onChange={e => setLimiteNovoValor(Math.max(1, Number(e.target.value)))}
+              className="w-16 px-2 py-1 border border-slate-300 rounded text-sm text-center"
+            />
+            <span className="text-xs text-slate-500 whitespace-nowrap">entrega(s)</span>
+            <button
+              onClick={() => {
+                const entregadorId = limiteNovoEntregadorId === 'todos' ? null : limiteNovoEntregadorId;
+                if (editLimites.some(r => r.entregador_id === entregadorId)) return;
+                const entregadorNome = entregadorId ? entregadoresList.find(e => e.id === entregadorId)?.nome_completo : undefined;
+                setEditLimites(prev => [...prev, { entregador_id: entregadorId, limite: limiteNovoValor, entregador_nome: entregadorNome }]);
+                setLimiteNovoEntregadorId('todos');
+                setLimiteNovoValor(1);
+              }}
+              className="px-3 py-2 rounded bg-indigo-600 hover:bg-indigo-700 text-white text-sm whitespace-nowrap"
+            >Adicionar</button>
+          </div>
         </div>
 
         <div className="mt-4">

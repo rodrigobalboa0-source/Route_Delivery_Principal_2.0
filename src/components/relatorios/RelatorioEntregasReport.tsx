@@ -399,6 +399,7 @@ export function RelatorioEntregasReport({ onNavigate, userRole }: RelatorioEntre
     const tableData = entregas.map(entrega => [
         format(new Date(entrega.created_at), 'dd/MM/yyyy HH:mm'),
         entrega.clientes?.nome_completo || 'N/A',
+        entrega.entrega_contato || '-',
         entrega.entregadores?.nome_completo || '-',
         entrega.entrega_endereco_texto || entrega.entrega_cep || '-',
         entrega.valor_entrega ? `R$ ${entrega.valor_entrega.toFixed(2)}` : '-',
@@ -406,7 +407,7 @@ export function RelatorioEntregasReport({ onNavigate, userRole }: RelatorioEntre
     ]);
 
     autoTable(doc, {
-        head: [['Data/Hora', 'Cliente', 'Entregador', 'Endereço', 'Valor', 'Status']],
+        head: [['Data/Hora', 'Comércio', 'Cliente', 'Entregador', 'Endereço', 'Valor', 'Status']],
         body: tableData,
         startY: startY,
         styles: { fontSize: 8 },
@@ -533,6 +534,7 @@ export function RelatorioEntregasReport({ onNavigate, userRole }: RelatorioEntre
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Comércio</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Entregador</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Endereço</th>
@@ -544,11 +546,11 @@ export function RelatorioEntregasReport({ onNavigate, userRole }: RelatorioEntre
           <tbody className="bg-white divide-y divide-gray-200">
             {loading ? (
               <tr>
-                <td colSpan={isAdmin ? 7 : 6} className="px-6 py-4 text-center">Carregando...</td>
+                <td colSpan={isAdmin ? 8 : 7} className="px-6 py-4 text-center">Carregando...</td>
               </tr>
             ) : entregas.length === 0 ? (
               <tr>
-                <td colSpan={isAdmin ? 7 : 6} className="px-6 py-4 text-center">Nenhuma entrega encontrada.</td>
+                <td colSpan={isAdmin ? 8 : 7} className="px-6 py-4 text-center">Nenhuma entrega encontrada.</td>
               </tr>
             ) : (
               entregas.map((entrega) => (
@@ -558,6 +560,9 @@ export function RelatorioEntregasReport({ onNavigate, userRole }: RelatorioEntre
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {entrega.clientes?.nome_completo || 'N/A'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {entrega.entrega_contato || '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {entrega.entregadores?.nome_completo || '-'}

@@ -1273,6 +1273,20 @@ function PedidoHistoryModal({ pedido, entregaId }: { pedido: Pedido, entregaId?:
 }
 
 
+const COMMERCE_PIN_COLORS = [
+  '#f97316', '#8b5cf6', '#0ea5e9', '#d97706', '#059669',
+  '#dc2626', '#2563eb', '#db2777', '#65a30d', '#0891b2',
+];
+
+function getCommerceColor(clienteId: string): string {
+  if (!clienteId) return '#f97316';
+  let h = 0;
+  for (let i = 0; i < clienteId.length; i++) {
+    h = (h * 31 + clienteId.charCodeAt(i)) | 0;
+  }
+  return COMMERCE_PIN_COLORS[Math.abs(h) % COMMERCE_PIN_COLORS.length];
+}
+
 export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps) {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [items, setItems] = useState<Pedido[]>([]);
@@ -1772,7 +1786,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [originTitle, setOriginTitle] = useState<string>('');
   const [destinationTitle, setDestinationTitle] = useState<string>('');
   const [additionalDestinationsCoords, setAdditionalDestinationsCoords] = useState<Array<{ coords: [number, number]; title: string; order: number }>>([]);
-  
+  const [deliveryPins, setDeliveryPins] = useState<Array<{ id: string; coords: [number, number]; tooltip: string; color: string }>>([]);
+
   const [commerceDefaultCoords, setCommerceDefaultCoords] = useState<[number, number] | undefined>(undefined);
   const [commerceDefaultTitle, setCommerceDefaultTitle] = useState<string>('');
   
@@ -2917,8 +2932,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       );
     }
     
-    
-    return mapDeliveryPersons;
+
+    return mapDeliveryPersons.filter(person => person.is_online);
   }, [mapDeliveryPersons, isComercio, items, entregasMap]);
 
   const fetchClientes = async () => {
@@ -3227,6 +3242,45 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       if (interval) clearInterval(interval);
     };
   }, [fetchPedidos, isComercio]);
+
+  // Geocodifica em background todos os destinos ativos para mostrar pins no mapa
+  useEffect(() => {
+    let cancelled = false;
+
+    const uniqueEntregas = new Map<string, Entrega>();
+    Object.values(entregasMap).forEach((e) => {
+      if (e?.id) uniqueEntregas.set(e.id, e);
+    });
+
+    const activeEntregas = Array.from(uniqueEntregas.values()).filter(
+      (e) => e.entrega_endereco_texto && e.status !== 'entregue' && e.status !== 'cancelada'
+    );
+
+    const activeIds = new Set(activeEntregas.map((e) => e.id));
+    setDeliveryPins((prev) => prev.filter((p) => activeIds.has(p.id)));
+
+    (async () => {
+      for (const entrega of activeEntregas) {
+        if (cancelled) break;
+        try {
+          const coords = await getCoordsFromAddress(entrega.entrega_endereco_texto!);
+          if (coords && !cancelled) {
+            const tooltip = entrega.entrega_codigo_pedido || entrega.id.slice(0, 8);
+            const color = isComercio ? '#f97316' : getCommerceColor(entrega.cliente_id || '');
+            setDeliveryPins((prev) => {
+              const next = prev.filter((p) => p.id !== entrega.id);
+              next.push({ id: entrega.id, coords, tooltip, color });
+              return next;
+            });
+          }
+        } catch {
+          // falha na geocodificação — ignora este pin
+        }
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [entregasMap, isComercio]);
 
   useEffect(() => {
     const channel = supabase
@@ -3916,6 +3970,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             destinationTitle={destinationTitle}
             originIconType={isComercio ? 'store' : 'truck'}
             additionalDestinations={additionalDestinationsCoords}
+            deliveryPins={deliveryPins}
           />
         </div>
       </div>

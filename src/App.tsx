@@ -805,7 +805,7 @@ function App() {
           {/* Entregador specific routes */}
           {activeMenu === 'home_entregador' && <EntregadorHomePanel onNavigate={setActiveMenu} />}
           {activeMenu === 'entregas_disponiveis' && <EntregadorEntregasDisponiveisPanel />}
-          {activeMenu === 'entregas_andamento' && <EntregadorPedidosEmAndamentoPanel />}
+          {activeMenu === 'entregas_andamento' && <EntregadorPedidosEmAndamentoPanel onNavigate={setActiveMenu} />}
           {activeMenu === 'entregas_promocoes' && <PromocoesEntregadorPanel />}
           {activeMenu === 'carteira_extrato' && <EntregadorExtratoPanel userId={userId} />}
           {activeMenu === 'conta_minha_conta' && <EntregadorMinhaContaPanel />}

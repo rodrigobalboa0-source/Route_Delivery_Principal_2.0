@@ -8,6 +8,13 @@ export interface MapDeliveryPerson extends DeliveryPerson {
   heading?: number | null;
 }
 
+export interface DeliveryPin {
+  id: string;
+  coords: [number, number];
+  tooltip: string;
+  color?: string;
+}
+
 interface MapViewProps {
   deliveryPersons: MapDeliveryPerson[];
   selectedEntregadorId?: string;
@@ -19,6 +26,7 @@ interface MapViewProps {
   destinationTitle?: string;
   originIconType?: 'truck' | 'store';
   additionalDestinations?: Array<{ coords: [number, number]; title: string; order: number }>;
+  deliveryPins?: DeliveryPin[];
 }
 
 let googleMapsLoadingPromise: Promise<void> | null = null;
@@ -104,7 +112,7 @@ function makePinSvg(fill: string, innerSvg?: string, rotation?: number) {
   `.trim();
 }
 
-export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [-23.5505, -46.6333], origin, destination, route, originTitle, destinationTitle, originIconType = 'truck', additionalDestinations = [] }: MapViewProps) {
+export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [-23.5505, -46.6333], origin, destination, route, originTitle, destinationTitle, originIconType = 'truck', additionalDestinations = [], deliveryPins = [] }: MapViewProps) {
   useEffect(() => {
   }, []);
 
@@ -122,6 +130,7 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
   const originMarker = useRef<any | null>(null);
   const routePolyline = useRef<any | null>(null);
   const additionalMarkers = useRef<Map<number, any>>(new Map());
+  const deliveryPinMarkersRef = useRef<Map<string, any>>(new Map());
   const infoWindowRef = useRef<any | null>(null);
   const cleanupInteractionRef = useRef<(() => void) | null>(null);
 
@@ -227,6 +236,11 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
           mk.map = null;
         });
         additionalMarkers.current.clear();
+
+        deliveryPinMarkersRef.current.forEach((mk) => {
+          mk.map = null;
+        });
+        deliveryPinMarkersRef.current.clear();
 
         if (destMarker.current) {
           destMarker.current.map = null;
@@ -805,7 +819,65 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
     });
   }, [additionalDestinations, mapLoaded]);
 
-  
+
+  useEffect(() => {
+    if (!mapLoaded || !map.current) return;
+    const g = (window as any).google as any;
+    if (!g?.maps) return;
+
+    const packageInner = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+        <polyline points="3.29 7 12 12 20.71 7"/>
+        <line x1="12" y1="22" x2="12" y2="12"/>
+      </svg>
+    `.trim();
+
+    const currentPinIds = new Set<string>();
+
+    deliveryPins.forEach((pin) => {
+      currentPinIds.add(pin.id);
+      const color = pin.color || '#f97316';
+      const icon = {
+        url: svgToDataUrl(makePinSvg(color, packageInner)),
+        scaledSize: new g.maps.Size(34, 41),
+        anchor: new g.maps.Point(17, 41),
+      };
+
+      const existing = deliveryPinMarkersRef.current.get(pin.id);
+      if (existing) {
+        existing.setPosition({ lat: pin.coords[0], lng: pin.coords[1] });
+        existing.setIcon(icon);
+      } else {
+        const popup = `<div style="padding:5px 10px;font-size:13px;font-weight:600;color:${escapeAttr(color)}">${escapeHtml(pin.tooltip)}</div>`;
+        const marker = new g.maps.Marker({
+          map: map.current,
+          position: { lat: pin.coords[0], lng: pin.coords[1] },
+          title: pin.tooltip,
+          zIndex: 150,
+          icon,
+        });
+        marker.addListener('mouseover', () => {
+          infoWindowRef.current?.setContent(popup);
+          infoWindowRef.current?.open({ map: map.current, anchor: marker });
+        });
+        marker.addListener('mouseout', () => {
+          infoWindowRef.current?.close();
+        });
+        deliveryPinMarkersRef.current.set(pin.id, marker);
+      }
+    });
+
+    deliveryPinMarkersRef.current.forEach((marker, id) => {
+      if (!currentPinIds.has(id)) {
+        if (marker?.setMap) marker.setMap(null);
+        else marker.map = null;
+        deliveryPinMarkersRef.current.delete(id);
+      }
+    });
+  }, [deliveryPins, mapLoaded]);
+
+
   useEffect(() => {
     if (!mapLoaded || !map.current) return;
     const g = (window as any).google as any;
