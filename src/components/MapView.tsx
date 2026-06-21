@@ -13,6 +13,7 @@ export interface DeliveryPin {
   coords: [number, number];
   tooltip: string;
   color?: string;
+  label?: string;
 }
 
 interface MapViewProps {
@@ -824,6 +825,8 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
     if (!mapLoaded || !map.current) return;
     const g = (window as any).google as any;
     if (!g?.maps) return;
+    const AdvancedMarkerElement = g?.maps?.marker?.AdvancedMarkerElement;
+    if (!AdvancedMarkerElement) return;
 
     const packageInner = `
       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -833,35 +836,45 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
       </svg>
     `.trim();
 
+    const buildPinContent = (pin: DeliveryPin): HTMLElement => {
+      const color = pin.color || '#f97316';
+      const pinDataUrl = svgToDataUrl(makePinSvg(color, packageInner));
+      const el = document.createElement('div');
+      el.style.cssText = 'display:flex;flex-direction:column;align-items:center;cursor:pointer;';
+      el.innerHTML = [
+        pin.label
+          ? `<div style="background:white;border:1px solid #e2e8f0;border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600;color:#1e293b;white-space:nowrap;margin-bottom:3px;box-shadow:0 1px 4px rgba(0,0,0,0.18);">${escapeHtml(pin.label)}</div>`
+          : '',
+        `<img src="${escapeAttr(pinDataUrl)}" width="34" height="41" style="display:block;" />`,
+      ].join('');
+      return el;
+    };
+
     const currentPinIds = new Set<string>();
 
     deliveryPins.forEach((pin) => {
       currentPinIds.add(pin.id);
-      const color = pin.color || '#f97316';
-      const icon = {
-        url: svgToDataUrl(makePinSvg(color, packageInner)),
-        scaledSize: new g.maps.Size(34, 41),
-        anchor: new g.maps.Point(17, 41),
-      };
 
       const existing = deliveryPinMarkersRef.current.get(pin.id);
       if (existing) {
-        existing.setPosition({ lat: pin.coords[0], lng: pin.coords[1] });
-        existing.setIcon(icon);
+        existing.position = { lat: pin.coords[0], lng: pin.coords[1] };
+        existing.content = buildPinContent(pin);
       } else {
+        const color = pin.color || '#f97316';
         const popup = `<div style="padding:5px 10px;font-size:13px;font-weight:600;color:${escapeAttr(color)}">${escapeHtml(pin.tooltip)}</div>`;
-        const marker = new g.maps.Marker({
+        const content = buildPinContent(pin);
+        const marker = new AdvancedMarkerElement({
           map: map.current,
           position: { lat: pin.coords[0], lng: pin.coords[1] },
           title: pin.tooltip,
           zIndex: 150,
-          icon,
+          content,
         });
-        marker.addListener('mouseover', () => {
+        marker.addEventListener('mouseover', () => {
           infoWindowRef.current?.setContent(popup);
           infoWindowRef.current?.open({ map: map.current, anchor: marker });
         });
-        marker.addListener('mouseout', () => {
+        marker.addEventListener('mouseout', () => {
           infoWindowRef.current?.close();
         });
         deliveryPinMarkersRef.current.set(pin.id, marker);
@@ -870,8 +883,7 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
 
     deliveryPinMarkersRef.current.forEach((marker, id) => {
       if (!currentPinIds.has(id)) {
-        if (marker?.setMap) marker.setMap(null);
-        else marker.map = null;
+        marker.map = null;
         deliveryPinMarkersRef.current.delete(id);
       }
     });

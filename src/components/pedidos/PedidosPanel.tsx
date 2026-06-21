@@ -1786,7 +1786,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [originTitle, setOriginTitle] = useState<string>('');
   const [destinationTitle, setDestinationTitle] = useState<string>('');
   const [additionalDestinationsCoords, setAdditionalDestinationsCoords] = useState<Array<{ coords: [number, number]; title: string; order: number }>>([]);
-  const [deliveryPins, setDeliveryPins] = useState<Array<{ id: string; coords: [number, number]; tooltip: string; color: string }>>([]);
+  const [deliveryPins, setDeliveryPins] = useState<Array<{ id: string; coords: [number, number]; tooltip: string; color: string; label?: string }>>([]);
 
   const [commerceDefaultCoords, setCommerceDefaultCoords] = useState<[number, number] | undefined>(undefined);
   const [commerceDefaultTitle, setCommerceDefaultTitle] = useState<string>('');
@@ -3267,9 +3267,10 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
           if (coords && !cancelled) {
             const tooltip = entrega.entrega_codigo_pedido || entrega.id.slice(0, 8);
             const color = isComercio ? '#f97316' : getCommerceColor(entrega.cliente_id || '');
+            const label = clientes.find(c => c.id === entrega.cliente_id)?.nome_completo || undefined;
             setDeliveryPins((prev) => {
               const next = prev.filter((p) => p.id !== entrega.id);
-              next.push({ id: entrega.id, coords, tooltip, color });
+              next.push({ id: entrega.id, coords, tooltip, color, label });
               return next;
             });
           }
