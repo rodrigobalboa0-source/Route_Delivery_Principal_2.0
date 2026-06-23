@@ -1117,6 +1117,16 @@ export function EntregadorPedidosEmAndamentoPanel({ onNavigate }: { onNavigate?:
                 )}
               </div>
 
+              {Array.isArray((entrega as any)?.opcionais?.demand_rules) && ((entrega as any).opcionais.demand_rules as any[]).length > 0 && (
+                <div className="flex flex-wrap gap-1 px-4 pb-2">
+                  {((entrega as any).opcionais.demand_rules as any[]).map((r: any, idx: number) => (
+                    <span key={idx} className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded font-semibold">
+                      {r.name}{r.value > 0 ? ` +R${Number(r.value).toFixed(2)}` : ''}
+                    </span>
+                  ))}
+                </div>
+              )}
+
               <div className="p-5 bg-gray-50 flex gap-3 flex-wrap">
 
 

@@ -1260,6 +1260,16 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                               </div>
                             )}
 
+                            {isFirstDestination && Array.isArray((incomingDelivery as any)?.opcionais?.demand_rules) && ((incomingDelivery as any).opcionais.demand_rules as any[]).length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {((incomingDelivery as any).opcionais.demand_rules as any[]).map((r: any, idx: number) => (
+                                  <span key={idx} className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded font-semibold">
+                                    {r.name}{r.value > 0 ? ` +R${Number(r.value).toFixed(2)}` : ''}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
                             {isFirstDestination && (comissaoRetornoDisplay !== null || incomingDelivery?.retorno) && (
                               <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center justify-between">
                                 <span className="text-xs font-semibold text-green-700">Com retorno</span>
@@ -1367,6 +1377,16 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                                 <span className="text-[10px] font-semibold">+ R$ {Number(rule.valor).toFixed(2).replace('.', ',')}</span>
                                 {rule.observacao && <span className="text-[10px] text-emerald-600 font-medium">• {rule.observacao}</span>}
                               </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {Array.isArray((incomingDelivery as any)?.opcionais?.demand_rules) && ((incomingDelivery as any).opcionais.demand_rules as any[]).length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {((incomingDelivery as any).opcionais.demand_rules as any[]).map((r: any, idx: number) => (
+                              <span key={idx} className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded font-semibold">
+                                {r.name}{r.value > 0 ? ` +R$${Number(r.value).toFixed(2)}` : ''}
+                              </span>
                             ))}
                           </div>
                         )}

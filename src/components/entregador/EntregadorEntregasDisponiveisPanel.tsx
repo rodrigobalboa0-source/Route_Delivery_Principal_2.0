@@ -704,6 +704,16 @@ export function EntregadorEntregasDisponiveisPanel() {
                 )}
               </div>
 
+              {Array.isArray((entrega as any)?.opcionais?.demand_rules) && ((entrega as any).opcionais.demand_rules as any[]).length > 0 && (
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {((entrega as any).opcionais.demand_rules as any[]).map((r: any, idx: number) => (
+                    <span key={idx} className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded font-semibold">
+                      {r.name}{r.value > 0 ? ` +R${Number(r.value).toFixed(2)}` : ''}
+                    </span>
+                  ))}
+                </div>
+              )}
+
               {(entrega.distancia_km || distances[entrega.id]) && (
                 <div className="grid grid-cols-1 gap-2 mb-4 text-xs bg-gray-50 p-2 rounded border border-gray-100">
                     <div className="text-center">

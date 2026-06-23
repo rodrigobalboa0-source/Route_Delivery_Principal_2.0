@@ -3722,6 +3722,11 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         createdPedidoId = pData.id;
 
         
+        const activeDemandsForQuick = dynamicRules.filter(r => r.ativa);
+        const demandRulesForQuick = activeDemandsForQuick.length > 0
+          ? activeDynamicRules.filter(r => r.value > 0)
+          : [];
+
         const { error: eError } = await supabase
             .from('nova_entrega')
             .insert({
@@ -3739,7 +3744,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                 retorno: quickRetorno,
                 atribuicao_modo: 'manual',
                 tipo_cobranca: 'fatura',
-                cobrar_destinatario: false
+                cobrar_destinatario: false,
+                ...(demandRulesForQuick.length > 0 ? { opcionais: { demand_rules: demandRulesForQuick } } : {}),
             });
 
         if (eError) {
@@ -3925,20 +3931,6 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                         </div>
                     )}
                 </div>
-
-                {quickDriverPrice > 0 && (
-                  <div className="md:col-span-4">
-                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Comissão Entregador</label>
-                    <div className="px-3 py-2 border border-emerald-200 bg-emerald-50 rounded text-emerald-700 font-bold text-sm">
-                      R$ {quickDriverPrice.toFixed(2).replace('.', ',')}
-                      {driverDynamicRules.filter(r => r.ativa).length > 0 && (
-                        <span className="ml-2 text-[10px] font-semibold text-emerald-600">
-                          (inclui preço dinâmico)
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
 
                 <div className="md:col-span-4">
                     <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Pagamento</label>
@@ -4373,6 +4365,15 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                                 {isPedidoMultiplo && valorMultiploStored && valorMultiploStored.valorPorPonto > 0 && (
                                   <div className="text-xs text-emerald-600 font-medium whitespace-nowrap">
                                     + R$ {(valorMultiploStored.valorPorPonto * (1 + ((entrega as any)?.pontos_adicionais as any[]).length)).toFixed(2).replace('.', ',')} (Múltiplo)
+                                  </div>
+                                )}
+                                {Array.isArray((entrega as any)?.opcionais?.demand_rules) && ((entrega as any).opcionais.demand_rules as any[]).length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {((entrega as any).opcionais.demand_rules as any[]).map((r: any, idx: number) => (
+                                      <span key={idx} className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded font-semibold">
+                                        {r.name}{r.value > 0 ? ` +R$${Number(r.value).toFixed(2)}` : ''}
+                                      </span>
+                                    ))}
                                   </div>
                                 )}
                             </td>

@@ -387,7 +387,6 @@ export function NovaEntregaPanel() {
   const distanceCalcIdRef = useRef(0);
   const [driverValueDisplay, setDriverValueDisplay] = useState<string>('0.00');
   const [driverReturnDisplay, setDriverReturnDisplay] = useState<string | null>(null);
-  const [driverBreakdownDisplay, setDriverBreakdownDisplay] = useState<{ description: string; value: number }[]>([]);
   const [coletaSelectedCoords, setColetaSelectedCoords] = useState<[number, number] | undefined>(undefined);
   const [entregaSelectedCoords, setEntregaSelectedCoords] = useState<[number, number] | undefined>(undefined);
   const selectedCoordsByTextRef = useRef<Map<string, [number, number]>>(new Map());
@@ -810,7 +809,7 @@ export function NovaEntregaPanel() {
     const kmValue = distanciaKm ? parseFloat(distanciaKm.replace(',', '.')) : 0;
     const extraPointsFilled = (form.pontos || []).filter((p) => (p?.endereco_texto || '').trim().length > 0).length;
     
-    const { total, breakdown } = calculateDriverCommission(
+    const { total } = calculateDriverCommission(
       kmValue,
       form.retorno,
       extraPointsFilled,
@@ -819,7 +818,6 @@ export function NovaEntregaPanel() {
     );
 
     setDriverValueDisplay(total);
-    setDriverBreakdownDisplay(breakdown);
 
     if (form.retorno) {
         if (selectedComissaoTable && faixasComissoes.length > 0) {
@@ -1551,6 +1549,7 @@ export function NovaEntregaPanel() {
       ...(valorMultiploInfo ? { valor_multiplo: valorMultiploInfo } : {}),
       ...(commission ? { comissao_destinos: commission.destinos, comissao_retorno: commission.retornoValor, comissao_total: commission.total } : {}),
       ...(retornoBonus ? { comissao_retorno: retornoBonus.value } : {}),
+      ...(activeDynamicRules.length > 0 ? { demand_rules: activeDynamicRules } : {}),
     };
 
     const res = await supabase
@@ -1672,7 +1671,6 @@ export function NovaEntregaPanel() {
       setValorMultiploInfo(null);
       setDriverValueDisplay('0.00');
       setDriverReturnDisplay(null);
-      setDriverBreakdownDisplay([]);
       setSelectedTabelaId('');
       setFaixasPreco([]);
       setFaixasComissoes([]);
@@ -2062,26 +2060,6 @@ export function NovaEntregaPanel() {
            </div>
         )}
 
-        {parseFloat(driverValueDisplay) > 0 && (
-          <div className="mb-4 p-3 bg-emerald-50 border border-emerald-100 rounded-lg flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
-            <div>
-              <span className="text-sm text-emerald-700 font-semibold block">Comissão do entregador</span>
-              {driverBreakdownDisplay
-                .filter(b => !b.description.startsWith('Valor base') && !b.description.startsWith('1ª entrega') && b.description !== 'Com retorno' && b.description !== 'Adicional Retorno')
-                .map((item, idx) => (
-                <span key={idx} className="block text-xs text-emerald-600 font-medium">
-                  + R$ {item.value.toFixed(2).replace('.', ',')} • {item.description}
-                </span>
-              ))}
-              {driverReturnDisplay && (
-                <span className="block text-xs text-green-600 font-medium">
-                  + R$ {driverReturnDisplay.replace('.', ',')} • Retorno
-                </span>
-              )}
-            </div>
-            <span className="text-xl font-bold text-emerald-700">R$ {driverValueDisplay}</span>
-          </div>
-        )}
 
         {clientSaldo !== null && !isClientFaturamento(clientes.find(c => c.id === form.cliente_id)) && (
             <div className={`mb-4 p-3 rounded-lg border ${
