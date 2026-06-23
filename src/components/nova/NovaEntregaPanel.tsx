@@ -1145,10 +1145,7 @@ export function NovaEntregaPanel() {
       if (faixasToUse.length > 0) {
          
          const sorted = [...faixasToUse].sort((a, b) => a.km_ate - b.km_ate);
-         const achieved = sorted.filter(f => f.km_ate <= km);
-         const faixa = achieved.length > 0
-           ? achieved[achieved.length - 1]   
-           : sorted[0];                       
+         const faixa = sorted.find(f => f.km_ate >= km) ?? sorted[sorted.length - 1];
 
          if (faixa) {
              val = faixa.valor;

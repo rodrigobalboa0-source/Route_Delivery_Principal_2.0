@@ -1103,6 +1103,18 @@ export function EntregadorPedidosEmAndamentoPanel({ onNavigate }: { onNavigate?:
                     {entrega.entrega_endereco_texto}
                   </p>
                 </div>
+                {temRetorno && (
+                  <div className="flex items-start gap-2 text-sm">
+                    <div className="w-2.5 h-2.5 rounded-full bg-green-500 mt-1 shrink-0" />
+                    <p className="text-gray-700 leading-snug">
+                      <span className="text-xs font-bold text-gray-400 uppercase mr-1">Retorno:</span>
+                      {entrega.coleta_endereco_texto || 'Endereço de coleta'}
+                      {typeof entrega.opcionais?.comissao_retorno === 'number' && entrega.opcionais.comissao_retorno > 0 && (
+                        <span className="ml-1 text-green-600 font-semibold">(+R$ {Number(entrega.opcionais.comissao_retorno).toFixed(2)})</span>
+                      )}
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="p-5 bg-gray-50 flex gap-3 flex-wrap">

@@ -688,6 +688,20 @@ export function EntregadorEntregasDisponiveisPanel() {
                      <p className="text-sm text-gray-800">{entrega.entrega_endereco_texto || 'Endereço não informado'}</p>
                    </div>
                 </div>
+                {entrega.retorno && (
+                  <div className="flex items-start gap-3">
+                     <div className="mt-1 min-w-[20px] flex justify-center">
+                       <MapPin className="w-4 h-4 text-green-500" />
+                     </div>
+                     <div>
+                       <p className="text-xs text-gray-500 uppercase font-semibold">Retorno</p>
+                       <p className="text-sm text-gray-800">{entrega.coleta_endereco_texto || 'Endereço de coleta'}</p>
+                       {typeof entrega.opcionais?.comissao_retorno === 'number' && entrega.opcionais.comissao_retorno > 0 && (
+                         <p className="text-xs text-green-600 font-semibold mt-0.5">+R$ {Number(entrega.opcionais.comissao_retorno).toFixed(2)}</p>
+                       )}
+                     </div>
+                  </div>
+                )}
               </div>
 
               {(entrega.distancia_km || distances[entrega.id]) && (
