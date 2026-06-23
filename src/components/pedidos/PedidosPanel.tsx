@@ -3926,6 +3926,20 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                     )}
                 </div>
 
+                {quickDriverPrice > 0 && (
+                  <div className="md:col-span-4">
+                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Comissão Entregador</label>
+                    <div className="px-3 py-2 border border-emerald-200 bg-emerald-50 rounded text-emerald-700 font-bold text-sm">
+                      R$ {quickDriverPrice.toFixed(2).replace('.', ',')}
+                      {driverDynamicRules.filter(r => r.ativa).length > 0 && (
+                        <span className="ml-2 text-[10px] font-semibold text-emerald-600">
+                          (inclui preço dinâmico)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <div className="md:col-span-4">
                     <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Pagamento</label>
                     <select 

@@ -55,8 +55,8 @@ export function EntregadorEntregasDisponiveisPanel() {
     if (newIds.length === 0) return;
 
     const applyLocalRules = (baseValor: number, rules: any[]) => {
-      if (baseValor > 0 || rules.length === 0) return { total: baseValor, rules: [] };
-      let total = 0;
+      if (rules.length === 0) return { total: baseValor, rules: [] };
+      let total = baseValor;
       const applied: any[] = [];
       for (const r of rules) {
         const c = (r.criterio || '').toUpperCase();
