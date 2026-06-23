@@ -1370,6 +1370,15 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                             ))}
                           </div>
                         )}
+
+                        {(comissaoRetornoDisplay !== null || incomingDelivery?.retorno) && (
+                          <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center justify-between">
+                            <span className="text-xs font-semibold text-green-700">Com retorno</span>
+                            {comissaoRetornoDisplay !== null && (
+                              <span className="text-xs font-bold text-green-700">R$ {comissaoRetornoDisplay.toFixed(2)}</span>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex gap-3 w-full pt-2">
