@@ -233,7 +233,7 @@ function AddressAutocomplete({
         }
         if (seq !== requestSeqRef.current) return;
 
-        // Usar exatamente a ordem e display_name original da API
+        
         const suggestionsRaw = (Array.isArray(results) ? results : [])
           .map((item: any) => ({
             display_name: String(item.display_name || '').trim(),
@@ -1534,15 +1534,21 @@ export function NovaEntregaPanel() {
     const commission = buildCommissionDestinos();
     
 
-    const finalDriverValue = (commission && commission.total && extraPointsFilled > 0) 
-      ? commission.total 
+    const finalDriverValue = (commission && commission.total && extraPointsFilled > 0)
+      ? commission.total
       : driverValue;
+
+    
+    const retornoBonus = !commission
+      ? driverBonuses.find(b => b.description === 'Com retorno' || b.description === 'Adicional Retorno')
+      : undefined;
 
     const opcionaisPayload = {
       ...(driverBonuses.length > 0 ? { driver_bonuses: driverBonuses } : {}),
       ...(segmentPricing ? { pricing_destinos: segmentPricing } : {}),
       ...(valorMultiploInfo ? { valor_multiplo: valorMultiploInfo } : {}),
       ...(commission ? { comissao_destinos: commission.destinos, comissao_retorno: commission.retornoValor, comissao_total: commission.total } : {}),
+      ...(retornoBonus ? { comissao_retorno: retornoBonus.value } : {}),
     };
 
     const res = await supabase
@@ -1729,7 +1735,7 @@ export function NovaEntregaPanel() {
             />
             <label htmlFor="retirada_no_local" className="text-sm text-slate-700">Retirada no local (sem motoboy)</label>
           </div>
-          {/* Price Info Removed - Moved to Bottom */}
+          {}
           <div className="flex items-center justify-between md:col-span-2">
             <div>
               <label className="text-sm text-slate-700">Agendar Entrega</label>
