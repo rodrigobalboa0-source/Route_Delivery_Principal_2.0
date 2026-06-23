@@ -529,7 +529,7 @@ function PedidoEditForm({
     return tipo === 'percentual' || tipo === 'porcentagem' ? base * (1 + vr / 100) : base + vr;
   };
 
-  // Preço-base sem retorno, calculado uma vez no mount
+  
   const baseValorEntrega = useMemo(() => {
     const cur = Number(entrega?.valor_entrega || 0);
     if (!Boolean((entrega as any)?.retorno) || !retornoTabela) return cur;
@@ -537,7 +537,17 @@ function PedidoEditForm({
     const vr = Number(retornoTabela.valor_retorno || 0);
     if (vr <= 0) return cur;
     return tipo === 'percentual' || tipo === 'porcentagem' ? cur / (1 + vr / 100) : cur - vr;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  
+  }, []);
+
+  const baseValorEntregador = useMemo(() => {
+    const cur = Number(entrega?.valor_entregador || 0);
+    if (!Boolean((entrega as any)?.retorno) || !retornoTabela) return cur;
+    const tipo = (retornoTabela.tipo_retorno || '').trim().toLowerCase();
+    const vr = Number(retornoTabela.valor_retorno || 0);
+    if (vr <= 0) return cur;
+    return tipo === 'percentual' || tipo === 'porcentagem' ? cur / (1 + vr / 100) : cur - vr;
+  
   }, []);
 
   const baseValorTotal = useMemo(() => {
@@ -547,17 +557,25 @@ function PedidoEditForm({
     const vr = Number(retornoTabela.valor_retorno || 0);
     if (vr <= 0) return cur;
     return tipo === 'percentual' || tipo === 'porcentagem' ? cur / (1 + vr / 100) : cur - vr;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  
   }, []);
 
   const handleToggleRetorno = (checked: boolean) => {
     setRetorno(checked);
     if (!retornoTabela) return;
     if (checked) {
-      setEntregaData(d => ({ ...d, valor_entrega: +applyRetorno(baseValorEntrega, retornoTabela).toFixed(2) }));
+      setEntregaData(d => ({
+        ...d,
+        valor_entrega: +applyRetorno(baseValorEntrega, retornoTabela).toFixed(2),
+        valor_entregador: +applyRetorno(baseValorEntregador, retornoTabela).toFixed(2),
+      }));
       setFormData(d => ({ ...d, valor_total: +applyRetorno(baseValorTotal, retornoTabela).toFixed(2) }));
     } else {
-      setEntregaData(d => ({ ...d, valor_entrega: +baseValorEntrega.toFixed(2) }));
+      setEntregaData(d => ({
+        ...d,
+        valor_entrega: +baseValorEntrega.toFixed(2),
+        valor_entregador: +baseValorEntregador.toFixed(2),
+      }));
       setFormData(d => ({ ...d, valor_total: +baseValorTotal.toFixed(2) }));
     }
   };
@@ -628,14 +646,23 @@ function PedidoEditForm({
         }
         if (formData.status === 'cancelado') newEntregaStatus = 'cancelada';
 
+        const retornoComissaoValor = retorno && retornoTabela
+          ? +(applyRetorno(baseValorEntregador, retornoTabela) - baseValorEntregador).toFixed(2)
+          : 0;
+
         const { error: eError } = await supabase.from('nova_entrega').update({
           pedido_id: pedido.id,
           coleta_endereco_texto: entregaData.coleta_endereco_texto,
           entrega_endereco_texto: entregaData.entrega_endereco_texto,
           status: newEntregaStatus,
           valor_entrega: entregaData.valor_entrega,
+          valor_entregador: entregaData.valor_entregador,
           observacoes: entregaData.observacoes,
           retorno,
+          opcionais: {
+            ...((entrega?.opcionais as any) || {}),
+            comissao_retorno: retornoComissaoValor > 0 ? retornoComissaoValor : null,
+          },
         }).eq('id', entrega.id);
         
         if (eError) throw eError;
@@ -1437,6 +1464,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const quickDistanceCalcIdRef = useRef(0);
   const pedidosFetchSeqRef = useRef(0);
   const pedidosRefreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const queueSilentRefreshRef = useRef<() => void>(() => {});
   
   
   const [pricingTables, setPricingTables] = useState<any[]>([]);
@@ -2881,8 +2909,19 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       )
       .subscribe();
 
+    const pedidosChannel = supabase
+      .channel('pedidos-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => {
+        queueSilentRefreshRef.current();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'nova_entrega' }, () => {
+        queueSilentRefreshRef.current();
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(pedidosChannel);
     };
   }, []);
 
@@ -3184,17 +3223,12 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   }, [fetchPedidos]);
 
   useEffect(() => {
-    fetchPedidos();
-  }, [fetchPedidos]);
+    queueSilentRefreshRef.current = queueSilentPedidosRefresh;
+  }, [queueSilentPedidosRefresh]);
 
   useEffect(() => {
-    
-    const interval = setInterval(() => {
-        queueSilentPedidosRefresh();
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [queueSilentPedidosRefresh]);
+    fetchPedidos();
+  }, [fetchPedidos]);
 
   useEffect(() => {
     let interval: any = null;
@@ -3275,7 +3309,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             });
           }
         } catch {
-          // falha na geocodificação — ignora este pin
+          
         }
       }
     })();
