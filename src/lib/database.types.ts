@@ -402,6 +402,8 @@ export interface Database {
           faturamento_instrucoes?: string
           faturamento_observacoes?: string
           faturamento_emails?: string[]
+          google_maps_api_key?: string | null
+          google_maps_map_id?: string | null
         }
         Insert: {
           id?: string
@@ -437,6 +439,8 @@ export interface Database {
           faturamento_instrucoes?: string
           faturamento_observacoes?: string
           faturamento_emails?: string[]
+          google_maps_api_key?: string | null
+          google_maps_map_id?: string | null
         }
         Update: {
           id?: string
@@ -472,6 +476,8 @@ export interface Database {
           faturamento_instrucoes?: string
           faturamento_observacoes?: string
           faturamento_emails?: string[]
+          google_maps_api_key?: string | null
+          google_maps_map_id?: string | null
         }
       }
       creditos_clientes: {

@@ -80,6 +80,8 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
     foto_base64: '',
     nova_senha: '',
     precificacao_config: [] as PrecificacaoConfigItem[],
+    google_maps_api_key: '',
+    google_maps_map_id: '',
   });
   const [tabelasPrecos, setTabelasPrecos] = useState<TabelaPreco[]>([]);
   const [tabelasComissoes, setTabelasComissoes] = useState<TabelaComissao[]>([]);
@@ -710,6 +712,8 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
       foto_base64: c.foto_base64 || '',
       nova_senha: '',
       precificacao_config: pConfig,
+      google_maps_api_key: (c as any).google_maps_api_key || '',
+      google_maps_map_id: (c as any).google_maps_map_id || '',
     });
     
     
@@ -905,6 +909,8 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
         faturamento_instrucoes: editForm.faturamento_instrucoes,
         faturamento_observacoes: editForm.faturamento_observacoes,
         faturamento_emails: editForm.faturamento_emails,
+        google_maps_api_key: (editForm as any).google_maps_api_key || null,
+        google_maps_map_id: (editForm as any).google_maps_map_id || null,
         ...primaryAddressUpdate,
       })
       .eq('id', editing.id);
@@ -1534,6 +1540,30 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
           <div className="md:col-span-2">
             <label className="text-xs text-slate-700">Observações</label>
             <textarea value={editForm.observacoes} onChange={(e) => setEditForm({ ...editForm, observacoes: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
+          </div>
+          <div className="md:col-span-2 border-t border-slate-200 pt-3 mt-1">
+            <p className="text-xs font-semibold text-slate-600 mb-2">Google Maps (chave exclusiva desta loja)</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-slate-700">API Key do Google Maps</label>
+                <input
+                  value={(editForm as any).google_maps_api_key}
+                  onChange={(e) => setEditForm({ ...editForm, google_maps_api_key: e.target.value } as any)}
+                  placeholder="AIzaSy..."
+                  className="w-full px-3 py-2 border border-slate-300 rounded font-mono text-xs"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-700">Map ID do Google Maps</label>
+                <input
+                  value={(editForm as any).google_maps_map_id}
+                  onChange={(e) => setEditForm({ ...editForm, google_maps_map_id: e.target.value } as any)}
+                  placeholder="da75f8800318c91f..."
+                  className="w-full px-3 py-2 border border-slate-300 rounded font-mono text-xs"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-slate-400 mt-1">Deixe em branco para usar a chave padrão do sistema. Recomendado configurar uma chave própria para separar os custos do Google Maps por loja.</p>
           </div>
           <div>
             <label className="text-xs text-slate-700">Segmento</label>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Database } from '../lib/database.types';
+import { useGoogleMapsKey } from '../lib/GoogleMapsKeyContext';
 
 type DeliveryPerson = Database['public']['Tables']['delivery_persons']['Row'];
 
@@ -114,8 +115,7 @@ function makePinSvg(fill: string, innerSvg?: string, rotation?: number) {
 }
 
 export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [-23.5505, -46.6333], origin, destination, route, originTitle, destinationTitle, originIconType = 'truck', additionalDestinations = [], deliveryPins = [] }: MapViewProps) {
-  useEffect(() => {
-  }, []);
+  const { apiKey, mapId } = useGoogleMapsKey();
 
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<any | null>(null);
@@ -145,17 +145,14 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
   useEffect(() => {
     if (map.current) return;
 
-    const apiKey = String(import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '').trim();
-    if (!apiKey) {
-      setMapError('Chave do Google Maps não configurada (VITE_GOOGLE_MAPS_API_KEY). Se você acabou de alterar o .env, reinicie o servidor (npm run dev) e recarregue a página.');
-      return;
-    }
-
-    const mapId = String(import.meta.env.VITE_GOOGLE_MAPS_MAP_ID ?? '').trim();
+    // apiKey and mapId come from GoogleMapsKeyContext (per-store DB key, falling back to env var).
+    // When both are still empty the provider is still fetching; we simply wait (the spinner is shown).
+    if (!apiKey) return;
     if (!mapId) {
-      setMapError('VITE_GOOGLE_MAPS_MAP_ID não configurado. AdvancedMarkerElement requer mapId.');
+      setMapError('Map ID do Google Maps não configurado. Configure google_maps_map_id no cadastro da loja ou VITE_GOOGLE_MAPS_MAP_ID no .env.');
       return;
     }
+    setMapError(null);
     let cancelled = false;
 
     const initMap = async () => {
@@ -262,7 +259,9 @@ export function MapView({ deliveryPersons = [], selectedEntregadorId, center = [
       }
       setMapLoaded(false);
     };
-  }, []);
+  // Re-run when the per-store keys become available (context resolves after DB fetch)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiKey, mapId]);
 
   
   // Handle container resize
