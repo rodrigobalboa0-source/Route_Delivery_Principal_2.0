@@ -560,7 +560,7 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
         }
       }
 
-      await (supabase as unknown as { from: (t: string) => { update: (v: unknown) => { eq: (c: string, v: unknown) => Promise<unknown> } } }).from('entregadores').update({
+      const docsRes = await (supabase as unknown as { from: (t: string) => { update: (v: unknown) => { eq: (c: string, v: unknown) => Promise<{ error?: { message?: string } }> } } }).from('entregadores').update({
         foto_url: finalFotoUrl || null,
         foto_base64: finalFotoBase64 || null,
         cnh_foto_url: finalCnhUrl || null,
@@ -570,6 +570,12 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
         documento_veiculo_url: finalMotoUrl || null,
         documento_veiculo_base64: finalMotoBase64 || null,
       }).eq('id', idNew);
+      if (docsRes.error?.message) {
+        console.error('Erro ao salvar foto/documentos do entregador:', docsRes.error.message);
+        setError(`Cadastro criado, mas houve falha ao salvar foto/documentos: ${docsRes.error.message}`);
+        setLoading(false);
+        return;
+      }
     }
 
     setForm({ nome_completo: '', cpf: '', rg: '', data_nascimento: '', telefone: '', email: '', senha: '', veiculo_tipo: '', veiculo_modelo: '', veiculo_placa: '', veiculo_ano: '', cnh_valida: false, tipo_entrega: '', taxa_entrega: '', status: 'inativo', prioridade_busca: false, prioridade_tempo: '', cep: '', rua: '', numero: '', complemento: '', bairro: '', cidade: '', foto_url: '', foto_base64: '', cnh_foto_url: '', cnh_foto_base64: '', comprovante_residencia_url: '', comprovante_residencia_base64: '', documento_veiculo_url: '', documento_veiculo_base64: '', restricao_clientes_modo: 'todos', clientes_permitidos: [] });
@@ -882,7 +888,11 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
         prioridade_tempo: (editForm as any).prioridade_tempo ? Number((editForm as any).prioridade_tempo) : 0,
       });
     const r = res as unknown as { error?: { message?: string } };
-    if (r.error?.message) setError(r.error.message);
+    if (r.error?.message) {
+      setError(r.error.message);
+      setLoading(false);
+      return;
+    }
     setEditing(null);
     setLoading(false);
     await fetchEntregadores();

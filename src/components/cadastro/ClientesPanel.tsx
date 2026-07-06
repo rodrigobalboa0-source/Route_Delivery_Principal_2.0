@@ -915,8 +915,12 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
       })
       .eq('id', editing.id);
     const r = res as unknown as { error?: { message?: string } };
-    if (r.error?.message) setError(r.error.message);
-    if (!r.error?.message) {
+    if (r.error?.message) {
+      setError(r.error.message);
+      setLoading(false);
+      return;
+    }
+    {
       const updates = editEnderecos.filter((e) => e.id).map((e) =>
         supabase
           .from('cliente_enderecos')
