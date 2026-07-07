@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import { MapPin, CheckCircle, Truck, AlertCircle, Phone, Navigation, Map as MapIcon, DollarSign, X, ChevronRight } from 'lucide-react';
-import { MapView, MapDeliveryPerson } from '../MapView';
+// import { MapView, MapDeliveryPerson } from '../MapView'; // Google Maps SDK — fallback rápido, ver plano-integracao-routedelivery.md
+import { MapView, MapDeliveryPerson } from '../MapViewOwnApi';
 import type { Database } from '../../lib/database.types';
 import { Geolocation } from '@capacitor/geolocation';
 import { ForegroundService } from '@capawesome-team/capacitor-android-foreground-service';

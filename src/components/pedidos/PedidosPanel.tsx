@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { getCoordsFromAddress, getDrivingRouteDistance, getDistanceFromLatLonInKm } from '../../utils/geo';
-import { MapView, MapDeliveryPerson } from '../MapView';
+// import { MapView, MapDeliveryPerson } from '../MapView'; // Google Maps SDK — fallback rápido, ver plano-integracao-routedelivery.md
+import { MapView, MapDeliveryPerson } from '../MapViewOwnApi';
 import { Modal } from '../Modal';
 import type { Database } from '../../lib/database.types';
 import { format } from 'date-fns';
