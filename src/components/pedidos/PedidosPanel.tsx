@@ -3070,14 +3070,11 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         let qPedidos = supabase.from('pedidos').select('*').order('created_at', { ascending: false });
         let qEntregas = supabase.from('nova_entrega').select('*').order('created_at', { ascending: false });
 
-        const isStatusFilter = filters.status !== 'todos';
-        const isCityFilter = filters.cidade !== 'todos';
-        const isDateFilter = !!filters.de;
-        const isClientFilter = filters.cliente_id !== '' && !isComercio;
-        const isOriginFilter = filters.origem !== 'todos';
-        const hasActiveFilters = isStatusFilter || isCityFilter || isDateFilter || isClientFilter || isOriginFilter;
+        // Entregues/cancelados só devem aparecer quando o operador filtra por status explicitamente.
+        // Filtros de cidade/data/cliente/origem não devem "reabrir" esses pedidos na lista.
+        const shouldExcludeFinished = filters.status === 'todos';
 
-        if (!hasActiveFilters) {
+        if (shouldExcludeFinished) {
             qPedidos = qPedidos.neq('status', 'entregue').neq('status', 'cancelado');
             qEntregas = qEntregas.neq('status', 'entregue').neq('status', 'cancelada');
         }
@@ -3126,7 +3123,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         // Detecta pedidos out-of-sync: pedido ainda 'pronto' mas delivery já 'entregue'/'cancelada'.
         // O qEntregas exclui deliveries concluídas da query principal, então precisamos de uma
         // consulta extra para pegar esses casos e remover o pedido da lista.
-        if (!hasActiveFilters && pedidosList.length > 0) {
+        if (shouldExcludeFinished && pedidosList.length > 0) {
             const pedidoIds = pedidosList.map(p => p.id).filter(Boolean);
             if (pedidoIds.length > 0) {
                 const { data: completedDeliveries } = await supabase
@@ -3177,7 +3174,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         const finalPedidos = [...pedidosList, ...syntheticPedidos];
 
         const finalPedidosSemEntregues = finalPedidos.filter(p => {
-            if (hasActiveFilters) return true;
+            if (!shouldExcludeFinished) return true;
 
             if (p.status === 'entregue' || p.status === 'cancelado') return false;
             
