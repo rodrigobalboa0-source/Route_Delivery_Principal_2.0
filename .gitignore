@@ -28,3 +28,4 @@ dist-ssr
 !.env.template
 
 firebase-service-account.json
+*firebase-adminsdk*.json

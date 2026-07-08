@@ -3208,7 +3208,13 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         console.error('Fetch error', e);
         if (fetchSeq === pedidosFetchSeqRef.current) setError(e.message);
     } finally {
-        if (!silent && fetchSeq === pedidosFetchSeqRef.current) setLoadingList(false);
+        // Qualquer fetch que ainda seja o mais recente (sequência bate) deve
+        // desligar o loading ao terminar — mesmo os "silenciosos" (refresh de
+        // realtime), senão um silencioso que termina primeiro nunca desliga o
+        // spinner de um carregamento visível que ele "ultrapassou", e o
+        // carregamento visível, ao terminar depois, se vê com sequência
+        // desatualizada e também não desliga. Resultado: spinner preso.
+        if (fetchSeq === pedidosFetchSeqRef.current) setLoadingList(false);
     }
   }, [filters, clientes, isComercio]);
 
