@@ -1,5 +1,6 @@
 
-import { supabase } from '../lib/supabase';
+const MAPS_API_URL = import.meta.env.VITE_MAPS_API_URL;
+const MAPS_API_KEY = import.meta.env.VITE_MAPS_API_KEY;
 
 export function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371; 
@@ -120,17 +121,19 @@ function hasCityOrStateHint(address: string) {
   return false;
 }
 
-async function invokeGeocode(q: string, bounded: boolean): Promise<[number, number] | undefined> {
+/** Geocodifica um texto de endereço via /v1/geocode da Maps API própria (aceita CEP ou texto livre). */
+async function invokeGeocodeApi(q: string): Promise<[number, number] | undefined> {
   try {
-    const { data, error } = await supabase.functions.invoke('geocode', {
-      body: { q, limit: 1, bounded },
+    const url = new URL(`${String(MAPS_API_URL || '').replace(/\/+$/, '')}/v1/geocode`);
+    url.searchParams.set('address', q);
+    const res = await fetchWithTimeout(url.toString(), 12000, {
+      headers: { 'X-API-Key': MAPS_API_KEY },
     });
-    if (error) return undefined;
-    const results = (data as any)?.results;
-    if (Array.isArray(results) && results[0] && typeof results[0].lat === 'string' && typeof results[0].lon === 'string') {
-      const lat = parseFloat(results[0].lat);
-      const lon = parseFloat(results[0].lon);
-      if (!Number.isNaN(lat) && !Number.isNaN(lon)) return [lat, lon];
+    if (!res.ok) return undefined;
+    const data = await res.json();
+    const location = data?.results?.[0]?.geometry?.location;
+    if (data?.status === 'OK' && typeof location?.lat === 'number' && typeof location?.lng === 'number') {
+      return [location.lat, location.lng];
     }
   } catch (e) {
     void e;
@@ -138,16 +141,13 @@ async function invokeGeocode(q: string, bounded: boolean): Promise<[number, numb
   return undefined;
 }
 
-async function getCoordsFromEdgeFunction(address: string): Promise<[number, number] | undefined> {
+async function getCoordsFromMapsApi(address: string): Promise<[number, number] | undefined> {
   const uniqueCandidates = buildGeocodeCandidates(address);
   if (uniqueCandidates.length === 0) return undefined;
 
   for (const q of uniqueCandidates) {
-    const boundedCoords = await invokeGeocode(q, true);
-    if (boundedCoords) return boundedCoords;
-
-    const unboundedCoords = await invokeGeocode(q, false);
-    if (unboundedCoords) return unboundedCoords;
+    const coords = await invokeGeocodeApi(q);
+    if (coords) return coords;
   }
 
   return undefined;
@@ -156,8 +156,8 @@ async function getCoordsFromEdgeFunction(address: string): Promise<[number, numb
 export async function getCoordsFromAddress(address: string): Promise<[number, number] | undefined> {
     if (!address) return undefined;
     const sanitized = sanitizeAddressQuery(address);
-    
-    
+
+
     const match = sanitized.match(/(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
     if (match) {
       return [parseFloat(match[1]), parseFloat(match[2])];
@@ -166,38 +166,16 @@ export async function getCoordsFromAddress(address: string): Promise<[number, nu
     const key = normalizeAddressKey(sanitized);
     if (!key) return undefined;
 
-    
+
     if (coordsCache.has(key)) {
         return coordsCache.get(key);
     }
 
     try {
-      const edgeCoords = await getCoordsFromEdgeFunction(sanitized);
-      if (edgeCoords) {
-        coordsCache.set(key, edgeCoords);
-        return edgeCoords;
-      }
-
-      const viewbox = '-47.60,-22.55,-46.60,-23.35';
-      const tryFetch = async (url: string) => {
-        const res = await fetchWithTimeout(url, 12000, { headers: { 'Accept-Language': 'pt-BR' } });
-        if (!res.ok) return undefined;
-        const data = await res.json();
-        if (data && data[0]) {
-          return [parseFloat(data[0].lat), parseFloat(data[0].lon)] as [number, number];
-        }
-        return undefined;
-      };
-
-      const candidates = buildGeocodeCandidates(sanitized);
-      for (const q of candidates) {
-        const boundedUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1&countrycodes=br&viewbox=${viewbox}&bounded=1`;
-        const unboundedUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1&countrycodes=br`;
-        const coords = (await tryFetch(boundedUrl)) ?? (await tryFetch(unboundedUrl));
-        if (coords) {
-          coordsCache.set(key, coords);
-          return coords;
-        }
+      const coords = await getCoordsFromMapsApi(sanitized);
+      if (coords) {
+        coordsCache.set(key, coords);
+        return coords;
       }
     } catch (e) {
       console.error('Error fetching coords for address:', address, e);

@@ -82,7 +82,6 @@ function AddressAutocomplete({
   const inputRef = useRef<HTMLInputElement | null>(null);
   const requestSeqRef = useRef(0);
   const cacheRef = useRef<Map<string, AddressSuggestion[]>>(new Map());
-  const sessionTokenRef = useRef<string>(crypto.randomUUID());
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
@@ -101,7 +100,6 @@ function AddressAutocomplete({
     }
     setOpen(false);
     setActiveIndex(-1);
-    sessionTokenRef.current = crypto.randomUUID();
   };
 
   useEffect(() => {
@@ -216,29 +214,33 @@ function AddressAutocomplete({
           query = `${query}, Campinas, SP`;
         }
 
-        const call = async (bounded: boolean) => {
-          const { data, error } = await supabase.functions.invoke('geocode', {
-            body: { q: query, limit: 8, bounded, sessionToken: sessionTokenRef.current, provider: 'google-geocode' },
-          });
-          if (error) return { ok: false as const, results: [] as any[] };
-          const results = Array.isArray((data as any)?.results) ? (data as any).results : [];
-          return { ok: true as const, results };
+        const call = async () => {
+          try {
+            const mapsApiBase = String(import.meta.env.VITE_MAPS_API_URL || '').replace(/\/+$/, '');
+            const url = new URL(`${mapsApiBase}/v1/autocomplete`);
+            url.searchParams.set('input', query);
+            const res = await fetch(url.toString(), {
+              headers: { 'X-API-Key': import.meta.env.VITE_MAPS_API_KEY },
+            });
+            if (!res.ok) return { ok: false as const, results: [] as any[] };
+            const data = await res.json();
+            const results = Array.isArray(data?.predictions) ? data.predictions : [];
+            return { ok: true as const, results };
+          } catch {
+            return { ok: false as const, results: [] as any[] };
+          }
         };
 
-        const first = await call(true);
-        let results = first.ok ? first.results : [];
-        if (results.length === 0) {
-          const second = await call(false);
-          results = second.ok ? second.results : [];
-        }
+        const first = await call();
+        const results = first.ok ? first.results : [];
         if (seq !== requestSeqRef.current) return;
 
-        
+
         const suggestionsRaw = (Array.isArray(results) ? results : [])
           .map((item: any) => ({
-            display_name: String(item.display_name || '').trim(),
-            lat: typeof item.lat === 'string' ? item.lat : undefined,
-            lon: typeof item.lon === 'string' ? item.lon : undefined,
+            display_name: String(item.description || '').trim(),
+            lat: typeof item.lat === 'number' ? String(item.lat) : undefined,
+            lon: typeof item.lng === 'number' ? String(item.lng) : undefined,
           }))
           .filter((s: any) => !!s.display_name && !!s.lat && !!s.lon);
 
@@ -366,6 +368,7 @@ export function NovaEntregaPanel() {
   const [blacklist, setBlacklist] = useState<Array<{ cliente_id: string, entregador_id: string }>>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [addressApproxWarning, setAddressApproxWarning] = useState<string | null>(null);
   const [isComercio, setIsComercio] = useState(false);
   const [clientSaldo, setClientSaldo] = useState<number | null>(null);
 
@@ -540,6 +543,7 @@ export function NovaEntregaPanel() {
     if (type === 'coleta') setColetaSelectedCoords(undefined);
     else setEntregaSelectedCoords(undefined);
     setDistanceError(null);
+    setAddressApproxWarning(null);
     setForm((prev) => {
       let next = { ...prev };
       if (type === 'coleta') next.coleta_usa_endereco_cadastro = checked;
@@ -1280,14 +1284,38 @@ export function NovaEntregaPanel() {
     const coletaAddrTrimmed = (form.coleta_endereco_texto || '').trim();
     const entregaAddrTrimmed = (form.entrega_endereco_texto || '').trim();
 
+    setAddressApproxWarning(null);
+    const approxLabels: string[] = [];
+
+    // Sem sugestão clicada: tenta geocodificar o texto digitado direto
+    // (com ou sem CEP, /v1/geocode aceita os dois) antes de bloquear —
+    // só bloqueia mesmo se o geocoding não encontrar nada.
     if (coletaAddrTrimmed && !form.coleta_usa_endereco_cadastro && !coletaSelectedCoords) {
-      setError('Selecione o endereço de coleta a partir das sugestões — digite o endereço e clique em uma das opções que aparecem na lista.');
-      return;
+      const full = form.coleta_numero ? `${coletaAddrTrimmed}, ${form.coleta_numero}` : coletaAddrTrimmed;
+      const fallbackCoords = await getCoordsFromAddress(full);
+      if (!fallbackCoords) {
+        setError('Não foi possível localizar o endereço de coleta. Selecione uma sugestão da lista ou revise o endereço digitado.');
+        return;
+      }
+      setColetaSelectedCoords(fallbackCoords);
+      approxLabels.push('coleta');
     }
 
     if (!form.retirada_no_local && entregaAddrTrimmed && !form.entrega_usa_endereco_cadastro && !entregaSelectedCoords) {
-      setError('Selecione o endereço de entrega a partir das sugestões — digite o endereço e clique em uma das opções que aparecem na lista.');
-      return;
+      const full = form.entrega_numero ? `${entregaAddrTrimmed}, ${form.entrega_numero}` : entregaAddrTrimmed;
+      const fallbackCoords = await getCoordsFromAddress(full);
+      if (!fallbackCoords) {
+        setError('Não foi possível localizar o endereço de entrega. Selecione uma sugestão da lista ou revise o endereço digitado.');
+        return;
+      }
+      setEntregaSelectedCoords(fallbackCoords);
+      approxLabels.push('entrega');
+    }
+
+    if (approxLabels.length > 0) {
+      setAddressApproxWarning(
+        `Endereço de ${approxLabels.join(' e ')} resolvido automaticamente (aproximado) — confirme se está correto.`
+      );
     }
 
     setLoading(true);
@@ -1437,6 +1465,7 @@ export function NovaEntregaPanel() {
     }
 
     let insertError: any = null;
+    try {
     if (!form.retirada_no_local) {
       const pontosFilled = (form.pontos || []).filter((p) => (p?.endereco_texto || '').trim().length > 0);
       const extraPointsFilled = pontosFilled.length;
@@ -1599,6 +1628,10 @@ export function NovaEntregaPanel() {
         });
       insertError = res.error;
     }
+    } catch (entregaErr: any) {
+      console.error('Erro ao criar entrega para o pedido:', entregaErr);
+      insertError = { message: (entregaErr?.message || 'Erro inesperado ao criar a entrega.') + ' O pedido foi criado, mas a entrega não pôde ser gerada — verifique e tente novamente ou contate o suporte.' };
+    }
 
     if (insertError?.message) setError(insertError.message);
     else {
@@ -1696,6 +1729,7 @@ export function NovaEntregaPanel() {
       )}
 
       {error && <div className="mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</div>}
+      {addressApproxWarning && <div className="mb-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">{addressApproxWarning}</div>}
       <div className="bg-white border border-slate-200 rounded-lg p-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <select value={form.cliente_id} onChange={(e) => {
@@ -1821,6 +1855,7 @@ export function NovaEntregaPanel() {
             onChange={(val) => {
               setColetaSelectedCoords(undefined);
               setDistanceError(null);
+              setAddressApproxWarning(null);
               setForm(prev => ({ ...prev, coleta_endereco_texto: val }));
             }}
             onSelectCoords={(coords, selectedText) => {
@@ -1866,6 +1901,7 @@ export function NovaEntregaPanel() {
               onChange={(val) => {
                 setEntregaSelectedCoords(undefined);
                 setDistanceError(null);
+                setAddressApproxWarning(null);
                 setForm(prev => ({ ...prev, entrega_endereco_texto: val }));
               }}
               onSelectCoords={(coords, selectedText) => {

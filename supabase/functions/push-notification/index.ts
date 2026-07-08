@@ -1,5 +1,59 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
-import { JWT } from 'npm:google-auth-library'
+
+function base64url(input: ArrayBuffer | string): string {
+  const bytes = typeof input === 'string' ? new TextEncoder().encode(input) : new Uint8Array(input)
+  let str = ''
+  for (const b of bytes) str += String.fromCharCode(b)
+  return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+function pemToArrayBuffer(pem: string): ArrayBuffer {
+  const b64 = pem
+    .replace(/-----BEGIN PRIVATE KEY-----/, '')
+    .replace(/-----END PRIVATE KEY-----/, '')
+    .replace(/\s+/g, '')
+  const binary = atob(b64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return bytes.buffer
+}
+
+// Substitui npm:google-auth-library (incompatível com o edge-runtime self-hosted:
+// trava o event loop lendo process.env). Implementa o fluxo OAuth2 de service
+// account (JWT bearer) direto com Web Crypto, que o Deno suporta nativamente.
+async function getGoogleAccessToken(serviceAccount: { client_email: string; private_key: string }, scope: string): Promise<string> {
+  const header = { alg: 'RS256', typ: 'JWT' }
+  const now = Math.floor(Date.now() / 1000)
+  const claims = {
+    iss: serviceAccount.client_email,
+    scope,
+    aud: 'https://oauth2.googleapis.com/token',
+    exp: now + 3600,
+    iat: now,
+  }
+  const unsigned = `${base64url(JSON.stringify(header))}.${base64url(JSON.stringify(claims))}`
+
+  const key = await crypto.subtle.importKey(
+    'pkcs8',
+    pemToArrayBuffer(serviceAccount.private_key),
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false,
+    ['sign']
+  )
+  const signature = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(unsigned))
+  const jwt = `${unsigned}.${base64url(signature)}`
+
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `grant_type=${encodeURIComponent('urn:ietf:params:oauth:grant-type:jwt-bearer')}&assertion=${jwt}`,
+  })
+  if (!res.ok) {
+    throw new Error(`Falha ao obter access token do Google: ${await res.text()}`)
+  }
+  const data = await res.json()
+  return data.access_token
+}
 
 function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371; 
@@ -178,13 +232,7 @@ Deno.serve(async (req) => {
     }
     
     const serviceAccount = JSON.parse(serviceAccountStr)
-    const jwtClient = new JWT({
-      email: serviceAccount.client_email,
-      key: serviceAccount.private_key,
-      scopes: ['https://www.googleapis.com/auth/firebase.messaging'],
-    })
-    
-    const accessToken = await jwtClient.authorize()
+    const accessTokenStr = await getGoogleAccessToken(serviceAccount, 'https://www.googleapis.com/auth/firebase.messaging')
 
     let targetEntregadores = []
 
@@ -290,7 +338,7 @@ Deno.serve(async (req) => {
             const res = await fetch(`https://fcm.googleapis.com/v1/projects/${serviceAccount.project_id}/messages:send`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${accessToken.access_token}`,
+                    'Authorization': `Bearer ${accessTokenStr}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(message)

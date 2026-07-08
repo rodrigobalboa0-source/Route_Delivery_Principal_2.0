@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import { MapPin, CheckCircle, Truck, AlertCircle, Phone, Navigation, Map as MapIcon, DollarSign, X, ChevronRight } from 'lucide-react';
-import { MapView, MapDeliveryPerson } from '../MapView';
+
+import { MapView, MapDeliveryPerson } from '../MapViewOwnApi';
 import type { Database } from '../../lib/database.types';
 import { Geolocation } from '@capacitor/geolocation';
 import { ForegroundService } from '@capawesome-team/capacitor-android-foreground-service';
@@ -77,11 +78,14 @@ export function EntregadorPedidosEmAndamentoPanel({ onNavigate }: { onNavigate?:
       setDialog({ open: true, title, message, mode: 'confirm' });
     });
 
+  const prevEntregasCountRef = useRef(0);
   useEffect(() => {
     if (!hasLoadedOnceRef.current || loading) return;
-    if (entregas.length === 0) {
+    
+    if (entregas.length === 0 && prevEntregasCountRef.current > 0) {
       onNavigate?.('home_entregador');
     }
+    prevEntregasCountRef.current = entregas.length;
   }, [entregas, loading]);
 
   useEffect(() => {
