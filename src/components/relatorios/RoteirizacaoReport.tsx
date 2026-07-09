@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { Database } from '../../lib/database.types';
-// import { MapView } from '../MapView'; // Google Maps SDK — fallback rápido, ver plano-integracao-routedelivery.md
-import { MapView } from '../MapViewOwnApi';
+import { MapView } from '../MapView';
+// import { MapView } from '../MapViewOwnApi'; // Leaflet/OSM — desativado a pedido do cliente, ver conversa sobre Places API
 
 type Pedido = Database['public']['Tables']['nova_entrega']['Row'];
 type Cliente = Database['public']['Tables']['clientes']['Row'];

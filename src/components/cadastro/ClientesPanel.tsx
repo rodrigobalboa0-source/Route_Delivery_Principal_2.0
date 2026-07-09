@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../lib/supabase';
 import { Modal } from '../Modal';
+import { AddressPinPicker } from '../AddressPinPicker';
+import { getCoordsFromAddress, confirmarPinPreciso } from '../../utils/geo';
 import type { Database } from '../../lib/database.types';
 
 type TabelaPreco = Database['public']['Tables']['tabelas_precos']['Row'];
@@ -133,7 +135,10 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
     foto_url: '',
     foto_base64: '',
     precificacao_config: [] as PrecificacaoConfigItem[],
+    latitude: '',
+    longitude: '',
   });
+  const [pinPicker, setPinPicker] = useState<{ target: 'create' | 'edit'; lat: number; lng: number } | null>(null);
   const [fotoFile, setFotoFile] = useState<File | null>(null);
   const [fotoPreview, setFotoPreview] = useState<string>('');
   const [editFotoFile, setEditFotoFile] = useState<File | null>(null);
@@ -452,6 +457,8 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
           foto_url: finalFotoUrl || null,
           foto_base64: finalFotoBase64 || null,
           precificacao_config: form.precificacao_config,
+          latitude: form.latitude ? Number(form.latitude) : null,
+          longitude: form.longitude ? Number(form.longitude) : null,
         })
         .eq('id', cid);
         
@@ -984,6 +991,41 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
     }
   };
 
+  const openPinPicker = async (target: 'create' | 'edit', addressText: string) => {
+    const current = target === 'create'
+      ? { lat: form.latitude, lng: form.longitude }
+      : { lat: (editForm as any).latitude, lng: (editForm as any).longitude };
+    let lat = current.lat ? Number(current.lat) : NaN;
+    let lng = current.lng ? Number(current.lng) : NaN;
+    if (Number.isNaN(lat) || Number.isNaN(lng)) {
+      const coords = await getCoordsFromAddress(addressText);
+      if (!coords) {
+        setError('Não foi possível localizar esse endereço automaticamente. Preencha rua, número, bairro e cidade e tente novamente.');
+        return;
+      }
+      [lat, lng] = coords;
+    }
+    setPinPicker({ target, lat, lng });
+  };
+
+  const handleConfirmPin = async (lat: number, lng: number) => {
+    if (!pinPicker) return;
+    const addressText = pinPicker.target === 'create'
+      ? [enderecoAtual.rua, enderecoAtual.numero, enderecoAtual.bairro, enderecoAtual.cidade, enderecoAtual.cep].filter(Boolean).join(', ')
+      : (() => {
+          const e = editEnderecos[0] || editEnderecoNovo;
+          return [e?.rua, e?.numero, e?.bairro, e?.cidade, e?.cep].filter(Boolean).join(', ');
+        })();
+
+    if (pinPicker.target === 'create') {
+      setForm(prev => ({ ...prev, latitude: String(lat), longitude: String(lng) }));
+    } else {
+      setEditForm(prev => ({ ...prev, latitude: String(lat), longitude: String(lng) } as any));
+    }
+    setPinPicker(null);
+    void confirmarPinPreciso(addressText, lat, lng);
+  };
+
   const handleCepBlur = async (cep: string) => {
     const data = await fetchAddressByCep(cep);
     if (data) {
@@ -1254,6 +1296,16 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
             <input placeholder="Referência de entrega" value={enderecoAtual.referencia_entrega || ''} onChange={(e) => setEnderecoAtual({ ...enderecoAtual, referencia_entrega: e.target.value })} className="px-3 py-2 border border-slate-300 rounded md:col-span-3" />
           </div>
           <button onClick={addEndereco} className="mt-3 px-3 py-2 rounded bg-slate-200 text-slate-800 text-sm">Adicionar endereço</button>
+          <button
+            type="button"
+            onClick={() => openPinPicker('create', [enderecoAtual.rua, enderecoAtual.numero, enderecoAtual.bairro, enderecoAtual.cidade, enderecoAtual.cep].filter(Boolean).join(', '))}
+            className="mt-3 ml-2 px-3 py-2 rounded bg-slate-100 text-slate-700 text-sm border border-slate-300 hover:bg-slate-200"
+          >
+            📍 Ajustar localização no mapa
+          </button>
+          {(form.latitude && form.longitude) && (
+            <span className="ml-2 text-xs text-emerald-600">Posição exata confirmada</span>
+          )}
           {enderecos.length > 0 && (
             <div className="mt-3 space-y-2">
               {enderecos.map((e, i) => (
@@ -1812,6 +1864,16 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
           <div className="text-[11px] text-slate-500 mt-2">
             Preencha para fixar a localização do comércio no mapa. Se vazio, o sistema continua tentando localizar pelo endereço.
           </div>
+          <button
+            type="button"
+            onClick={() => {
+              const e = editEnderecos[0] || editEnderecoNovo;
+              openPinPicker('edit', [e?.rua, e?.numero, e?.bairro, e?.cidade, e?.cep].filter(Boolean).join(', '));
+            }}
+            className="mt-2 px-3 py-2 rounded bg-slate-100 text-slate-700 text-sm border border-slate-300 hover:bg-slate-200"
+          >
+            📍 Ajustar localização no mapa
+          </button>
         </div>
 
         <div className="mt-4">
@@ -1921,6 +1983,15 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
           </div>
         </div>
       </Modal>
+
+      {pinPicker && (
+        <AddressPinPicker
+          lat={pinPicker.lat}
+          lng={pinPicker.lng}
+          onConfirm={handleConfirmPin}
+          onCancel={() => setPinPicker(null)}
+        />
+      )}
     </div>
   );
 }

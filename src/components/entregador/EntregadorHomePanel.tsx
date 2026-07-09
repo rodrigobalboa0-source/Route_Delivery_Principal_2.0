@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-// import { MapView, MapDeliveryPerson } from '../MapView'; // Google Maps SDK — fallback rápido, ver plano-integracao-routedelivery.md
-import { MapView, MapDeliveryPerson } from '../MapViewOwnApi';
+import { MapView, MapDeliveryPerson } from '../MapView';
+// import { MapView, MapDeliveryPerson } from '../MapViewOwnApi'; // Leaflet/OSM — desativado a pedido do cliente, ver conversa sobre Places API
 import { MapPin, Truck, Home, Power, CheckCircle, XCircle } from 'lucide-react';
 import { Database } from '../../lib/database.types';
 import { supabase } from '../../lib/supabase';

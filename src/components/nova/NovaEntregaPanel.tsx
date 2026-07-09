@@ -1,6 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
-import { getCoordsFromAddress, getDrivingRouteDistance } from '../../utils/geo';
+import { getCoordsFromAddress, getDrivingRouteDistance, confirmarPinPreciso } from '../../utils/geo';
+import { autocompletePlaces, getPlaceCoords, newSessionToken } from '../../utils/googlePlaces';
+import { AddressPinPicker } from '../AddressPinPicker';
 import type { Database } from '../../lib/database.types';
 
 type Cliente = Database['public']['Tables']['clientes']['Row'];
@@ -26,6 +28,7 @@ interface AddressSuggestion {
   display_name: string;
   lat?: string;
   lon?: string;
+  placeId?: string;
 }
 
 function normalizeBillingMode(mode: string | null | undefined) {
@@ -82,6 +85,7 @@ function AddressAutocomplete({
   const inputRef = useRef<HTMLInputElement | null>(null);
   const requestSeqRef = useRef(0);
   const cacheRef = useRef<Map<string, AddressSuggestion[]>>(new Map());
+  const sessionTokenRef = useRef<string>(newSessionToken());
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
@@ -90,16 +94,27 @@ function AddressAutocomplete({
   const [activeIndex, setActiveIndex] = useState<number>(-1);
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
 
-  const selectSuggestion = (s: AddressSuggestion) => {
+  const selectSuggestion = async (s: AddressSuggestion) => {
     onChange(s.display_name);
-    if (onSelectCoords) {
-      const lat = Number(s.lat);
-      const lon = Number(s.lon);
-      const coords = !Number.isNaN(lat) && !Number.isNaN(lon) ? ([lat, lon] as [number, number]) : undefined;
-      onSelectCoords(coords, s.display_name);
-    }
     setOpen(false);
     setActiveIndex(-1);
+
+    if (!onSelectCoords) return;
+
+    if (s.placeId) {
+      const token = sessionTokenRef.current;
+      sessionTokenRef.current = newSessionToken();
+      const details = await getPlaceCoords(s.placeId, token);
+      if (details) {
+        onSelectCoords([details.lat, details.lng], s.display_name);
+        return;
+      }
+    }
+
+    const lat = Number(s.lat);
+    const lon = Number(s.lon);
+    const coords = !Number.isNaN(lat) && !Number.isNaN(lon) ? ([lat, lon] as [number, number]) : undefined;
+    onSelectCoords(coords, s.display_name);
   };
 
   useEffect(() => {
@@ -214,35 +229,15 @@ function AddressAutocomplete({
           query = `${query}, Campinas, SP`;
         }
 
-        const call = async () => {
-          try {
-            const mapsApiBase = String(import.meta.env.VITE_MAPS_API_URL || '').replace(/\/+$/, '');
-            const url = new URL(`${mapsApiBase}/v1/autocomplete`);
-            url.searchParams.set('input', query);
-            const res = await fetch(url.toString(), {
-              headers: { 'X-API-Key': import.meta.env.VITE_MAPS_API_KEY },
-            });
-            if (!res.ok) return { ok: false as const, results: [] as any[] };
-            const data = await res.json();
-            const results = Array.isArray(data?.predictions) ? data.predictions : [];
-            return { ok: true as const, results };
-          } catch {
-            return { ok: false as const, results: [] as any[] };
-          }
-        };
-
-        const first = await call();
-        const results = first.ok ? first.results : [];
+        const results = await autocompletePlaces(query, sessionTokenRef.current);
         if (seq !== requestSeqRef.current) return;
 
-
-        const suggestionsRaw = (Array.isArray(results) ? results : [])
-          .map((item: any) => ({
-            display_name: String(item.description || '').trim(),
-            lat: typeof item.lat === 'number' ? String(item.lat) : undefined,
-            lon: typeof item.lng === 'number' ? String(item.lng) : undefined,
+        const suggestionsRaw = results
+          .map((item) => ({
+            display_name: item.description,
+            placeId: item.placeId,
           }))
-          .filter((s: any) => !!s.display_name && !!s.lat && !!s.lon);
+          .filter((s) => !!s.display_name && !!s.placeId);
 
         const deduped: AddressSuggestion[] = [];
         const seen = new Set<string>();
@@ -393,6 +388,7 @@ export function NovaEntregaPanel() {
   const [coletaSelectedCoords, setColetaSelectedCoords] = useState<[number, number] | undefined>(undefined);
   const [entregaSelectedCoords, setEntregaSelectedCoords] = useState<[number, number] | undefined>(undefined);
   const selectedCoordsByTextRef = useRef<Map<string, [number, number]>>(new Map());
+  const [pinPicker, setPinPicker] = useState<{ target: 'coleta' | 'entrega'; lat: number; lng: number } | null>(null);
 
   const normalizeAddressKey = (text: string) => {
     return String(text || '')
@@ -598,6 +594,42 @@ export function NovaEntregaPanel() {
       }
       return next;
     });
+  };
+
+  const openPinPicker = async (target: 'coleta' | 'entrega') => {
+    const baseText = target === 'coleta' ? form.coleta_endereco_texto : form.entrega_endereco_texto;
+    const numero = target === 'coleta' ? form.coleta_numero : form.entrega_numero;
+    const fullAddress = numero ? `${baseText}, ${numero}` : baseText;
+    const existing = target === 'coleta' ? coletaSelectedCoords : entregaSelectedCoords;
+
+    let lat: number | undefined = existing?.[0];
+    let lng: number | undefined = existing?.[1];
+    if (lat === undefined || lng === undefined) {
+      const coords = await getCoordsFromAddress(fullAddress);
+      if (!coords) {
+        setError('Não foi possível localizar esse endereço automaticamente. Preencha o endereço completo e tente novamente.');
+        return;
+      }
+      [lat, lng] = coords;
+    }
+    setPinPicker({ target, lat, lng });
+  };
+
+  const handleConfirmPin = (lat: number, lng: number) => {
+    if (!pinPicker) return;
+    const { target } = pinPicker;
+    const baseText = target === 'coleta' ? form.coleta_endereco_texto : form.entrega_endereco_texto;
+    const numero = target === 'coleta' ? form.coleta_numero : form.entrega_numero;
+    const fullAddress = numero ? `${baseText}, ${numero}` : baseText;
+
+    if (target === 'coleta') setColetaSelectedCoords([lat, lng]);
+    else setEntregaSelectedCoords([lat, lng]);
+
+    const key = normalizeAddressKey(baseText);
+    if (key) selectedCoordsByTextRef.current.set(key, [lat, lng]);
+
+    setPinPicker(null);
+    void confirmarPinPreciso(fullAddress, lat, lng);
   };
 
   useEffect(() => {
@@ -1285,37 +1317,19 @@ export function NovaEntregaPanel() {
     const entregaAddrTrimmed = (form.entrega_endereco_texto || '').trim();
 
     setAddressApproxWarning(null);
-    const approxLabels: string[] = [];
 
-    // Sem sugestão clicada: tenta geocodificar o texto digitado direto
-    // (com ou sem CEP, /v1/geocode aceita os dois) antes de bloquear —
-    // só bloqueia mesmo se o geocoding não encontrar nada.
+    // Exige endereço selecionado da lista de sugestões (ou confirmado via
+    // "Ajustar localização no mapa") antes de permitir o envio — geocodificar
+    // o texto digitado às cegas na hora do envio dava posição imprecisa e
+    // gerava pedido/entrega com coordenada errada sem o operador perceber.
     if (coletaAddrTrimmed && !form.coleta_usa_endereco_cadastro && !coletaSelectedCoords) {
-      const full = form.coleta_numero ? `${coletaAddrTrimmed}, ${form.coleta_numero}` : coletaAddrTrimmed;
-      const fallbackCoords = await getCoordsFromAddress(full);
-      if (!fallbackCoords) {
-        setError('Não foi possível localizar o endereço de coleta. Selecione uma sugestão da lista ou revise o endereço digitado.');
-        return;
-      }
-      setColetaSelectedCoords(fallbackCoords);
-      approxLabels.push('coleta');
+      setError('Selecione o endereço de coleta a partir das sugestões da lista, ou use "Ajustar localização no mapa" para confirmar a posição antes de continuar.');
+      return;
     }
 
     if (!form.retirada_no_local && entregaAddrTrimmed && !form.entrega_usa_endereco_cadastro && !entregaSelectedCoords) {
-      const full = form.entrega_numero ? `${entregaAddrTrimmed}, ${form.entrega_numero}` : entregaAddrTrimmed;
-      const fallbackCoords = await getCoordsFromAddress(full);
-      if (!fallbackCoords) {
-        setError('Não foi possível localizar o endereço de entrega. Selecione uma sugestão da lista ou revise o endereço digitado.');
-        return;
-      }
-      setEntregaSelectedCoords(fallbackCoords);
-      approxLabels.push('entrega');
-    }
-
-    if (approxLabels.length > 0) {
-      setAddressApproxWarning(
-        `Endereço de ${approxLabels.join(' e ')} resolvido automaticamente (aproximado) — confirme se está correto.`
-      );
+      setError('Selecione o endereço de entrega a partir das sugestões da lista, ou use "Ajustar localização no mapa" para confirmar a posição antes de continuar.');
+      return;
     }
 
     setLoading(true);
@@ -1611,6 +1625,8 @@ export function NovaEntregaPanel() {
           coleta_endereco_texto: form.coleta_numero ? `${form.coleta_endereco_texto}, ${form.coleta_numero}` : (form.coleta_endereco_texto || null),
           coleta_complemento: form.coleta_complemento || null,
           coleta_observacoes: form.coleta_observacoes || null,
+          coleta_lat: coletaSelectedCoords ? coletaSelectedCoords[0] : null,
+          coleta_lng: coletaSelectedCoords ? coletaSelectedCoords[1] : null,
           entrega_usa_endereco_cadastro: form.entrega_usa_endereco_cadastro,
           entrega_contato: form.entrega_contato || null,
           entrega_telefone: form.entrega_telefone || null,
@@ -1619,6 +1635,8 @@ export function NovaEntregaPanel() {
           entrega_endereco_texto: form.entrega_numero ? `${form.entrega_endereco_texto}, ${form.entrega_numero}` : (form.entrega_endereco_texto || null),
           entrega_complemento: form.entrega_complemento || null,
           entrega_observacoes: form.entrega_observacoes || null,
+          entrega_lat: entregaSelectedCoords ? entregaSelectedCoords[0] : null,
+          entrega_lng: entregaSelectedCoords ? entregaSelectedCoords[1] : null,
           retorno: form.retorno,
           pontos_adicionais: pontosFilled.length ? pontosFilled.map(({ coords, ...rest }) => rest) : null,
           opcionais: Object.keys(opcionaisPayload).length ? opcionaisPayload : null,
@@ -1630,10 +1648,21 @@ export function NovaEntregaPanel() {
     }
     } catch (entregaErr: any) {
       console.error('Erro ao criar entrega para o pedido:', entregaErr);
-      insertError = { message: (entregaErr?.message || 'Erro inesperado ao criar a entrega.') + ' O pedido foi criado, mas a entrega não pôde ser gerada — verifique e tente novamente ou contate o suporte.' };
+      insertError = { message: entregaErr?.message || 'Erro inesperado ao criar a entrega.' };
     }
 
-    if (insertError?.message) setError(insertError.message);
+    if (insertError?.message) {
+      // A entrega falhou depois que o pedido já tinha sido criado — desfaz o
+      // pedido órfão em vez de deixá-lo aparecer sem entrega na lista.
+      if (pedidoId) {
+        try {
+          await supabase.from('pedidos').delete().eq('id', pedidoId);
+        } catch (rollbackErr) {
+          console.error('Erro ao desfazer pedido órfão:', rollbackErr);
+        }
+      }
+      setError(`Não foi possível criar a entrega: ${insertError.message}. Nenhum pedido foi salvo — revise o endereço e tente novamente.`);
+    }
     else {
       
       if (!form.retirada_no_local && form.cliente_id && form.valor_entrega) {
@@ -1881,6 +1910,15 @@ export function NovaEntregaPanel() {
           <input placeholder="Complemento" value={form.coleta_complemento} onChange={(e) => { const v = e.target.value; setForm(prev => ({ ...prev, coleta_complemento: v })); }} className="px-3 py-2 border border-slate-300 rounded" />
           <input placeholder="Observações (Coleta)" value={form.coleta_observacoes} onChange={(e) => { const v = e.target.value; setForm(prev => ({ ...prev, coleta_observacoes: v })); }} className="px-3 py-2 border border-slate-300 rounded md:col-span-2" />
         </div>
+        {form.coleta_endereco_texto && (
+          <button
+            type="button"
+            onClick={() => openPinPicker('coleta')}
+            className="mt-3 px-3 py-2 rounded bg-slate-100 text-slate-700 text-sm border border-slate-300 hover:bg-slate-200"
+          >
+            📍 Endereço aproximado — ajustar no mapa
+          </button>
+        )}
       </div>
 
       {!form.retirada_no_local && (
@@ -1926,6 +1964,15 @@ export function NovaEntregaPanel() {
             <input placeholder="Complemento" value={form.entrega_complemento} onChange={(e) => { const v = e.target.value; setForm(prev => ({ ...prev, entrega_complemento: v })); }} className="px-3 py-2 border border-slate-300 rounded" />
             <input placeholder="Observações (Entrega)" value={form.entrega_observacoes} onChange={(e) => { const v = e.target.value; setForm(prev => ({ ...prev, entrega_observacoes: v })); }} className="px-3 py-2 border border-slate-300 rounded md:col-span-2" />
           </div>
+          {form.entrega_endereco_texto && (
+            <button
+              type="button"
+              onClick={() => openPinPicker('entrega')}
+              className="mt-3 px-3 py-2 rounded bg-slate-100 text-slate-700 text-sm border border-slate-300 hover:bg-slate-200"
+            >
+              📍 Endereço aproximado — ajustar no mapa
+            </button>
+          )}
         </div>
       )}
 
@@ -2114,6 +2161,15 @@ export function NovaEntregaPanel() {
           </button>
         </div>
       </div>
+
+      {pinPicker && (
+        <AddressPinPicker
+          lat={pinPicker.lat}
+          lng={pinPicker.lng}
+          onConfirm={handleConfirmPin}
+          onCancel={() => setPinPicker(null)}
+        />
+      )}
     </div>
   );
 }

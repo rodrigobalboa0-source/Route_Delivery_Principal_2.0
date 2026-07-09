@@ -141,6 +141,35 @@ async function invokeGeocodeApi(q: string): Promise<[number, number] | undefined
   return undefined;
 }
 
+/** Extrai um CEP (00000-000 ou 00000000) de um texto de endereço livre, se houver. */
+export function extractCepFromAddress(address: string): string | null {
+  const match = String(address || '').match(/(\d{5})-?(\d{3})/);
+  return match ? `${match[1]}-${match[2]}` : null;
+}
+
+/**
+ * Salva a posição corrigida manualmente (pin arrastado no mapa) pro CEP do
+ * endereço — /v1/geocode só devolve posição aproximada (rua/CEP, sem número
+ * da casa); confirmar aqui melhora a precisão de buscas futuras pro mesmo
+ * CEP. Best-effort: se não achar CEP no texto, ou a chamada falhar, não
+ * interrompe o fluxo — quem chamou já tem a coordenada confirmada localmente
+ * pra usar de qualquer forma.
+ */
+export async function confirmarPinPreciso(address: string, lat: number, lng: number): Promise<void> {
+  const cep = extractCepFromAddress(address);
+  if (!cep) return;
+  try {
+    const url = `${String(MAPS_API_URL || '').replace(/\/+$/, '')}/v1/geocode/confirmar`;
+    await fetchWithTimeout(url, 8000, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': MAPS_API_KEY },
+      body: JSON.stringify({ cep, lat, lng }),
+    });
+  } catch (e) {
+    void e;
+  }
+}
+
 async function getCoordsFromMapsApi(address: string): Promise<[number, number] | undefined> {
   const uniqueCandidates = buildGeocodeCandidates(address);
   if (uniqueCandidates.length === 0) return undefined;

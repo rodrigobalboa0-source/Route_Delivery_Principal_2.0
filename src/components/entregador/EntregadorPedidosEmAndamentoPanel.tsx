@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
 import { MapPin, CheckCircle, Truck, AlertCircle, Phone, Navigation, Map as MapIcon, DollarSign, X, ChevronRight } from 'lucide-react';
 
-import { MapView, MapDeliveryPerson } from '../MapViewOwnApi';
+import { MapView, MapDeliveryPerson } from '../MapView';
+// import { MapView, MapDeliveryPerson } from '../MapViewOwnApi'; // Leaflet/OSM — desativado a pedido do cliente, ver conversa sobre Places API
 import type { Database } from '../../lib/database.types';
 import { Geolocation } from '@capacitor/geolocation';
 import { ForegroundService } from '@capawesome-team/capacitor-android-foreground-service';
