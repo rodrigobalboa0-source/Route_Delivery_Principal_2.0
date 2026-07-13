@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { MapPin, CheckCircle, Truck, AlertCircle, Phone, Navigation, Map as MapIcon, DollarSign, X, ChevronRight } from 'lucide-react';
 
 import { MapView, MapDeliveryPerson } from '../MapView';
-// import { MapView, MapDeliveryPerson } from '../MapViewOwnApi'; // Leaflet/OSM — desativado a pedido do cliente, ver conversa sobre Places API
+
 import type { Database } from '../../lib/database.types';
 import { Geolocation } from '@capacitor/geolocation';
 import { ForegroundService } from '@capawesome-team/capacitor-android-foreground-service';
@@ -20,6 +20,21 @@ import {
 } from '../../utils/multiDestination';
 
 type DeliveryPerson = Database['public']['Tables']['delivery_persons']['Row'];
+
+async function resolveEntregaCoords(
+  entrega: any,
+  type: 'coleta' | 'entrega',
+  throttleMs = 0
+): Promise<[number, number] | undefined> {
+  const lat = type === 'coleta' ? entrega?.coleta_lat : entrega?.entrega_lat;
+  const lng = type === 'coleta' ? entrega?.coleta_lng : entrega?.entrega_lng;
+  if (typeof lat === 'number' && typeof lng === 'number') return [lat, lng];
+
+  const text = type === 'coleta' ? entrega?.coleta_endereco_texto : entrega?.entrega_endereco_texto;
+  if (!text) return undefined;
+  if (throttleMs > 0) await new Promise((r) => setTimeout(r, throttleMs));
+  return await getCoordsFromAddress(text);
+}
 
 function calculateMultiDestinoTotal(entrega: any) {
   const extraPoints = safeParseArray(entrega?.pontos_adicionais);
@@ -108,12 +123,10 @@ export function EntregadorPedidosEmAndamentoPanel({ onNavigate }: { onNavigate?:
         const additional: Record<number, [number, number]> = {};
 
         if (entrega.coleta_endereco_texto) {
-            await new Promise(r => setTimeout(r, 1000)); 
-            pickup = await getCoordsFromAddress(entrega.coleta_endereco_texto);
+            pickup = await resolveEntregaCoords(entrega, 'coleta', 1000);
         }
         if (entrega.entrega_endereco_texto) {
-            await new Promise(r => setTimeout(r, 1000)); 
-            delivery = await getCoordsFromAddress(entrega.entrega_endereco_texto);
+            delivery = await resolveEntregaCoords(entrega, 'entrega', 1000);
         }
 
         
@@ -552,7 +565,7 @@ export function EntregadorPedidosEmAndamentoPanel({ onNavigate }: { onNavigate?:
                  if (hasDeliveryAddress) {
                      let deliveryCoordsResolved = coords?.delivery;
                      if (!deliveryCoordsResolved && currentEntrega.entrega_endereco_texto) {
-                       deliveryCoordsResolved = await getCoordsFromAddress(currentEntrega.entrega_endereco_texto);
+                       deliveryCoordsResolved = await resolveEntregaCoords(currentEntrega, 'entrega');
                        if (deliveryCoordsResolved) {
                          setDeliveryCoords(prev => ({ ...prev, [id]: { ...(prev[id] || {}), delivery: deliveryCoordsResolved } }));
                        }
@@ -592,7 +605,7 @@ export function EntregadorPedidosEmAndamentoPanel({ onNavigate }: { onNavigate?:
              } else if (hasPickupAddress) {
                  let pickupCoords = coords?.pickup;
                  if (!pickupCoords && currentEntrega.coleta_endereco_texto) {
-                   pickupCoords = await getCoordsFromAddress(currentEntrega.coleta_endereco_texto);
+                   pickupCoords = await resolveEntregaCoords(currentEntrega, 'coleta');
                    if (pickupCoords) {
                      setDeliveryCoords(prev => ({ ...prev, [id]: { ...(prev[id] || {}), pickup: pickupCoords } }));
                    }
@@ -648,7 +661,7 @@ export function EntregadorPedidosEmAndamentoPanel({ onNavigate }: { onNavigate?:
                  if (hasPickupAddress) {
                      let pickupCoords = coords?.pickup;
                      if (!pickupCoords && currentEntrega.coleta_endereco_texto) {
-                       pickupCoords = await getCoordsFromAddress(currentEntrega.coleta_endereco_texto);
+                       pickupCoords = await resolveEntregaCoords(currentEntrega, 'coleta');
                        if (pickupCoords) {
                          setDeliveryCoords(prev => ({ ...prev, [id]: { ...(prev[id] || {}), pickup: pickupCoords } }));
                        }
@@ -688,7 +701,7 @@ export function EntregadorPedidosEmAndamentoPanel({ onNavigate }: { onNavigate?:
              } else if (hasDeliveryAddress) {
                  let deliveryCoordsResolved = coords?.delivery;
                  if (!deliveryCoordsResolved && currentEntrega.entrega_endereco_texto) {
-                   deliveryCoordsResolved = await getCoordsFromAddress(currentEntrega.entrega_endereco_texto);
+                   deliveryCoordsResolved = await resolveEntregaCoords(currentEntrega, 'entrega');
                    if (deliveryCoordsResolved) {
                      setDeliveryCoords(prev => ({ ...prev, [id]: { ...(prev[id] || {}), delivery: deliveryCoordsResolved } }));
                    }
@@ -858,7 +871,7 @@ export function EntregadorPedidosEmAndamentoPanel({ onNavigate }: { onNavigate?:
       if (hasDeliveryAddress) {
         let deliveryCoordsResolved = coords?.delivery;
         if (!deliveryCoordsResolved && currentEntrega.entrega_endereco_texto) {
-          deliveryCoordsResolved = await getCoordsFromAddress(currentEntrega.entrega_endereco_texto);
+          deliveryCoordsResolved = await resolveEntregaCoords(currentEntrega, 'entrega');
           if (deliveryCoordsResolved) {
             setDeliveryCoords(prev => ({ ...prev, [id]: { ...(prev[id] || {}), delivery: deliveryCoordsResolved } }));
           }

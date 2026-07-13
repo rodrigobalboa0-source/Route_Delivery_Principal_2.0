@@ -536,10 +536,21 @@ export function NovaEntregaPanel() {
   }, [form.cliente_id, tabelasComissoes]);
 
   const handleUseRegistrationAddress = (type: 'coleta' | 'entrega', checked: boolean) => {
-    if (type === 'coleta') setColetaSelectedCoords(undefined);
-    else setEntregaSelectedCoords(undefined);
     setDistanceError(null);
     setAddressApproxWarning(null);
+
+    if (checked) {
+      const cliente = clientes.find((c) => c.id === form.cliente_id);
+      const lat = typeof cliente?.latitude === 'number' ? cliente.latitude : undefined;
+      const lng = typeof cliente?.longitude === 'number' ? cliente.longitude : undefined;
+      const coords: [number, number] | undefined = lat !== undefined && lng !== undefined ? [lat, lng] : undefined;
+      if (type === 'coleta') setColetaSelectedCoords(coords);
+      else setEntregaSelectedCoords(coords);
+    } else {
+      if (type === 'coleta') setColetaSelectedCoords(undefined);
+      else setEntregaSelectedCoords(undefined);
+    }
+
     setForm((prev) => {
       let next = { ...prev };
       if (type === 'coleta') next.coleta_usa_endereco_cadastro = checked;
