@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, AlertCircle, FileText } from 'lucide-react';
 
 export function CreditoClientesPanel() {
   const [clientes, setClientes] = useState<any[]>([]);
@@ -11,6 +11,7 @@ export function CreditoClientesPanel() {
   
   const [form, setForm] = useState({ cliente_id: '', valor: '', motivo: '' });
   const [submittingManual, setSubmittingManual] = useState(false);
+  const [comprovantePreview, setComprovantePreview] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -164,13 +165,27 @@ export function CreditoClientesPanel() {
                                 <span className="font-bold text-slate-800">{req.clientes?.nome_completo || 'Cliente Desconhecido'}</span>
                                 <span className="text-xs text-slate-400">• {new Date(req.created_at).toLocaleDateString()}</span>
                             </div>
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 flex-wrap">
                                 <span className="text-lg font-bold text-sky-600">R$ {Number(req.valor).toFixed(2)}</span>
                                 {req.observacao && (
                                     <span className="text-sm text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
                                         "{req.observacao}"
                                     </span>
                                 )}
+                                {req.comprovante_url ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => setComprovantePreview(req.comprovante_url)}
+                                        className="flex items-center gap-1 text-sm text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded hover:bg-sky-100 transition-colors"
+                                    >
+                                        <FileText size={14} />
+                                        Ver comprovante
+                                    </button>
+                                ) : /pix/i.test(String(req.observacao || '')) ? (
+                                    <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
+                                        PIX sem comprovante anexado
+                                    </span>
+                                ) : null}
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -257,6 +272,46 @@ export function CreditoClientesPanel() {
             </div>
         </form>
       </div>
+
+      {comprovantePreview && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setComprovantePreview(null)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="font-bold text-slate-800">Comprovante de pagamento</h3>
+              <button
+                type="button"
+                onClick={() => setComprovantePreview(null)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <XCircle size={22} />
+              </button>
+            </div>
+            <div className="p-4 overflow-auto flex-1 flex items-center justify-center bg-slate-50">
+              {/\.pdf($|\?)/i.test(comprovantePreview) ? (
+                <iframe src={comprovantePreview} title="Comprovante" className="w-full h-[70vh] border-0" />
+              ) : (
+                <img src={comprovantePreview} alt="Comprovante" className="max-w-full max-h-[70vh] object-contain rounded" />
+              )}
+            </div>
+            <div className="p-3 border-t border-slate-100 flex justify-end">
+              <a
+                href={comprovantePreview}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-sky-600 hover:underline"
+              >
+                Abrir em nova aba
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

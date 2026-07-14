@@ -528,7 +528,7 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
                     type="number"
                     step="0.01"
                     min="1"
-                    max={saldo}
+                    max={Number(saldo.toFixed(2))}
                     placeholder="0.00"
                     className="w-full pl-10 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-400 outline-none"
                     value={withdrawAmount}

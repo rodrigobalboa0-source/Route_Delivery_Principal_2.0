@@ -3130,7 +3130,12 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       for (const entrega of activeEntregas) {
         if (cancelled) break;
         try {
-          const coords = await getCoordsFromAddress(entrega.entrega_endereco_texto!);
+          const storedLat = (entrega as any).entrega_lat;
+          const storedLng = (entrega as any).entrega_lng;
+          const coords: [number, number] | undefined =
+            typeof storedLat === 'number' && typeof storedLng === 'number'
+              ? [storedLat, storedLng]
+              : await getCoordsFromAddress(entrega.entrega_endereco_texto!);
           if (coords && !cancelled) {
             const tooltip = entrega.entrega_codigo_pedido || entrega.id.slice(0, 8);
             const color = isComercio ? '#f97316' : getCommerceColor(entrega.cliente_id || '');

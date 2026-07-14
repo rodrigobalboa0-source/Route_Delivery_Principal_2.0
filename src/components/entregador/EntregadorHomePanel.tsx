@@ -17,6 +17,37 @@ interface EntregadorHomePanelProps {
   onNavigate: (menu: string) => void;
 }
 
+/**
+ * Ganhos do dia já descontando saques do dia (pendentes ou pagos) — um saque
+ * pendente já reserva aquele valor, então precisa sair do total mostrado
+ * mesmo antes da confirmação, senão o Home mostra um valor que a Carteira já
+ * não tem mais disponível.
+ */
+async function fetchGanhosDiaLiquido(entregadorId: string, todayStart: Date): Promise<number> {
+  const [{ data: entregasHojeData }, { data: saquesHojeData }] = await Promise.all([
+    supabase
+      .from('nova_entrega')
+      .select('valor_entregador')
+      .eq('entregador_id', entregadorId)
+      .eq('status', 'entregue')
+      .gte('updated_at', todayStart.toISOString()),
+    supabase
+      .from('acertos_entregadores')
+      .select('valor_pago, taxa_aplicada')
+      .eq('entregador_id', entregadorId)
+      .in('status', ['pendente', 'pago'])
+      .gte('created_at', todayStart.toISOString()),
+  ]);
+
+  const totalHoje = (entregasHojeData || []).reduce((acc, curr) => acc + (Number(curr.valor_entregador) || 0), 0);
+  const saquesHoje = (saquesHojeData || []).reduce(
+    (acc, curr) => acc + (Number(curr.valor_pago) || 0) + (Number(curr.taxa_aplicada) || 0),
+    0
+  );
+
+  return totalHoje - saquesHoje;
+}
+
 export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [loadingLocation, setLoadingLocation] = useState(true);
@@ -363,15 +394,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
              const todayStart = new Date();
              todayStart.setHours(0, 0, 0, 0);
 
-             const { data: entregasHojeData } = await supabase
-              .from('nova_entrega')
-              .select('valor_entregador')
-              .eq('entregador_id', data.id)
-              .eq('status', 'entregue')
-              .gte('updated_at', todayStart.toISOString());
-
-             const totalHoje = entregasHojeData?.reduce((acc, curr) => acc + (Number(curr.valor_entregador) || 0), 0) || 0;
-             setGanhosDia(totalHoje);
+             setGanhosDia(await fetchGanhosDiaLiquido(data.id, todayStart));
            }
         }
       } catch (e) { console.error(e); }
@@ -799,15 +822,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
 
-        const { data: entregasHojeData } = await supabase
-            .from('nova_entrega')
-            .select('valor_entregador')
-            .eq('entregador_id', entregadorId)
-            .eq('status', 'entregue')
-            .gte('updated_at', todayStart.toISOString());
-
-        const totalHoje = entregasHojeData?.reduce((acc, curr) => acc + (Number(curr.valor_entregador) || 0), 0) || 0;
-        setGanhosDia(totalHoje);
+        setGanhosDia(await fetchGanhosDiaLiquido(entregadorId, todayStart));
         currentDayRef.current = new Date().toDateString();
     };
 
