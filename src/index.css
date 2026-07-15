@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --sat: env(safe-area-inset-top);
+  --sar: env(safe-area-inset-right);
+  --sab: env(safe-area-inset-bottom);
+  --sal: env(safe-area-inset-left);
+}
+
+main.overflow-y-auto {
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 #e2e8f0;
+}
+main.overflow-y-auto::-webkit-scrollbar {
+  width: 10px;
+}
+main.overflow-y-auto::-webkit-scrollbar-track {
+  background: #e2e8f0;
+  border-radius: 9999px;
+}
+main.overflow-y-auto::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #38bdf8, #0ea5e9);
+  border-radius: 9999px;
+  border: 2px solid #e2e8f0;
+}
+main.overflow-y-auto::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #22d3ee, #06b6d4);
+}
+
+aside .overflow-y-auto {
+  scrollbar-width: thin;
+  scrollbar-color: #475569 #0f172a;
+}
+aside .overflow-y-auto::-webkit-scrollbar {
+  width: 8px;
+}
+aside .overflow-y-auto::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+aside .overflow-y-auto::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 9999px;
+  border: 2px solid #0f172a;
+}
+aside .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}

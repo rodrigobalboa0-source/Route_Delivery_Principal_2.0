@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Redefinição de Senha - Route Delivery</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f3f4f6;
+      margin: 0;
+      padding: 0;
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 600px;
+      margin: 20px auto;
+      background-color: #ffffff;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
+    .header {
+      background-color: #16a34a; /* green-600 */
+      padding: 30px 20px;
+      text-align: center;
+    }
+    .header h1 {
+      color: #ffffff;
+      margin: 0;
+      font-size: 24px;
+      font-weight: 600;
+    }
+    .content {
+      padding: 40px 30px;
+      color: #374151; /* gray-700 */
+    }
+    .content p {
+      margin-bottom: 20px;
+    }
+    .button-container {
+      text-align: center;
+      margin: 30px 0;
+    }
+    .button {
+      background-color: #16a34a; /* green-600 */
+      color: #ffffff !important;
+      padding: 14px 28px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: bold;
+      display: inline-block;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    .button:hover {
+      background-color: #15803d; /* green-700 */
+    }
+    .footer {
+      background-color: #f9fafb;
+      padding: 20px;
+      text-align: center;
+      font-size: 12px;
+      color: #9ca3af; /* gray-400 */
+      border-top: 1px solid #e5e7eb;
+    }
+    .footer a {
+      color: #16a34a;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Route Delivery</h1>
+    </div>
+    <div class="content">
+      <p>Olá,</p>
+      <p>Recebemos uma solicitação para redefinir a senha da sua conta no <strong>Route Delivery</strong>.</p>
+      <p>Se você não fez essa solicitação, pode ignorar este e-mail com segurança.</p>
+      <p>Para criar uma nova senha, clique no botão abaixo:</p>
+      
+      <div class="button-container">
+        <a href="{{ .ConfirmationURL }}" class="button">Redefinir Minha Senha</a>
+      </div>
+      
+      <p style="font-size: 14px; color: #6b7280;">
+        Ou copie e cole o link abaixo no seu navegador:<br>
+        <span style="color: #16a34a;">{{ .ConfirmationURL }}</span>
+      </p>
+    </div>
+    <div class="footer">
+      <p>&copy; 2025 Route Delivery. Todos os direitos reservados.</p>
+      <p>Este é um e-mail automático, por favor não responda.</p>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,38 @@
+create extension if not exists pg_net;
+
+create or replace function public.handle_new_delivery_webhook()
+returns trigger as $$
+declare
+
+  url text := 'https://mtanrihprbgrrtgwcyia.supabase.co/functions/v1/push-notification';
+  
+  api_key text := 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im10YW5yaWhwcmJncnJ0Z3djeWlhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMwMzU2OTIsImV4cCI6MjA3ODYxMTY5Mn0.5YbuhWG41iI5FJA8IfELbYV5eblz3l-tlG2OScIi8jY';
+  
+  payload jsonb;
+begin
+  
+  payload := jsonb_build_object(
+    'record', row_to_json(NEW)
+  );
+
+  
+  perform net.http_post(
+    url := url,
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer ' || api_key
+    ),
+    body := payload
+  );
+
+  return new;
+end;
+$$ language plpgsql;
+
+
+drop trigger if exists nova_entrega_webhook on public.nova_entrega;
+
+create trigger nova_entrega_webhook
+after insert or update on public.nova_entrega
+for each row
+execute function public.handle_new_delivery_webhook();

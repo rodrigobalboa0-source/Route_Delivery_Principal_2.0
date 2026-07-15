@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — RouteDelivery Admin{% endblock %}
+{% block heading %}Dashboard{% endblock %}
+{% block content %}
+<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+  {% for table, count in stats.items() %}
+  {% if table != 'error' %}
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+    <p class="text-xs text-slate-500 uppercase tracking-wider mb-1">{{ table.replace('_', ' ').title() }}</p>
+    <p class="text-3xl font-bold text-slate-800">{{ count }}</p>
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+  <a href="/admin" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow group">
+    <div class="flex items-center gap-3 mb-2">
+      <div class="p-2 bg-sky-100 rounded-lg text-sky-600 group-hover:bg-sky-600 group-hover:text-white transition-colors">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+      </div>
+      <h2 class="font-semibold text-slate-800">Tabelas</h2>
+    </div>
+    <p class="text-sm text-slate-500">Browse, edite e exporte dados de todas as tabelas do banco.</p>
+  </a>
+
+  <a href="/admin-panel/auth-users" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow group">
+    <div class="flex items-center gap-3 mb-2">
+      <div class="p-2 bg-green-100 rounded-lg text-green-600 group-hover:bg-green-600 group-hover:text-white transition-colors">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+      </div>
+      <h2 class="font-semibold text-slate-800">Usuários Auth</h2>
+    </div>
+    <p class="text-sm text-slate-500">Gerencie usuários de autenticação, reset de senha e permissões.</p>
+  </a>
+
+  <a href="/admin-panel/storage" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow group">
+    <div class="flex items-center gap-3 mb-2">
+      <div class="p-2 bg-purple-100 rounded-lg text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-colors">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
+      </div>
+      <h2 class="font-semibold text-slate-800">Storage</h2>
+    </div>
+    <p class="text-sm text-slate-500">Navegue por buckets, faça upload e gerencie arquivos.</p>
+  </a>
+
+  <a href="/admin-panel/sql" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow group">
+    <div class="flex items-center gap-3 mb-2">
+      <div class="p-2 bg-orange-100 rounded-lg text-orange-600 group-hover:bg-orange-600 group-hover:text-white transition-colors">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+      </div>
+      <h2 class="font-semibold text-slate-800">SQL Editor</h2>
+    </div>
+    <p class="text-sm text-slate-500">Execute queries SQL diretamente no banco de dados.</p>
+  </a>
+</div>
+{% endblock %}
