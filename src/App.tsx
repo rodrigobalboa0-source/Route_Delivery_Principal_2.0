@@ -98,7 +98,7 @@ function App() {
   const roleResolveInFlightRef = useRef<{ uid: string; startedAt: number } | null>(null);
   const [trainingOpen, setTrainingOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
-  const [accountPending, setAccountPending] = useState(false);
+  const [accountPending, setAccountPending] = useState<boolean | null>(false);
   const [isRecoveryMode, setIsRecoveryMode] = useState(false);
   const [showPendingWithdrawalsModal, setShowPendingWithdrawalsModal] = useState(false);
   const isMenuRestored = useRef(false);
@@ -420,7 +420,7 @@ function App() {
           resolvedUidRef.current = uid;
           setResolvedClienteId(null);
           setResolvedEntregadorId(entregadorId);
-          setAccountPending(true); // default: block access until status is confirmed
+          setAccountPending(null); // ainda checando o status real — evita mostrar "em análise" antes da hora
 
           void (async () => {
             try {
@@ -684,6 +684,17 @@ function App() {
   if (!isComercioRoute && userRole === 'cliente') {
     window.location.replace('/comercio' + window.location.hash);
     return null;
+  }
+
+  if (accountPending === null) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-slate-100 text-slate-600">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-8 h-8 border-4 border-sky-600 border-t-transparent rounded-full animate-spin" />
+          <p>Verificando permissões...</p>
+        </div>
+      </div>
+    );
   }
 
   if (accountPending) {

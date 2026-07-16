@@ -8,7 +8,8 @@ export function ComercioFaturamentoPanel() {
   const [loading, setLoading] = useState(true);
   const [clientId, setClientId] = useState<string | null>(null);
 
-  const [selectedDate, setSelectedDate] = useState<string>('');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
   const [dailyOrders, setDailyOrders] = useState<any[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
 
@@ -22,16 +23,16 @@ export function ComercioFaturamentoPanel() {
   }, []);
 
   useEffect(() => {
-    if (clientId && selectedDate) {
+    if (clientId && startDate && endDate) {
         fetchDailyOrders();
     }
-  }, [clientId, selectedDate]);
+  }, [clientId, startDate, endDate]);
 
   async function fetchDailyOrders() {
       setLoadingOrders(true);
       try {
-          const startDateIso = new Date(`${selectedDate}T00:00:00`).toISOString();
-          const endDateIso = new Date(`${selectedDate}T23:59:59.999`).toISOString();
+          const startDateIso = new Date(`${startDate}T00:00:00`).toISOString();
+          const endDateIso = new Date(`${endDate}T23:59:59.999`).toISOString();
 
           const { data, error } = await supabase
               .from('nova_entrega')
@@ -94,7 +95,10 @@ export function ComercioFaturamentoPanel() {
       }
       
       setClientId(targetClientId);
-      setSelectedDate((prev) => (prev ? prev : toLocalDateInputValue(new Date())));
+      const now = new Date();
+      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      setStartDate((prev) => (prev ? prev : toLocalDateInputValue(firstDayOfMonth)));
+      setEndDate((prev) => (prev ? prev : toLocalDateInputValue(now)));
 
       // Fetch Invoices
       const { data: invoicesData, error: invoicesError } = await supabase
@@ -218,21 +222,36 @@ export function ComercioFaturamentoPanel() {
       <div className="mt-12 border-t pt-8">
         <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
             <Calendar className="text-sky-600" />
-            Pedidos por Data
+            Pedidos por Período
         </h2>
-        <p className="text-gray-500 mb-6">Selecione uma data para visualizar os pedidos detalhados.</p>
-        
+        <p className="text-gray-500 mb-6">Selecione o período (ex: um mês inteiro) para visualizar os pedidos detalhados.</p>
+
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Selecione a Data</label>
-            <input 
-                type="date" 
-                className="border rounded-lg p-2 w-full md:w-64 focus:ring-2 focus:ring-sky-500 outline-none text-gray-700"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-xl">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Início</label>
+                <input
+                    type="date"
+                    className="border rounded-lg p-2 w-full focus:ring-2 focus:ring-sky-500 outline-none text-gray-700"
+                    value={startDate}
+                    max={endDate || undefined}
+                    onChange={(e) => setStartDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Fim</label>
+                <input
+                    type="date"
+                    className="border rounded-lg p-2 w-full focus:ring-2 focus:ring-sky-500 outline-none text-gray-700"
+                    value={endDate}
+                    min={startDate || undefined}
+                    onChange={(e) => setEndDate(e.target.value)}
+                />
+              </div>
+            </div>
         </div>
 
-        {selectedDate && (
+        {startDate && endDate && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                 {loadingOrders ? (
                     <div className="p-12 text-center">
@@ -241,20 +260,20 @@ export function ComercioFaturamentoPanel() {
                     </div>
                 ) : dailyOrders.length === 0 ? (
                     <div className="p-12 text-center text-gray-500 bg-gray-50/50">
-                        <p>Nenhum pedido encontrado nesta data.</p>
+                        <p>Nenhum pedido encontrado neste período.</p>
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="w-full text-left">
                             <thead className="bg-gray-50 text-gray-600 text-xs uppercase tracking-wider font-semibold">
                                 <tr>
+                                    <th className="p-4">Data</th>
                                     <th className="p-4">Hora</th>
                                     <th className="p-4">Pedido</th>
                                     <th className="p-4">Cliente</th>
                                     <th className="p-4">Endereço</th>
                                     <th className="p-4">Motoboy</th>
                                     <th className="p-4">Status</th>
-                                    <th className="p-4">Lançado</th>
                                     <th className="p-4">Finalizado</th>
                                     <th className="p-4 text-right">Valor Entrega</th>
                                 </tr>
@@ -262,6 +281,9 @@ export function ComercioFaturamentoPanel() {
                             <tbody className="divide-y divide-gray-100">
                                 {dailyOrders.map(order => (
                                     <tr key={order.id} className="hover:bg-gray-50 transition-colors">
+                                        <td className="p-4 text-sm text-gray-600 whitespace-nowrap">
+                                            {new Date(order.created_at).toLocaleDateString('pt-BR')}
+                                        </td>
                                         <td className="p-4 text-sm text-gray-600 font-medium">
                                             {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                         </td>
@@ -294,9 +316,6 @@ export function ComercioFaturamentoPanel() {
                                             </span>
                                         </td>
                                         <td className="p-4 text-sm text-gray-600 whitespace-nowrap">
-                                          {new Date(order.created_at).toLocaleDateString('pt-BR')}
-                                        </td>
-                                        <td className="p-4 text-sm text-gray-600 whitespace-nowrap">
                                           {['entregue', 'finalizada'].includes(String(order.status || '').toLowerCase())
                                             ? new Date(order.updated_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
                                             : '-'}
@@ -309,7 +328,7 @@ export function ComercioFaturamentoPanel() {
                             </tbody>
                             <tfoot className="bg-gray-50 font-semibold text-gray-700">
                                 <tr>
-                                    <td colSpan={9} className="p-4 text-right">Total do Dia:</td>
+                                    <td colSpan={9} className="p-4 text-right">Total do Período:</td>
                                     <td className="p-4 text-right text-sky-700">
                                         R$ {dailyOrders.reduce((acc, curr) => acc + (Number(curr.valor_entrega) || 0), 0).toFixed(2)}
                                     </td>

@@ -1823,6 +1823,7 @@ export function NovaEntregaPanel() {
           </div>
           
 
+          {!isComercio && (
           <select
             value={form.pagamento_metodo}
             onChange={(e) => {
@@ -1852,8 +1853,9 @@ export function NovaEntregaPanel() {
             <option value="cartao">Pagamento: Cartão na entrega</option>
             <option value="dinheiro">Pagamento: Dinheiro (troco)</option>
           </select>
+          )}
 
-          {form.pagamento_metodo === 'dinheiro' ? (
+          {!isComercio && (form.pagamento_metodo === 'dinheiro' ? (
             <input
               placeholder="Troco para (R$)"
               value={form.troco_para}
@@ -1862,18 +1864,22 @@ export function NovaEntregaPanel() {
             />
           ) : (
             <div />
-          )}
+          ))}
 
+          {!isComercio && (
           <select value={form.documento_tipo} onChange={(e) => { const v = e.target.value; setForm(prev => ({ ...prev, documento_tipo: v })); }} className="px-3 py-2 border border-slate-300 rounded">
             <option value="cpf">CPF</option>
             <option value="cnpj">CNPJ</option>
           </select>
+          )}
+          {!isComercio && (
           <input
             placeholder="CPF/CNPJ do cliente"
             value={form.documento_numero}
             onChange={(e) => { const v = e.target.value; setForm(prev => ({ ...prev, documento_numero: v })); }}
             className="px-3 py-2 border border-slate-300 rounded"
           />
+          )}
 
 
           <input placeholder="Observações" value={form.observacoes} onChange={(e) => { const v = e.target.value; setForm(prev => ({ ...prev, observacoes: v })); }} className="px-3 py-2 border border-slate-300 rounded md:col-span-2" />

@@ -10,6 +10,7 @@ export function CreditoClientesPanel() {
   
   
   const [form, setForm] = useState({ cliente_id: '', valor: '', motivo: '' });
+  const [manualAction, setManualAction] = useState<'adicionar' | 'remover'>('adicionar');
   const [submittingManual, setSubmittingManual] = useState(false);
   const [comprovantePreview, setComprovantePreview] = useState<string | null>(null);
 
@@ -107,21 +108,24 @@ export function CreditoClientesPanel() {
         const cliente = clientes.find(c => c.id === form.cliente_id);
         if (!cliente) throw new Error('Cliente não encontrado');
 
-        
-        const { data, error } = await supabase.rpc('admin_add_credit', {
+        const isRemoval = manualAction === 'remover';
+        const signedAmount = isRemoval ? -amount : amount;
+        const defaultMotivo = isRemoval ? 'Remoção manual pelo admin' : 'Adição manual pelo admin';
+
+        const { error } = await supabase.rpc('admin_add_credit', {
             p_cliente_id: form.cliente_id,
-            p_valor: amount,
-            p_motivo: form.motivo || 'Adição manual pelo admin'
+            p_valor: signedAmount,
+            p_motivo: form.motivo || defaultMotivo
         });
 
         if (error) throw error;
 
-        alert('Crédito adicionado com sucesso!');
+        alert(isRemoval ? 'Crédito removido com sucesso!' : 'Crédito adicionado com sucesso!');
         setForm({ cliente_id: '', valor: '', motivo: '' });
         fetchData();
 
     } catch (error: any) {
-        console.error('Erro ao adicionar crédito:', error);
+        console.error('Erro ao ajustar crédito:', error);
         alert('Erro: ' + error.message);
     } finally {
         setSubmittingManual(false);
@@ -215,12 +219,36 @@ export function CreditoClientesPanel() {
         )}
       </div>
 
-      {/* Manual Add */}
+      {/* Manual Add/Remove */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
         <h2 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
             <AlertCircle className="w-5 h-5 text-slate-400" />
-            Adicionar Crédito Manualmente
+            Ajustar Crédito Manualmente
         </h2>
+        <div className="flex gap-2 mb-4">
+            <button
+                type="button"
+                onClick={() => setManualAction('adicionar')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                    manualAction === 'adicionar'
+                        ? 'bg-emerald-600 border-emerald-600 text-white'
+                        : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50'
+                }`}
+            >
+                Adicionar
+            </button>
+            <button
+                type="button"
+                onClick={() => setManualAction('remover')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                    manualAction === 'remover'
+                        ? 'bg-red-600 border-red-600 text-white'
+                        : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50'
+                }`}
+            >
+                Remover
+            </button>
+        </div>
         <form onSubmit={handleManualSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
             <div className="md:col-span-1">
                 <label className="block text-sm font-medium text-slate-600 mb-1">Cliente</label>
@@ -265,9 +293,13 @@ export function CreditoClientesPanel() {
                 <button
                     type="submit"
                     disabled={submittingManual}
-                    className="w-full py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-900 font-medium disabled:opacity-50 transition-colors"
+                    className={`w-full py-2 text-white rounded-lg font-medium disabled:opacity-50 transition-colors ${
+                        manualAction === 'remover' ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'
+                    }`}
                 >
-                    {submittingManual ? 'Adicionando...' : 'Adicionar'}
+                    {submittingManual
+                        ? (manualAction === 'remover' ? 'Removendo...' : 'Adicionando...')
+                        : (manualAction === 'remover' ? 'Remover' : 'Adicionar')}
                 </button>
             </div>
         </form>
