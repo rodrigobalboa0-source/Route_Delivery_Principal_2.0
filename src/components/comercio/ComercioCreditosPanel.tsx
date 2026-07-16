@@ -37,6 +37,8 @@ export function ComercioCreditosPanel() {
   const [pixPayload, setPixPayload] = useState('');
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [copied, setCopied] = useState(false);
+  const [comprovanteFile, setComprovanteFile] = useState<File | null>(null);
+  const [uploadingComprovante, setUploadingComprovante] = useState(false);
 
   useEffect(() => {
     if (showRequestModal && paymentMethod === 'pix' && requestAmount) {
@@ -198,8 +200,24 @@ export function ComercioCreditosPanel() {
       return;
     }
 
+    if (paymentMethod === 'pix' && !comprovanteFile) {
+      alert('Anexe o comprovante de pagamento do PIX para continuar.');
+      return;
+    }
+
     setSubmittingRequest(true);
     try {
+      let comprovanteUrl: string | null = null;
+
+      if (comprovanteFile) {
+        setUploadingComprovante(true);
+        const name = `creditos/${clientId}/comprovante-${Date.now()}-${(comprovanteFile.name || 'comprovante').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
+        const up = await supabase.storage.from('images').upload(name, comprovanteFile, { upsert: true });
+        setUploadingComprovante(false);
+        if (up.error) throw new Error('Falha ao enviar o comprovante: ' + up.error.message);
+        comprovanteUrl = supabase.storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
+      }
+
       const finalObs = `[Pagamento: ${paymentMethod.toUpperCase()}] ${requestObs}`;
 
       const { error } = await supabase
@@ -208,6 +226,7 @@ export function ComercioCreditosPanel() {
           cliente_id: clientId,
           valor: amount,
           observacao: finalObs,
+          comprovante_url: comprovanteUrl,
           status: 'pendente'
         });
 
@@ -217,12 +236,14 @@ export function ComercioCreditosPanel() {
       setShowRequestModal(false);
       setRequestAmount('');
       setRequestObs('');
+      setComprovanteFile(null);
       fetchData();
     } catch (error: any) {
       console.error('Erro ao solicitar crédito:', error);
       alert('Erro ao solicitar crédito: ' + (error.message || 'Erro desconhecido'));
     } finally {
       setSubmittingRequest(false);
+      setUploadingComprovante(false);
     }
   };
 
@@ -474,6 +495,27 @@ export function ComercioCreditosPanel() {
                         </div>
                     )}
 
+                    {paymentMethod === 'pix' && (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Comprovante do PIX <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                                type="file"
+                                accept="image/*,application/pdf"
+                                required
+                                onChange={e => setComprovanteFile(e.target.files?.[0] || null)}
+                                className="w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-sky-50 file:text-sky-700 file:font-medium hover:file:bg-sky-100 border border-gray-300 rounded-lg p-1.5"
+                            />
+                            {comprovanteFile && (
+                                <p className="text-xs text-slate-500 mt-1">Selecionado: {comprovanteFile.name}</p>
+                            )}
+                            <p className="text-xs text-slate-400 mt-1">
+                                A solicitação só é enviada pra análise depois de anexar o comprovante do pagamento.
+                            </p>
+                        </div>
+                    )}
+
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Observação (Opcional)</label>
                         <textarea
@@ -484,19 +526,22 @@ export function ComercioCreditosPanel() {
                         />
                     </div>
                     <div className="flex gap-3 pt-2">
-                        <button 
-                            type="button" 
-                            onClick={() => setShowRequestModal(false)}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setShowRequestModal(false);
+                                setComprovanteFile(null);
+                            }}
                             className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium"
                         >
                             Cancelar
                         </button>
-                        <button 
-                            type="submit" 
+                        <button
+                            type="submit"
                             disabled={submittingRequest}
                             className="flex-1 px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 font-medium disabled:opacity-50"
                         >
-                            {submittingRequest ? 'Enviando...' : 'Confirmar'}
+                            {submittingRequest ? (uploadingComprovante ? 'Enviando comprovante...' : 'Enviando...') : 'Confirmar'}
                         </button>
                     </div>
                 </form>

@@ -400,14 +400,6 @@ function AddressAutocomplete({
 
         cacheRef.current.set(normalizedKey, deduped);
         setSuggestions(deduped);
-
-        if (onSuggestCoords && trimmed.length >= 6) {
-          const top = deduped[0];
-          const lat = Number(top?.lat);
-          const lon = Number(top?.lon);
-          const coords = !Number.isNaN(lat) && !Number.isNaN(lon) ? ([lat, lon] as [number, number]) : undefined;
-          onSuggestCoords(coords, trimmed);
-        }
       } catch (e) {
         setSuggestions([]);
         setSuggestionsError('Falha ao buscar endereços. Tente novamente.');
@@ -516,6 +508,16 @@ function PedidoEditForm({
   const [formData, setFormData] = useState<Partial<Pedido>>({ ...pedido });
   const [entregaData, setEntregaData] = useState<Partial<Entrega>>(entrega || {});
   const [loading, setLoading] = useState(false);
+  const [coletaSelectedCoords, setColetaSelectedCoords] = useState<[number, number] | undefined>(
+    typeof (entrega as any)?.coleta_lat === 'number' && typeof (entrega as any)?.coleta_lng === 'number'
+      ? [(entrega as any).coleta_lat, (entrega as any).coleta_lng]
+      : undefined
+  );
+  const [entregaSelectedCoords, setEntregaSelectedCoords] = useState<[number, number] | undefined>(
+    typeof (entrega as any)?.entrega_lat === 'number' && typeof (entrega as any)?.entrega_lng === 'number'
+      ? [(entrega as any).entrega_lat, (entrega as any).entrega_lng]
+      : undefined
+  );
   const [retorno, setRetorno] = useState<boolean>(Boolean((entrega as any)?.retorno));
   const [retornoTabelaId, setRetornoTabelaId] = useState<string>(
     pricingTables.length > 0 ? String(pricingTables[0].id) : ''
@@ -655,6 +657,10 @@ function PedidoEditForm({
           pedido_id: pedido.id,
           coleta_endereco_texto: entregaData.coleta_endereco_texto,
           entrega_endereco_texto: entregaData.entrega_endereco_texto,
+          coleta_lat: coletaSelectedCoords ? coletaSelectedCoords[0] : ((entrega as any)?.coleta_lat ?? null),
+          coleta_lng: coletaSelectedCoords ? coletaSelectedCoords[1] : ((entrega as any)?.coleta_lng ?? null),
+          entrega_lat: entregaSelectedCoords ? entregaSelectedCoords[0] : ((entrega as any)?.entrega_lat ?? null),
+          entrega_lng: entregaSelectedCoords ? entregaSelectedCoords[1] : ((entrega as any)?.entrega_lng ?? null),
           status: newEntregaStatus,
           valor_entrega: entregaData.valor_entrega,
           valor_entregador: entregaData.valor_entregador,
@@ -719,21 +725,37 @@ function PedidoEditForm({
         </div>
         <div className="col-span-2">
            <label className="block text-sm font-medium text-slate-700">Endereço de Coleta (Origem)</label>
-           <AddressAutocomplete 
+           <AddressAutocomplete
              value={entregaData.coleta_endereco_texto || ''}
-             onChange={val => setEntregaData({...entregaData, coleta_endereco_texto: val})}
+             onChange={val => {
+                setColetaSelectedCoords(undefined);
+                setEntregaData({...entregaData, coleta_endereco_texto: val});
+             }}
+             onSelectCoords={setColetaSelectedCoords}
              placeholder="Endereço de retirada"
+             inputClassName={
+               entregaData.coleta_endereco_texto && !coletaSelectedCoords
+                 ? 'border-red-400 bg-red-50'
+                 : undefined
+             }
            />
         </div>
         <div className="col-span-2">
            <label className="block text-sm font-medium text-slate-700">Endereço de Entrega (Destino)</label>
-           <AddressAutocomplete 
+           <AddressAutocomplete
              value={entregaData.entrega_endereco_texto || formData.endereco_texto || ''}
              onChange={val => {
+                setEntregaSelectedCoords(undefined);
                 setEntregaData({...entregaData, entrega_endereco_texto: val});
                 setFormData({...formData, endereco_texto: val});
              }}
+             onSelectCoords={setEntregaSelectedCoords}
              placeholder="Endereço de entrega"
+             inputClassName={
+               (entregaData.entrega_endereco_texto || formData.endereco_texto) && !entregaSelectedCoords
+                 ? 'border-red-400 bg-red-50'
+                 : undefined
+             }
            />
         </div>
         <div>
@@ -3071,14 +3093,11 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         let qPedidos = supabase.from('pedidos').select('*').order('created_at', { ascending: false });
         let qEntregas = supabase.from('nova_entrega').select('*').order('created_at', { ascending: false });
 
-        const isStatusFilter = filters.status !== 'todos';
-        const isCityFilter = filters.cidade !== 'todos';
-        const isDateFilter = !!filters.de;
-        const isClientFilter = filters.cliente_id !== '' && !isComercio;
-        const isOriginFilter = filters.origem !== 'todos';
-        const hasActiveFilters = isStatusFilter || isCityFilter || isDateFilter || isClientFilter || isOriginFilter;
+        // Entregues/cancelados só devem aparecer quando o operador filtra por status explicitamente.
+        // Filtros de cidade/data/cliente/origem não devem "reabrir" esses pedidos na lista.
+        const shouldExcludeFinished = filters.status === 'todos';
 
-        if (!hasActiveFilters) {
+        if (shouldExcludeFinished) {
             qPedidos = qPedidos.neq('status', 'entregue').neq('status', 'cancelado');
             qEntregas = qEntregas.neq('status', 'entregue').neq('status', 'cancelada');
         }
@@ -3127,7 +3146,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         // Detecta pedidos out-of-sync: pedido ainda 'pronto' mas delivery já 'entregue'/'cancelada'.
         // O qEntregas exclui deliveries concluídas da query principal, então precisamos de uma
         // consulta extra para pegar esses casos e remover o pedido da lista.
-        if (!hasActiveFilters && pedidosList.length > 0) {
+        if (shouldExcludeFinished && pedidosList.length > 0) {
             const pedidoIds = pedidosList.map(p => p.id).filter(Boolean);
             if (pedidoIds.length > 0) {
                 const { data: completedDeliveries } = await supabase
@@ -3178,7 +3197,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         const finalPedidos = [...pedidosList, ...syntheticPedidos];
 
         const finalPedidosSemEntregues = finalPedidos.filter(p => {
-            if (hasActiveFilters) return true;
+            if (!shouldExcludeFinished) return true;
 
             if (p.status === 'entregue' || p.status === 'cancelado') return false;
             
@@ -3211,7 +3230,13 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         console.error('Fetch error', e);
         if (fetchSeq === pedidosFetchSeqRef.current) setError(e.message);
     } finally {
-        if (!silent && fetchSeq === pedidosFetchSeqRef.current) setLoadingList(false);
+        // Qualquer fetch que ainda seja o mais recente (sequência bate) deve
+        // desligar o loading ao terminar — mesmo os "silenciosos" (refresh de
+        // realtime), senão um silencioso que termina primeiro nunca desliga o
+        // spinner de um carregamento visível que ele "ultrapassou", e o
+        // carregamento visível, ao terminar depois, se vê com sequência
+        // desatualizada e também não desliga. Resultado: spinner preso.
+        if (fetchSeq === pedidosFetchSeqRef.current) setLoadingList(false);
     }
   }, [filters, clientes, isComercio]);
 
@@ -3298,7 +3323,12 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       for (const entrega of activeEntregas) {
         if (cancelled) break;
         try {
-          const coords = await getCoordsFromAddress(entrega.entrega_endereco_texto!);
+          const storedLat = (entrega as any).entrega_lat;
+          const storedLng = (entrega as any).entrega_lng;
+          const coords: [number, number] | undefined =
+            typeof storedLat === 'number' && typeof storedLng === 'number'
+              ? [storedLat, storedLng]
+              : await getCoordsFromAddress(entrega.entrega_endereco_texto!);
           if (coords && !cancelled) {
             const tooltip = entrega.entrega_codigo_pedido || entrega.id.slice(0, 8);
             const color = isComercio ? '#f97316' : getCommerceColor(entrega.cliente_id || '');

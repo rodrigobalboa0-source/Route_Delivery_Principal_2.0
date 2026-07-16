@@ -162,12 +162,17 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
     setClientes((data || []) as Cliente[]);
   };
 
+  // Lista não usa as fotos/documentos em base64 (só usadas no formulário de edição
+  // de um entregador específico) — excluir da consulta evita baixar dezenas de MB
+  // de imagens embutidas toda vez que a tela de cadastro abre.
+  const ENTREGADORES_LIST_COLUMNS = 'id, nome_completo, cpf, rg, data_nascimento, telefone, email, veiculo_tipo, veiculo_modelo, veiculo_placa, veiculo_ano, cnh_valida, tipo_entrega, taxa_entrega, status, cep, rua, numero, complemento, bairro, cidade, foto_url, cnh_foto_url, comprovante_residencia_url, documento_veiculo_url, restricao_clientes_modo, clientes_permitidos, prioridade_busca, prioridade_tempo, is_online, current_latitude, current_longitude, heading, last_location_update, fcm_token, dados_bancarios, created_at, updated_at';
+
   const fetchEntregadores = async () => {
     setLoading(true);
     setError(null);
-    const { data, error } = await supabase.from('entregadores').select('*').order('nome_completo');
+    const { data, error } = await supabase.from('entregadores').select(ENTREGADORES_LIST_COLUMNS).order('nome_completo');
     if (error) setError(error.message);
-    let list = (data || []) as Entregador[];
+    let list = (data || []) as unknown as Entregador[];
 
     
     try {
@@ -671,7 +676,7 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
     setDeleteConfirmation({ id, name });
   };
 
-  const openEdit = (c: Entregador) => {
+  const openEdit = async (c: Entregador) => {
     setEditing(c);
     setEditFotoFile(null);
     setEditCnhFile(null);
@@ -712,10 +717,35 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
       prioridade_busca: (c as any).prioridade_busca || false,
       prioridade_tempo: (c as any).prioridade_tempo ? String((c as any).prioridade_tempo) : '',
     } as any);
-    setEditFotoPreview((c as unknown as { foto_url?: string; foto_base64?: string }).foto_url || (c as unknown as { foto_base64?: string }).foto_base64 || '');
-    setEditCnhPreview((c as unknown as { cnh_foto_url?: string; cnh_foto_base64?: string }).cnh_foto_url || (c as unknown as { cnh_foto_base64?: string }).cnh_foto_base64 || '');
-    setEditComprovantePreview((c as unknown as { comprovante_residencia_url?: string; comprovante_residencia_base64?: string }).comprovante_residencia_url || (c as unknown as { comprovante_residencia_base64?: string }).comprovante_residencia_base64 || '');
-    setEditMotoDocPreview((c as unknown as { documento_veiculo_url?: string; documento_veiculo_base64?: string }).documento_veiculo_url || (c as unknown as { documento_veiculo_base64?: string }).documento_veiculo_base64 || '');
+    setEditFotoPreview((c as unknown as { foto_url?: string; foto_base64?: string }).foto_url || '');
+    setEditCnhPreview((c as unknown as { cnh_foto_url?: string; cnh_foto_base64?: string }).cnh_foto_url || '');
+    setEditComprovantePreview((c as unknown as { comprovante_residencia_url?: string; comprovante_residencia_base64?: string }).comprovante_residencia_url || '');
+    setEditMotoDocPreview((c as unknown as { documento_veiculo_url?: string; documento_veiculo_base64?: string }).documento_veiculo_url || '');
+
+    // foto_base64/cnh_foto_base64/etc. não vêm na lista (ver ENTREGADORES_LIST_COLUMNS) —
+    // busca sob demanda só pra esse entregador, sem travar a abertura do modal.
+    try {
+      const { data: full } = await supabase
+        .from('entregadores')
+        .select('foto_base64, cnh_foto_base64, comprovante_residencia_base64, documento_veiculo_base64')
+        .eq('id', c.id)
+        .maybeSingle();
+      if (full) {
+        setEditForm(prev => ({
+          ...prev,
+          foto_base64: (full as any).foto_base64 || '',
+          cnh_foto_base64: (full as any).cnh_foto_base64 || '',
+          comprovante_residencia_base64: (full as any).comprovante_residencia_base64 || '',
+          documento_veiculo_base64: (full as any).documento_veiculo_base64 || '',
+        }));
+        if (!(c as any).foto_url && (full as any).foto_base64) setEditFotoPreview((full as any).foto_base64);
+        if (!(c as any).cnh_foto_url && (full as any).cnh_foto_base64) setEditCnhPreview((full as any).cnh_foto_base64);
+        if (!(c as any).comprovante_residencia_url && (full as any).comprovante_residencia_base64) setEditComprovantePreview((full as any).comprovante_residencia_base64);
+        if (!(c as any).documento_veiculo_url && (full as any).documento_veiculo_base64) setEditMotoDocPreview((full as any).documento_veiculo_base64);
+      }
+    } catch (e) {
+      console.error('Erro ao buscar fotos/documentos do entregador:', e);
+    }
   };
 
   const handleUpdate = async () => {

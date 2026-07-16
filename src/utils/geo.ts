@@ -124,7 +124,7 @@ function hasCityOrStateHint(address: string) {
 /** Geocodifica um texto de endereço via /v1/geocode da Maps API própria (aceita CEP ou texto livre). */
 async function invokeGeocodeApi(q: string): Promise<[number, number] | undefined> {
   try {
-    const url = new URL('/v1/geocode', MAPS_API_URL);
+    const url = new URL(`${String(MAPS_API_URL || '').replace(/\/+$/, '')}/v1/geocode`);
     url.searchParams.set('address', q);
     const res = await fetchWithTimeout(url.toString(), 12000, {
       headers: { 'X-API-Key': MAPS_API_KEY },

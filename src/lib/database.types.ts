@@ -1444,6 +1444,8 @@ export interface Database {
           coleta_endereco_texto: string | null
           coleta_complemento: string | null
           coleta_observacoes: string | null
+          coleta_lat: number | null
+          coleta_lng: number | null
           entrega_usa_endereco_cadastro: boolean | null
           entrega_contato: string | null
           entrega_telefone: string | null
@@ -1454,6 +1456,8 @@ export interface Database {
           entrega_endereco_texto: string | null
           entrega_complemento: string | null
           entrega_observacoes: string | null
+          entrega_lat: number | null
+          entrega_lng: number | null
           retorno: boolean | null
           pontos_adicionais: unknown | null
           status: 'criada' | 'atribuida' | 'em_rota' | 'entregue' | 'cancelada' | null
@@ -1493,6 +1497,8 @@ export interface Database {
           coleta_endereco_texto?: string | null
           coleta_complemento?: string | null
           coleta_observacoes?: string | null
+          coleta_lat?: number | null
+          coleta_lng?: number | null
           entrega_usa_endereco_cadastro?: boolean | null
           entrega_contato?: string | null
           entrega_telefone?: string | null
@@ -1503,6 +1509,8 @@ export interface Database {
           entrega_endereco_texto?: string | null
           entrega_complemento?: string | null
           entrega_observacoes?: string | null
+          entrega_lat?: number | null
+          entrega_lng?: number | null
           retorno?: boolean | null
           pontos_adicionais?: unknown | null
           status?: 'criada' | 'atribuida' | 'em_rota' | 'entregue' | 'cancelada' | null
@@ -1542,6 +1550,8 @@ export interface Database {
           coleta_endereco_texto?: string | null
           coleta_complemento?: string | null
           coleta_observacoes?: string | null
+          coleta_lat?: number | null
+          coleta_lng?: number | null
           entrega_usa_endereco_cadastro?: boolean | null
           entrega_contato?: string | null
           entrega_telefone?: string | null
@@ -1552,6 +1562,8 @@ export interface Database {
           entrega_endereco_texto?: string | null
           entrega_complemento?: string | null
           entrega_observacoes?: string | null
+          entrega_lat?: number | null
+          entrega_lng?: number | null
           retorno?: boolean | null
           pontos_adicionais?: unknown | null
           status?: 'criada' | 'atribuida' | 'em_rota' | 'entregue' | 'cancelada' | null

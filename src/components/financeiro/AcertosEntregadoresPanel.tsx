@@ -18,6 +18,7 @@ export function AcertosEntregadoresPanel() {
   const [selectedBankData, setSelectedBankData] = useState<any>(null);
   const [showBankModal, setShowBankModal] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'pendente' | 'pago'>('pendente');
 
   const formatDateTime = (iso?: string | null) => {
     if (!iso) return '-';
@@ -170,14 +171,37 @@ export function AcertosEntregadoresPanel() {
       </div>
 
       <div className="bg-white border border-slate-200 rounded-lg">
-        <div className="px-4 py-2 border-b border-slate-200 text-sm text-slate-600">Acertos registrados</div>
+        <div className="px-4 pt-3 border-b border-slate-200 flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setActiveTab('pendente')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'pendente'
+                ? 'border-sky-600 text-sky-700'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            Pendentes ({items.filter((a) => a.status !== 'pago').length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('pago')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'pago'
+                ? 'border-sky-600 text-sky-700'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            Pagos ({items.filter((a) => a.status === 'pago').length})
+          </button>
+        </div>
         {loadingList ? (
           <div className="p-4 text-slate-600">Carregando...</div>
-        ) : items.length === 0 ? (
-          <div className="p-4 text-slate-600">Nenhum acerto</div>
+        ) : items.filter((a) => (activeTab === 'pago' ? a.status === 'pago' : a.status !== 'pago')).length === 0 ? (
+          <div className="p-4 text-slate-600">{activeTab === 'pago' ? 'Nenhum acerto pago' : 'Nenhum acerto pendente'}</div>
         ) : (
           <div className="divide-y">
-            {items.map((a) => (
+            {items.filter((a) => (activeTab === 'pago' ? a.status === 'pago' : a.status !== 'pago')).map((a) => (
               <div key={a.id} className="flex items-center justify-between px-4 py-3">
                 <div>
                   <div className="flex items-center gap-2">

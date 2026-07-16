@@ -133,6 +133,8 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
     foto_url: '',
     foto_base64: '',
     precificacao_config: [] as PrecificacaoConfigItem[],
+    latitude: '',
+    longitude: '',
   });
   const [fotoFile, setFotoFile] = useState<File | null>(null);
   const [fotoPreview, setFotoPreview] = useState<string>('');
@@ -452,6 +454,8 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
           foto_url: finalFotoUrl || null,
           foto_base64: finalFotoBase64 || null,
           precificacao_config: form.precificacao_config,
+          latitude: form.latitude ? Number(form.latitude) : null,
+          longitude: form.longitude ? Number(form.longitude) : null,
         })
         .eq('id', cid);
         
@@ -488,7 +492,7 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
         .eq('id', cid);
       void e;
     }
-    // Assign commission table for new client
+    
     if (formTabelaComissaoId) await assignComissaoTable(cid, formTabelaComissaoId);
     setFormTabelaComissaoId('');
     setForm({
@@ -524,6 +528,8 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
       foto_url: '',
       foto_base64: '',
       precificacao_config: [],
+      latitude: '',
+      longitude: '',
     });
     setFotoFile(null);
     setFotoPreview('');
@@ -629,7 +635,7 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
           } catch (e) { void e; }
 
           
-          // Nullify delivery_logs.created_by to avoid FK violation on users delete
+          
           try {
             const { data: userRow } = await supabase.from('users').select('id').ilike('email', email).maybeSingle();
             const userId = (userRow as { id?: string } | null)?.id;
@@ -671,7 +677,7 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
   };
 
   const openEdit = async (c: Cliente) => {
-    // Detect which commission table currently includes this client
+    
     const { data: allTables } = await supabase.from('tabelas_comissoes').select('id, cliente_ids');
     const currentTable = (allTables || []).find(t => parseIds(t.cliente_ids).includes(c.id));
     setEditTabelaComissaoId(currentTable?.id || '');
@@ -953,9 +959,9 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
       const deletes = editEnderecosRemovidos.map((id) => supabase.from('cliente_enderecos').delete().eq('id', id));
       await Promise.all([...updates, ...inserts, ...deletes]);
     }
-    // Update commission table assignment
+    
     await assignComissaoTable(editing.id, editTabelaComissaoId);
-    // Save per-commerce delivery limits
+    
     if (editLimitesRemovidos.length > 0) {
       await (supabase as any).from('comercio_entregador_limites').delete().in('id', editLimitesRemovidos);
     }
@@ -1157,6 +1163,7 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
               </div>
             </div>
             )}
+            {mode !== 'public' && (
             <div className="md:col-span-2 mt-0 bg-amber-50 border border-amber-100 p-4 rounded-lg">
               <div className="mb-1 text-sm text-amber-800 font-medium">Tabela de Comissão do Entregador</div>
               <div className="text-xs text-amber-700 mb-3">
@@ -1173,6 +1180,7 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
                 ))}
               </select>
             </div>
+            )}
             <div>
               <label className="text-xs text-slate-700">Cadastro via</label>
               <select value={form.cadastro_via} onChange={(e) => setForm({ ...form, cadastro_via: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded">
@@ -1875,6 +1883,14 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
                   <button
                     onClick={async () => {
                       await (supabase as unknown as { from: (t: string) => { delete: () => { eq: (c: string, v: unknown) => Promise<unknown> } } }).from('users').delete().eq('id', u.id);
+                      
+                      if (u.email) {
+                        try {
+                          await supabase.functions.invoke('delete-auth-user-by-email', { body: { email: u.email } });
+                        } catch (e) {
+                          console.warn('Erro ao deletar login do usuário removido:', e);
+                        }
+                      }
                       setEditMembers((prev) => prev.filter((x) => x.id !== u.id));
                     }}
                     className="text-xs text-red-700"
