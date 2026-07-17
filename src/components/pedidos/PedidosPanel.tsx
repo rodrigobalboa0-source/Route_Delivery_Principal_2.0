@@ -1276,7 +1276,6 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
   
   const [quickAddress, setQuickAddress] = useState('');
-  const [quickNumber, setQuickNumber] = useState('');
   const [quickPaymentMethod, setQuickPaymentMethod] = useState('Dinheiro');
   const [quickRetorno, setQuickRetorno] = useState(false);
   const [comercioAddress, setComercioAddress] = useState('');
@@ -1291,6 +1290,12 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [quickPrice, setQuickPrice] = useState<number>(0);
   const [quickDriverPrice, setQuickDriverPrice] = useState<number>(0);
   const [quickDestinationCoords, setQuickDestinationCoords] = useState<[number, number] | undefined>(undefined);
+  // true só quando o usuário realmente clicou numa sugestão da lista — o
+  // useEffect de cálculo de distância também escreve em quickDestinationCoords
+  // via um geocode de fallback (área/bairro, impreciso) quando o endereço
+  // completo não é encontrado, então não dá pra usar só a presença de
+  // quickDestinationCoords pra bloquear o envio sem seleção real.
+  const [quickDestinationSelected, setQuickDestinationSelected] = useState(false);
   const quickDistanceCalcIdRef = useRef(0);
   const pedidosFetchSeqRef = useRef(0);
   const pedidosRefreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1445,7 +1450,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
           void e;
         }
 
-        const clienteSelect = 'id, nome_completo, rua, numero, bairro, cidade, cep, precificacao_config, telefone, observacoes';
+        const clienteSelect = 'id, nome_completo, rua, numero, bairro, cidade, cep, precificacao_config, telefone, observacoes, latitude, longitude';
         const selectClienteById = async (id: string) => {
           const { data } = await supabase.from('clientes').select(clienteSelect).eq('id', id).maybeSingle();
           return data ?? null;
@@ -1612,7 +1617,12 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             return undefined;
           };
 
-          const coords = await resolveCoordsWithFallback(fullAddress);
+          const storedLat = (clienteData as any).latitude;
+          const storedLng = (clienteData as any).longitude;
+          const coords: [number, number] | undefined =
+            typeof storedLat === 'number' && typeof storedLng === 'number'
+              ? [storedLat, storedLng]
+              : await resolveCoordsWithFallback(fullAddress);
           if (coords) {
             setOriginCoords(coords);
             setOriginTitle(clienteData.nome_completo || 'Minha Loja');
@@ -2166,7 +2176,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         setQuickDistanceLoading(true);
 
         try {
-            const fullAddress = quickNumber ? `${quickAddress}, ${quickNumber}` : quickAddress;
+            const fullAddress = quickAddress;
 
             let origin = commerceDefaultCoords ?? originCoords;
             if (!origin && comercioAddress) {
@@ -2209,7 +2219,6 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             let destCoords = quickDestinationCoords;
             if (!destCoords) {
                 let c = await getCoordsFromAddress(fullAddress);
-                if (!c && quickNumber) c = await getCoordsFromAddress(quickAddress);
                 if (!c) {
                     const normalized = String(quickAddress || '').replace(/\s+-\s+/g, ', ');
                     const parts = normalized
@@ -2265,7 +2274,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     
     const timer = setTimeout(calculateDistance, 400);
     return () => clearTimeout(timer);
-  }, [quickAddress, quickNumber, originCoords, commerceDefaultCoords, comercioAddress, quickDestinationCoords]);
+  }, [quickAddress, originCoords, commerceDefaultCoords, comercioAddress, quickDestinationCoords]);
 
   
     useEffect(() => {
@@ -2421,7 +2430,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         };
 
         calculatePrice();
-      }, [quickAddress, quickNumber, quickDistance, quickRetorno, pricingMode, selectedTabelaId, pricingTables, pricingRanges, pricePerPoint, dynamicRules, filters.cliente_id, commissionTables, commissionRanges, driverDynamicRules]);
+      }, [quickAddress, quickDistance, quickRetorno, pricingMode, selectedTabelaId, pricingTables, pricingRanges, pricePerPoint, dynamicRules, filters.cliente_id, commissionTables, commissionRanges, driverDynamicRules]);
 
   const handleViewMap = async (pedido: Pedido) => {
     
@@ -3520,12 +3529,12 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         return;
     }
 
-    if (!quickDestinationCoords) {
+    if (!quickDestinationCoords || !quickDestinationSelected) {
         await showAlert('Selecione o endereço de entrega a partir das sugestões da lista.', 'Aviso');
         return;
     }
 
-    const fullAddress = quickNumber ? `${quickAddress}, ${quickNumber}` : quickAddress;
+    const fullAddress = quickAddress;
 
     if (!comercioAddress) {
         await showAlert('Endereço do comércio não encontrado. Verifique seu cadastro.', 'Aviso');
@@ -3572,7 +3581,11 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                 cliente_id: clienteId,
                 status: 'criada',
                 coleta_endereco_texto: comercioAddress,
+                coleta_lat: (commerceDefaultCoords ?? originCoords)?.[0] ?? null,
+                coleta_lng: (commerceDefaultCoords ?? originCoords)?.[1] ?? null,
                 entrega_endereco_texto: fullAddress,
+                entrega_lat: quickDestinationCoords?.[0] ?? null,
+                entrega_lng: quickDestinationCoords?.[1] ?? null,
                 entrega_contato: quickContact,
                 entrega_telefone: quickPhone,
                 entrega_complemento: quickComplement,
@@ -3599,9 +3612,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
         await showAlert('Pedido criado com sucesso!', 'Sucesso');
         setQuickAddress('');
-        setQuickNumber('');
-    
-    
+
+
     setQuickPaymentMethod('Dinheiro');
     setQuickRetorno(false);
 
@@ -3612,7 +3624,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         setQuickDistance(0);
         setQuickPrice(0);
         setQuickDestinationCoords(undefined);
-        
+        setQuickDestinationSelected(false);
+
         fetchPedidos();
 
     } catch (e: any) {
@@ -3688,27 +3701,20 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                         value={quickAddress}
                         onChange={(val) => {
                           setQuickDestinationCoords(undefined);
+                          setQuickDestinationSelected(false);
                           setQuickAddress(val);
                         }}
-                        onSelectCoords={setQuickDestinationCoords}
+                        onSelectCoords={(coords) => {
+                          setQuickDestinationCoords(coords);
+                          setQuickDestinationSelected(!!coords);
+                        }}
                         placeholder="Rua, Bairro..."
                         containerClassName="w-full"
                         inputClassName={
-                          quickAddress && !quickDestinationCoords
+                          quickAddress && !quickDestinationSelected
                             ? 'border-red-400 bg-red-50 focus:border-red-500'
                             : 'border-slate-300'
                         }
-                    />
-                </div>
-
-                <div className="md:col-span-1">
-                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Número</label>
-                    <input 
-                        type="text"
-                        value={quickNumber}
-                        onChange={e => setQuickNumber(e.target.value)}
-                        placeholder="Nº"
-                        className="w-full px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-sky-500 outline-none transition-all"
                     />
                 </div>
 
