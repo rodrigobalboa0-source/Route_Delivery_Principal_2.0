@@ -3541,6 +3541,16 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         return;
     }
 
+    if (quickDistanceLoading) {
+        await showAlert('Aguarde o cálculo do valor da entrega antes de lançar o pedido.', 'Aviso');
+        return;
+    }
+
+    if (!quickDistance || quickDistance <= 0 || !quickPrice || quickPrice <= 0) {
+        await showAlert('Não foi possível calcular o valor da entrega para esse endereço. Verifique o endereço informado.', 'Aviso');
+        return;
+    }
+
     const fullAddress = quickAddress;
 
     if (!comercioAddress) {

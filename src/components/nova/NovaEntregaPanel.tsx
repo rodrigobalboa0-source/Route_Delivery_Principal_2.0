@@ -1329,10 +1329,6 @@ export function NovaEntregaPanel() {
 
     setAddressApproxWarning(null);
 
-    // Exige endereço selecionado da lista de sugestões (ou confirmado via
-    // "Ajustar localização no mapa") antes de permitir o envio — geocodificar
-    // o texto digitado às cegas na hora do envio dava posição imprecisa e
-    // gerava pedido/entrega com coordenada errada sem o operador perceber.
     if (coletaAddrTrimmed && !form.coleta_usa_endereco_cadastro && !coletaSelectedCoords) {
       setError('Selecione o endereço de coleta a partir das sugestões da lista, ou use "Ajustar localização no mapa" para confirmar a posição antes de continuar.');
       return;
@@ -1341,6 +1337,18 @@ export function NovaEntregaPanel() {
     if (!form.retirada_no_local && entregaAddrTrimmed && !form.entrega_usa_endereco_cadastro && !entregaSelectedCoords) {
       setError('Selecione o endereço de entrega a partir das sugestões da lista, ou use "Ajustar localização no mapa" para confirmar a posição antes de continuar.');
       return;
+    }
+
+    if (!form.retirada_no_local && pricingMode !== 'Zerar') {
+      if (calculatingDistance) {
+        setError('Aguarde o cálculo do valor da entrega antes de continuar.');
+        return;
+      }
+      const valorNum = form.valor_entrega ? parseFloat(form.valor_entrega.replace(',', '.')) : 0;
+      if (!form.valor_manual && (Number.isNaN(valorNum) || valorNum <= 0)) {
+        setError('Não foi possível calcular o valor da entrega. Verifique os endereços de coleta e entrega informados.');
+        return;
+      }
     }
 
     setLoading(true);
