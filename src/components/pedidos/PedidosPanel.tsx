@@ -38,6 +38,13 @@ interface PedidosPanelProps {
   userId?: string;
 }
 
+function toLocalYmd(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 
 interface AddressSuggestion {
   display_name: string;
@@ -1152,7 +1159,10 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [expandedMultiPedidos, setExpandedMultiPedidos] = useState<Record<string, boolean>>({});
   const [loadingList, setLoadingList] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [filters, setFilters] = useState({ status: 'todos', cliente_id: '', origem: 'todos', de: '', ate: '', cidade: 'todos' });
+  const [filters, setFilters] = useState(() => {
+    const today = toLocalYmd(new Date());
+    return { status: 'todos', cliente_id: '', origem: 'todos', de: today, ate: today, cidade: 'todos' };
+  });
   const [availableEntregadores, setAvailableEntregadores] = useState<Entregador[]>([]);
   const [mapDeliveryPersons, setMapDeliveryPersons] = useState<MapDeliveryPerson[]>([]);
   const [dialog, setDialog] = useState<{ open: boolean; title: string; message: string; mode: 'alert' | 'confirm' | 'prompt' }>({
@@ -2932,8 +2942,12 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             }
         }
         if (filters.de) {
-             qPedidos = qPedidos.gte('created_at', new Date(filters.de).toISOString());
-             qEntregas = qEntregas.gte('created_at', new Date(filters.de).toISOString());
+             qPedidos = qPedidos.gte('created_at', new Date(`${filters.de}T00:00:00`).toISOString());
+             qEntregas = qEntregas.gte('created_at', new Date(`${filters.de}T00:00:00`).toISOString());
+        }
+        if (filters.ate) {
+             qPedidos = qPedidos.lte('created_at', new Date(`${filters.ate}T23:59:59.999`).toISOString());
+             qEntregas = qEntregas.lte('created_at', new Date(`${filters.ate}T23:59:59.999`).toISOString());
         }
 
         const [resPedidos, resEntregas] = await Promise.all([qPedidos, qEntregas]);

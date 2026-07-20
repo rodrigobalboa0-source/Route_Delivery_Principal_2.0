@@ -38,25 +38,20 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
   }
 
   function calculateMultiDestinoTotal(entrega: any) {
-    // Se o valor_entregador já parece estar correto (maior que zero e não é o valor base simples)
-    // ou se não temos os dados necessários para recalcular, usamos o que está no banco.
-    // No entanto, para garantir a regra de "sumatória dos destinos", recalculamos se houver pontos adicionais.
+
     
     const extraPoints = safeParseArray(entrega?.pontos_adicionais);
     const comissaoDestinos = safeParseArray(entrega?.opcionais?.comissao_destinos);
     const comissaoRetorno = typeof entrega?.opcionais?.comissao_retorno === 'number' ? Number(entrega.opcionais.comissao_retorno) : 0;
     
-    // Se não houver destinos extras, usamos o valor_entregador do banco
     const numDestinos = 1 + extraPoints.length;
     if (numDestinos <= 1) return Number(entrega.valor_entregador || 0);
 
-    // Se houver comissões detalhadas nos opcionais, usamos a soma delas
     if (comissaoDestinos.length > 0) {
       const totalDestinos = comissaoDestinos.reduce((sum: number, d: any) => sum + (typeof d?.valor === 'number' ? d.valor : 0), 0);
       return totalDestinos + comissaoRetorno;
     }
 
-    // Fallback para o valor do banco se não houver detalhamento
     return Number(entrega.valor_entregador || 0);
   }
   
@@ -109,6 +104,10 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
   const [quickWithdrawFee, setQuickWithdrawFee] = useState(0);
   const [withdrawRules, setWithdrawRules] = useState<SaqueRules | null>(null);
   const [submittingWithdraw, setSubmittingWithdraw] = useState(false);
+  const [humanCheckCode, setHumanCheckCode] = useState('');
+  const [humanCheckInput, setHumanCheckInput] = useState('');
+
+  const generateHumanCheckCode = () => String(Math.floor(1000 + Math.random() * 9000));
 
   const parseWithdrawRules = (raw: any): SaqueRules => {
     const base = (raw && typeof raw === 'object') ? raw : {};
@@ -217,7 +216,6 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
       const entregadorId = entregadorData.id;
       setCurrentEntregadorId(entregadorId);
 
-      // Pre-fill bank data if exists
       if (entregadorData.dados_bancarios) {
         const savedData = entregadorData.dados_bancarios as any;
         setBankData({
@@ -232,7 +230,6 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
         });
       }
       
-      // Fetch deliveries (earnings)
       const { data: entregas, error: entregasError } = await supabase
         .from('nova_entrega') 
         .select('*')
@@ -242,7 +239,6 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
 
       if (entregasError) throw entregasError;
 
-      // Fetch acertos (withdrawals/payments)
       const { data: acertosData, error: acertosError } = await supabase
         .from('acertos_entregadores')
         .select('*')
@@ -307,6 +303,8 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
 
   const handleConfirmData = () => {
     setShowConfirmModal(false);
+    setHumanCheckCode(generateHumanCheckCode());
+    setHumanCheckInput('');
     setShowWithdrawModal(true);
   };
 
@@ -318,6 +316,11 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
   const handleSubmitWithdrawal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentEntregadorId) return;
+
+    if (humanCheckInput.trim() !== humanCheckCode) {
+      alert('Código de confirmação incorreto. Digite o código exibido na tela.');
+      return;
+    }
 
     const amount = Number(withdrawAmount);
     if (amount <= 0) {
@@ -371,7 +374,6 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
       }
     }
 
-    // Calcular taxa se for saque rápido
     let feeValue = 0;
     let finalAmount = amount;
     
@@ -389,8 +391,7 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
 
     setSubmittingWithdraw(true);
     try {
-      // Insert into acertos_entregadores
-      // Note: entrega_id is explicitly null for withdrawals
+      
       const { error } = await supabase
         .from('acertos_entregadores')
         .insert({
@@ -404,8 +405,8 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
 
       if (error) throw error;
 
-      // Reset and refresh
       setWithdrawAmount('');
+      setHumanCheckInput('');
       setShowWithdrawModal(false);
       await fetchExtrato();
       alert('Solicitação de saque enviada com sucesso! Aguarde a confirmação.');
@@ -418,13 +419,12 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
     }
   };
 
-  // Pending withdrawals to show message
   const pendingWithdrawals = acertos.filter(a => a.status === 'pendente');
 
   return (
     <div className="p-6 max-w-4xl mx-auto relative">
       
-      {/* 1. Bank Data Edit Modal */}
+      {}
       {showBankModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
@@ -472,7 +472,7 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
         </div>
       )}
 
-      {/* 2. Confirmation Modal (Read-Only) */}
+      {}
       {showConfirmModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
@@ -505,7 +505,7 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
         </div>
       )}
 
-      {/* 3. Amount Modal */}
+      {}
       {showWithdrawModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
@@ -600,7 +600,35 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
                 </div>
               )}
 
-              <button type="submit" disabled={submittingWithdraw || Math.round(Number(withdrawAmount) * 100) > Math.round(saldo * 100) || Number(withdrawAmount) <= 0} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-lg transition-colors mt-2 disabled:opacity-50">
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Confirmação de segurança
+                </label>
+                <p className="text-xs text-gray-500 mb-2">
+                  Para confirmar que é você solicitando o saque, digite o código: <span className="font-bold text-slate-800 tracking-widest">{humanCheckCode}</span>
+                </p>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={4}
+                  placeholder="Digite o código"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-400 outline-none tracking-widest"
+                  value={humanCheckInput}
+                  onChange={e => setHumanCheckInput(e.target.value.replace(/\D/g, ''))}
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={
+                  submittingWithdraw ||
+                  Math.round(Number(withdrawAmount) * 100) > Math.round(saldo * 100) ||
+                  Number(withdrawAmount) <= 0 ||
+                  humanCheckInput !== humanCheckCode
+                }
+                className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-lg transition-colors mt-2 disabled:opacity-50"
+              >
                 {submittingWithdraw ? 'Solicitando...' : 'Confirmar Saque'}
               </button>
             </form>
@@ -651,7 +679,7 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
          Histórico de Transações
       </h2>
 
-      {/* Filter bar */}
+      {}
       <div className="bg-white rounded-lg border border-slate-100 shadow-sm p-3 mb-4 space-y-3">
         <div className="flex gap-2 flex-wrap">
           {(['tudo', 'personalizado'] as const).map(f => (
