@@ -223,12 +223,27 @@ export async function getDrivingRouteDistance(coords: {lat: number, lon: number}
     const data = await response.json();
     
     if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
-      
+
       const shortestRoute = data.routes.reduce((min: any, current: any) => {
         return (current.distance < min.distance) ? current : min;
       }, data.routes[0]);
-      
-      return shortestRoute.distance / 1000; 
+
+      const drivingKm = shortestRoute.distance / 1000;
+
+      // Sanidade: uma rota de moto/carro dentro da mesma região raramente passa de
+      // ~2.5x a distância em linha reta. Se o OSRM devolver algo muito acima disso
+      // (rota mal-snapada, ponto ambíguo etc.), é mais seguro descartar e deixar o
+      // chamador cair no fallback de linha reta do que cobrar um valor absurdo.
+      let straightLineKm = 0;
+      for (let i = 0; i < coords.length - 1; i++) {
+        straightLineKm += getDistanceFromLatLonInKm(coords[i].lat, coords[i].lon, coords[i + 1].lat, coords[i + 1].lon);
+      }
+      if (straightLineKm > 0.05 && drivingKm > straightLineKm * 2.5 + 3) {
+        console.warn('[getDrivingRouteDistance] Distância implausível descartada:', { drivingKm, straightLineKm });
+        return null;
+      }
+
+      return drivingKm;
     }
   } catch (error) {
     console.error('Error fetching OSRM route:', error);

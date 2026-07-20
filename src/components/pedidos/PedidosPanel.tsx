@@ -3034,10 +3034,18 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         if (fetchSeq !== pedidosFetchSeqRef.current) return;
         setAllItems(finalPedidosComOrigem);
         
-        const displayedItems = filters.status === 'todos' 
-            ? finalPedidosComOrigem 
-            : finalPedidosComOrigem.filter(p => p.status === filters.status);
-            
+        const isPedidoFinalizado = (p: Pedido) => {
+            if (p.status === 'entregue' || p.status === 'cancelado') return true;
+            const entrega = eMap[p.id];
+            return !!entrega && (entrega.status === 'entregue' || entrega.status === 'cancelada');
+        };
+
+        const displayedItems = filters.status === 'todos'
+            ? finalPedidosComOrigem
+            : filters.status === 'finalizados'
+                ? finalPedidosComOrigem.filter(isPedidoFinalizado)
+                : finalPedidosComOrigem.filter(p => p.status === filters.status);
+
         setItems(displayedItems);
         setEntregasMap(eMap);
         

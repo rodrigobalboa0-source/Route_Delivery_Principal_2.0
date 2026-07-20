@@ -147,6 +147,9 @@ export function RelatorioEntregasReport({ onNavigate, userRole }: RelatorioEntre
 
       if (statusFilter !== 'todos') {
         query = query.eq('status', statusFilter);
+      } else {
+        
+        query = query.neq('status', 'entregue').neq('status', 'cancelada');
       }
 
       if (selectedClient) {
