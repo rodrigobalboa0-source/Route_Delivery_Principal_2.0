@@ -2941,13 +2941,16 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                 qEntregas = qEntregas.in('cliente_id', ['00000000-0000-0000-0000-000000000000']);
             }
         }
-        if (filters.de) {
-             qPedidos = qPedidos.gte('created_at', new Date(`${filters.de}T00:00:00`).toISOString());
-             qEntregas = qEntregas.gte('created_at', new Date(`${filters.de}T00:00:00`).toISOString());
-        }
-        if (filters.ate) {
-             qPedidos = qPedidos.lte('created_at', new Date(`${filters.ate}T23:59:59.999`).toISOString());
-             qEntregas = qEntregas.lte('created_at', new Date(`${filters.ate}T23:59:59.999`).toISOString());
+        
+        const dateConditions: string[] = [];
+        if (filters.de) dateConditions.push(`created_at.gte.${new Date(`${filters.de}T00:00:00`).toISOString()}`);
+        if (filters.ate) dateConditions.push(`created_at.lte.${new Date(`${filters.ate}T23:59:59.999`).toISOString()}`);
+
+        if (dateConditions.length > 0) {
+             const dateClause = dateConditions.length > 1 ? `and(${dateConditions.join(',')})` : dateConditions[0];
+             const orExpr = `${dateClause},agendar_em.not.is.null`;
+             qPedidos = qPedidos.or(orExpr);
+             qEntregas = qEntregas.or(orExpr);
         }
 
         const [resPedidos, resEntregas] = await Promise.all([qPedidos, qEntregas]);
@@ -2972,9 +2975,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             }
         });
 
-        // Detecta pedidos out-of-sync: pedido ainda 'pronto' mas delivery já 'entregue'/'cancelada'.
-        // O qEntregas exclui deliveries concluídas da query principal, então precisamos de uma
-        // consulta extra para pegar esses casos e remover o pedido da lista.
+        
         if (shouldExcludeFinished && pedidosList.length > 0) {
             const pedidoIds = pedidosList.map(p => p.id).filter(Boolean);
             if (pedidoIds.length > 0) {
@@ -3067,12 +3068,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         console.error('Fetch error', e);
         if (fetchSeq === pedidosFetchSeqRef.current) setError(e.message);
     } finally {
-        // Qualquer fetch que ainda seja o mais recente (sequência bate) deve
-        // desligar o loading ao terminar — mesmo os "silenciosos" (refresh de
-        // realtime), senão um silencioso que termina primeiro nunca desliga o
-        // spinner de um carregamento visível que ele "ultrapassou", e o
-        // carregamento visível, ao terminar depois, se vê com sequência
-        // desatualizada e também não desliga. Resultado: spinner preso.
+        
         if (fetchSeq === pedidosFetchSeqRef.current) setLoadingList(false);
     }
   }, [filters, clientes, isComercio]);
@@ -3140,7 +3136,6 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     };
   }, [fetchPedidos, isComercio]);
 
-  // Geocodifica em background todos os destinos ativos para mostrar pins no mapa
   useEffect(() => {
     let cancelled = false;
 
