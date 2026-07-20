@@ -1,17 +1,22 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { FileText, Download, Calendar, CheckCircle, AlertCircle, Clock } from 'lucide-react';
+import { FileText, Download, Calendar, CheckCircle, AlertCircle, Clock, FileSpreadsheet } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
 export function ComercioFaturamentoPanel() {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [clientId, setClientId] = useState<string | null>(null);
+  const [clienteNome, setClienteNome] = useState<string>('');
 
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [dailyOrders, setDailyOrders] = useState<any[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
+  const [orderStatusFilter, setOrderStatusFilter] = useState<'todos' | 'entregue' | 'cancelada'>('todos');
 
   const toLocalDateInputValue = (date: Date) => {
     const pad = (n: number) => String(n).padStart(2, '0');
@@ -95,6 +100,14 @@ export function ComercioFaturamentoPanel() {
       }
       
       setClientId(targetClientId);
+
+      const { data: clienteInfo } = await supabase
+        .from('clientes')
+        .select('nome_completo')
+        .eq('id', targetClientId)
+        .maybeSingle();
+      if (clienteInfo?.nome_completo) setClienteNome(clienteInfo.nome_completo);
+
       const now = new Date();
       const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       setStartDate((prev) => (prev ? prev : toLocalDateInputValue(firstDayOfMonth)));
@@ -116,6 +129,86 @@ export function ComercioFaturamentoPanel() {
       setLoading(false);
     }
   }
+
+  const filteredOrders = dailyOrders.filter((order) => {
+    if (orderStatusFilter === 'todos') return true;
+    return order.status === orderStatusFilter;
+  });
+
+  const buildReportRows = () =>
+    filteredOrders.map((order) => [
+      new Date(order.created_at).toLocaleDateString('pt-BR'),
+      new Date(order.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      order?.pedidos?.numero || (order.pedido_id ? `${order.pedido_id.slice(0, 8)}...` : '-'),
+      order.entrega_contato || '-',
+      order.entrega_endereco_texto || '-',
+      order?.entregadores?.nome_completo || '-',
+      order.status === 'cancelada' ? 'Cancelado' : order.status === 'entregue' ? 'Entregue' : order.status,
+      `R$ ${Number(order.valor_entrega || 0).toFixed(2)}`,
+    ]);
+
+  const formatDateBr = (ymd: string) => ymd.split('-').reverse().join('/');
+
+  const generatePDF = async () => {
+    const doc = new jsPDF();
+    let startY = 20;
+
+    doc.setFontSize(16);
+    doc.text('Relatório de Pedidos', 14, startY);
+    startY += 8;
+
+    doc.setFontSize(10);
+    doc.text(`Comércio: ${clienteNome || '-'}`, 14, startY);
+    startY += 6;
+    doc.text(`Período: ${formatDateBr(startDate)} a ${formatDateBr(endDate)}`, 14, startY);
+    startY += 6;
+    const statusLabel = orderStatusFilter === 'todos' ? 'Todos' : orderStatusFilter === 'entregue' ? 'Entregue' : 'Cancelado';
+    doc.text(`Status: ${statusLabel}`, 14, startY);
+    startY += 8;
+
+    const totalValue = filteredOrders.reduce((sum, o) => sum + (Number(o.valor_entrega) || 0), 0);
+
+    autoTable(doc, {
+      head: [['Data', 'Hora', 'Pedido', 'Cliente', 'Endereço', 'Motoboy', 'Status', 'Valor']],
+      body: buildReportRows(),
+      startY,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [3, 105, 161] },
+    });
+
+    const finalY = (doc as any).lastAutoTable.finalY + 8;
+    const totalText = `R$ ${totalValue.toFixed(2)}`;
+    doc.setFillColor(15, 23, 42);
+    doc.rect(14, finalY - 5, 182, 10, 'F');
+    doc.setFontSize(10);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TOTAL', 16, finalY + 1.5);
+    doc.text(totalText, 196 - doc.getTextWidth(totalText), finalY + 1.5);
+
+    doc.save(`relatorio_pedidos_${startDate}_${endDate}.pdf`);
+  };
+
+  const generateExcel = () => {
+    const rows = filteredOrders.map((order) => ({
+      Data: new Date(order.created_at).toLocaleDateString('pt-BR'),
+      Hora: new Date(order.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      Pedido: order?.pedidos?.numero || order.pedido_id || '-',
+      Cliente: order.entrega_contato || '-',
+      Endereço: order.entrega_endereco_texto || '-',
+      Motoboy: order?.entregadores?.nome_completo || '-',
+      Status: order.status === 'cancelada' ? 'Cancelado' : order.status === 'entregue' ? 'Entregue' : order.status,
+      Valor: Number(order.valor_entrega || 0),
+    }));
+
+    const totalValue = filteredOrders.reduce((sum, o) => sum + (Number(o.valor_entrega) || 0), 0);
+    rows.push({ Data: '', Hora: '', Pedido: '', Cliente: '', Endereço: '', Motoboy: '', Status: 'TOTAL', Valor: totalValue });
+
+    const sheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Pedidos');
+    XLSX.writeFile(workbook, `relatorio_pedidos_${startDate}_${endDate}.xlsx`);
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -227,7 +320,7 @@ export function ComercioFaturamentoPanel() {
         <p className="text-gray-500 mb-6">Selecione o período (ex: um mês inteiro) para visualizar os pedidos detalhados.</p>
 
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-xl">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Início</label>
                 <input
@@ -248,7 +341,40 @@ export function ComercioFaturamentoPanel() {
                     onChange={(e) => setEndDate(e.target.value)}
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                <select
+                    className="border rounded-lg p-2 w-full focus:ring-2 focus:ring-sky-500 outline-none text-gray-700"
+                    value={orderStatusFilter}
+                    onChange={(e) => setOrderStatusFilter(e.target.value as 'todos' | 'entregue' | 'cancelada')}
+                >
+                    <option value="todos">Todos</option>
+                    <option value="entregue">Entregue</option>
+                    <option value="cancelada">Cancelado</option>
+                </select>
+              </div>
             </div>
+
+            {startDate && endDate && dailyOrders.length > 0 && (
+                <div className="flex gap-3 mt-6">
+                    <button
+                        onClick={generatePDF}
+                        disabled={filteredOrders.length === 0}
+                        className="bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium transition-colors"
+                    >
+                        <FileText size={16} />
+                        Baixar PDF
+                    </button>
+                    <button
+                        onClick={generateExcel}
+                        disabled={filteredOrders.length === 0}
+                        className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium transition-colors"
+                    >
+                        <FileSpreadsheet size={16} />
+                        Baixar Excel
+                    </button>
+                </div>
+            )}
         </div>
 
         {startDate && endDate && (
@@ -258,9 +384,9 @@ export function ComercioFaturamentoPanel() {
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-600 mx-auto mb-4"></div>
                         <span className="text-gray-500">Carregando pedidos...</span>
                     </div>
-                ) : dailyOrders.length === 0 ? (
+                ) : filteredOrders.length === 0 ? (
                     <div className="p-12 text-center text-gray-500 bg-gray-50/50">
-                        <p>Nenhum pedido encontrado neste período.</p>
+                        <p>Nenhum pedido encontrado neste período{orderStatusFilter !== 'todos' ? ' para o status selecionado' : ''}.</p>
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
@@ -279,7 +405,7 @@ export function ComercioFaturamentoPanel() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
-                                {dailyOrders.map(order => (
+                                {filteredOrders.map(order => (
                                     <tr key={order.id} className="hover:bg-gray-50 transition-colors">
                                         <td className="p-4 text-sm text-gray-600 whitespace-nowrap">
                                             {new Date(order.created_at).toLocaleDateString('pt-BR')}
@@ -330,7 +456,7 @@ export function ComercioFaturamentoPanel() {
                                 <tr>
                                     <td colSpan={9} className="p-4 text-right">Total do Período:</td>
                                     <td className="p-4 text-right text-sky-700">
-                                        R$ {dailyOrders.reduce((acc, curr) => acc + (Number(curr.valor_entrega) || 0), 0).toFixed(2)}
+                                        R$ {filteredOrders.reduce((acc, curr) => acc + (Number(curr.valor_entrega) || 0), 0).toFixed(2)}
                                     </td>
                                 </tr>
                             </tfoot>
