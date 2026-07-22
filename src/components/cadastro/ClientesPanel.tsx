@@ -568,7 +568,6 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
       await deleteWithCheck('configuracoes_operacao', 'id');
       await deleteWithCheck('integracoes_externas', 'id');
       await deleteWithCheck('integracoes_open_delivery', 'id');
-
       await deleteWithCheck('cliente_enderecos');
       await deleteWithCheck('mensagens_clientes');
       await deleteWithCheck('contas_receber');
