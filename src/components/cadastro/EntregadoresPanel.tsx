@@ -162,9 +162,7 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
     setClientes((data || []) as Cliente[]);
   };
 
-  // Lista não usa as fotos/documentos em base64 (só usadas no formulário de edição
-  // de um entregador específico) — excluir da consulta evita baixar dezenas de MB
-  // de imagens embutidas toda vez que a tela de cadastro abre.
+  
   const ENTREGADORES_LIST_COLUMNS = 'id, nome_completo, cpf, rg, data_nascimento, telefone, email, veiculo_tipo, veiculo_modelo, veiculo_placa, veiculo_ano, cnh_valida, tipo_entrega, taxa_entrega, status, cep, rua, numero, complemento, bairro, cidade, foto_url, cnh_foto_url, comprovante_residencia_url, documento_veiculo_url, restricao_clientes_modo, clientes_permitidos, prioridade_busca, prioridade_tempo, is_online, current_latitude, current_longitude, heading, last_location_update, fcm_token, dados_bancarios, created_at, updated_at';
 
   const fetchEntregadores = async () => {
@@ -306,64 +304,68 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
       }
     }
     let authUserId: string | undefined;
-    try {
-      const shouldRegisterAuth = Boolean(emailKey) && Boolean((form.senha || '').trim());
-      if (shouldRegisterAuth) {
-        const now = Date.now();
-        if (now - lastSignupAttemptAtRef.current < 15000) {
-          setError('Aguarde 15 segundos para tentar novamente.');
-          setLoading(false);
-          return;
-        }
-        lastSignupAttemptAtRef.current = now;
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email: emailKey,
-          password: (form.senha || '').trim(),
-          options: {
-            data: {
-              full_name: form.nome_completo,
-              role: 'entregador',
-            },
-          },
-        });
-        if (signUpError) {
-          const err = signUpError as unknown as { message?: string; status?: number };
-          const status = err?.status;
-          const rawMsg = err?.message || 'Falha ao criar acesso de login';
-          let msg = rawMsg;
 
-          
-          const isDuplicateEmail = /duplicate key value .*users_email(_partial)?_key/i.test(rawMsg) || 
-                                   /duplicate key value .*users_email/i.test(rawMsg) || 
-                                   (status === 500 && rawMsg.includes('Database error saving new user'));
-                                   
-          const isUserAlreadyExists = (status === 422 && /user already/i.test(rawMsg)) || isDuplicateEmail;
-
-          if (isUserAlreadyExists) {
-            msg = 'Este e-mail já está registrado no sistema. Se você já possui uma conta (como cliente ou administrador), use outro e-mail.';
-          } else if (msg.includes('over_email_send_rate_limit')) {
-            msg = 'Muitas tentativas de cadastro. Por favor, aguarde alguns minutos e tente novamente.';
-          } else if (msg.toLowerCase().includes('only request this after 15 seconds')) {
-            msg = 'Aguarde 15 segundos para tentar novamente.';
-          } else if (msg.includes('User already registered')) {
-            msg = 'E-mail já cadastrado.';
+    
+    if (mode !== 'public') {
+      try {
+        const shouldRegisterAuth = Boolean(emailKey) && Boolean((form.senha || '').trim());
+        if (shouldRegisterAuth) {
+          const now = Date.now();
+          if (now - lastSignupAttemptAtRef.current < 15000) {
+            setError('Aguarde 15 segundos para tentar novamente.');
+            setLoading(false);
+            return;
           }
-          
-          console.error('SignUp Error:', signUpError);
-          setError(msg);
-          setLoading(false);
-          return;
+          lastSignupAttemptAtRef.current = now;
+          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+            email: emailKey,
+            password: (form.senha || '').trim(),
+            options: {
+              data: {
+                full_name: form.nome_completo,
+                role: 'entregador',
+              },
+            },
+          });
+          if (signUpError) {
+            const err = signUpError as unknown as { message?: string; status?: number };
+            const status = err?.status;
+            const rawMsg = err?.message || 'Falha ao criar acesso de login';
+            let msg = rawMsg;
+
+
+            const isDuplicateEmail = /duplicate key value .*users_email(_partial)?_key/i.test(rawMsg) ||
+                                     /duplicate key value .*users_email/i.test(rawMsg) ||
+                                     (status === 500 && rawMsg.includes('Database error saving new user'));
+
+            const isUserAlreadyExists = (status === 422 && /user already/i.test(rawMsg)) || isDuplicateEmail;
+
+            if (isUserAlreadyExists) {
+              msg = 'Este e-mail já está registrado no sistema. Se você já possui uma conta (como cliente ou administrador), use outro e-mail.';
+            } else if (msg.includes('over_email_send_rate_limit')) {
+              msg = 'Muitas tentativas de cadastro. Por favor, aguarde alguns minutos e tente novamente.';
+            } else if (msg.toLowerCase().includes('only request this after 15 seconds')) {
+              msg = 'Aguarde 15 segundos para tentar novamente.';
+            } else if (msg.includes('User already registered')) {
+              msg = 'E-mail já cadastrado.';
+            }
+
+            console.error('SignUp Error:', signUpError);
+            setError(msg);
+            setLoading(false);
+            return;
+          }
+
+          if (signUpData?.user?.id) {
+             authUserId = signUpData.user.id;
+          }
         }
-        
-        if (signUpData?.user?.id) {
-           authUserId = signUpData.user.id;
-        }
+      } catch (e) {
+        const msg = (e as { message?: string })?.message;
+        if (msg) setError(msg);
+        setLoading(false);
+        return;
       }
-    } catch (e) {
-      const msg = (e as { message?: string })?.message;
-      if (msg) setError(msg);
-      setLoading(false);
-      return;
     }
     const insertValues: Record<string, unknown> = {
       ...(authUserId ? { id: authUserId } : {}),
@@ -397,8 +399,9 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
       insertValues.comprovante_residencia_base64 = comprovantePreview || null;
       insertValues.documento_veiculo_base64 = motoDocPreview || null;
 
+      let newEntregadorId: string | undefined;
       try {
-        const { error } = await supabase.rpc('cadastrar_entregador_v2', {
+        const { data: rpcData, error } = await supabase.rpc('cadastrar_entregador_v2', {
           payload: insertValues
         });
 
@@ -413,46 +416,80 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
           return;
         }
 
-        // Fallback: se a RPC não salvou os dados (trigger criou a linha antes),
-        // força um update autenticado com todos os campos.
-        if (authUserId) {
-          const updatePayload: Record<string, unknown> = {
-            nome_completo: insertValues.nome_completo,
-            cpf: insertValues.cpf,
-            rg: insertValues.rg,
-            data_nascimento: insertValues.data_nascimento,
-            telefone: insertValues.telefone,
-            email: insertValues.email,
-            cep: insertValues.cep,
-            rua: insertValues.rua,
-            numero: insertValues.numero,
-            complemento: insertValues.complemento,
-            bairro: insertValues.bairro,
-            cidade: insertValues.cidade,
-            veiculo_tipo: insertValues.veiculo_tipo,
-            veiculo_modelo: insertValues.veiculo_modelo,
-            veiculo_placa: insertValues.veiculo_placa,
-            veiculo_ano: insertValues.veiculo_ano,
-            cnh_valida: insertValues.cnh_valida,
-            tipo_entrega: insertValues.tipo_entrega,
-            status: 'em_analise',
-            foto_base64: insertValues.foto_base64,
-            cnh_foto_base64: insertValues.cnh_foto_base64,
-            comprovante_residencia_base64: insertValues.comprovante_residencia_base64,
-            documento_veiculo_base64: insertValues.documento_veiculo_base64,
-          };
-          await supabase.from('entregadores').update(updatePayload).eq('id', authUserId);
-        }
-
-        setRegistrationSuccess(true);
-        setLoading(false);
-        return;
+        newEntregadorId = (rpcData as { id?: string } | null)?.id;
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Falha ao salvar cadastro';
         setError(msg);
         setLoading(false);
         return;
       }
+
+      
+      const shouldRegisterAuth = Boolean(emailKey) && Boolean((form.senha || '').trim());
+      if (shouldRegisterAuth) {
+        const now = Date.now();
+        if (now - lastSignupAttemptAtRef.current < 15000) {
+          setError('Cadastro salvo, mas aguarde 15 segundos e tente novamente para criar seu acesso de login.');
+          setLoading(false);
+          return;
+        }
+        lastSignupAttemptAtRef.current = now;
+        try {
+          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+            email: emailKey,
+            password: (form.senha || '').trim(),
+            options: {
+              data: {
+                full_name: form.nome_completo,
+                role: 'entregador',
+              },
+            },
+          });
+          if (signUpError) {
+            const err = signUpError as unknown as { message?: string; status?: number };
+            const status = err?.status;
+            const rawMsg = err?.message || 'Falha ao criar acesso de login';
+            let msg = `Cadastro salvo, mas houve um problema ao criar seu login: ${rawMsg}`;
+
+            const isDuplicateEmail = /duplicate key value .*users_email(_partial)?_key/i.test(rawMsg) ||
+                                     /duplicate key value .*users_email/i.test(rawMsg) ||
+                                     (status === 500 && rawMsg.includes('Database error saving new user'));
+            const isUserAlreadyExists = (status === 422 && /user already/i.test(rawMsg)) || isDuplicateEmail;
+
+            if (isUserAlreadyExists) {
+              msg = 'Cadastro salvo, mas este e-mail já possui um login no sistema. Contate o suporte para vincular seu acesso.';
+            } else if (rawMsg.includes('over_email_send_rate_limit')) {
+              msg = 'Cadastro salvo, mas houve muitas tentativas de criar login. Aguarde alguns minutos e contate o suporte se persistir.';
+            }
+
+            console.error('SignUp Error:', signUpError);
+            setError(msg);
+            setLoading(false);
+            return;
+          }
+
+          if (signUpData?.user?.id) {
+            await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown) => Promise<unknown> } })
+              .from('users')
+              .upsert({
+                id: signUpData.user.id,
+                email: emailKey,
+                full_name: form.nome_completo,
+                role: 'entregador',
+                entregador_id: newEntregadorId,
+              });
+          }
+        } catch (e) {
+          const msg = (e as { message?: string })?.message;
+          setError(`Cadastro salvo, mas houve um problema ao criar seu login${msg ? `: ${msg}` : '.'}`);
+          setLoading(false);
+          return;
+        }
+      }
+
+      setRegistrationSuccess(true);
+      setLoading(false);
+      return;
     }
 
     const res = await sbInsert('entregadores', insertValues);
@@ -606,7 +643,7 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
       
       
       if (email) {
-        // Nullify delivery_logs.created_by to avoid FK violation on users delete
+        
         try {
           const { data: userRow } = await supabase.from('users').select('id').ilike('email', email).maybeSingle();
           const userId = (userRow as { id?: string } | null)?.id || id;
@@ -652,7 +689,6 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
         throw deleteError;
       }
 
-      // Se o usuário deletado for o próprio logado
       try {
         const { data: session } = await supabase.auth.getSession();
         const currentEmail = (session.session?.user?.email || '').trim().toLowerCase();
@@ -722,8 +758,6 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
     setEditComprovantePreview((c as unknown as { comprovante_residencia_url?: string; comprovante_residencia_base64?: string }).comprovante_residencia_url || '');
     setEditMotoDocPreview((c as unknown as { documento_veiculo_url?: string; documento_veiculo_base64?: string }).documento_veiculo_url || '');
 
-    // foto_base64/cnh_foto_base64/etc. não vêm na lista (ver ENTREGADORES_LIST_COLUMNS) —
-    // busca sob demanda só pra esse entregador, sem travar a abertura do modal.
     try {
       const { data: full } = await supabase
         .from('entregadores')
