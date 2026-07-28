@@ -1,6 +1,7 @@
 
 const MAPS_API_URL = import.meta.env.VITE_MAPS_API_URL;
 const MAPS_API_KEY = import.meta.env.VITE_MAPS_API_KEY;
+const GOOGLE_GEOCODE_KEY = String(import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '').trim();
 
 export function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371; 
@@ -121,7 +122,6 @@ function hasCityOrStateHint(address: string) {
   return false;
 }
 
-/** Geocodifica um texto de endereço via /v1/geocode da Maps API própria (aceita CEP ou texto livre). */
 async function invokeGeocodeApi(q: string): Promise<[number, number] | undefined> {
   try {
     const url = new URL(`${String(MAPS_API_URL || '').replace(/\/+$/, '')}/v1/geocode`);
@@ -141,20 +141,31 @@ async function invokeGeocodeApi(q: string): Promise<[number, number] | undefined
   return undefined;
 }
 
-/** Extrai um CEP (00000-000 ou 00000000) de um texto de endereço livre, se houver. */
+async function invokeGoogleGeocodeApi(q: string): Promise<[number, number] | undefined> {
+  if (!GOOGLE_GEOCODE_KEY) return undefined;
+  try {
+    const url = new URL('https://maps.googleapis.com/maps/api/geocode/json');
+    url.searchParams.set('address', q);
+    url.searchParams.set('key', GOOGLE_GEOCODE_KEY);
+    url.searchParams.set('region', 'br');
+    const res = await fetchWithTimeout(url.toString(), 12000);
+    if (!res.ok) return undefined;
+    const data = await res.json();
+    const location = data?.results?.[0]?.geometry?.location;
+    if (data?.status === 'OK' && typeof location?.lat === 'number' && typeof location?.lng === 'number') {
+      return [location.lat, location.lng];
+    }
+  } catch (e) {
+    void e;
+  }
+  return undefined;
+}
+
 export function extractCepFromAddress(address: string): string | null {
   const match = String(address || '').match(/(\d{5})-?(\d{3})/);
   return match ? `${match[1]}-${match[2]}` : null;
 }
 
-/**
- * Salva a posição corrigida manualmente (pin arrastado no mapa) pro CEP do
- * endereço — /v1/geocode só devolve posição aproximada (rua/CEP, sem número
- * da casa); confirmar aqui melhora a precisão de buscas futuras pro mesmo
- * CEP. Best-effort: se não achar CEP no texto, ou a chamada falhar, não
- * interrompe o fluxo — quem chamou já tem a coordenada confirmada localmente
- * pra usar de qualquer forma.
- */
 export async function confirmarPinPreciso(address: string, lat: number, lng: number): Promise<void> {
   const cep = extractCepFromAddress(address);
   if (!cep) return;
@@ -173,6 +184,9 @@ export async function confirmarPinPreciso(address: string, lat: number, lng: num
 async function getCoordsFromMapsApi(address: string): Promise<[number, number] | undefined> {
   const uniqueCandidates = buildGeocodeCandidates(address);
   if (uniqueCandidates.length === 0) return undefined;
+
+  const googleCoords = await invokeGoogleGeocodeApi(uniqueCandidates[0]);
+  if (googleCoords) return googleCoords;
 
   for (const q of uniqueCandidates) {
     const coords = await invokeGeocodeApi(q);
@@ -230,10 +244,6 @@ export async function getDrivingRouteDistance(coords: {lat: number, lon: number}
 
       const drivingKm = shortestRoute.distance / 1000;
 
-      // Sanidade: uma rota de moto/carro dentro da mesma região raramente passa de
-      // ~2.5x a distância em linha reta. Se o OSRM devolver algo muito acima disso
-      // (rota mal-snapada, ponto ambíguo etc.), é mais seguro descartar e deixar o
-      // chamador cair no fallback de linha reta do que cobrar um valor absurdo.
       let straightLineKm = 0;
       for (let i = 0; i < coords.length - 1; i++) {
         straightLineKm += getDistanceFromLatLonInKm(coords[i].lat, coords[i].lon, coords[i + 1].lat, coords[i + 1].lon);
