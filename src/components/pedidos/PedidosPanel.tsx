@@ -1299,11 +1299,6 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [quickPrice, setQuickPrice] = useState<number>(0);
   const [quickDriverPrice, setQuickDriverPrice] = useState<number>(0);
   const [quickDestinationCoords, setQuickDestinationCoords] = useState<[number, number] | undefined>(undefined);
-  // true só quando o usuário realmente clicou numa sugestão da lista — o
-  // useEffect de cálculo de distância também escreve em quickDestinationCoords
-  // via um geocode de fallback (área/bairro, impreciso) quando o endereço
-  // completo não é encontrado, então não dá pra usar só a presença de
-  // quickDestinationCoords pra bloquear o envio sem seleção real.
   const [quickDestinationSelected, setQuickDestinationSelected] = useState(false);
   const quickDistanceCalcIdRef = useRef(0);
   const pedidosFetchSeqRef = useRef(0);
@@ -2978,12 +2973,18 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         
         if (shouldExcludeFinished && pedidosList.length > 0) {
             const pedidoIds = pedidosList.map(p => p.id).filter(Boolean);
-            if (pedidoIds.length > 0) {
-                const { data: completedDeliveries } = await supabase
+            const BATCH_SIZE = 40;
+            for (let i = 0; i < pedidoIds.length; i += BATCH_SIZE) {
+                const batch = pedidoIds.slice(i, i + BATCH_SIZE);
+                const { data: completedDeliveries, error: reconcileError } = await supabase
                     .from('nova_entrega')
                     .select('pedido_id, status')
-                    .in('pedido_id', pedidoIds)
+                    .in('pedido_id', batch)
                     .in('status', ['entregue', 'cancelada']);
+                if (reconcileError) {
+                    console.error('Erro ao reconciliar status de pedidos finalizados:', reconcileError);
+                    continue;
+                }
                 if (completedDeliveries) {
                     completedDeliveries.forEach(e => {
                         if (e.pedido_id && !eMap[e.pedido_id]) {
