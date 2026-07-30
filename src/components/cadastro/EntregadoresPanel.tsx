@@ -807,6 +807,13 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
           if (pwdError) {
              console.error('Password update error:', pwdError);
              setError('Erro ao atualizar senha. Verifique se a função admin_update_password existe.');
+          } else {
+             // Limpa o campo assim que a troca é aplicada — sem isso, qualquer
+             // "Salvar" seguinte nessa mesma sessão de edição (mesmo só pra
+             // corrigir outro campo, sem intenção de mexer na senha) reenviava
+             // essa mesma senha de novo silenciosamente, trocando ela sem o
+             // operador perceber.
+             setEditForm(prev => ({ ...prev, nova_senha: '' } as any));
           }
         } catch (e) {
           console.error(e);
