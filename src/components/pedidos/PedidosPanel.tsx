@@ -38,6 +38,13 @@ interface PedidosPanelProps {
   userId?: string;
 }
 
+function toLocalYmd(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 
 interface AddressSuggestion {
   display_name: string;
@@ -1346,7 +1353,10 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [expandedMultiPedidos, setExpandedMultiPedidos] = useState<Record<string, boolean>>({});
   const [loadingList, setLoadingList] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [filters, setFilters] = useState({ status: 'todos', cliente_id: '', origem: 'todos', de: '', ate: '', cidade: 'todos' });
+  const [filters, setFilters] = useState(() => {
+    const today = toLocalYmd(new Date());
+    return { status: 'todos', cliente_id: '', origem: 'todos', de: today, ate: today, cidade: 'todos' };
+  });
   const [availableEntregadores, setAvailableEntregadores] = useState<Entregador[]>([]);
   const [mapDeliveryPersons, setMapDeliveryPersons] = useState<MapDeliveryPerson[]>([]);
   const [dialog, setDialog] = useState<{ open: boolean; title: string; message: string; mode: 'alert' | 'confirm' | 'prompt' }>({
@@ -1469,7 +1479,6 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
   
   const [quickAddress, setQuickAddress] = useState('');
-  const [quickNumber, setQuickNumber] = useState('');
   const [quickPaymentMethod, setQuickPaymentMethod] = useState('Dinheiro');
   const [quickRetorno, setQuickRetorno] = useState(false);
   const [comercioAddress, setComercioAddress] = useState('');
@@ -1484,6 +1493,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [quickPrice, setQuickPrice] = useState<number>(0);
   const [quickDriverPrice, setQuickDriverPrice] = useState<number>(0);
   const [quickDestinationCoords, setQuickDestinationCoords] = useState<[number, number] | undefined>(undefined);
+  const [quickDestinationSelected, setQuickDestinationSelected] = useState(false);
   const quickDistanceCalcIdRef = useRef(0);
   const pedidosFetchSeqRef = useRef(0);
   const pedidosRefreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1638,7 +1648,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
           void e;
         }
 
-        const clienteSelect = 'id, nome_completo, rua, numero, bairro, cidade, cep, precificacao_config, telefone, observacoes';
+        const clienteSelect = 'id, nome_completo, rua, numero, bairro, cidade, cep, precificacao_config, telefone, observacoes, latitude, longitude';
         const selectClienteById = async (id: string) => {
           const { data } = await supabase.from('clientes').select(clienteSelect).eq('id', id).maybeSingle();
           return data ?? null;
@@ -1805,7 +1815,12 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             return undefined;
           };
 
-          const coords = await resolveCoordsWithFallback(fullAddress);
+          const storedLat = (clienteData as any).latitude;
+          const storedLng = (clienteData as any).longitude;
+          const coords: [number, number] | undefined =
+            typeof storedLat === 'number' && typeof storedLng === 'number'
+              ? [storedLat, storedLng]
+              : await resolveCoordsWithFallback(fullAddress);
           if (coords) {
             setOriginCoords(coords);
             setOriginTitle(clienteData.nome_completo || 'Minha Loja');
@@ -2359,7 +2374,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         setQuickDistanceLoading(true);
 
         try {
-            const fullAddress = quickNumber ? `${quickAddress}, ${quickNumber}` : quickAddress;
+            const fullAddress = quickAddress;
 
             let origin = commerceDefaultCoords ?? originCoords;
             if (!origin && comercioAddress) {
@@ -2402,7 +2417,6 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             let destCoords = quickDestinationCoords;
             if (!destCoords) {
                 let c = await getCoordsFromAddress(fullAddress);
-                if (!c && quickNumber) c = await getCoordsFromAddress(quickAddress);
                 if (!c) {
                     const normalized = String(quickAddress || '').replace(/\s+-\s+/g, ', ');
                     const parts = normalized
@@ -2458,7 +2472,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     
     const timer = setTimeout(calculateDistance, 400);
     return () => clearTimeout(timer);
-  }, [quickAddress, quickNumber, originCoords, commerceDefaultCoords, comercioAddress, quickDestinationCoords]);
+  }, [quickAddress, originCoords, commerceDefaultCoords, comercioAddress, quickDestinationCoords]);
 
   
     useEffect(() => {
@@ -2614,7 +2628,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         };
 
         calculatePrice();
-      }, [quickAddress, quickNumber, quickDistance, quickRetorno, pricingMode, selectedTabelaId, pricingTables, pricingRanges, pricePerPoint, dynamicRules, filters.cliente_id, commissionTables, commissionRanges, driverDynamicRules]);
+      }, [quickAddress, quickDistance, quickRetorno, pricingMode, selectedTabelaId, pricingTables, pricingRanges, pricePerPoint, dynamicRules, filters.cliente_id, commissionTables, commissionRanges, driverDynamicRules]);
 
   const handleViewMap = async (pedido: Pedido) => {
     
@@ -3116,9 +3130,16 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                 qEntregas = qEntregas.in('cliente_id', ['00000000-0000-0000-0000-000000000000']);
             }
         }
-        if (filters.de) {
-             qPedidos = qPedidos.gte('created_at', new Date(filters.de).toISOString());
-             qEntregas = qEntregas.gte('created_at', new Date(filters.de).toISOString());
+        
+        const dateConditions: string[] = [];
+        if (filters.de) dateConditions.push(`created_at.gte.${new Date(`${filters.de}T00:00:00`).toISOString()}`);
+        if (filters.ate) dateConditions.push(`created_at.lte.${new Date(`${filters.ate}T23:59:59.999`).toISOString()}`);
+
+        if (dateConditions.length > 0) {
+             const dateClause = dateConditions.length > 1 ? `and(${dateConditions.join(',')})` : dateConditions[0];
+             const orExpr = `${dateClause},agendar_em.not.is.null`;
+             qPedidos = qPedidos.or(orExpr);
+             qEntregas = qEntregas.or(orExpr);
         }
 
         const [resPedidos, resEntregas] = await Promise.all([qPedidos, qEntregas]);
@@ -3143,17 +3164,21 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             }
         });
 
-        // Detecta pedidos out-of-sync: pedido ainda 'pronto' mas delivery já 'entregue'/'cancelada'.
-        // O qEntregas exclui deliveries concluídas da query principal, então precisamos de uma
-        // consulta extra para pegar esses casos e remover o pedido da lista.
+        
         if (shouldExcludeFinished && pedidosList.length > 0) {
             const pedidoIds = pedidosList.map(p => p.id).filter(Boolean);
-            if (pedidoIds.length > 0) {
-                const { data: completedDeliveries } = await supabase
+            const BATCH_SIZE = 40;
+            for (let i = 0; i < pedidoIds.length; i += BATCH_SIZE) {
+                const batch = pedidoIds.slice(i, i + BATCH_SIZE);
+                const { data: completedDeliveries, error: reconcileError } = await supabase
                     .from('nova_entrega')
                     .select('pedido_id, status')
-                    .in('pedido_id', pedidoIds)
+                    .in('pedido_id', batch)
                     .in('status', ['entregue', 'cancelada']);
+                if (reconcileError) {
+                    console.error('Erro ao reconciliar status de pedidos finalizados:', reconcileError);
+                    continue;
+                }
                 if (completedDeliveries) {
                     completedDeliveries.forEach(e => {
                         if (e.pedido_id && !eMap[e.pedido_id]) {
@@ -3219,10 +3244,18 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         if (fetchSeq !== pedidosFetchSeqRef.current) return;
         setAllItems(finalPedidosComOrigem);
         
-        const displayedItems = filters.status === 'todos' 
-            ? finalPedidosComOrigem 
-            : finalPedidosComOrigem.filter(p => p.status === filters.status);
-            
+        const isPedidoFinalizado = (p: Pedido) => {
+            if (p.status === 'entregue' || p.status === 'cancelado') return true;
+            const entrega = eMap[p.id];
+            return !!entrega && (entrega.status === 'entregue' || entrega.status === 'cancelada');
+        };
+
+        const displayedItems = filters.status === 'todos'
+            ? finalPedidosComOrigem
+            : filters.status === 'finalizados'
+                ? finalPedidosComOrigem.filter(isPedidoFinalizado)
+                : finalPedidosComOrigem.filter(p => p.status === filters.status);
+
         setItems(displayedItems);
         setEntregasMap(eMap);
         
@@ -3230,12 +3263,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         console.error('Fetch error', e);
         if (fetchSeq === pedidosFetchSeqRef.current) setError(e.message);
     } finally {
-        // Qualquer fetch que ainda seja o mais recente (sequência bate) deve
-        // desligar o loading ao terminar — mesmo os "silenciosos" (refresh de
-        // realtime), senão um silencioso que termina primeiro nunca desliga o
-        // spinner de um carregamento visível que ele "ultrapassou", e o
-        // carregamento visível, ao terminar depois, se vê com sequência
-        // desatualizada e também não desliga. Resultado: spinner preso.
+        
         if (fetchSeq === pedidosFetchSeqRef.current) setLoadingList(false);
     }
   }, [filters, clientes, isComercio]);
@@ -3303,7 +3331,6 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     };
   }, [fetchPedidos, isComercio]);
 
-  // Geocodifica em background todos os destinos ativos para mostrar pins no mapa
   useEffect(() => {
     let cancelled = false;
 
@@ -3713,12 +3740,22 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         return;
     }
 
-    if (!quickDestinationCoords) {
+    if (!quickDestinationCoords || !quickDestinationSelected) {
         await showAlert('Selecione o endereço de entrega a partir das sugestões da lista.', 'Aviso');
         return;
     }
 
-    const fullAddress = quickNumber ? `${quickAddress}, ${quickNumber}` : quickAddress;
+    if (quickDistanceLoading) {
+        await showAlert('Aguarde o cálculo do valor da entrega antes de lançar o pedido.', 'Aviso');
+        return;
+    }
+
+    if (!quickDistance || quickDistance <= 0 || !quickPrice || quickPrice <= 0) {
+        await showAlert('Não foi possível calcular o valor da entrega para esse endereço. Verifique o endereço informado.', 'Aviso');
+        return;
+    }
+
+    const fullAddress = quickAddress;
 
     if (!comercioAddress) {
         await showAlert('Endereço do comércio não encontrado. Verifique seu cadastro.', 'Aviso');
@@ -3765,7 +3802,11 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                 cliente_id: clienteId,
                 status: 'criada',
                 coleta_endereco_texto: comercioAddress,
+                coleta_lat: (commerceDefaultCoords ?? originCoords)?.[0] ?? null,
+                coleta_lng: (commerceDefaultCoords ?? originCoords)?.[1] ?? null,
                 entrega_endereco_texto: fullAddress,
+                entrega_lat: quickDestinationCoords?.[0] ?? null,
+                entrega_lng: quickDestinationCoords?.[1] ?? null,
                 entrega_contato: quickContact,
                 entrega_telefone: quickPhone,
                 entrega_complemento: quickComplement,
@@ -3792,9 +3833,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
         await showAlert('Pedido criado com sucesso!', 'Sucesso');
         setQuickAddress('');
-        setQuickNumber('');
-    
-    
+
+
     setQuickPaymentMethod('Dinheiro');
     setQuickRetorno(false);
 
@@ -3805,7 +3845,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         setQuickDistance(0);
         setQuickPrice(0);
         setQuickDestinationCoords(undefined);
-        
+        setQuickDestinationSelected(false);
+
         fetchPedidos();
 
     } catch (e: any) {
@@ -3881,27 +3922,20 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                         value={quickAddress}
                         onChange={(val) => {
                           setQuickDestinationCoords(undefined);
+                          setQuickDestinationSelected(false);
                           setQuickAddress(val);
                         }}
-                        onSelectCoords={setQuickDestinationCoords}
+                        onSelectCoords={(coords) => {
+                          setQuickDestinationCoords(coords);
+                          setQuickDestinationSelected(!!coords);
+                        }}
                         placeholder="Rua, Bairro..."
                         containerClassName="w-full"
                         inputClassName={
-                          quickAddress && !quickDestinationCoords
+                          quickAddress && !quickDestinationSelected
                             ? 'border-red-400 bg-red-50 focus:border-red-500'
                             : 'border-slate-300'
                         }
-                    />
-                </div>
-
-                <div className="md:col-span-1">
-                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Número</label>
-                    <input 
-                        type="text"
-                        value={quickNumber}
-                        onChange={e => setQuickNumber(e.target.value)}
-                        placeholder="Nº"
-                        className="w-full px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-sky-500 outline-none transition-all"
                     />
                 </div>
 

@@ -773,12 +773,11 @@ export function EntregadorPedidosEmAndamentoPanel({ onNavigate }: { onNavigate?:
       
       
       if (newStatus === 'entregue') {
-          const entrega = entregas.find(e => e.id === id);
-          if (entrega?.pedido_id) {
+          if (currentEntrega?.pedido_id) {
               const { error: pedidoError } = await supabase
                   .from('pedidos')
                   .update({ status: 'entregue' })
-                  .eq('id', entrega.pedido_id);
+                  .eq('id', currentEntrega.pedido_id);
               if (pedidoError) {
                   console.error('Erro ao atualizar status do pedido:', pedidoError.message);
               }

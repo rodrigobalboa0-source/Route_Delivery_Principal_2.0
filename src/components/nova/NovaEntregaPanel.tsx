@@ -1321,6 +1321,18 @@ export function NovaEntregaPanel() {
       return;
     }
 
+    if (!form.retirada_no_local && pricingMode !== 'Zerar') {
+      if (calculatingDistance) {
+        setError('Aguarde o cálculo do valor da entrega antes de continuar.');
+        return;
+      }
+      const valorNum = form.valor_entrega ? parseFloat(form.valor_entrega.replace(',', '.')) : 0;
+      if (!form.valor_manual && (Number.isNaN(valorNum) || valorNum <= 0)) {
+        setError('Não foi possível calcular o valor da entrega. Verifique os endereços de coleta e entrega informados.');
+        return;
+      }
+    }
+
     setLoading(true);
     setError(null);
 

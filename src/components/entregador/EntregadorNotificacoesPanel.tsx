@@ -10,7 +10,7 @@ export function EntregadorNotificacoesPanel() {
     let channel: any = null;
 
     const setupRealtime = async () => {
-      // Get current user for filtering
+      
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 

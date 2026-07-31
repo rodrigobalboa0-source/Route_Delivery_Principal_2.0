@@ -567,7 +567,6 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
       await deleteWithCheck('configuracoes_operacao', 'id');
       await deleteWithCheck('integracoes_externas', 'id');
       await deleteWithCheck('integracoes_open_delivery', 'id');
-
       await deleteWithCheck('cliente_enderecos');
       await deleteWithCheck('mensagens_clientes');
       await deleteWithCheck('contas_receber');
@@ -813,6 +812,13 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
         if (pwdError) {
            console.error('Password update error:', pwdError);
            setError('Erro ao atualizar senha. Verifique se a função admin_update_password existe.');
+        } else {
+           // Limpa o campo assim que a troca é aplicada — sem isso, qualquer
+           // "Salvar" seguinte nessa mesma sessão de edição (mesmo só pra
+           // corrigir outro campo, sem intenção de mexer na senha) reenviava
+           // essa mesma senha de novo silenciosamente, trocando ela sem o
+           // operador perceber.
+           setEditForm(prev => ({ ...prev, nova_senha: '' } as any));
         }
       } catch (e) {
         console.error(e);

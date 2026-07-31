@@ -1,6 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-// import { MapView, MapDeliveryPerson } from '../MapView'; // Google Maps SDK — fallback rápido, ver plano-integracao-routedelivery.md
 import { MapView, MapDeliveryPerson } from '../MapViewOwnApi';
 import { MapPin, Truck, Home, Power, CheckCircle, XCircle } from 'lucide-react';
 import { Database } from '../../lib/database.types';
@@ -17,34 +16,21 @@ interface EntregadorHomePanelProps {
   onNavigate: (menu: string) => void;
 }
 
-/**
- * Saldo disponível de verdade — mesma conta da Carteira (todas as entregas já
- * concluídas menos todos os saques pendentes ou pagos, sem recorte por dia).
- * Um recorte "só de hoje" descontando saque de hoje pode ficar negativo
- * quando o saque é sobre saldo acumulado de dias anteriores, o que não faz
- * sentido pro entregador ver na tela.
- */
-async function fetchSaldoDisponivel(entregadorId: string): Promise<number> {
-  const [{ data: entregasData }, { data: saquesData }] = await Promise.all([
-    supabase
-      .from('nova_entrega')
-      .select('valor_entregador')
-      .eq('entregador_id', entregadorId)
-      .eq('status', 'entregue'),
-    supabase
-      .from('acertos_entregadores')
-      .select('valor_pago, taxa_aplicada')
-      .eq('entregador_id', entregadorId)
-      .in('status', ['pendente', 'pago']),
-  ]);
 
-  const totalGanhos = (entregasData || []).reduce((acc, curr) => acc + (Number(curr.valor_entregador) || 0), 0);
-  const totalSaques = (saquesData || []).reduce(
-    (acc, curr) => acc + (Number(curr.valor_pago) || 0) + (Number(curr.taxa_aplicada) || 0),
-    0
-  );
+async function fetchGanhosDia(entregadorId: string): Promise<number> {
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
 
-  return totalGanhos - totalSaques;
+  const { data } = await supabase
+    .from('nova_entrega')
+    .select('valor_entregador')
+    .eq('entregador_id', entregadorId)
+    .eq('status', 'entregue')
+    .gte('updated_at', startOfDay.toISOString())
+    .lt('updated_at', endOfDay.toISOString());
+
+  return (data || []).reduce((acc, curr) => acc + (Number(curr.valor_entregador) || 0), 0);
 }
 
 export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
@@ -53,7 +39,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState<boolean | null>(null);
   const [entregadorId, setEntregadorId] = useState<string | null>(null);
-  const [saldoDisponivel, setSaldoDisponivel] = useState(0);
+  const [ganhosDia, setGanhosDia] = useState(0);
   const [incomingDelivery, setIncomingDelivery] = useState<any>(null);
   const [commerceData, setCommerceData] = useState<{ nome: string, foto: string | null } | null>(null);
   const [deliveryDistance, setDeliveryDistance] = useState<number | null>(null);
@@ -388,7 +374,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
              setPhotoUrl(data.foto_url || data.foto_base64);
              setIsOnline(data.is_online || false);
 
-             setSaldoDisponivel(await fetchSaldoDisponivel(data.id));
+             setGanhosDia(await fetchGanhosDia(data.id));
            }
         }
       } catch (e) { console.error(e); }
@@ -813,7 +799,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
     if (!entregadorId) return;
 
     const fetchBalance = async () => {
-        setSaldoDisponivel(await fetchSaldoDisponivel(entregadorId));
+        setGanhosDia(await fetchGanhosDia(entregadorId));
     };
 
     fetchBalance();
@@ -825,7 +811,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
         {
           event: '*',
           schema: 'public',
-          table: 'acertos_entregadores',
+          table: 'nova_entrega',
           filter: `entregador_id=eq.${entregadorId}`
         },
         () => {
@@ -1158,7 +1144,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
         className="absolute top-4 right-4 z-10 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg px-4 py-2 min-w-[120px] flex flex-col items-center border border-slate-200 hover:bg-slate-50 transition-colors"
       >
          <span className="text-xs text-slate-500 font-bold uppercase mb-0.5">Ganhos</span>
-         <span className="text-lg font-bold text-slate-800 leading-none">R$ {saldoDisponivel.toFixed(2)}</span>
+         <span className="text-lg font-bold text-slate-800 leading-none">R$ {ganhosDia.toFixed(2)}</span>
       </button>
 
        {incomingDelivery && createPortal(
