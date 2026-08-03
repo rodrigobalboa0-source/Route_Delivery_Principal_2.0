@@ -188,7 +188,8 @@ export const AddressAutocomplete = forwardRef<AddressAutocompleteHandle, {
             const data = await res.json();
             const results = Array.isArray(data?.predictions) ? data.predictions : [];
             return { ok: true as const, results };
-          } catch {
+          } catch (err) {
+            console.error('[AddressAutocomplete] falha ao chamar /v1/autocomplete da Carbymaps:', err);
             return { ok: false as const, results: [] as any[] };
           }
         };
@@ -225,6 +226,7 @@ export const AddressAutocomplete = forwardRef<AddressAutocompleteHandle, {
 
 
       } catch (e) {
+        console.error('[AddressAutocomplete] falha inesperada na busca de endereço:', e);
         setSuggestions([]);
         setSuggestionsError('Falha ao buscar endereços. Tente novamente.');
       } finally {
