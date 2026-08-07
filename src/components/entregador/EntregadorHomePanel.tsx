@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { MapView, MapDeliveryPerson } from '../MapView';
+import { MapView, MapDeliveryPerson } from '../MapViewOwnApi';
 import { MapPin, Truck, Home, Power, CheckCircle, XCircle } from 'lucide-react';
 import { Database } from '../../lib/database.types';
 import { supabase } from '../../lib/supabase';

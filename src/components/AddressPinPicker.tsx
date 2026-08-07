@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { loadGoogleMapsJs } from '../lib/loadGoogleMapsJs';
-
-const GOOGLE_MAPS_KEY = String(import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '').trim();
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
 interface AddressPinPickerProps {
   lat: number;
@@ -19,74 +18,46 @@ function pinIconUrl(color: string): string {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
+const pinIcon = L.icon({
+  iconUrl: pinIconUrl('#ef4444'),
+  iconSize: [34, 42],
+  iconAnchor: [17, 42],
+});
+
 /**
  * Mapa pequeno com um pin arrastável, pra corrigir manualmente a posição
- * aproximada devolvida pelo geocoding (Places API). Usa Google Maps
- * JavaScript SDK com um marcador clássico (draggable) — não precisa de Map
- * ID, ao contrário do AdvancedMarkerElement usado no dashboard de frota.
+ * aproximada devolvida pelo geocoding. Usa Leaflet + tiles do OpenStreetMap
+ * (mesma base do MapViewOwnApi.tsx), sem depender de nenhuma API paga.
  */
 export function AddressPinPicker({ lat, lng, onConfirm, onCancel }: AddressPinPickerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<any | null>(null);
-  const markerRef = useRef<any | null>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const markerRef = useRef<L.Marker | null>(null);
   const positionRef = useRef<[number, number]>([lat, lng]);
-  const [mapError, setMapError] = useState<string | null>(null);
+  const [mapError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
-    if (!GOOGLE_MAPS_KEY) {
-      setMapError('Chave do Google Maps não configurada.');
-      return;
-    }
-    let cancelled = false;
 
-    const init = async () => {
-      try {
-        await loadGoogleMapsJs(GOOGLE_MAPS_KEY);
-        if (cancelled || !containerRef.current) return;
+    const map = L.map(containerRef.current).setView([lat, lng], 17);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors',
+    }).addTo(map);
 
-        const g = (window as any).google;
-        const map = new g.maps.Map(containerRef.current, {
-          center: { lat, lng },
-          zoom: 17,
-          mapTypeControl: false,
-          fullscreenControl: false,
-          streetViewControl: false,
-          clickableIcons: false,
-        });
+    const marker = L.marker([lat, lng], { icon: pinIcon, draggable: true }).addTo(map);
+    marker.on('dragend', () => {
+      const pos = marker.getLatLng();
+      positionRef.current = [pos.lat, pos.lng];
+    });
 
-        const marker = new g.maps.Marker({
-          map,
-          position: { lat, lng },
-          draggable: true,
-          icon: {
-            url: pinIconUrl('#ef4444'),
-            scaledSize: new g.maps.Size(34, 42),
-            anchor: new g.maps.Point(17, 42),
-          },
-        });
-
-        marker.addListener('dragend', () => {
-          const pos = marker.getPosition();
-          if (pos) positionRef.current = [pos.lat(), pos.lng()];
-        });
-
-        mapRef.current = map;
-        markerRef.current = marker;
-      } catch (e) {
-        if (!cancelled) setMapError('Não foi possível carregar o mapa.');
-      }
-    };
-
-    void init();
+    mapRef.current = map;
+    markerRef.current = marker;
 
     return () => {
-      cancelled = true;
-      if (markerRef.current) {
-        markerRef.current.setMap(null);
-        markerRef.current = null;
-      }
+      map.remove();
       mapRef.current = null;
+      markerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

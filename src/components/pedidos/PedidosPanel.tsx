@@ -1,8 +1,8 @@
 import { Fragment, useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { getCoordsFromAddress, getDrivingRouteDistance, getDistanceFromLatLonInKm } from '../../utils/geo';
-import { autocompletePlaces, getPlaceCoords, newSessionToken } from '../../utils/googlePlaces';
-import { MapView, MapDeliveryPerson } from '../MapView';
+import { autocompletePlaces, getPlaceCoords, newSessionToken } from '../../utils/carbyPlaces';
+import { MapView, MapDeliveryPerson } from '../MapViewOwnApi';
 import { Modal } from '../Modal';
 import type { Database } from '../../lib/database.types';
 import { format } from 'date-fns';

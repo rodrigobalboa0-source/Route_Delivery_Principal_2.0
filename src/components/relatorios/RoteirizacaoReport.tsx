@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { Database } from '../../lib/database.types';
-import { MapView } from '../MapView';
-// import { MapView } from '../MapViewOwnApi'; // Leaflet/OSM — desativado a pedido do cliente, ver conversa sobre Places API
+import { MapView } from '../MapViewOwnApi';
 
 type Pedido = Database['public']['Tables']['nova_entrega']['Row'];
 type Cliente = Database['public']['Tables']['clientes']['Row'];

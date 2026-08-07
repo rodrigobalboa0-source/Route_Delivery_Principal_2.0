@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Filter, Users } from 'lucide-react';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase';
-import { MapView, MapDeliveryPerson } from './MapView';
-// import { MapView, MapDeliveryPerson } from './MapViewOwnApi'; // Leaflet/OSM — desativado a pedido do cliente, ver conversa sobre Places API
+import { MapView, MapDeliveryPerson } from './MapViewOwnApi';
 import { DeliveryPersonCard } from './DeliveryPersonCard';
 import { getCoordsFromAddress } from '../utils/geo';
 import type { Database } from '../lib/database.types';

@@ -1,8 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Database } from '../../lib/database.types';
-import { MapView } from '../MapView';
-// import { MapView } from '../MapViewOwnApi'; // Leaflet/OSM — desativado a pedido do cliente, ver conversa sobre Places API
+import { MapView } from '../MapViewOwnApi';
 
 type Entregador = Database['public']['Tables']['entregadores']['Row'];
 type Entrega = Database['public']['Tables']['nova_entrega']['Row'];

@@ -1,7 +1,6 @@
 
 const MAPS_API_URL = import.meta.env.VITE_MAPS_API_URL;
 const MAPS_API_KEY = import.meta.env.VITE_MAPS_API_KEY;
-const GOOGLE_GEOCODE_KEY = String(import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '').trim();
 
 export function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371; 
@@ -141,26 +140,6 @@ async function invokeGeocodeApi(q: string): Promise<[number, number] | undefined
   return undefined;
 }
 
-async function invokeGoogleGeocodeApi(q: string): Promise<[number, number] | undefined> {
-  if (!GOOGLE_GEOCODE_KEY) return undefined;
-  try {
-    const url = new URL('https://maps.googleapis.com/maps/api/geocode/json');
-    url.searchParams.set('address', q);
-    url.searchParams.set('key', GOOGLE_GEOCODE_KEY);
-    url.searchParams.set('region', 'br');
-    const res = await fetchWithTimeout(url.toString(), 12000);
-    if (!res.ok) return undefined;
-    const data = await res.json();
-    const location = data?.results?.[0]?.geometry?.location;
-    if (data?.status === 'OK' && typeof location?.lat === 'number' && typeof location?.lng === 'number') {
-      return [location.lat, location.lng];
-    }
-  } catch (e) {
-    void e;
-  }
-  return undefined;
-}
-
 export function extractCepFromAddress(address: string): string | null {
   const match = String(address || '').match(/(\d{5})-?(\d{3})/);
   return match ? `${match[1]}-${match[2]}` : null;
@@ -184,9 +163,6 @@ export async function confirmarPinPreciso(address: string, lat: number, lng: num
 async function getCoordsFromMapsApi(address: string): Promise<[number, number] | undefined> {
   const uniqueCandidates = buildGeocodeCandidates(address);
   if (uniqueCandidates.length === 0) return undefined;
-
-  const googleCoords = await invokeGoogleGeocodeApi(uniqueCandidates[0]);
-  if (googleCoords) return googleCoords;
 
   for (const q of uniqueCandidates) {
     const coords = await invokeGeocodeApi(q);

@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { getCoordsFromAddress, getDrivingRouteDistance, confirmarPinPreciso } from '../../utils/geo';
-import { autocompletePlaces, getPlaceCoords, newSessionToken } from '../../utils/googlePlaces';
+import { autocompletePlaces, getPlaceCoords, newSessionToken } from '../../utils/carbyPlaces';
 import { AddressPinPicker } from '../AddressPinPicker';
 import type { Database } from '../../lib/database.types';
 
