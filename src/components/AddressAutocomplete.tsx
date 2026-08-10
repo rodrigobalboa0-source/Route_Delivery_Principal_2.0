@@ -1,4 +1,5 @@
 ﻿import { useEffect, useState, useRef, forwardRef, useImperativeHandle } from 'react';
+import { AddressPinPicker, type AddressPinPickerConfirmedResult } from './AddressPinPicker';
 
 // Faixa Unicode de marcas diacríticas combinantes (resultado de normalize('NFD')),
 // construída via charCode para evitar problemas de encoding no source.
@@ -24,7 +25,10 @@ export const AddressAutocomplete = forwardRef<AddressAutocompleteHandle, {
   containerClassName?: string,
   inputClassName?: string,
   onSelectCoords?: (coords: [number, number] | undefined, selectedText?: string) => void,
-  onSuggestCoords?: (coords: [number, number] | undefined, typedText: string) => void
+  onSuggestCoords?: (coords: [number, number] | undefined, typedText: string) => void,
+  /** Chamado além de onChange/onSelectCoords quando o usuário confirma um pin manual —
+   * usado por telas que têm um campo de CEP separado do texto de endereço. */
+  onConfirmManualPin?: (result: AddressPinPickerConfirmedResult) => void,
 }>(function AddressAutocomplete({
   value,
   onChange,
@@ -33,6 +37,7 @@ export const AddressAutocomplete = forwardRef<AddressAutocompleteHandle, {
   inputClassName,
   onSelectCoords,
   onSuggestCoords,
+  onConfirmManualPin,
 }, ref) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -45,6 +50,15 @@ export const AddressAutocomplete = forwardRef<AddressAutocompleteHandle, {
   const [didSearch, setDidSearch] = useState(false);
   const [activeIndex, setActiveIndex] = useState<number>(-1);
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [pinPickerOpen, setPinPickerOpen] = useState(false);
+
+  const handleConfirmManualPin = (result: AddressPinPickerConfirmedResult) => {
+    onChange(result.formattedAddress);
+    onSelectCoords?.([result.lat, result.lng], result.formattedAddress);
+    onConfirmManualPin?.(result);
+    setPinPickerOpen(false);
+    setOpen(false);
+  };
 
   const selectSuggestion = (s: AddressSuggestion) => {
     onChange(s.display_name);
@@ -292,7 +306,19 @@ export const AddressAutocomplete = forwardRef<AddressAutocompleteHandle, {
           ) : suggestionsError ? (
             <div className="px-3 py-2 text-sm text-red-700">{suggestionsError}</div>
           ) : suggestions.length === 0 && didSearch ? (
-            <div className="px-3 py-2 text-sm text-slate-500">Nenhum endereço encontrado. Tente incluir bairro ou número.</div>
+            <div className="px-3 py-2 text-sm text-slate-500 space-y-1.5">
+              <div>Nenhum endereço encontrado. Tente incluir bairro ou número.</div>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  setPinPickerOpen(true);
+                }}
+                className="text-sky-600 hover:text-sky-700 font-medium"
+              >
+                📍 Não encontrou seu endereço? Marque no mapa
+              </button>
+            </div>
           ) : (
             <ul className="max-h-60 overflow-auto">
               {suggestions.map((s, i) => (
@@ -314,6 +340,13 @@ export const AddressAutocomplete = forwardRef<AddressAutocompleteHandle, {
             </ul>
           )}
         </div>
+      )}
+      {pinPickerOpen && (
+        <AddressPinPicker
+          addressText={trimmedValue}
+          onConfirm={handleConfirmManualPin}
+          onCancel={() => setPinPickerOpen(false)}
+        />
       )}
     </div>
   );

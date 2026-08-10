@@ -183,6 +183,56 @@ export async function getCoordsFromAddress(address: string): Promise<[number, nu
     return undefined;
 }
 
+export function extractCepFromAddress(address: string): string | null {
+  const match = String(address || '').match(/(\d{5})-?(\d{3})/);
+  return match ? `${match[1]}-${match[2]}` : null;
+}
+
+export interface ConfirmarPinInput {
+  cep: string;
+  lat: number;
+  lng: number;
+  logradouro?: string;
+  bairro?: string;
+  cidade?: string;
+  uf?: string;
+}
+
+export interface ConfirmarPinResult {
+  ok: boolean;
+  lat?: number;
+  lng?: number;
+  formattedAddress?: string;
+  error?: string;
+}
+
+/** Salva uma posição confirmada manualmente na Maps API própria (POST /v1/geocode/confirmar) — fica permanente (fonte='confirmado_manual', prioridade máxima em /v1/geocode e /v1/autocomplete futuros pro mesmo CEP). */
+export async function confirmarPinPreciso(input: ConfirmarPinInput): Promise<ConfirmarPinResult> {
+  try {
+    const url = `${String(MAPS_API_URL || '').replace(/\/+$/, '')}/v1/geocode/confirmar`;
+    const res = await fetchWithTimeout(url, 8000, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': MAPS_API_KEY },
+      body: JSON.stringify(input),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || data?.status !== 'OK') {
+      return { ok: false, error: data?.error_message || `Falha ao confirmar localização (HTTP ${res.status})` };
+    }
+    const result = data?.results?.[0];
+    const location = result?.geometry?.location;
+    return {
+      ok: true,
+      lat: typeof location?.lat === 'number' ? location.lat : input.lat,
+      lng: typeof location?.lng === 'number' ? location.lng : input.lng,
+      formattedAddress: result?.formatted_address,
+    };
+  } catch (e) {
+    void e;
+    return { ok: false, error: 'Falha de conexão ao confirmar localização' };
+  }
+}
+
 export async function getDrivingRouteDistance(coords: {lat: number, lon: number}[]): Promise<number | null> {
   if (coords.length < 2) return 0;
   try {

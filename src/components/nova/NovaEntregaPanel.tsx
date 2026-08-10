@@ -1567,6 +1567,9 @@ export function NovaEntregaPanel() {
               const key = normalizeAddressKey(typedText);
               if (key) selectedCoordsByTextRef.current.set(key, coords);
             }}
+            onConfirmManualPin={(result) => {
+              setForm(prev => ({ ...prev, coleta_cep: result.cep }));
+            }}
             containerClassName="md:col-span-2"
             inputClassName={
               form.coleta_endereco_texto && !form.coleta_usa_endereco_cadastro && !coletaSelectedCoords
@@ -1612,6 +1615,9 @@ export function NovaEntregaPanel() {
                 if (!coords) return;
                 const key = normalizeAddressKey(typedText);
                 if (key) selectedCoordsByTextRef.current.set(key, coords);
+              }}
+              onConfirmManualPin={(result) => {
+                setForm(prev => ({ ...prev, entrega_cep: result.cep }));
               }}
               containerClassName="md:col-span-2"
               inputClassName={
@@ -1705,11 +1711,18 @@ export function NovaEntregaPanel() {
                       return { ...prev, pontos: arr };
                     });
                   }}
-                  onSelectCoords={(coords) => { 
-                    setDistanceError(null); 
+                  onSelectCoords={(coords) => {
+                    setDistanceError(null);
                     setForm(prev => {
                       const arr = [...prev.pontos];
                       arr[idx] = { ...arr[idx], coords };
+                      return { ...prev, pontos: arr };
+                    });
+                  }}
+                  onConfirmManualPin={(result) => {
+                    setForm(prev => {
+                      const arr = [...prev.pontos];
+                      arr[idx] = { ...arr[idx], cep: result.cep };
                       return { ...prev, pontos: arr };
                     });
                   }}
