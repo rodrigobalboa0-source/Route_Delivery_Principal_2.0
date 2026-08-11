@@ -2585,6 +2585,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       'created_at',
       'updated_at',
       'foto_url',
+      'foto_base64',
       'veiculo_tipo',
     ].join(', ');
 
@@ -2641,7 +2642,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
               last_location_update: e.last_location_update,
               created_at: e.created_at,
               updated_at: e.updated_at,
-              foto_url: e.foto_url
+              foto_url: e.foto_url,
+              foto_base64: e.foto_base64
           });
         }
     });
@@ -2659,8 +2661,6 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         let qPedidos = supabase.from('pedidos').select('*').order('created_at', { ascending: false });
         let qEntregas = supabase.from('nova_entrega').select('*').order('created_at', { ascending: false });
 
-        // Entregues/cancelados só devem aparecer quando o operador filtra por status explicitamente.
-        // Filtros de cidade/data/cliente/origem não devem "reabrir" esses pedidos na lista.
         const shouldExcludeFinished = filters.status === 'todos';
 
         if (shouldExcludeFinished) {
@@ -2909,12 +2909,18 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
               ? [storedLat, storedLng]
               : await getCoordsFromAddress(entrega.entrega_endereco_texto!);
           if (coords && !cancelled) {
-            const tooltip = entrega.entrega_codigo_pedido || entrega.id.slice(0, 8);
+            const codigo = entrega.entrega_codigo_pedido || entrega.id.slice(0, 8);
+            // label: rótulo curto, sempre visível em cima do pin (só o nome).
+            // tooltip: detalhe completo, aberto ao tocar no pin (código + agendado).
+            const label = entrega.entrega_contato || codigo;
+            const tooltip = [codigo, entrega.entrega_contato, (entrega as any).agendar_em ? '(agendado)' : null]
+              .filter(Boolean)
+              .join(' — ');
             const color = isComercio ? '#f97316' : getCommerceColor(entrega.cliente_id || '');
-            const label = entrega.entrega_contato || undefined;
+            const agendado = !!(entrega as any).agendar_em;
             setDeliveryPins((prev) => {
               const next = prev.filter((p) => p.id !== entrega.id);
-              next.push({ id: entrega.id, coords, tooltip, color, label });
+              next.push({ id: entrega.id, coords, tooltip, color, label, agendado });
               return next;
             });
           }
