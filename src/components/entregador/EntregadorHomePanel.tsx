@@ -1050,6 +1050,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
           label: 'Destino 1',
           endereco: String(incomingDelivery.entrega_endereco_texto || '').trim(),
           valor: incomingPricingDestinos[0]?.valor,
+          observacoes: incomingDelivery.entrega_observacoes || '',
         },
         ...incomingExtraPoints.map((pt: any, idx: number) => {
           const base = String(pt?.endereco_texto || '').trim();
@@ -1058,6 +1059,7 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
             label: `Destino ${idx + 2}`,
             endereco,
             valor: incomingPricingDestinos[idx + 1]?.valor,
+            observacoes: pt?.observacoes || '',
           };
         }),
       ]
@@ -1215,6 +1217,9 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                               <div className="flex-1">
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Retirada</p>
                                 <p className="text-sm font-medium text-slate-700 leading-snug">{incomingDelivery.coleta_endereco_texto}</p>
+                                {isFirstDestination && incomingDelivery.coleta_observacoes && (
+                                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded px-2 py-1 mt-1 leading-snug">Obs: {incomingDelivery.coleta_observacoes}</p>
+                                )}
                               </div>
                             </div>
 
@@ -1225,6 +1230,9 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                               <div className="flex-1">
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">{d.label}</p>
                                 <p className="text-sm font-medium text-slate-700 leading-snug">{d.endereco || '-'}</p>
+                                {d.observacoes && (
+                                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded px-2 py-1 mt-1 leading-snug">Obs: {d.observacoes}</p>
+                                )}
                               </div>
                             </div>
 
@@ -1341,10 +1349,16 @@ export function EntregadorHomePanel({ onNavigate }: EntregadorHomePanelProps) {
                             <div>
                               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Retirada</p>
                               <p className="text-sm font-medium text-slate-700 leading-snug">{incomingDelivery.coleta_endereco_texto}</p>
+                              {incomingDelivery.coleta_observacoes && (
+                                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded px-2 py-1 mt-1 leading-snug">Obs: {incomingDelivery.coleta_observacoes}</p>
+                              )}
                             </div>
                             <div>
                               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Entrega</p>
                               <p className="text-sm font-medium text-slate-700 leading-snug">{incomingDelivery.entrega_endereco_texto}</p>
+                              {incomingDelivery.entrega_observacoes && (
+                                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded px-2 py-1 mt-1 leading-snug">Obs: {incomingDelivery.entrega_observacoes}</p>
+                              )}
                             </div>
                           </div>
                         </div>
