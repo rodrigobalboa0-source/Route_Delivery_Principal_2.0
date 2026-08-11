@@ -1135,6 +1135,13 @@ export function EntregadorPedidosEmAndamentoPanel({ onNavigate }: { onNavigate?:
                     </p>
                   </div>
                 )}
+                {(() => {
+                  const obs = isPickupPhase ? (entrega as any).coleta_observacoes : (entrega as any).entrega_observacoes;
+                  if (!obs) return null;
+                  return (
+                    <p className="text-xs text-orange-700 bg-orange-50 border border-orange-100 rounded px-2 py-1">Obs: {obs}</p>
+                  );
+                })()}
               </div>
 
               {Array.isArray((entrega as any)?.opcionais?.demand_rules) && ((entrega as any).opcionais.demand_rules as any[]).length > 0 && (
@@ -1311,6 +1318,9 @@ export function EntregadorPedidosEmAndamentoPanel({ onNavigate }: { onNavigate?:
                         <p className="text-xs font-bold text-gray-500 uppercase mb-1">Coleta</p>
                         <p className="text-gray-800">{entrega.coleta_endereco_texto || 'Endereço cadastrado'}</p>
                         {entrega.coleta_contato && <p className="text-sm text-gray-500 mt-1">Falar com: {entrega.coleta_contato}</p>}
+                        {(entrega as any).coleta_observacoes && (
+                          <p className="text-sm text-orange-700 bg-orange-50 border border-orange-100 rounded px-2 py-1 mt-1">Obs: {(entrega as any).coleta_observacoes}</p>
+                        )}
                       </div>
                       <div className="relative pl-6 border-l-2 border-gray-200">
                         <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-white border-2 border-sky-500" />
@@ -1318,6 +1328,9 @@ export function EntregadorPedidosEmAndamentoPanel({ onNavigate }: { onNavigate?:
                         <p className="text-gray-800">{entrega.entrega_endereco_texto}</p>
                         {entrega.entrega_complemento && <p className="text-sm text-gray-500">{entrega.entrega_complemento}</p>}
                         {entrega.entrega_contato && <p className="text-sm text-gray-500 mt-1">Recebedor: {entrega.entrega_contato}</p>}
+                        {(entrega as any).entrega_observacoes && (
+                          <p className="text-sm text-orange-700 bg-orange-50 border border-orange-100 rounded px-2 py-1 mt-1">Obs: {(entrega as any).entrega_observacoes}</p>
+                        )}
                       </div>
                     </div>
 
