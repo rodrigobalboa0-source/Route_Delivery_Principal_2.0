@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { confirmarPinPreciso, extractCepFromAddress, getCoordsFromAddress } from '../utils/geo';
+import { confirmarPinPreciso, extractCepFromAddress, getCoordsFromAddress, reverseGeocode } from '../utils/geo';
 
 const CAMPINAS_CENTER: [number, number] = [-22.9099, -47.0626];
 
@@ -11,10 +11,48 @@ const KNOWN_CITIES = [
   'Santo Antônio de Posse', 'Itupeva',
 ];
 
+/**
+ * Extrai o número da casa mesmo sem vírgula no texto (ex.: "Rua X 91" ->
+ * "91") — busca no texto inteiro quando não há vírgula, senão só depois
+ * da primeira (evita pegar número embutido no próprio nome da rua, ex.:
+ * "Rodovia SP 101, 5" -> "5", não "101"). Mesma heurística de
+ * extractNumeroFromText no backend (backend/src/common/cep.util.ts).
+ */
+function extractNumeroFromAddressText(address: string): string {
+  const semCep = address.replace(/\d{5}-?\d{3}/, ' ');
+  const indiceVirgula = semCep.indexOf(',');
+  const busca = indiceVirgula !== -1 ? semCep.slice(indiceVirgula + 1) : semCep;
+  const match = busca.match(/(?<!\d)(\d{1,5})(?!\d)/);
+  return match ? match[1] : '';
+}
+
+/**
+ * Extrai só o nome da rua, cortando ANTES do número mesmo sem vírgula no
+ * texto — sem isso, "Rua X 91" virava logradouro "Rua X 91" (número colado
+ * no nome, nunca separado). Mesma heurística de extractLogradouroFromText
+ * no backend.
+ */
+function extractLogradouroFromAddressText(address: string): string {
+  const semCep = address.replace(/\d{5}-?\d{3}/, ' ').trim();
+  const indiceVirgula = semCep.indexOf(',');
+  if (indiceVirgula !== -1) return semCep.slice(0, indiceVirgula).trim();
+  const matchNumero = semCep.match(/(?<!\d)\d{1,5}(?!\d)/);
+  if (matchNumero?.index != null) return semCep.slice(0, matchNumero.index).trim();
+  return semCep;
+}
+
 function guessFromAddressText(addressText: string) {
   const cep = extractCepFromAddress(addressText) || '';
-  const withoutCep = addressText.replace(/\d{5}-?\d{3}/, '').trim().replace(/,\s*$/, '');
-  const parts = withoutCep.split(',').map((p) => p.trim()).filter(Boolean);
+  const numero = extractNumeroFromAddressText(addressText);
+  const logradouro = extractLogradouroFromAddressText(addressText);
+
+  // Bairro/cidade/UF: só olha o trecho depois da primeira vírgula (se
+  // houver) — sem vírgula não há como saber onde a rua termina e o resto
+  // começa, então fica só com os defaults.
+  const semCep = addressText.replace(/\d{5}-?\d{3}/, ' ').trim().replace(/,\s*$/, '');
+  const indiceVirgula = semCep.indexOf(',');
+  const resto = indiceVirgula !== -1 ? semCep.slice(indiceVirgula + 1) : '';
+  const parts = resto.split(',').map((p) => p.trim()).filter(Boolean);
 
   let cidade = '';
   let uf = 'SP';
@@ -32,8 +70,9 @@ function guessFromAddressText(addressText: string) {
 
   return {
     cep,
-    logradouro: filtered[0] || '',
-    bairro: filtered[1] || '',
+    numero,
+    logradouro,
+    bairro: filtered[0] || '',
     cidade: cidade || 'Campinas',
     uf,
   };
@@ -88,6 +127,7 @@ export function AddressPinPicker({ addressText, onConfirm, onCancel }: AddressPi
 
   const guess = useRef(guessFromAddressText(addressText)).current;
   const [cep, setCep] = useState(guess.cep);
+  const [numero, setNumero] = useState(guess.numero);
   const [logradouro, setLogradouro] = useState(guess.logradouro);
   const [bairro, setBairro] = useState(guess.bairro);
   const [cidade, setCidade] = useState(guess.cidade);
@@ -96,6 +136,22 @@ export function AddressPinPicker({ addressText, onConfirm, onCancel }: AddressPi
   const [locating, setLocating] = useState(true);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // CEP que a busca reversa preencheu por último — usado pra saber se o
+  // usuário editou o campo manualmente depois (nesse caso não sobrescreve).
+  const cepAutoFilledRef = useRef<string>(guess.cep);
+
+  // Descobre o CEP a partir de uma posição (pin inicial ou arrastado) via
+  // /v1/geocode/reverse — o texto digitado nem sempre tem CEP (é comum
+  // pra endereço que a busca automática não achou, exatamente o caso
+  // deste componente), então não dá pra depender só do texto: sem isso o
+  // campo CEP nasce vazio e bloqueia a confirmação silenciosamente.
+  const autoFillCep = async (coords: [number, number]) => {
+    const reverse = await reverseGeocode(coords[0], coords[1]);
+    if (!reverse?.cep) return;
+    setCep((atual) => (atual.trim() === '' || atual === cepAutoFilledRef.current ? reverse.cep! : atual));
+    cepAutoFilledRef.current = reverse.cep;
+  };
 
   // Tenta centralizar o mapa numa posição aproximada (bairro/cidade) antes
   // de deixar o usuário arrastar o pin pro local exato.
@@ -110,6 +166,7 @@ export function AddressPinPicker({ addressText, onConfirm, onCancel }: AddressPi
         markerRef.current?.setLatLng(coords);
       }
       setLocating(false);
+      void autoFillCep(positionRef.current);
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -128,6 +185,7 @@ export function AddressPinPicker({ addressText, onConfirm, onCancel }: AddressPi
     marker.on('dragend', () => {
       const pos = marker.getLatLng();
       positionRef.current = [pos.lat, pos.lng];
+      void autoFillCep(positionRef.current);
     });
 
     mapRef.current = map;
@@ -152,11 +210,18 @@ export function AddressPinPicker({ addressText, onConfirm, onCancel }: AddressPi
     setConfirming(true);
     setError(null);
     const [lat, lng] = positionRef.current;
+    // Com número E logradouro preenchidos, confirma no nível de número
+    // (migration 0022 da Carbymaps — grava em enderecos_cnefe, não
+    // conflita com outros números confirmados na mesma rua/CEP). Sem
+    // número, cai pro nível de CEP de sempre.
+    const numeroTrim = numero.trim();
+    const logradouroTrim = logradouro.trim();
     const result = await confirmarPinPreciso({
       cep: formattedCep,
       lat,
       lng,
-      logradouro: logradouro.trim() || undefined,
+      logradouro: logradouroTrim || undefined,
+      numero: numeroTrim && logradouroTrim ? numeroTrim : undefined,
       bairro: bairro.trim() || undefined,
       cidade: cidade.trim() || undefined,
       uf: uf.trim() || undefined,
@@ -168,12 +233,17 @@ export function AddressPinPicker({ addressText, onConfirm, onCancel }: AddressPi
       return;
     }
 
-    const fallbackAddress = [logradouro, bairro, `${cidade} - ${uf}`, formattedCep].filter(Boolean).join(', ');
+    const fallbackAddress = [
+      numeroTrim ? `${logradouro}, ${numeroTrim}` : logradouro,
+      bairro,
+      `${cidade} - ${uf}`,
+      formattedCep,
+    ].filter(Boolean).join(', ');
     onConfirm({
       lat: result.lat ?? lat,
       lng: result.lng ?? lng,
       cep: formattedCep,
-      logradouro: logradouro.trim() || undefined,
+      logradouro: logradouroTrim || undefined,
       bairro: bairro.trim() || undefined,
       cidade: cidade.trim() || undefined,
       uf: uf.trim() || undefined,
@@ -214,12 +284,20 @@ export function AddressPinPicker({ addressText, onConfirm, onCancel }: AddressPi
               className="px-3 py-1.5 text-sm border border-slate-300 rounded"
             />
           </div>
-          <input
-            placeholder="Logradouro (rua)"
-            value={logradouro}
-            onChange={(e) => setLogradouro(e.target.value)}
-            className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded"
-          />
+          <div className="grid grid-cols-4 gap-2">
+            <input
+              placeholder="Logradouro (rua)"
+              value={logradouro}
+              onChange={(e) => setLogradouro(e.target.value)}
+              className="col-span-3 px-3 py-1.5 text-sm border border-slate-300 rounded"
+            />
+            <input
+              placeholder="Nº"
+              value={numero}
+              onChange={(e) => setNumero(e.target.value)}
+              className="px-3 py-1.5 text-sm border border-slate-300 rounded"
+            />
+          </div>
           <div className="grid grid-cols-3 gap-2">
             <input
               placeholder="Cidade"

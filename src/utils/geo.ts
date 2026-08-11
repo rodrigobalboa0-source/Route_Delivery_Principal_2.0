@@ -193,6 +193,7 @@ export interface ConfirmarPinInput {
   lat: number;
   lng: number;
   logradouro?: string;
+  numero?: string;
   bairro?: string;
   cidade?: string;
   uf?: string;
@@ -230,6 +231,31 @@ export async function confirmarPinPreciso(input: ConfirmarPinInput): Promise<Con
   } catch (e) {
     void e;
     return { ok: false, error: 'Falha de conexão ao confirmar localização' };
+  }
+}
+
+export interface ReverseGeocodeResult {
+  cep?: string;
+  formattedAddress?: string;
+}
+
+/** Descobre o CEP mais próximo de uma coordenada (GET /v1/geocode/reverse) — usado pelo AddressPinPicker pra preencher o CEP sozinho a partir da posição do pin, sem depender do usuário saber/digitar o CEP no texto de busca. */
+export async function reverseGeocode(lat: number, lng: number): Promise<ReverseGeocodeResult | undefined> {
+  try {
+    const url = new URL(`${String(MAPS_API_URL || '').replace(/\/+$/, '')}/v1/geocode/reverse`);
+    url.searchParams.set('lat', String(lat));
+    url.searchParams.set('lng', String(lng));
+    const res = await fetchWithTimeout(url.toString(), 8000, {
+      headers: { 'X-API-Key': MAPS_API_KEY },
+    });
+    if (!res.ok) return undefined;
+    const data = await res.json();
+    const result = data?.results?.[0];
+    if (data?.status !== 'OK' || !result?.cep) return undefined;
+    return { cep: result.cep, formattedAddress: result.formatted_address };
+  } catch (e) {
+    void e;
+    return undefined;
   }
 }
 

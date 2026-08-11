@@ -5,6 +5,23 @@ import { AddressPinPicker, type AddressPinPickerConfirmedResult } from './Addres
 // construída via charCode para evitar problemas de encoding no source.
 const COMBINING_MARKS_REGEX = new RegExp(`[${String.fromCharCode(0x0300)}-${String.fromCharCode(0x036f)}]`, 'g');
 
+/** Mesma extração de número usada pra montar a query da busca (linhas ~130-139 do efeito abaixo) — reaproveitada aqui pra decidir se o resultado final tem o número exato pedido, sem duplicar o parsing em dois lugares com regras diferentes. */
+function extractNumeroFromQuery(text: string): string {
+  let query = String(text || '').replace(/\s+-\s+/g, ', ').replace(/\s+/g, ' ').trim();
+  const queryParts = query.split(',').map((p) => p.trim()).filter(Boolean);
+  if (queryParts[0]) {
+    queryParts[0] = queryParts[0].replace(/([^\d,])\s+(\d{1,6}[a-zA-Z]?)\b/, '$1, $2');
+  }
+  query = queryParts.join(', ');
+  return (query.match(/,\s*(\d{1,6}[a-zA-Z]?)\b/) || [])[1] || '';
+}
+
+/** Verifica se um número aparece como segmento próprio (separado por vírgula) na descrição — evita bater substring dentro de outro número (ex.: "91" dentro de "1991" ou de um CEP). */
+function suggestionHasExactNumber(displayName: string, numero: string): boolean {
+  const escaped = numero.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`,\\s*${escaped}\\s*(,|-|$)`, 'i').test(displayName);
+}
+
 export interface AddressSuggestion {
   display_name: string;
   lat?: string;
@@ -256,6 +273,14 @@ export const AddressAutocomplete = forwardRef<AddressAutocompleteHandle, {
   }, [value, open]);
 
   const trimmedValue = (value || '').trim();
+  const numeroDigitado = extractNumeroFromQuery(trimmedValue);
+  const temNumeroExato = !numeroDigitado || suggestions.some((s) => suggestionHasExactNumber(s.display_name, numeroDigitado));
+  // Mostra o link "Marque no mapa" tanto quando a busca não acha NADA quanto
+  // quando acha só vizinhos aproximados (rua certa, número não bate) — sem
+  // isso, endereços como "RUA X, 91" onde só existem os números 89/90/95/96
+  // nunca chegavam a mostrar o link, porque a lista nunca fica vazia (o
+  // CNEFE sempre devolve o vizinho mais próximo).
+  const semResultadoExato = didSearch && !loadingSuggestions && !suggestionsError && (suggestions.length === 0 || !temNumeroExato);
 
   return (
     <div ref={containerRef} className={`relative ${containerClassName || ''}`}>
@@ -297,7 +322,7 @@ export const AddressAutocomplete = forwardRef<AddressAutocompleteHandle, {
         placeholder={placeholder}
         className={`w-full px-3 py-2 border rounded ${inputClassName || 'border-slate-300'}`}
       />
-      {open && trimmedValue.length > 0 && (
+      {open && !pinPickerOpen && trimmedValue.length > 0 && (
         <div className="absolute z-[10000] w-full mt-1 bg-white border border-slate-200 rounded shadow-lg pointer-events-auto">
           {trimmedValue.length < 3 ? (
             <div className="px-3 py-2 text-sm text-slate-500">Digite pelo menos 3 caracteres</div>
@@ -305,16 +330,40 @@ export const AddressAutocomplete = forwardRef<AddressAutocompleteHandle, {
             <div className="px-3 py-2 text-sm text-slate-500">Buscando endereços...</div>
           ) : suggestionsError ? (
             <div className="px-3 py-2 text-sm text-red-700">{suggestionsError}</div>
-          ) : suggestions.length === 0 && didSearch ? (
-            <div className="px-3 py-2 text-sm text-slate-500 space-y-1.5">
-              <div>Nenhum endereço encontrado. Tente incluir bairro ou número.</div>
+          ) : semResultadoExato ? (
+            <div className="space-y-1.5">
+              <div className="px-3 pt-2 text-sm text-slate-500">
+                {suggestions.length === 0
+                  ? 'Nenhum endereço encontrado. Tente incluir bairro ou número.'
+                  : `Não encontramos o número ${numeroDigitado} exatamente — endereços próximos:`}
+              </div>
+              {suggestions.length > 0 && (
+                <ul className="max-h-40 overflow-auto">
+                  {suggestions.map((s, i) => (
+                    <button
+                      key={`${s.display_name}-${i}`}
+                      type="button"
+                      className={`w-full text-left px-3 py-2 cursor-pointer text-sm ${
+                        i === activeIndex ? 'bg-sky-50 text-slate-900' : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                      onMouseEnter={() => setActiveIndex(i)}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        selectSuggestion(s);
+                      }}
+                    >
+                      {s.display_name}
+                    </button>
+                  ))}
+                </ul>
+              )}
               <button
                 type="button"
                 onMouseDown={(e) => {
                   e.preventDefault();
                   setPinPickerOpen(true);
                 }}
-                className="text-sky-600 hover:text-sky-700 font-medium"
+                className="w-full text-left px-3 pb-2 text-sky-600 hover:text-sky-700 font-medium text-sm"
               >
                 📍 Não encontrou seu endereço? Marque no mapa
               </button>
