@@ -70,14 +70,19 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
     return { from: null, to: null };
   };
 
+  const getItemDate = (item: any) => {
+    const isAcerto = 'valor_pago' in item;
+    return isAcerto ? item.created_at : (item.updated_at || item.created_at);
+  };
+
   const filteredItems = useMemo(() => {
     const all = [...extrato, ...acertos].sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      (a, b) => new Date(getItemDate(b)).getTime() - new Date(getItemDate(a)).getTime()
     );
     const { from, to } = getFilterRange();
     if (!from || !to) return all;
     return all.filter(item => {
-      const d = new Date(item.created_at);
+      const d = new Date(getItemDate(item));
       return d >= from && d <= to;
     });
   }, [extrato, acertos, filterType, dateFrom, dateTo]);
@@ -235,7 +240,7 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
         .select('*')
         .eq('entregador_id', entregadorId)
         .eq('status', 'entregue')
-        .order('created_at', { ascending: false });
+        .order('updated_at', { ascending: false });
 
       if (entregasError) throw entregasError;
 
@@ -760,8 +765,8 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
                  return (
                    <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                      <td className="p-4 text-sm text-gray-600">
-                       {new Date(item.created_at).toLocaleDateString()}
-                       <span className="text-xs text-gray-400 ml-1">{new Date(item.created_at).toLocaleTimeString().slice(0,5)}</span>
+                       {new Date(getItemDate(item)).toLocaleDateString()}
+                       <span className="text-xs text-gray-400 ml-1">{new Date(getItemDate(item)).toLocaleTimeString().slice(0,5)}</span>
                      </td>
                      <td className="p-4 text-sm font-medium text-gray-800">
                        {descricao}

@@ -241,8 +241,8 @@ export function EntregadorPedidosEmAndamentoPanel({ onNavigate }: { onNavigate?:
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user?.email) {
-           const { data } = await supabase.from('entregadores').select('foto_url').ilike('email', user.email).single();
-           if (data?.foto_url) setPhotoUrl(data.foto_url);
+           const { data } = await supabase.from('entregadores').select('foto_url, foto_base64').ilike('email', user.email).single();
+           if (data?.foto_url || data?.foto_base64) setPhotoUrl(data.foto_url || data.foto_base64);
         }
       } catch (e) { console.error(e); }
     };

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import './MapViewOwnApi.css';
 import type { Database } from '../lib/database.types';
 
 
@@ -9,6 +10,7 @@ type DeliveryPerson = Database['public']['Tables']['delivery_persons']['Row'];
 
 export interface MapDeliveryPerson extends DeliveryPerson {
   foto_url?: string | null;
+  foto_base64?: string | null;
   heading?: number | null;
 }
 
@@ -18,6 +20,7 @@ export interface DeliveryPin {
   tooltip: string;
   color?: string;
   label?: string;
+  agendado?: boolean;
 }
 
 interface MapViewOwnApiProps {
@@ -59,20 +62,34 @@ function formatStatus(s: string): string {
   return s;
 }
 
-/** Pin em formato de gota, mesmo estilo visual usado nos marcadores de origem/destino/paradas. */
-function dropIcon(color: string, opts: { label?: string; scale?: number; glyph?: string } = {}): L.DivIcon {
+const ICONS = {
+  store: (size = 15) =>
+    `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>`,
+  package: (size = 15) =>
+    `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>`,
+  truck: (size = 15) =>
+    `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg>`,
+  clock: (size = 10) =>
+    `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+};
+
+function dropIcon(
+  color: string,
+  opts: { iconSvg?: string; label?: string; scale?: number; badge?: 'clock' } = {}
+): L.DivIcon {
   const scale = opts.scale ?? 1;
   const w = Math.round(34 * scale);
   const h = Math.round(42 * scale);
   return L.divIcon({
     className: '',
     html: `
-      <div style="position:relative;width:${w}px;height:${h}px;">
+      <div style="position:relative;width:${w}px;height:${h}px;filter:drop-shadow(0 2px 4px rgba(15,23,42,0.35));">
         <svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 34 42">
           <path d="M17 40c-5.6-6.5-14-14.6-14-22C3 8 9.4 2 17 2s14 6 14 16c0 7.4-8.4 15.5-14 22z" fill="${color}" stroke="#ffffff" stroke-width="2"/>
         </svg>
-        ${opts.glyph ? `<div style="position:absolute;left:50%;top:${Math.round(h * 0.3)}px;transform:translate(-50%,-50%);font-size:${Math.round(14 * scale)}px;">${opts.glyph}</div>` : ''}
+        ${opts.iconSvg ? `<div style="position:absolute;left:50%;top:${Math.round(h * 0.36)}px;transform:translate(-50%,-50%);line-height:0;">${opts.iconSvg}</div>` : ''}
         ${opts.label ? `<div style="position:absolute;left:50%;top:${Math.round(h * 0.36)}px;transform:translate(-50%,-50%);color:#fff;font:700 ${Math.round(11 * scale)}px sans-serif;">${escapeHtml(opts.label)}</div>` : ''}
+        ${opts.badge === 'clock' ? `<div style="position:absolute;right:-3px;top:-1px;width:15px;height:15px;background:#f59e0b;border-radius:50%;border:2px solid #fff;display:flex;align-items:center;justify-content:center;">${ICONS.clock(9)}</div>` : ''}
       </div>
     `,
     iconSize: [w, h],
@@ -80,12 +97,11 @@ function dropIcon(color: string, opts: { label?: string; scale?: number; glyph?:
   });
 }
 
-/** Marcador circular do entregador (foto se tiver, senão iniciais), com anel de destaque quando selecionado. */
 function driverIcon(p: MapDeliveryPerson, selected: boolean): L.DivIcon {
   const color = getMarkerColor(p);
   const size = selected ? 46 : 40;
   const ring = selected ? '3px solid #f59e0b' : '2px solid #ffffff';
-  const photoUrl = String(p.foto_url || '').trim();
+  const photoUrl = String(p.foto_url || p.foto_base64 || '').trim();
   const initials = (p.name || '??')
     .trim()
     .split(/\s+/)
@@ -99,9 +115,17 @@ function driverIcon(p: MapDeliveryPerson, selected: boolean): L.DivIcon {
     ? `<img src="${escapeHtml(photoUrl)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />`
     : `<div style="width:100%;height:100%;border-radius:50%;background:${color};color:#fff;display:flex;align-items:center;justify-content:center;font:700 13px sans-serif;">${escapeHtml(initials)}</div>`;
 
+  const statusDotColor = p.is_online ? '#22c55e' : '#9ca3af';
+  const statusDotSize = Math.round(size * 0.3);
+
   return L.divIcon({
     className: '',
-    html: `<div style="width:${size}px;height:${size}px;border-radius:50%;border:${ring};box-shadow:0 2px 6px rgba(0,0,0,0.4);overflow:hidden;">${inner}</div>`,
+    html: `
+      <div style="position:relative;width:${size}px;height:${size}px;filter:drop-shadow(0 2px 4px rgba(15,23,42,0.4));">
+        <div style="width:100%;height:100%;border-radius:50%;border:${ring};overflow:hidden;">${inner}</div>
+        <div style="position:absolute;right:-1px;bottom:-1px;width:${statusDotSize}px;height:${statusDotSize}px;border-radius:50%;background:${statusDotColor};border:2px solid #fff;"></div>
+      </div>
+    `,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
   });
@@ -128,9 +152,10 @@ export function MapView({
   const additionalMarkersRef = useRef<Map<number, L.Marker>>(new Map());
   const pinMarkersRef = useRef<Map<string, L.Marker>>(new Map());
   const routeLayerRef = useRef<L.Polyline | null>(null);
+  const userInteractedRef = useRef(false);
+  const prevSelectedIdRef = useRef<string | undefined>(undefined);
   const [mapLoaded, setMapLoaded] = useState(false);
 
-  // Inicializa o mapa uma única vez.
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     const initialCenter = center ?? CAMPINAS_CENTER;
@@ -139,6 +164,9 @@ export function MapView({
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap contributors',
     }).addTo(map);
+    map.on('dragstart', () => {
+      userInteractedRef.current = true;
+    });
     mapRef.current = map;
     setMapLoaded(true);
 
@@ -147,17 +175,14 @@ export function MapView({
       mapRef.current = null;
       setMapLoaded(false);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, []);
 
-  // Centro do mapa.
   useEffect(() => {
-    if (!mapLoaded || !mapRef.current || !center) return;
+    if (!mapLoaded || !mapRef.current || !center || userInteractedRef.current) return;
     mapRef.current.panTo(center);
   }, [mapLoaded, center]);
 
-  // Marcadores de entregador — posição já vem pronta via prop (ver
-  // comentário no topo do arquivo), só desenha/atualiza/remove.
   useEffect(() => {
     if (!mapLoaded || !mapRef.current) return;
     const map = mapRef.current;
@@ -198,9 +223,15 @@ export function MapView({
     });
   }, [mapLoaded, deliveryPersons, selectedEntregadorId]);
 
-  // Pan + zoom no entregador selecionado (mesmo comportamento do MapView original).
   useEffect(() => {
     if (!mapLoaded || !mapRef.current || !selectedEntregadorId) return;
+
+    if (prevSelectedIdRef.current !== selectedEntregadorId) {
+      prevSelectedIdRef.current = selectedEntregadorId;
+      userInteractedRef.current = false;
+    }
+    if (userInteractedRef.current) return;
+
     const person = deliveryPersons.find((p) => p.id === selectedEntregadorId);
     if (person?.current_latitude != null && person?.current_longitude != null) {
       mapRef.current.panTo([person.current_latitude, person.current_longitude]);
@@ -208,7 +239,6 @@ export function MapView({
     }
   }, [mapLoaded, selectedEntregadorId, deliveryPersons]);
 
-  // Marcador de origem (loja/caminhão).
   useEffect(() => {
     if (!mapLoaded || !mapRef.current) return;
     const map = mapRef.current;
@@ -219,8 +249,8 @@ export function MapView({
       return;
     }
 
-    const glyph = originIconType === 'store' ? '🏬' : '🚚';
-    const icon = dropIcon('#10b981', { glyph });
+    const iconSvg = originIconType === 'store' ? ICONS.store() : ICONS.truck();
+    const icon = dropIcon('#10b981', { iconSvg });
     if (originMarkerRef.current) {
       originMarkerRef.current.setLatLng(origin);
       originMarkerRef.current.setIcon(icon);
@@ -231,7 +261,6 @@ export function MapView({
     }
   }, [mapLoaded, origin, originTitle, originIconType]);
 
-  // Marcador de destino.
   useEffect(() => {
     if (!mapLoaded || !mapRef.current) return;
     const map = mapRef.current;
@@ -242,7 +271,7 @@ export function MapView({
       return;
     }
 
-    const icon = dropIcon('#ef4444', { glyph: '📦' });
+    const icon = dropIcon('#ef4444', { iconSvg: ICONS.package() });
     if (destMarkerRef.current) {
       destMarkerRef.current.setLatLng(destination);
       destMarkerRef.current.setIcon(icon);
@@ -253,7 +282,6 @@ export function MapView({
     }
   }, [mapLoaded, destination, destinationTitle]);
 
-  // Paradas extras numeradas.
   useEffect(() => {
     if (!mapLoaded || !mapRef.current) return;
     const map = mapRef.current;
@@ -281,7 +309,6 @@ export function MapView({
     });
   }, [mapLoaded, additionalDestinations]);
 
-  // Pins de entrega (cor/label livres, vindos do chamador).
   useEffect(() => {
     if (!mapLoaded || !mapRef.current) return;
     const map = mapRef.current;
@@ -290,14 +317,23 @@ export function MapView({
     deliveryPins.forEach((pin) => {
       currentIds.add(pin.id);
       const color = pin.color || '#f97316';
-      const icon = dropIcon(color, { label: pin.label, glyph: pin.label ? undefined : '📦' });
+      const icon = dropIcon(color, { iconSvg: ICONS.package(), badge: pin.agendado ? 'clock' : undefined });
       const existing = pinMarkersRef.current.get(pin.id);
       if (existing) {
         existing.setLatLng(pin.coords);
         existing.setIcon(icon);
       } else {
         const marker = L.marker(pin.coords, { icon, zIndexOffset: 150 }).addTo(map);
-        marker.bindTooltip(pin.tooltip);
+
+        if (pin.label) {
+          marker.bindTooltip(escapeHtml(pin.label), {
+            permanent: true,
+            direction: 'top',
+            offset: [0, -34],
+            className: 'delivery-pin-label',
+          });
+        }
+        marker.bindPopup(`<strong style="color:${color}">${escapeHtml(pin.tooltip)}</strong>`);
         pinMarkersRef.current.set(pin.id, marker);
       }
     });
@@ -310,8 +346,6 @@ export function MapView({
     });
   }, [mapLoaded, deliveryPins]);
 
-  // Polyline da rota — só desenha o que já vier pronto via prop (ver
-  // comentário no topo do arquivo: este componente não calcula rota).
   useEffect(() => {
     if (!mapLoaded || !mapRef.current) return;
     const map = mapRef.current;
@@ -329,10 +363,8 @@ export function MapView({
     }
   }, [mapLoaded, route]);
 
-  // Enquadra o mapa em origem+destino+paradas+entregador selecionado —
-  // mesmo conjunto de pontos que o MapView.tsx original usava pro fitBounds.
   useEffect(() => {
-    if (!mapLoaded || !mapRef.current) return;
+    if (!mapLoaded || !mapRef.current || userInteractedRef.current) return;
     const map = mapRef.current;
 
     const points: [number, number][] = [];
@@ -348,7 +380,6 @@ export function MapView({
     if (points.length === 0) return;
 
     map.fitBounds(L.latLngBounds(points), { padding: [50, 50], maxZoom: 15 });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapLoaded, origin, destination, additionalDestinations, selectedEntregadorId]);
 
   return <div ref={containerRef} className="w-full h-full z-0" style={{ overscrollBehavior: 'contain' }} />;
