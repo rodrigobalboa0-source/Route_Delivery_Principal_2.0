@@ -1404,7 +1404,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [originTitle, setOriginTitle] = useState<string>('');
   const [destinationTitle, setDestinationTitle] = useState<string>('');
   const [additionalDestinationsCoords, setAdditionalDestinationsCoords] = useState<Array<{ coords: [number, number]; title: string; order: number }>>([]);
-  const [deliveryPins, setDeliveryPins] = useState<Array<{ id: string; coords: [number, number]; tooltip: string; color: string; label?: string }>>([]);
+  const [deliveryPins, setDeliveryPins] = useState<Array<{ id: string; coords: [number, number]; tooltip: string; color: string; label?: string; agendado?: boolean }>>([]);
 
   const [commerceDefaultCoords, setCommerceDefaultCoords] = useState<[number, number] | undefined>(undefined);
   const [commerceDefaultTitle, setCommerceDefaultTitle] = useState<string>('');
