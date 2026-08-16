@@ -1,1 +1,0 @@
-alter table clientes add column precificacao_config jsonb default '[]'::jsonb;

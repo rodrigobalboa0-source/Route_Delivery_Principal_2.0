@@ -32,3 +32,5 @@ firebase-service-account.json
 android/app/google-services.json
 
 infra/volumes/api/kong.yml
+
+supabase
