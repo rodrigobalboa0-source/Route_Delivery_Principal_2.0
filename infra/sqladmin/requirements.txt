@@ -4,9 +4,9 @@ sqlalchemy==2.0.36
 psycopg2-binary==2.9.10
 uvicorn[standard]==0.32.1
 httpx==0.28.0
-python-multipart==0.0.12
+python-multipart==0.0.30
 itsdangerous==2.2.0
 jinja2==3.1.4
-python-jose[cryptography]==3.3.0
+python-jose[cryptography]==3.4.0
 passlib[bcrypt]==1.7.4
 aiofiles==24.1.0
