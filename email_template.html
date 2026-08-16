@@ -80,6 +80,7 @@
       <p>Se você não fez essa solicitação, pode ignorar este e-mail com segurança.</p>
       <p>Para criar uma nova senha, clique no botão abaixo:</p>
       
+      <!-- nosemgrep: generic.html-templates.security.var-in-href.var-in-href -- ConfirmationURL é gerado e assinado pelo GoTrue no servidor (link de reset de senha com token), não é entrada de usuário -->
       <div class="button-container">
         <a href="{{ .ConfirmationURL }}" class="button">Redefinir Minha Senha</a>
       </div>
