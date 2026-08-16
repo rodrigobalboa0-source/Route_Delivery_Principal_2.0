@@ -8,12 +8,10 @@ consumers:
   - username: DASHBOARD
   - username: anon
     keyauth_credentials:
-      - key: eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJyb2xlIjogImFub24iLCAiaXNzIjogInN1cGFiYXNlIiwgImlhdCI6IDE3ODMxOTAwMzgsICJleHAiOiAyMDk4NTUwMDM4fQ.RJlhHco8w1PTHG_Uo7TjAq4ISaqQCuVEPlNC0Owxkzs
-      - key: eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJyb2xlIjogImFub24iLCAiaXNzIjogInN1cGFiYXNlIiwgImlhdCI6IDE3ODMxOTAwMzgsICJleHAiOiAyMDk4NTUwMDM4fQ.RJlhHco8w1PTHG_Uo7TjAq4ISaqQCuVEPlNC0Owxkzs
+      - key: SUBSTITUA_PELO_ANON_KEY_JWT
   - username: service_role
     keyauth_credentials:
-      - key: eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJyb2xlIjogInNlcnZpY2Vfcm9sZSIsICJpc3MiOiAic3VwYWJhc2UiLCAiaWF0IjogMTc4MzE5MDAzOCwgImV4cCI6IDIwOTg1NTAwMzh9.JQUMnDdzYCaxz7ZvopqClPdSDntajGcZlKidy2wcDjg
-      - key: eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJyb2xlIjogInNlcnZpY2Vfcm9sZSIsICJpc3MiOiAic3VwYWJhc2UiLCAiaWF0IjogMTc4MzE5MDAzOCwgImV4cCI6IDIwOTg1NTAwMzh9.JQUMnDdzYCaxz7ZvopqClPdSDntajGcZlKidy2wcDjg
+      - key: SUBSTITUA_PELO_SERVICE_ROLE_KEY_JWT
 
 ###
 ### Access Control List
@@ -30,10 +28,15 @@ acls:
 basicauth_credentials:
   - consumer: DASHBOARD
     username: '$DASHBOARD_USERNAME'
-    password: 'qMhn3Qmo0ZovMK44'
+    password: 'SUBSTITUA_POR_UMA_SENHA_FORTE'
 
 ###
 ### API Routes
+###
+### Copie este arquivo para kong.yml (git-ignored) e substitua os placeholders
+### acima pelos valores reais gerados para este ambiente. Todas as rotas abaixo
+### usam "Authorization: Bearer SUBSTITUA_PELO_ANON_KEY_JWT" como header interno
+### fixo — troque também essas ocorrências pelo ANON_KEY real.
 ###
 services:
   ## Open Auth routes
@@ -116,7 +119,7 @@ services:
         config:
           add:
             headers:
-              - "Authorization: Bearer eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJyb2xlIjogImFub24iLCAiaXNzIjogInN1cGFiYXNlIiwgImlhdCI6IDE3ODMxOTAwMzgsICJleHAiOiAyMDk4NTUwMDM4fQ.RJlhHco8w1PTHG_Uo7TjAq4ISaqQCuVEPlNC0Owxkzs"
+              - "Authorization: Bearer SUBSTITUA_PELO_ANON_KEY_JWT"
       - name: acl
         config:
           hide_groups_header: true
@@ -142,7 +145,7 @@ services:
         config:
           add:
             headers:
-              - "Authorization: Bearer eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJyb2xlIjogImFub24iLCAiaXNzIjogInN1cGFiYXNlIiwgImlhdCI6IDE3ODMxOTAwMzgsICJleHAiOiAyMDk4NTUwMDM4fQ.RJlhHco8w1PTHG_Uo7TjAq4ISaqQCuVEPlNC0Owxkzs"
+              - "Authorization: Bearer SUBSTITUA_PELO_ANON_KEY_JWT"
       - name: acl
         config:
           hide_groups_header: true
@@ -169,7 +172,7 @@ services:
           add:
             headers:
               - "Content-Profile: graphql_public"
-              - "Authorization: Bearer eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJyb2xlIjogImFub24iLCAiaXNzIjogInN1cGFiYXNlIiwgImlhdCI6IDE3ODMxOTAwMzgsICJleHAiOiAyMDk4NTUwMDM4fQ.RJlhHco8w1PTHG_Uo7TjAq4ISaqQCuVEPlNC0Owxkzs"
+              - "Authorization: Bearer SUBSTITUA_PELO_ANON_KEY_JWT"
       - name: acl
         config:
           hide_groups_header: true
@@ -257,7 +260,7 @@ services:
         config:
           add:
             headers:
-              - "Authorization: Bearer eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJyb2xlIjogImFub24iLCAiaXNzIjogInN1cGFiYXNlIiwgImlhdCI6IDE3ODMxOTAwMzgsICJleHAiOiAyMDk4NTUwMDM4fQ.RJlhHco8w1PTHG_Uo7TjAq4ISaqQCuVEPlNC0Owxkzs"
+              - "Authorization: Bearer SUBSTITUA_PELO_ANON_KEY_JWT"
       - name: acl
         config:
           hide_groups_header: true
@@ -288,7 +291,7 @@ services:
         config:
           add:
             headers:
-              - "Authorization: Bearer eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJyb2xlIjogImFub24iLCAiaXNzIjogInN1cGFiYXNlIiwgImlhdCI6IDE3ODMxOTAwMzgsICJleHAiOiAyMDk4NTUwMDM4fQ.RJlhHco8w1PTHG_Uo7TjAq4ISaqQCuVEPlNC0Owxkzs"
+              - "Authorization: Bearer SUBSTITUA_PELO_ANON_KEY_JWT"
       - name: post-function
         config:
           access:
@@ -420,31 +423,6 @@ services:
           - /.well-known/oauth-authorization-server
     plugins:
       - name: cors
-
-  ## Analytics routes
-  ## Not used - Studio and Vector talk directly to analytics via Docker networking.
-  ## If external access is needed, add routes with key-auth matching Logflare's x-api-key auth.
-  # - name: analytics-v1-api
-  #   _comment: 'Analytics: /analytics/v1/api/endpoints/* -> http://logflare:4000/api/endpoints/*'
-  #   url: http://analytics:4000/api/endpoints
-  #   routes:
-  #     - name: analytics-v1-api
-  #       strip_path: true
-  #       paths:
-  #         - /analytics/v1/api/endpoints/
-  # - name: analytics-v1
-  #   _comment: 'Analytics: /analytics/v1/* -> http://logflare:4000/*'
-  #   url: http://analytics:4000/
-  #   routes:
-  #     - name: dashboard-v1-all
-  #       strip_path: true
-  #       paths:
-  #         - /analytics/v1
-  #   plugins:
-  #     - name: cors
-  #     - name: basic-auth
-  #       config:
-  #         hide_credentials: true
 
   ## Secure Database routes
   - name: meta

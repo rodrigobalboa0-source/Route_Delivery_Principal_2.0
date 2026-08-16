@@ -3,18 +3,25 @@
 # 1-backup-cloud.sh
 # Execute este script NO SERVIDOR NOVO (tem IPv6/conectividade)
 # Faz o dump completo do Supabase Cloud → arquivos locais
+#
+# Uso:
+#   CLOUD_DB_HOST=db.SEU_PROJETO.supabase.co \
+#   CLOUD_DB_PASS=... \
+#   SUPABASE_URL=https://SEU_PROJETO.supabase.co \
+#   SERVICE_ROLE_KEY=... \
+#   ./1-backup-cloud.sh
 # ─────────────────────────────────────────────────────────────
 set -euo pipefail
 
-CLOUD_DB_HOST="db.mtanrihprbgrrtgwcyia.supabase.co"
-CLOUD_DB_PORT="5432"
-CLOUD_DB_USER="postgres"
-CLOUD_DB_PASS="jYYVcBINpMbH3Kci"
-CLOUD_DB_NAME="postgres"
-CLOUD_DSN="postgresql://${CLOUD_DB_USER}:${CLOUD_DB_PASS}@${CLOUD_DB_HOST}:${CLOUD_DB_PORT}/${CLOUD_DB_NAME}?sslmode=require"
+: "${CLOUD_DB_HOST:?defina CLOUD_DB_HOST (ex: db.SEU_PROJETO.supabase.co)}"
+: "${CLOUD_DB_PASS:?defina CLOUD_DB_PASS}"
+: "${SUPABASE_URL:?defina SUPABASE_URL (ex: https://SEU_PROJETO.supabase.co)}"
+: "${SERVICE_ROLE_KEY:?defina SERVICE_ROLE_KEY}"
 
-SUPABASE_URL="https://mtanrihprbgrrtgwcyia.supabase.co"
-SERVICE_ROLE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im10YW5yaWhwcmJncnJ0Z3djeWlhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MzAzNTY5MiwiZXhwIjoyMDc4NjExNjkyfQ.zEz6fE9fL3NE6I3fJL3bS20ySVnfV1goNMu-Crt9u8M"
+CLOUD_DB_PORT="${CLOUD_DB_PORT:-5432}"
+CLOUD_DB_USER="${CLOUD_DB_USER:-postgres}"
+CLOUD_DB_NAME="${CLOUD_DB_NAME:-postgres}"
+CLOUD_DSN="postgresql://${CLOUD_DB_USER}:${CLOUD_DB_PASS}@${CLOUD_DB_HOST}:${CLOUD_DB_PORT}/${CLOUD_DB_NAME}?sslmode=require"
 
 BACKUP_DIR="./backup_$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$BACKUP_DIR"
