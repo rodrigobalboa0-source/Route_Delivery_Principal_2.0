@@ -24,7 +24,7 @@ export function TrajetoEntregadoresReport() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    supabase.from('entregadores').select('*').order('nome_completo').then(({ data }) => {
+    supabase.from('entregadores').select('id, nome_completo').order('nome_completo').then(({ data }) => {
       setEntregadores(data || []);
     });
   }, []);

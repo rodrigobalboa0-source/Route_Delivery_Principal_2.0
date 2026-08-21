@@ -134,7 +134,7 @@ export function OperationsDashboard() {
         withTimeout(
           supabase
             .from('entregadores')
-            .select('id, nome_completo, email, telefone, status, created_at, updated_at, foto_url, foto_base64, is_online, current_latitude, current_longitude, last_location_update')
+            .select('id, nome_completo, email, telefone, status, created_at, updated_at, foto_url, is_online, current_latitude, current_longitude, last_location_update')
             .eq('status', 'ativo')
             .order('nome_completo'),
           8000
@@ -193,8 +193,7 @@ export function OperationsDashboard() {
           last_location_update: ent.last_location_update || e.updated_at || null,
           created_at: e.created_at,
           updated_at: e.updated_at || e.created_at,
-          foto_url: e.foto_url,
-          foto_base64: ent.foto_base64
+          foto_url: e.foto_url
         };
       });
       setDeliveryPersons(mapped);

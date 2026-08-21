@@ -18,7 +18,7 @@ export function DiagnosticoEntregadoresReport() {
   async function fetchData() {
     setLoading(true);
     try {
-      const { data: entData } = await supabase.from('entregadores').select('*');
+      const { data: entData } = await supabase.from('entregadores').select('id, nome_completo, foto_url');
       if (entData) setEntregadores(entData);
 
       const { data: avData } = await supabase.from('entregador_avaliacoes').select('*');
