@@ -27,7 +27,7 @@ export function EntregadoresPeriodoReport() {
       
       const { data: entregadoresData } = await supabase
         .from('entregadores')
-        .select('*');
+        .select('id, nome_completo');
       
       if (entregadoresData) setEntregadores(entregadoresData);
 

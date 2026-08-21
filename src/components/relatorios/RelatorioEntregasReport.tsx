@@ -127,7 +127,7 @@ export function RelatorioEntregasReport({ onNavigate, userRole }: RelatorioEntre
   }, [isAllocationModalOpen]);
 
   async function fetchEntregadores() {
-      const { data } = await supabase.from('entregadores').select('*').eq('status', 'ativo').order('nome_completo');
+      const { data } = await supabase.from('entregadores').select('id, nome_completo').eq('status', 'ativo').order('nome_completo');
       setEntregadoresList((data || []) as Entregador[]);
   }
 

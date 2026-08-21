@@ -13,7 +13,7 @@ export function EntregadoresAnaliticoReport() {
     const fetchAll = async () => {
       setLoading(true);
       setError(null);
-      const { data, error } = await supabase.from('entregadores').select('*').order('created_at', { ascending: false });
+      const { data, error } = await supabase.from('entregadores').select('id, nome_completo, status, cnh_valida, tipo_entrega, veiculo_tipo, cidade, created_at').order('created_at', { ascending: false });
       if (error) setError(error.message);
       setItems(data || []);
       setLoading(false);

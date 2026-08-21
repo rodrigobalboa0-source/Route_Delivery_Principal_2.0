@@ -19,7 +19,7 @@ export function EntregadorMinhaContaPanel() {
 
       const { data, error } = await supabase
         .from('entregadores')
-        .select('*')
+        .select('id, nome_completo, cpf, rg, data_nascimento, telefone, email, veiculo_tipo, veiculo_modelo, veiculo_placa, veiculo_ano, cnh_valida, tipo_entrega, taxa_entrega, status, created_at, updated_at, foto_url, foto_base64, cep, rua, numero, complemento, bairro, cidade, is_online, current_latitude, current_longitude, last_location_update, prioridade_busca, prioridade_tempo, heading')
         .eq('email', user.email)
         .single();
 

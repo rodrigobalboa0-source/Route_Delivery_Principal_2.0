@@ -118,6 +118,17 @@ function dropIcon(
   });
 }
 
+function driverIconKey(p: MapDeliveryPerson, selected: boolean): string {
+  const photoUrl = String(p.foto_url || p.foto_base64 || '').trim();
+  return [
+    selected ? '1' : '0',
+    p.is_online ? '1' : '0',
+    p.status || '',
+    photoUrl,
+    photoUrl ? '' : (p.name || ''),
+  ].join('|');
+}
+
 function driverIcon(p: MapDeliveryPerson, selected: boolean): L.DivIcon {
   const color = getMarkerColor(p);
   const size = selected ? 46 : 40;
@@ -167,11 +178,11 @@ export function MapView({
 }: MapViewOwnApiProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
-  const driverMarkersRef = useRef<Map<string, L.Marker>>(new Map());
+  const driverMarkersRef = useRef<Map<string, { marker: L.Marker; iconKey: string }>>(new Map());
   const originMarkerRef = useRef<L.Marker | null>(null);
   const destMarkerRef = useRef<L.Marker | null>(null);
   const additionalMarkersRef = useRef<Map<number, L.Marker>>(new Map());
-  const pinMarkersRef = useRef<Map<string, L.Marker>>(new Map());
+  const pinMarkersRef = useRef<Map<string, { marker: L.Marker; iconKey: string }>>(new Map());
   const routeLayerRef = useRef<L.Polyline | null>(null);
   const userInteractedRef = useRef(false);
   const prevSelectedIdRef = useRef<string | undefined>(undefined);
@@ -215,28 +226,32 @@ export function MapView({
 
       const pos: [number, number] = [person.current_latitude, person.current_longitude];
       const isSelected = person.id === selectedEntregadorId;
-      const icon = driverIcon(person, isSelected);
-      const popup = `
-        <div style="padding:4px;">
-          <strong>${escapeHtml(person.name)}</strong><br/>
-          <span>Status: ${escapeHtml(formatStatus(person.status))}</span><br/>
-          <span>${person.is_online ? '🟢 Online' : '🔴 Offline'}</span>
-        </div>
-      `;
+      const iconKey = driverIconKey(person, isSelected);
 
       const existing = driverMarkersRef.current.get(person.id);
       if (existing) {
-        existing.setLatLng(pos);
-        existing.setIcon(icon);
-        existing.setZIndexOffset(isSelected ? 1000 : 0);
+        existing.marker.setLatLng(pos);
+        if (existing.iconKey !== iconKey) {
+          existing.marker.setIcon(driverIcon(person, isSelected));
+          existing.marker.setZIndexOffset(isSelected ? 1000 : 0);
+          existing.iconKey = iconKey;
+        }
       } else {
+        const icon = driverIcon(person, isSelected);
+        const popup = `
+          <div style="padding:4px;">
+            <strong>${escapeHtml(person.name)}</strong><br/>
+            <span>Status: ${escapeHtml(formatStatus(person.status))}</span><br/>
+            <span>${person.is_online ? '🟢 Online' : '🔴 Offline'}</span>
+          </div>
+        `;
         const marker = L.marker(pos, { icon, zIndexOffset: isSelected ? 1000 : 0 }).addTo(map);
         marker.bindPopup(popup);
-        driverMarkersRef.current.set(person.id, marker);
+        driverMarkersRef.current.set(person.id, { marker, iconKey });
       }
     });
 
-    driverMarkersRef.current.forEach((marker, id) => {
+    driverMarkersRef.current.forEach(({ marker }, id) => {
       if (!currentIds.has(id)) {
         marker.remove();
         driverMarkersRef.current.delete(id);
@@ -338,12 +353,16 @@ export function MapView({
     deliveryPins.forEach((pin) => {
       currentIds.add(pin.id);
       const color = pin.color || '#f97316';
-      const icon = dropIcon(color, { iconSvg: ICONS.package(), badge: pin.agendado ? 'clock' : undefined });
+      const iconKey = `${color}|${pin.agendado ? '1' : '0'}`;
       const existing = pinMarkersRef.current.get(pin.id);
       if (existing) {
-        existing.setLatLng(pin.coords);
-        existing.setIcon(icon);
+        existing.marker.setLatLng(pin.coords);
+        if (existing.iconKey !== iconKey) {
+          existing.marker.setIcon(dropIcon(color, { iconSvg: ICONS.package(), badge: pin.agendado ? 'clock' : undefined }));
+          existing.iconKey = iconKey;
+        }
       } else {
+        const icon = dropIcon(color, { iconSvg: ICONS.package(), badge: pin.agendado ? 'clock' : undefined });
         const marker = L.marker(pin.coords, { icon, zIndexOffset: 150 }).addTo(map);
 
         if (pin.label) {
@@ -355,11 +374,11 @@ export function MapView({
           });
         }
         marker.bindPopup(`<strong style="color:${color}">${escapeHtml(pin.tooltip)}</strong>`);
-        pinMarkersRef.current.set(pin.id, marker);
+        pinMarkersRef.current.set(pin.id, { marker, iconKey });
       }
     });
 
-    pinMarkersRef.current.forEach((marker, id) => {
+    pinMarkersRef.current.forEach(({ marker }, id) => {
       if (!currentIds.has(id)) {
         marker.remove();
         pinMarkersRef.current.delete(id);

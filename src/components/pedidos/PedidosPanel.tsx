@@ -2585,7 +2585,6 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       'created_at',
       'updated_at',
       'foto_url',
-      'foto_base64',
       'veiculo_tipo',
     ].join(', ');
 
@@ -2642,8 +2641,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
               last_location_update: e.last_location_update,
               created_at: e.created_at,
               updated_at: e.updated_at,
-              foto_url: e.foto_url,
-              foto_base64: e.foto_base64
+              foto_url: e.foto_url
           });
         }
     });
