@@ -688,6 +688,13 @@ export function NovaEntregaPanel() {
   };
 
   useEffect(() => {
+
+    const coletaEnderecoNow = (form.coleta_endereco_texto || '').trim();
+    const entregaEnderecoNow = (form.entrega_endereco_texto || '').trim();
+    if (coletaEnderecoNow && entregaEnderecoNow) {
+      setCalculatingDistance(true);
+    }
+
     const updateDistance = async () => {
       const calcId = ++distanceCalcIdRef.current;
 
@@ -725,11 +732,11 @@ export function NovaEntregaPanel() {
           selected: [number, number] | undefined
         ) => {
           if (selected) return selected;
-          const key = normalizeAddressKey(baseText);
+          const full = numero ? `${baseText}, ${numero}` : baseText;
+          const key = normalizeAddressKey(full);
           const cached = selectedCoordsByTextRef.current.get(key);
           if (cached) return cached;
 
-          const full = numero ? `${baseText}, ${numero}` : baseText;
           let c = await getCoordsFromAddress(full);
           if (!c && numero) c = await getCoordsFromAddress(baseText);
           if (c) {
@@ -1671,8 +1678,7 @@ export function NovaEntregaPanel() {
     }
 
     if (insertError?.message) {
-      // A entrega falhou depois que o pedido já tinha sido criado — desfaz o
-      // pedido órfão em vez de deixá-lo aparecer sem entrega na lista.
+
       if (pedidoId) {
         try {
           await supabase.from('pedidos').delete().eq('id', pedidoId);
@@ -1931,7 +1937,7 @@ export function NovaEntregaPanel() {
                 : 'border-slate-300'
             }
           />
-          <input placeholder="Nº" value={form.coleta_numero} onChange={(e) => { const v = e.target.value; setForm(prev => ({ ...prev, coleta_numero: v })); }} className="px-3 py-2 border border-slate-300 rounded" />
+          <input placeholder="Nº" value={form.coleta_numero} onChange={(e) => { const v = e.target.value; setColetaSelectedCoords(undefined); setDistanceError(null); setForm(prev => ({ ...prev, coleta_numero: v })); }} className="px-3 py-2 border border-slate-300 rounded" />
           <input placeholder="Complemento" value={form.coleta_complemento} onChange={(e) => { const v = e.target.value; setForm(prev => ({ ...prev, coleta_complemento: v })); }} className="px-3 py-2 border border-slate-300 rounded" />
           <input placeholder="Observações (Coleta)" value={form.coleta_observacoes} onChange={(e) => { const v = e.target.value; setForm(prev => ({ ...prev, coleta_observacoes: v })); }} className="px-3 py-2 border border-slate-300 rounded md:col-span-2" />
         </div>
