@@ -205,34 +205,33 @@ export async function getCoordsFromAddress(address: string): Promise<[number, nu
 export async function getDrivingRouteDistance(coords: {lat: number, lon: number}[]): Promise<number | null> {
   if (coords.length < 2) return 0;
   try {
-    const coordString = coords.map(c => `${c.lon},${c.lat}`).join(';');
-    
-    const url = `https://router.project-osrm.org/route/v1/driving/${coordString}?overview=false&alternatives=true&steps=false`;
-    const response = await fetchWithTimeout(url, 12000);
-    if (!response.ok) return null;
-    const data = await response.json();
-    
-    if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+    const baseUrl = String(MAPS_API_URL || '').replace(/\/+$/, '');
 
-      const shortestRoute = data.routes.reduce((min: any, current: any) => {
-        return (current.distance < min.distance) ? current : min;
-      }, data.routes[0]);
+    let drivingKm = 0;
+    let straightLineKm = 0;
 
-      const drivingKm = shortestRoute.distance / 1000;
+    for (let i = 0; i < coords.length - 1; i++) {
+      const origin = coords[i];
+      const dest = coords[i + 1];
+      const url = `${baseUrl}/v1/directions?origin=${origin.lat},${origin.lon}&destination=${dest.lat},${dest.lon}`;
+      const response = await fetchWithTimeout(url, 12000, { headers: { 'X-API-Key': MAPS_API_KEY } });
+      if (!response.ok) return null;
+      const data = await response.json();
+      const legDistanceM = data?.routes?.[0]?.legs?.[0]?.distance?.value;
+      if (typeof legDistanceM !== 'number') return null;
 
-      let straightLineKm = 0;
-      for (let i = 0; i < coords.length - 1; i++) {
-        straightLineKm += getDistanceFromLatLonInKm(coords[i].lat, coords[i].lon, coords[i + 1].lat, coords[i + 1].lon);
-      }
-      if (straightLineKm > 0.05 && drivingKm > straightLineKm * 2.5 + 3) {
-        console.warn('[getDrivingRouteDistance] Distância implausível descartada:', { drivingKm, straightLineKm });
-        return null;
-      }
-
-      return drivingKm;
+      drivingKm += legDistanceM / 1000;
+      straightLineKm += getDistanceFromLatLonInKm(origin.lat, origin.lon, dest.lat, dest.lon);
     }
+
+    if (straightLineKm > 0.05 && drivingKm > straightLineKm * 2.5 + 3) {
+      console.warn('[getDrivingRouteDistance] Distância implausível descartada:', { drivingKm, straightLineKm });
+      return null;
+    }
+
+    return drivingKm;
   } catch (error) {
-    console.error('Error fetching OSRM route:', error);
+    console.error('Error fetching directions route:', error);
   }
   return null;
 }
