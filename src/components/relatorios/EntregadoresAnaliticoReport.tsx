@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { Database } from '../../lib/database.types';
 
-type Entregador = Database['public']['Tables']['entregadores']['Row'];
+type Entregador = Pick<Database['public']['Tables']['entregadores']['Row'], 'id' | 'nome_completo' | 'status' | 'cnh_valida' | 'tipo_entrega' | 'veiculo_tipo' | 'cidade' | 'created_at'>;
 
 export function EntregadoresAnaliticoReport() {
   const [items, setItems] = useState<Entregador[]>([]);

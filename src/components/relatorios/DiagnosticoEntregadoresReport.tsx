@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import type { Database } from '../../lib/database.types';
 import { AlertTriangle, Star } from 'lucide-react';
 
-type Entregador = Database['public']['Tables']['entregadores']['Row'];
+type Entregador = Pick<Database['public']['Tables']['entregadores']['Row'], 'id' | 'nome_completo' | 'foto_url' | 'status' | 'veiculo_modelo' | 'veiculo_placa'>;
 type Avaliacao = Database['public']['Tables']['entregador_avaliacoes']['Row'];
 
 export function DiagnosticoEntregadoresReport() {
@@ -18,7 +18,7 @@ export function DiagnosticoEntregadoresReport() {
   async function fetchData() {
     setLoading(true);
     try {
-      const { data: entData } = await supabase.from('entregadores').select('id, nome_completo, foto_url');
+      const { data: entData } = await supabase.from('entregadores').select('id, nome_completo, foto_url, status, veiculo_modelo, veiculo_placa');
       if (entData) setEntregadores(entData);
 
       const { data: avData } = await supabase.from('entregador_avaliacoes').select('*');

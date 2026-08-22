@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import type { Database } from '../../lib/database.types';
 import { BarChart3, Calendar } from 'lucide-react';
 
-type Entregador = Database['public']['Tables']['entregadores']['Row'];
+type Entregador = Pick<Database['public']['Tables']['entregadores']['Row'], 'id' | 'nome_completo'>;
 type Entrega = Database['public']['Tables']['nova_entrega']['Row'];
 
 export function EntregadoresPeriodoReport() {

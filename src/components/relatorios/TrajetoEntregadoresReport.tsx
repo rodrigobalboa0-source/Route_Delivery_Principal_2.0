@@ -4,7 +4,7 @@ import { Database } from '../../lib/database.types';
 // import { MapView } from '../MapView'; // Google Maps SDK — fallback rápido, ver plano-integracao-routedelivery.md
 import { MapView } from '../MapViewOwnApi';
 
-type Entregador = Database['public']['Tables']['entregadores']['Row'];
+type Entregador = Pick<Database['public']['Tables']['entregadores']['Row'], 'id' | 'nome_completo'>;
 type Entrega = Database['public']['Tables']['nova_entrega']['Row'];
 
 function parseLatLng(s: string | null): [number, number] | null {
