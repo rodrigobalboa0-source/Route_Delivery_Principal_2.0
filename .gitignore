@@ -30,3 +30,8 @@ dist-ssr
 
 firebase-service-account.json
 *firebase-adminsdk*.json
+android/app/google-services.json
+
+infra/volumes/api/kong.yml
+
+supabase

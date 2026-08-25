@@ -320,6 +320,7 @@ async def dashboard(request: Request):
             # Contagem das principais tabelas
             for table in ["clientes", "nova_entrega", "pedidos", "entregadores", "users"]:
                 try:
+                    # nosemgrep: python.sqlalchemy.security.audit.avoid-sqlalchemy-text.avoid-sqlalchemy-text -- table vem da lista literal hardcoded acima, nunca de input do usuário
                     r = conn.execute(text(f"SELECT COUNT(*) FROM public.{table}"))
                     stats[table] = r.scalar()
                 except Exception:

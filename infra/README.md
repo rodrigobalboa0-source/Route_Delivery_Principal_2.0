@@ -91,8 +91,8 @@ chmod +x scripts/4-deploy-functions.sh
 ```
 VITE_SUPABASE_URL=http://SEU_IP:8000
 VITE_SUPABASE_ANON_KEY=<ANON_KEY do novo servidor>
-VITE_GOOGLE_MAPS_API_KEY=AIzaSyAk_GTBnUcLRLd2gVusUZRzvAxm5hefdpo
-VITE_GOOGLE_MAPS_MAP_ID=da75f8800318c91f365f94fc
+VITE_GOOGLE_MAPS_API_KEY=SUA_CHAVE_GOOGLE_MAPS
+VITE_GOOGLE_MAPS_MAP_ID=SEU_MAP_ID
 ```
 
 ### 9. Build e deploy do frontend

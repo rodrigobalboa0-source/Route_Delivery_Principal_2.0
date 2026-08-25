@@ -1,0 +1,18 @@
+title = "RouteDelivery gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Placeholders de documentação/exemplo, não são segredos reais"
+regexes = [
+  '''SEU_ANON_KEY''',
+  '''SEU_IP''',
+  '''TROQUE_POR_JWT_SECRET_DE_32_CHARS''',
+  '''SUBSTITUA_PELA_URL_DO_AMBIENTE''',
+  '''SUBSTITUA_PELO_ANON_KEY_DO_AMBIENTE''',
+  '''SUBSTITUA_PELO_ANON_KEY_JWT''',
+  '''SUBSTITUA_PELO_SERVICE_ROLE_KEY_JWT''',
+  '''SUBSTITUA_POR_UMA_SENHA_FORTE''',
+  '''SUA_CHAVE_GOOGLE_MAPS''',
+]

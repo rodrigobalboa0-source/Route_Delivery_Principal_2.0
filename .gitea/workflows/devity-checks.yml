@@ -1,0 +1,39 @@
+name: Devity Checks
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+jobs:
+  security:
+    runs-on: devity-scan
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Gitleaks (segredos e chaves commitadas)
+        run: gitleaks detect --source . --no-git -v --exit-code 1
+
+      - name: Trivy (vulnerabilidades em dependências)
+        run: trivy fs --scanners vuln --severity HIGH,CRITICAL --exit-code 1 .
+
+      - name: Trivy (configuração/IaC — Dockerfile, compose, k8s, terraform)
+        run: trivy config --severity HIGH,CRITICAL --exit-code 1 .
+
+      - name: Trivy (licenças de dependências)
+        run: trivy fs --scanners license --severity HIGH,CRITICAL --exit-code 1 . || true
+
+      - name: Trivy (SBOM — inventário de dependências)
+        run: trivy fs --format cyclonedx --output sbom.json .
+
+      - name: Semgrep (análise estática de segurança)
+        run: |
+          semgrep scan --config p/security-audit --config p/secrets --config p/owasp-top-ten \
+            --error --metrics=off .
+
+      - name: Hadolint (boas práticas de Dockerfile, se existir)
+        run: |
+          find . -iname "Dockerfile*" -not -path "*/node_modules/*" -print0 | \
+            xargs -0 -r -n1 hadolint --failure-threshold error
