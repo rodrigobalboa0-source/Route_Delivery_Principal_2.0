@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../lib/supabase';
 import { Modal } from '../Modal';
+import { AddressPinPicker, type AddressPinPickerConfirmedResult } from '../AddressPinPicker';
 import type { Database } from '../../lib/database.types';
 
 type TabelaPreco = Database['public']['Tables']['tabelas_precos']['Row'];
@@ -136,6 +137,7 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
     latitude: '',
     longitude: '',
   });
+  const [pinPicker, setPinPicker] = useState<{ target: 'create' | 'edit'; addressText: string } | null>(null);
   const [fotoFile, setFotoFile] = useState<File | null>(null);
   const [fotoPreview, setFotoPreview] = useState<string>('');
   const [editFotoFile, setEditFotoFile] = useState<File | null>(null);
@@ -983,6 +985,20 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
     await fetchClientes();
   };
 
+  const openPinPicker = (target: 'create' | 'edit', addressText: string) => {
+    setPinPicker({ target, addressText });
+  };
+
+  const handleConfirmPin = (result: AddressPinPickerConfirmedResult) => {
+    if (!pinPicker) return;
+    if (pinPicker.target === 'create') {
+      setForm((prev) => ({ ...prev, latitude: String(result.lat), longitude: String(result.lng) }));
+    } else {
+      setEditForm((prev) => ({ ...prev, latitude: String(result.lat), longitude: String(result.lng) } as any));
+    }
+    setPinPicker(null);
+  };
+
   const fetchAddressByCep = async (cep: string) => {
     const cleanCep = cep.replace(/\D/g, '');
     if (cleanCep.length !== 8) return null;
@@ -1268,6 +1284,16 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
             <input placeholder="Referência de entrega" value={enderecoAtual.referencia_entrega || ''} onChange={(e) => setEnderecoAtual({ ...enderecoAtual, referencia_entrega: e.target.value })} className="px-3 py-2 border border-slate-300 rounded md:col-span-3" />
           </div>
           <button onClick={addEndereco} className="mt-3 px-3 py-2 rounded bg-slate-200 text-slate-800 text-sm">Adicionar endereço</button>
+          <button
+            type="button"
+            onClick={() => openPinPicker('create', [enderecoAtual.rua, enderecoAtual.numero, enderecoAtual.bairro, enderecoAtual.cidade, enderecoAtual.cep].filter(Boolean).join(', '))}
+            className="mt-3 ml-2 px-3 py-2 rounded bg-slate-100 text-slate-700 text-sm border border-slate-300 hover:bg-slate-200"
+          >
+            📍 Ajustar localização no mapa
+          </button>
+          {(form.latitude && form.longitude) && (
+            <span className="ml-2 text-xs text-emerald-600">Posição exata confirmada</span>
+          )}
           {enderecos.length > 0 && (
             <div className="mt-3 space-y-2">
               {enderecos.map((e, i) => (
@@ -1826,6 +1852,16 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
           <div className="text-[11px] text-slate-500 mt-2">
             Preencha para fixar a localização do comércio no mapa. Se vazio, o sistema continua tentando localizar pelo endereço.
           </div>
+          <button
+            type="button"
+            onClick={() => {
+              const e = editEnderecos[0] || editEnderecoNovo;
+              openPinPicker('edit', [e?.rua, e?.numero, e?.bairro, e?.cidade, e?.cep].filter(Boolean).join(', '));
+            }}
+            className="mt-2 px-3 py-2 rounded bg-slate-100 text-slate-700 text-sm border border-slate-300 hover:bg-slate-200"
+          >
+            📍 Ajustar localização no mapa
+          </button>
         </div>
 
         <div className="mt-4">
@@ -1943,6 +1979,14 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
           </div>
         </div>
       </Modal>
+
+      {pinPicker && (
+        <AddressPinPicker
+          addressText={pinPicker.addressText}
+          onConfirm={handleConfirmPin}
+          onCancel={() => setPinPicker(null)}
+        />
+      )}
     </div>
   );
 }
