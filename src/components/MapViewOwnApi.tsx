@@ -181,7 +181,15 @@ export function MapView({
     mapRef.current = map;
     setMapLoaded(true);
 
+    const resizeObserver = new ResizeObserver(() => {
+      map.invalidateSize();
+    });
+    resizeObserver.observe(containerRef.current);
+    const initialSizeTimeout = setTimeout(() => map.invalidateSize(), 150);
+
     return () => {
+      resizeObserver.disconnect();
+      clearTimeout(initialSizeTimeout);
       map.remove();
       mapRef.current = null;
       setMapLoaded(false);
