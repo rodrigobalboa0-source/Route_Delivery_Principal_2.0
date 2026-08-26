@@ -1103,6 +1103,7 @@ export interface Database {
           valor_minimo: number | null
           percentual_sobre_valor: number | null
           valor_multiplo_comercio?: number | null
+          is_default: boolean
           created_at: string
           updated_at: string
         }
@@ -1117,6 +1118,7 @@ export interface Database {
           valor_minimo?: number | null
           percentual_sobre_valor?: number | null
           valor_multiplo_comercio?: number | null
+          is_default?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -1131,6 +1133,7 @@ export interface Database {
           valor_minimo?: number | null
           percentual_sobre_valor?: number | null
           valor_multiplo_comercio?: number | null
+          is_default?: boolean
           created_at?: string
           updated_at?: string
         }

@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { getCoordsFromAddress, getDrivingRouteDistance } from '../../utils/geo';
 import { AddressAutocomplete, type AddressAutocompleteHandle } from '../AddressAutocomplete';
 import type { Database } from '../../lib/database.types';
+import { pickFallbackTabelaId } from '../../utils/pricingTables';
 
 type Cliente = Database['public']['Tables']['clientes']['Row'];
 type Endereco = Database['public']['Tables']['cliente_enderecos']['Row'];
@@ -87,6 +88,8 @@ export function NovaEntregaPanel() {
   const [valorMultiploInfo, setValorMultiploInfo] = useState<{ valorPorPonto: number; pontos: number; total: number } | null>(null);
   const [dynamicDriverRules, setDynamicDriverRules] = useState<DynamicDriverRule[]>([]);
   const [faixasPreco, setFaixasPreco] = useState<FaixaPreco[]>([]);
+  const [tabelasComFaixas, setTabelasComFaixas] = useState<Set<string>>(new Set());
+  const [pricingUnavailable, setPricingUnavailable] = useState<string | null>(null);
   const coordsCache = useRef<Map<string, { lat: number; lon: number }>>(new Map()); 
   const distanceCalcIdRef = useRef(0);
   const [driverValueDisplay, setDriverValueDisplay] = useState<string>('0.00');
@@ -181,12 +184,13 @@ export function NovaEntregaPanel() {
 
     const currentValid =
       selectedTabelaId &&
-      tabelasPrecos.some((t) => String(t.id) === String(selectedTabelaId));
+      tabelasPrecos.some((t) => String(t.id) === String(selectedTabelaId)) &&
+      tabelasComFaixas.has(selectedTabelaId);
 
     if (!currentValid) {
-      setSelectedTabelaId(String(tabelasPrecos[0].id));
+      setSelectedTabelaId(pickFallbackTabelaId(tabelasPrecos, tabelasComFaixas));
     }
-  }, [pricingMode, selectedTabelaId, tabelasPrecos]);
+  }, [pricingMode, selectedTabelaId, tabelasPrecos, tabelasComFaixas]);
 
   useEffect(() => {
     const loadComissaoRules = async () => {
@@ -520,7 +524,7 @@ export function NovaEntregaPanel() {
 
   useEffect(() => {
     calculatePrice();
-  }, [distanciaKm, segmentDistancesKm, selectedTabelaId, pricingMode, pricePerPoint, form.pontos, form.retorno, dynamicRules, faixasPreco]);
+  }, [distanciaKm, segmentDistancesKm, selectedTabelaId, pricingMode, pricePerPoint, form.pontos, form.retorno, dynamicRules, faixasPreco, tabelasComFaixas, tabelasPrecos]);
 
   useEffect(() => {
     const kmValue = distanciaKm ? parseFloat(distanciaKm.replace(',', '.')) : 0;
@@ -565,6 +569,7 @@ export function NovaEntregaPanel() {
     const extraPointsFilled = (form.pontos || []).filter((p) => (p?.endereco_texto || '').trim().length > 0).length;
 
     if (pricingMode === 'Zerar') {
+      setPricingUnavailable(null);
       setForm(prev => ({ ...prev, valor_entrega: '0.00', valor_manual: false }));
       setValorDinamico(true);
       setActiveDynamicRules([]);
@@ -574,18 +579,25 @@ export function NovaEntregaPanel() {
     }
 
     if (pricingMode === 'Fixo') {
-      const basePoints = 2; 
+      setPricingUnavailable(null);
+      const basePoints = 2;
       const totalPoints = basePoints + extraPointsFilled;
       price = totalPoints * pricePerPoint;
       shouldCalculate = true;
     } else {
-      if (!selectedTabelaId) return;
+      const tabela = selectedTabelaId ? tabelasPrecos.find(t => String(t.id) === String(selectedTabelaId)) : undefined;
+      const tabelaValida = !!tabela && tabelasComFaixas.has(tabela.id);
+
+      if (!tabelaValida) {
+        if (tabelasPrecos.length > 0) {
+          setPricingUnavailable('Nenhuma tabela de preço configurada — selecione uma tabela válida ou contate o suporte.');
+        }
+        return;
+      }
+      setPricingUnavailable(null);
 
       const tabelaPadraoMultiplo = tabelasPrecos.find(t => (t as any).is_padrao_multiplo === true);
       valorMultiploPadrao = tabelaPadraoMultiplo?.valor_multiplo_comercio || 0;
-
-      const tabela = tabelasPrecos.find(t => String(t.id) === String(selectedTabelaId));
-      if (!tabela) return;
 
       if (!faixasPreco || faixasPreco.length === 0) return;
 
@@ -715,7 +727,7 @@ export function NovaEntregaPanel() {
           .maybeSingle()
       : Promise.resolve({ data: null as any });
 
-    const [uDataResp, e, t, m, tp, tc, b, dyn, dynDriver] = await Promise.all([
+    const [uDataResp, e, t, m, tp, tc, b, dyn, dynDriver, tpf] = await Promise.all([
       uDataPromise,
       supabase.from('entregadores').select('id, nome_completo, status, is_online').neq('status', 'inativo').order('nome_completo'),
       supabase.from('tipo_servicos').select('*').eq('ativo', true).order('nome'),
@@ -725,6 +737,7 @@ export function NovaEntregaPanel() {
       supabase.from('entregador_bloqueios_clientes').select('cliente_id, entregador_id'),
       supabase.from('preco_dinamico_demanda').select('*').eq('ativa', true).order('nome'),
       supabase.from('preco_dinamico_entregador').select('*').eq('ativa', true),
+      supabase.from('tabelas_precos_faixas').select('tabela_id'),
     ]);
 
     const uData = (uDataResp as any)?.data || null;
@@ -793,7 +806,10 @@ export function NovaEntregaPanel() {
     setBlacklist((b.data || []) as Array<{ cliente_id: string, entregador_id: string }>);
     setDynamicRules((dyn.data || []) as DynamicRule[]);
     setDynamicDriverRules((dynDriver.data || []) as DynamicDriverRule[]);
-    if (tabelas.length > 0) setSelectedTabelaId(tabelas[0].id);
+
+    const comFaixas = new Set((tpf.data || []).map((r: any) => r.tabela_id as string));
+    setTabelasComFaixas(comFaixas);
+    if (tabelas.length > 0) setSelectedTabelaId(pickFallbackTabelaId(tabelas, comFaixas));
 
     setForm(prev => ({
       ...prev,
@@ -1023,7 +1039,7 @@ export function NovaEntregaPanel() {
       }
       const valorNum = form.valor_entrega ? parseFloat(form.valor_entrega.replace(',', '.')) : 0;
       if (!form.valor_manual && (Number.isNaN(valorNum) || valorNum <= 0)) {
-        setError('Não foi possível calcular o valor da entrega. Verifique os endereços de coleta e entrega informados.');
+        setError(pricingUnavailable || 'Não foi possível calcular o valor da entrega. Verifique os endereços de coleta e entrega informados.');
         return;
       }
     }
@@ -1781,10 +1797,15 @@ export function NovaEntregaPanel() {
       </div>
 
       <div className="mt-6 bg-white border border-slate-200 rounded-lg p-4">
+        {pricingUnavailable && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 font-medium">
+            {pricingUnavailable}
+          </div>
+        )}
         {((form.coleta_endereco_texto && form.entrega_endereco_texto) || valorDinamico || calculatingDistance || pricingMode === 'Zerar' || pricingMode === 'Fixo') && (
-           <div className="mb-4 p-4 bg-sky-50 border border-sky-100 rounded-lg flex flex-col md:flex-row justify-between items-center gap-4">
+           <div className={`mb-4 p-4 border rounded-lg flex flex-col md:flex-row justify-between items-center gap-4 ${pricingUnavailable ? 'bg-red-50 border-red-100' : 'bg-sky-50 border-sky-100'}`}>
              <div>
-                <span className="text-sm text-sky-700 font-medium block">Valor Total da Entrega</span>
+                <span className={`text-sm font-medium block ${pricingUnavailable ? 'text-red-700' : 'text-sky-700'}`}>Valor Total da Entrega</span>
                 {distanciaKm && <span className="text-xs text-sky-600">Distância estimada: {distanciaKm} km</span>}
                 {!calculatingDistance && !!distanceError && (
                   <span className="text-xs text-red-700 block">{distanceError}</span>
@@ -1807,8 +1828,8 @@ export function NovaEntregaPanel() {
                 {calculatingDistance && <span className="text-xs text-amber-600 block animate-pulse">Calculando rota e distância...</span>}
 
              </div>
-             <div className="text-3xl font-bold text-sky-900">
-               {calculatingDistance ? '...' : (form.valor_entrega ? `R$ ${form.valor_entrega}` : 'R$ --')}
+             <div className={`text-3xl font-bold ${pricingUnavailable ? 'text-red-800' : 'text-sky-900'}`}>
+               {calculatingDistance ? '...' : pricingUnavailable ? '—' : (form.valor_entrega ? `R$ ${form.valor_entrega}` : 'R$ --')}
             </div>
            </div>
         )}

@@ -15,6 +15,7 @@ import {
   isLastDestination,
   calculateAdvanceDestination
 } from '../../utils/multiDestination';
+import { pickFallbackTabelaId } from '../../utils/pricingTables';
 
 type Cliente = { 
   id: string; 
@@ -1063,6 +1064,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [selectedTabelaId, setSelectedTabelaId] = useState<string | null>(null);
   const [pricePerPoint, setPricePerPoint] = useState(0);
   const [pricingMode, setPricingMode] = useState<'Distância' | 'Fixo' | 'Zerar'>('Distância');
+  const [tabelasComFaixas, setTabelasComFaixas] = useState<Set<string>>(new Set());
+  const [pricingUnavailable, setPricingUnavailable] = useState<string | null>(null);
 
   useEffect(() => {
     
@@ -1076,7 +1079,10 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             supabase.from('preco_dinamico_entregador').select('*'),
         ]);
         if (tp.data) setPricingTables(tp.data);
-        if (tpf.data) setPricingRanges(tpf.data);
+        if (tpf.data) {
+          setPricingRanges(tpf.data);
+          setTabelasComFaixas(new Set(tpf.data.map((r: any) => r.tabela_id)));
+        }
         if (tc.data) setCommissionTables(tc.data);
         if (tcf.data) setCommissionRanges(tcf.data);
         if (dr.data) {
@@ -1105,12 +1111,14 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
     const currentValid =
       selectedTabelaId &&
-      pricingTables.some((t) => String(t.id) === String(selectedTabelaId));
+      pricingTables.some((t) => String(t.id) === String(selectedTabelaId)) &&
+      tabelasComFaixas.has(String(selectedTabelaId));
 
     if (!currentValid) {
-      setSelectedTabelaId(String(pricingTables[0].id));
+      const fallbackId = pickFallbackTabelaId(pricingTables, tabelasComFaixas);
+      setSelectedTabelaId(fallbackId || null);
     }
-  }, [pricingMode, pricingTables, selectedTabelaId]);
+  }, [pricingMode, pricingTables, selectedTabelaId, tabelasComFaixas]);
 
   const toggleSelection = (id: string) => {
       const newSet = new Set(selectedIds);
@@ -2037,12 +2045,21 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             let price = 0;
             
             if (pricingMode === 'Fixo') {
-                price = pricePerPoint * 2; 
+                setPricingUnavailable(null);
+                price = pricePerPoint * 2;
             } else if (pricingMode === 'Zerar') {
+                setPricingUnavailable(null);
                 price = 0;
-            } else if (pricingMode === 'Distância' && selectedTabelaId) {
-                 const tabela = pricingTables.find(t => String(t.id) === String(selectedTabelaId));
-                 if (tabela) {
+            } else if (pricingMode === 'Distância') {
+                 const tabela = selectedTabelaId ? pricingTables.find(t => String(t.id) === String(selectedTabelaId)) : undefined;
+                 const tabelaValida = !!tabela && tabelasComFaixas.has(String(tabela.id));
+
+                 if (!tabelaValida) {
+                     if (pricingTables.length > 0) {
+                         setPricingUnavailable('Nenhuma tabela de preço configurada — selecione uma tabela válida ou contate o suporte.');
+                     }
+                 } else {
+                     setPricingUnavailable(null);
                      const ranges = pricingRanges
                        .filter(f => String(f.tabela_id) === String(selectedTabelaId))
                        .sort((a,b) => a.km_ate - b.km_ate);
@@ -2059,7 +2076,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                     } else {
 
                      const faixa = ranges.find(f => f.km_ate >= dist);
-                     
+
                      if (faixa) {
                          price = Number(faixa.valor);
                      } else {
@@ -2073,7 +2090,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                      if (!isNaN(min) && min > 0 && price < min) price = min;
                     }
 
-                    
+
                     if ((tabela.valor_multiplo_comercio || 0) > 0) {
                         price += tabela.valor_multiplo_comercio || 0;
                     }
@@ -2180,7 +2197,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         };
 
         calculatePrice();
-      }, [quickAddress, quickDistance, quickRetorno, pricingMode, selectedTabelaId, pricingTables, pricingRanges, pricePerPoint, dynamicRules, filters.cliente_id, commissionTables, commissionRanges, driverDynamicRules]);
+      }, [quickAddress, quickDistance, quickRetorno, pricingMode, selectedTabelaId, pricingTables, pricingRanges, pricePerPoint, dynamicRules, filters.cliente_id, commissionTables, commissionRanges, driverDynamicRules, tabelasComFaixas]);
 
   const handleViewMap = async (pedido: Pedido) => {
     
@@ -3307,7 +3324,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     }
 
     if (!quickDistance || quickDistance <= 0 || !quickPrice || quickPrice <= 0) {
-        await showAlert('Não foi possível calcular o valor da entrega para esse endereço. Verifique o endereço informado.', 'Aviso');
+        await showAlert(pricingUnavailable || 'Não foi possível calcular o valor da entrega para esse endereço. Verifique o endereço informado.', 'Aviso');
         return;
     }
 
@@ -3534,14 +3551,17 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                         Valor Entrega {quickDistance > 0 ? <span className="text-sky-600 font-normal">({quickDistance} km)</span> : quickDistanceLoading ? <span className="text-slate-400 font-normal">(calculando...)</span> : null}
                     </label>
                     <div className="relative">
-                        <span className="absolute left-3 top-2.5 text-slate-400 text-sm">R$</span>
-                        <input 
+                        <span className={`absolute left-3 top-2.5 text-sm ${pricingUnavailable ? 'text-red-400' : 'text-slate-400'}`}>R$</span>
+                        <input
                             type="text"
-                            value={quickPrice.toFixed(2).replace('.', ',')}
+                            value={pricingUnavailable ? '--' : quickPrice.toFixed(2).replace('.', ',')}
                             readOnly
-                            className="w-full pl-8 pr-3 py-2 border border-slate-200 bg-slate-50 rounded text-slate-600 font-bold outline-none cursor-not-allowed"
+                            className={`w-full pl-8 pr-3 py-2 border rounded font-bold outline-none cursor-not-allowed ${pricingUnavailable ? 'border-red-200 bg-red-50 text-red-700' : 'border-slate-200 bg-slate-50 text-slate-600'}`}
                         />
                     </div>
+                    {pricingUnavailable && (
+                        <span className="text-[10px] text-red-600 font-bold block mt-1">{pricingUnavailable}</span>
+                    )}
                     {activeDynamicRules.length > 0 && (
                         <div className="mt-1">
                             {activeDynamicRules.map((rule, idx) => (
