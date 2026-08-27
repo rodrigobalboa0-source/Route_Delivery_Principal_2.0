@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Database } from '../../lib/database.types';
+import { toUtcRange, todayYmd, firstOfMonthYmd } from '../../lib/dateRange';
 
 type NotaFiscal = Database['public']['Tables']['notas_fiscais']['Row'] & {
   clientes?: { nome_completo: string } | null;
@@ -9,11 +10,8 @@ type NotaFiscal = Database['public']['Tables']['notas_fiscais']['Row'] & {
 export function NotasFiscaisReport() {
   const [notas, setNotas] = useState<NotaFiscal[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dataInicio, setDataInicio] = useState(() => {
-    const d = new Date();
-    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
-  });
-  const [dataFim, setDataFim] = useState(() => new Date().toISOString().split('T')[0]);
+  const [dataInicio, setDataInicio] = useState(firstOfMonthYmd);
+  const [dataFim, setDataFim] = useState(todayYmd);
 
   useEffect(() => {
     fetchNotas();
@@ -22,14 +20,15 @@ export function NotasFiscaisReport() {
   async function fetchNotas() {
     setLoading(true);
     try {
+      const { gte, lt } = toUtcRange(dataInicio, dataFim);
       const { data, error } = await supabase
         .from('notas_fiscais')
         .select(`
           *,
           clientes:cliente_id(nome_completo)
         `)
-        .gte('created_at', `${dataInicio}T00:00:00`)
-        .lte('created_at', `${dataFim}T23:59:59`)
+        .gte('created_at', gte)
+        .lt('created_at', lt)
         .order('created_at', { ascending: false });
 
       if (error) throw error;

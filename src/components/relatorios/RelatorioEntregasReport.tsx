@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Database } from '../../lib/database.types';
+import { toUtcRange, todayYmd, firstOfMonthYmd } from '../../lib/dateRange';
 import { Modal } from '../Modal';
 import { MoreVertical, Store, UserCog, Ban, RotateCcw, RefreshCw, MessageSquare, Clock, FileText, CheckCircle, Search, X, Download } from 'lucide-react';
 import { format } from 'date-fns';
@@ -68,11 +69,8 @@ interface RelatorioEntregasReportProps {
 export function RelatorioEntregasReport({ onNavigate, userRole }: RelatorioEntregasReportProps) {
   const [entregas, setEntregas] = useState<Entrega[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dataInicio, setDataInicio] = useState(() => {
-    const d = new Date();
-    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
-  });
-  const [dataFim, setDataFim] = useState(() => new Date().toISOString().split('T')[0]);
+  const [dataInicio, setDataInicio] = useState(firstOfMonthYmd);
+  const [dataFim, setDataFim] = useState(todayYmd);
   const [statusFilter, setStatusFilter] = useState<string>('todos');
   
   
@@ -134,6 +132,7 @@ export function RelatorioEntregasReport({ onNavigate, userRole }: RelatorioEntre
   async function fetchEntregas() {
     setLoading(true);
     try {
+      const { gte, lt } = toUtcRange(dataInicio, dataFim);
       let query = supabase
         .from('nova_entrega')
         .select(`
@@ -141,8 +140,8 @@ export function RelatorioEntregasReport({ onNavigate, userRole }: RelatorioEntre
           clientes:cliente_id(nome_completo),
           entregadores:entregador_id(nome_completo)
         `)
-        .gte('created_at', `${dataInicio}T00:00:00`)
-        .lte('created_at', `${dataFim}T23:59:59`)
+        .gte('created_at', gte)
+        .lt('created_at', lt)
         .order('created_at', { ascending: false });
 
       if (statusFilter !== 'todos') {

@@ -2,17 +2,14 @@ import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { Database } from '../../lib/database.types';
 import { BarChart3, Calendar } from 'lucide-react';
+import { toUtcRange, todayYmd, firstOfMonthYmd } from '../../lib/dateRange';
 
 type Entregador = Pick<Database['public']['Tables']['entregadores']['Row'], 'id' | 'nome_completo'>;
 type Entrega = Database['public']['Tables']['nova_entrega']['Row'];
 
 export function EntregadoresPeriodoReport() {
-  const [startDate, setStartDate] = useState(() => {
-    const d = new Date();
-    d.setDate(1);
-    return d.toISOString().split('T')[0];
-  });
-  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState(firstOfMonthYmd);
+  const [endDate, setEndDate] = useState(todayYmd);
   const [entregadores, setEntregadores] = useState<Entregador[]>([]);
   const [entregas, setEntregas] = useState<Entrega[]>([]);
   const [loading, setLoading] = useState(false);
@@ -32,11 +29,12 @@ export function EntregadoresPeriodoReport() {
       if (entregadoresData) setEntregadores(entregadoresData);
 
       
+      const { gte, lt } = toUtcRange(startDate, endDate);
       const { data: entregasData } = await supabase
         .from('nova_entrega')
         .select('*')
-        .gte('created_at', `${startDate}T00:00:00`)
-        .lte('created_at', `${endDate}T23:59:59`)
+        .gte('created_at', gte)
+        .lt('created_at', lt)
         .eq('status', 'entregue');
       
       if (entregasData) setEntregas(entregasData);

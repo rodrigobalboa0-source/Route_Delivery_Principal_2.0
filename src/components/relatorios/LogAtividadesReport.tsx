@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { Database } from '../../lib/database.types';
 import { Activity, Clock, User } from 'lucide-react';
+import { toUtcDayRange, todayYmd } from '../../lib/dateRange';
 
 type Entregador = Pick<Database['public']['Tables']['entregadores']['Row'], 'id' | 'nome_completo'>;
 type Entrega = Database['public']['Tables']['nova_entrega']['Row'];
@@ -17,7 +18,7 @@ interface LogEntry {
 export function LogAtividadesReport() {
   const [entregadores, setEntregadores] = useState<Entregador[]>([]);
   const [selectedEntregadorId, setSelectedEntregadorId] = useState<string>('');
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(todayYmd);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -39,12 +40,13 @@ export function LogAtividadesReport() {
     setLoading(true);
     try {
       // Buscar entregas do entregador no dia selecionado
+      const { gte, lt } = toUtcDayRange(selectedDate);
       const { data } = await supabase
         .from('nova_entrega')
         .select('*')
         .eq('entregador_id', selectedEntregadorId)
-        .gte('created_at', `${selectedDate}T00:00:00`)
-        .lte('created_at', `${selectedDate}T23:59:59`);
+        .gte('created_at', gte)
+        .lt('created_at', lt);
 
       if (!data) {
         setLogs([]);

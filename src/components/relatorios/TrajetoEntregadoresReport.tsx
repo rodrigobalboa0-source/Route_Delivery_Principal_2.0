@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Database } from '../../lib/database.types';
+import { toUtcDayRange, todayYmd } from '../../lib/dateRange';
 // import { MapView } from '../MapView'; // Google Maps SDK — fallback rápido, ver plano-integracao-routedelivery.md
 import { MapView } from '../MapViewOwnApi';
 
@@ -20,7 +21,7 @@ function parseLatLng(s: string | null): [number, number] | null {
 export function TrajetoEntregadoresReport() {
   const [entregadores, setEntregadores] = useState<Entregador[]>([]);
   const [selectedEntregadorId, setSelectedEntregadorId] = useState<string>('');
-  const [dataSelecionada, setDataSelecionada] = useState(() => new Date().toISOString().split('T')[0]);
+  const [dataSelecionada, setDataSelecionada] = useState(todayYmd);
   const [entregas, setEntregas] = useState<Entrega[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -41,12 +42,13 @@ export function TrajetoEntregadoresReport() {
   async function fetchTrajeto() {
     setLoading(true);
     try {
+      const { gte, lt } = toUtcDayRange(dataSelecionada);
       const { data, error } = await supabase
         .from('nova_entrega')
         .select('*')
         .eq('entregador_id', selectedEntregadorId)
-        .gte('created_at', `${dataSelecionada}T00:00:00`)
-        .lte('created_at', `${dataSelecionada}T23:59:59`)
+        .gte('created_at', gte)
+        .lt('created_at', lt)
         .order('created_at', { ascending: true });
 
       if (error) throw error;

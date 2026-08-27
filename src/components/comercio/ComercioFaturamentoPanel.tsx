@@ -5,6 +5,7 @@ import { FileText, Download, Calendar, CheckCircle, AlertCircle, Clock, FileSpre
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { toUtcRange, todayYmd, firstOfMonthYmd } from '../../lib/dateRange';
 
 export function ComercioFaturamentoPanel() {
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -17,11 +18,6 @@ export function ComercioFaturamentoPanel() {
   const [dailyOrders, setDailyOrders] = useState<any[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [orderStatusFilter, setOrderStatusFilter] = useState<'todos' | 'entregue' | 'cancelada'>('todos');
-
-  const toLocalDateInputValue = (date: Date) => {
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-  };
 
   useEffect(() => {
     fetchData();
@@ -36,8 +32,7 @@ export function ComercioFaturamentoPanel() {
   async function fetchDailyOrders() {
       setLoadingOrders(true);
       try {
-          const startDateIso = new Date(`${startDate}T00:00:00`).toISOString();
-          const endDateIso = new Date(`${endDate}T23:59:59.999`).toISOString();
+          const { gte, lt } = toUtcRange(startDate, endDate);
 
           const { data, error } = await supabase
               .from('nova_entrega')
@@ -57,8 +52,8 @@ export function ComercioFaturamentoPanel() {
                 `
               )
               .eq('cliente_id', clientId)
-              .gte('created_at', startDateIso)
-              .lte('created_at', endDateIso)
+              .gte('created_at', gte)
+              .lt('created_at', lt)
               .order('created_at', { ascending: false });
             
           if (error) throw error;
@@ -108,10 +103,8 @@ export function ComercioFaturamentoPanel() {
         .maybeSingle();
       if (clienteInfo?.nome_completo) setClienteNome(clienteInfo.nome_completo);
 
-      const now = new Date();
-      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      setStartDate((prev) => (prev ? prev : toLocalDateInputValue(firstDayOfMonth)));
-      setEndDate((prev) => (prev ? prev : toLocalDateInputValue(now)));
+      setStartDate((prev) => (prev ? prev : firstOfMonthYmd()));
+      setEndDate((prev) => (prev ? prev : todayYmd()));
 
       // Fetch Invoices
       const { data: invoicesData, error: invoicesError } = await supabase

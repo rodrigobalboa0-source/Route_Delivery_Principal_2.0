@@ -16,6 +16,7 @@ import {
   calculateAdvanceDestination
 } from '../../utils/multiDestination';
 import { pickFallbackTabelaId } from '../../utils/pricingTables';
+import { toUtcRange, todayYmd } from '../../lib/dateRange';
 
 type Cliente = { 
   id: string; 
@@ -39,14 +40,6 @@ interface PedidosPanelProps {
   userRole?: 'admin' | 'operador' | 'cliente' | 'entregador' | 'loading';
   userId?: string;
 }
-
-function toLocalYmd(d: Date) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
 
 function PedidoEditForm({
   pedido,
@@ -907,7 +900,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [loadingList, setLoadingList] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState(() => {
-    const today = toLocalYmd(new Date());
+    const today = todayYmd();
     return { status: 'todos', cliente_id: '', origem: 'todos', de: today, ate: today, cidade: 'todos' };
   });
   const [availableEntregadores, setAvailableEntregadores] = useState<Entregador[]>([]);
@@ -2699,8 +2692,9 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         }
         
         const dateConditions: string[] = [];
-        if (filters.de) dateConditions.push(`created_at.gte.${new Date(`${filters.de}T00:00:00`).toISOString()}`);
-        if (filters.ate) dateConditions.push(`created_at.lte.${new Date(`${filters.ate}T23:59:59.999`).toISOString()}`);
+        // Limites em UTC a partir do dia-calendário de São Paulo; limite superior exclusivo (`.lt`).
+        if (filters.de) dateConditions.push(`created_at.gte.${toUtcRange(filters.de, filters.de).gte}`);
+        if (filters.ate) dateConditions.push(`created_at.lt.${toUtcRange(filters.ate, filters.ate).lt}`);
 
         if (dateConditions.length > 0) {
              const dateClause = dateConditions.length > 1 ? `and(${dateConditions.join(',')})` : dateConditions[0];

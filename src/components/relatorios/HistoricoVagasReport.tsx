@@ -2,11 +2,12 @@ import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { Database } from '../../lib/database.types';
 import { Users, Clock } from 'lucide-react';
+import { toUtcDayRange, todayYmd } from '../../lib/dateRange';
 
 type Entrega = Database['public']['Tables']['nova_entrega']['Row'];
 
 export function HistoricoVagasReport() {
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(todayYmd);
   const [entregas, setEntregas] = useState<Entrega[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -18,11 +19,12 @@ export function HistoricoVagasReport() {
     setLoading(true);
     try {
       
+      const { gte, lt } = toUtcDayRange(selectedDate);
       const { data: entregasData } = await supabase
         .from('nova_entrega')
         .select('*')
-        .gte('created_at', `${selectedDate}T00:00:00`)
-        .lte('created_at', `${selectedDate}T23:59:59`);
+        .gte('created_at', gte)
+        .lt('created_at', lt);
       
       if (entregasData) setEntregas(entregasData as Entrega[]);
 
