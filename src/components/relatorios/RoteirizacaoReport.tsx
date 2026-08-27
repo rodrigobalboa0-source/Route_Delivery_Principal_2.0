@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { Database } from '../../lib/database.types';
+import { toUtcDayRange, todayYmd } from '../../lib/dateRange';
 // import { MapView } from '../MapView'; // Google Maps SDK — fallback rápido, ver plano-integracao-routedelivery.md
 import { MapView } from '../MapViewOwnApi';
 
@@ -20,7 +21,7 @@ function parseLatLng(s: string | null): [number, number] | null {
 export function RoteirizacaoReport() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [clienteId, setClienteId] = useState('');
-  const [dataRef, setDataRef] = useState<string>('');
+  const [dataRef, setDataRef] = useState<string>(todayYmd);
   const [items, setItems] = useState<Pedido[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -32,13 +33,19 @@ export function RoteirizacaoReport() {
   const fetchEntregas = async () => {
     setLoading(true);
     setError(null);
-    const filtros: any = {};
-    if (clienteId) filtros.cliente_id = clienteId;
-    const { data, error } = await supabase
+    let query = supabase
       .from('nova_entrega')
       .select('*')
-      .eq('status', 'criada')
-      .order('created_at');
+      .eq('status', 'criada');
+
+    if (clienteId) query = query.eq('cliente_id', clienteId);
+
+    if (dataRef) {
+      const { gte, lt } = toUtcDayRange(dataRef);
+      query = query.gte('created_at', gte).lt('created_at', lt);
+    }
+
+    const { data, error } = await query.order('created_at');
     if (error) setError(error.message);
     setItems((data || []) as Pedido[]);
     setLoading(false);
