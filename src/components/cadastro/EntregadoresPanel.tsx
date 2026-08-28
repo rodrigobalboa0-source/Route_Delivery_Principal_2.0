@@ -4,6 +4,54 @@ import { Modal } from '../Modal';
 import { AccountUnderAnalysis } from '../AccountUnderAnalysis';
 import { Copy, Check, X } from 'lucide-react';
 import type { Database } from '../../lib/database.types';
+import { compressImage } from '../../utils/image';
+
+type StorageLike = {
+  storage: {
+    from: (b: string) => {
+      upload: (p: string, f: File | Blob, o?: unknown) => Promise<{ data?: { path?: string }; error?: { message?: string } }>;
+      getPublicUrl: (p: string) => { data: { publicUrl: string } };
+    };
+  };
+};
+
+const readFileAsDataUrl = (file: File | Blob): Promise<string> =>
+  new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(file);
+  });
+
+/**
+ * Comprime, sobe a imagem pro bucket `images` em
+ * `entregadores/{id}/{kind}-...jpg` e devolve `{ url }` em caso de sucesso.
+ * Se o upload falhar (ex.: policy de Storage, rede), devolve `{ base64 }` como
+ * fallback — nunca lança.
+ */
+const uploadEntregadorImage = async (
+  entregadorId: string,
+  kind: 'foto' | 'cnh' | 'comprovante' | 'motodoc',
+  file: File,
+): Promise<{ url: string; base64: string }> => {
+  const compressed = await compressImage(file);
+  const safeName = (compressed.name || `${kind}.jpg`).replace(/[^a-zA-Z0-9_.-]/g, '');
+  const path = `entregadores/${entregadorId}/${kind}-${Date.now()}-${safeName}`;
+  try {
+    const up = await (supabase as unknown as StorageLike).storage
+      .from('images')
+      .upload(path, compressed, { upsert: true });
+    if (!up.error && up.data?.path) {
+      const publicUrl = (supabase as unknown as StorageLike).storage
+        .from('images')
+        .getPublicUrl(up.data.path).data.publicUrl;
+      if (publicUrl) return { url: publicUrl, base64: '' };
+    }
+  } catch {
+    /* cai no fallback base64 */
+  }
+  return { url: '', base64: await readFileAsDataUrl(compressed) };
+};
 
 type Entregador = Database['public']['Tables']['entregadores']['Row'];
 type Cliente = Database['public']['Tables']['clientes']['Row'];
@@ -394,10 +442,35 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
       clientes_permitidos: form.clientes_permitidos,
     };
     if (mode === 'public') {
-      insertValues.foto_base64 = fotoPreview || null;
-      insertValues.cnh_foto_base64 = cnhPreview || null;
-      insertValues.comprovante_residencia_base64 = comprovantePreview || null;
-      insertValues.documento_veiculo_base64 = motoDocPreview || null;
+      // Gera o id no cliente para poder subir os arquivos pro Storage ANTES da
+      // RPC (nome do arquivo precisa do id). A RPC aceita `payload->>'id'` e usa
+      // esse valor quando presente. Se randomUUID não existir, cai no caminho
+      // antigo (só base64, sem id pré-definido).
+      const preId =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : '';
+
+      if (preId) {
+        insertValues.id = preId;
+        const assets: Array<[File | null, 'foto' | 'cnh' | 'comprovante' | 'motodoc', string, string]> = [
+          [fotoFile, 'foto', 'foto_url', 'foto_base64'],
+          [cnhFile, 'cnh', 'cnh_foto_url', 'cnh_foto_base64'],
+          [comprovanteFile, 'comprovante', 'comprovante_residencia_url', 'comprovante_residencia_base64'],
+          [motoDocFile, 'motodoc', 'documento_veiculo_url', 'documento_veiculo_base64'],
+        ];
+        for (const [file, kind, urlKey, b64Key] of assets) {
+          if (!file) continue;
+          const { url, base64 } = await uploadEntregadorImage(preId, kind, file);
+          insertValues[urlKey] = url || null;
+          insertValues[b64Key] = url ? null : base64 || null;
+        }
+      } else {
+        insertValues.foto_base64 = fotoPreview || null;
+        insertValues.cnh_foto_base64 = cnhPreview || null;
+        insertValues.comprovante_residencia_base64 = comprovantePreview || null;
+        insertValues.documento_veiculo_base64 = motoDocPreview || null;
+      }
 
       let newEntregadorId: string | undefined;
       try {
@@ -515,91 +588,24 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
       let finalMotoBase64 = '';
 
       if (fotoFile) {
-        try {
-          const name = `entregadores/${idNew}/foto-${Date.now()}-${(fotoFile.name || 'foto').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
-          const up = await (supabase as unknown as { storage: { from: (b: string) => { upload: (p: string, f: File, o?: unknown) => Promise<{ data?: { path?: string }; error?: { message?: string } }>; getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').upload(name, fotoFile, { upsert: true });
-          if (!up.error && up.data?.path) {
-            finalFotoUrl = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
-          } else {
-            const reader = new FileReader();
-            await new Promise((resolve) => {
-                reader.onload = () => { finalFotoBase64 = String(reader.result || ''); resolve(true); };
-                reader.readAsDataURL(fotoFile);
-            });
-          }
-        } catch {
-            const reader = new FileReader();
-            await new Promise((resolve) => {
-                reader.onload = () => { finalFotoBase64 = String(reader.result || ''); resolve(true); };
-                reader.readAsDataURL(fotoFile);
-            });
-        }
+        const a = await uploadEntregadorImage(idNew, 'foto', fotoFile);
+        finalFotoUrl = a.url;
+        finalFotoBase64 = a.base64;
       }
-
       if (cnhFile) {
-        try {
-          const name = `entregadores/${idNew}/cnh-${Date.now()}-${(cnhFile.name || 'cnh').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
-          const up = await (supabase as unknown as { storage: { from: (b: string) => { upload: (p: string, f: File, o?: unknown) => Promise<{ data?: { path?: string }; error?: { message?: string } }>; getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').upload(name, cnhFile, { upsert: true });
-          if (!up.error && up.data?.path) {
-            finalCnhUrl = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
-          } else {
-            const reader = new FileReader();
-            await new Promise((resolve) => {
-                reader.onload = () => { finalCnhBase64 = String(reader.result || ''); resolve(true); };
-                reader.readAsDataURL(cnhFile);
-            });
-          }
-        } catch {
-            const reader = new FileReader();
-            await new Promise((resolve) => {
-                reader.onload = () => { finalCnhBase64 = String(reader.result || ''); resolve(true); };
-                reader.readAsDataURL(cnhFile);
-            });
-        }
+        const a = await uploadEntregadorImage(idNew, 'cnh', cnhFile);
+        finalCnhUrl = a.url;
+        finalCnhBase64 = a.base64;
       }
-
       if (comprovanteFile) {
-        try {
-          const name = `entregadores/${idNew}/comprovante-${Date.now()}-${(comprovanteFile.name || 'comprovante').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
-          const up = await (supabase as unknown as { storage: { from: (b: string) => { upload: (p: string, f: File, o?: unknown) => Promise<{ data?: { path?: string }; error?: { message?: string } }>; getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').upload(name, comprovanteFile, { upsert: true });
-          if (!up.error && up.data?.path) {
-            finalCompUrl = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
-          } else {
-            const reader = new FileReader();
-            await new Promise((resolve) => {
-                reader.onload = () => { finalCompBase64 = String(reader.result || ''); resolve(true); };
-                reader.readAsDataURL(comprovanteFile);
-            });
-          }
-        } catch {
-            const reader = new FileReader();
-            await new Promise((resolve) => {
-                reader.onload = () => { finalCompBase64 = String(reader.result || ''); resolve(true); };
-                reader.readAsDataURL(comprovanteFile);
-            });
-        }
+        const a = await uploadEntregadorImage(idNew, 'comprovante', comprovanteFile);
+        finalCompUrl = a.url;
+        finalCompBase64 = a.base64;
       }
-
       if (motoDocFile) {
-        try {
-          const name = `entregadores/${idNew}/motodoc-${Date.now()}-${(motoDocFile.name || 'motodoc').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
-          const up = await (supabase as unknown as { storage: { from: (b: string) => { upload: (p: string, f: File, o?: unknown) => Promise<{ data?: { path?: string }; error?: { message?: string } }>; getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').upload(name, motoDocFile, { upsert: true });
-          if (!up.error && up.data?.path) {
-            finalMotoUrl = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
-          } else {
-            const reader = new FileReader();
-            await new Promise((resolve) => {
-                reader.onload = () => { finalMotoBase64 = String(reader.result || ''); resolve(true); };
-                reader.readAsDataURL(motoDocFile);
-            });
-          }
-        } catch {
-            const reader = new FileReader();
-            await new Promise((resolve) => {
-                reader.onload = () => { finalMotoBase64 = String(reader.result || ''); resolve(true); };
-                reader.readAsDataURL(motoDocFile);
-            });
-        }
+        const a = await uploadEntregadorImage(idNew, 'motodoc', motoDocFile);
+        finalMotoUrl = a.url;
+        finalMotoBase64 = a.base64;
       }
 
       const docsRes = await (supabase as unknown as { from: (t: string) => { update: (v: unknown) => { eq: (c: string, v: unknown) => { select: (s: string) => Promise<{ data?: unknown[] | null; error?: { message?: string } }> } } } }).from('entregadores').update({
@@ -838,92 +844,23 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
             });
       } catch (e) { console.error('Users sync update error', e); }
 
-      if (editFotoFile) {
-        try {
-          const name = `entregadores/${editing.id}/foto-${Date.now()}-${(editFotoFile.name || 'foto').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
-          const up = await (supabase as unknown as { storage: { from: (b: string) => { upload: (p: string, f: File, o?: unknown) => Promise<{ data?: { path?: string }; error?: { message?: string } }>; getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').upload(name, editFotoFile, { upsert: true });
-          if (!up.error && up.data?.path) {
-            finalFotoUrl = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
-            finalFotoBase64 = null;
-          } else {
-             const reader = new FileReader();
-             await new Promise((resolve) => {
-                 reader.onload = () => { finalFotoBase64 = String(reader.result || ''); resolve(true); };
-                 reader.readAsDataURL(editFotoFile);
-             });
-          }
-        } catch (e) { 
-             const reader = new FileReader();
-             await new Promise((resolve) => {
-                 reader.onload = () => { finalFotoBase64 = String(reader.result || ''); resolve(true); };
-                 reader.readAsDataURL(editFotoFile);
-             });
-        }
-      }
-      if (editCnhFile) {
-        try {
-          const name = `entregadores/${editing.id}/cnh-${Date.now()}-${(editCnhFile.name || 'cnh').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
-          const up = await (supabase as unknown as { storage: { from: (b: string) => { upload: (p: string, f: File, o?: unknown) => Promise<{ data?: { path?: string }; error?: { message?: string } }>; getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').upload(name, editCnhFile, { upsert: true });
-          if (!up.error && up.data?.path) {
-            finalCnhUrl = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
-            finalCnhBase64 = null;
-          } else {
-             const reader = new FileReader();
-             await new Promise((resolve) => {
-                 reader.onload = () => { finalCnhBase64 = String(reader.result || ''); resolve(true); };
-                 reader.readAsDataURL(editCnhFile);
-             });
-          }
-        } catch (e) { 
-             const reader = new FileReader();
-             await new Promise((resolve) => {
-                 reader.onload = () => { finalCnhBase64 = String(reader.result || ''); resolve(true); };
-                 reader.readAsDataURL(editCnhFile);
-             });
-        }
-      }
-      if (editComprovanteFile) {
-        try {
-          const name = `entregadores/${editing.id}/comprovante-${Date.now()}-${(editComprovanteFile.name || 'comprovante').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
-          const up = await (supabase as unknown as { storage: { from: (b: string) => { upload: (p: string, f: File, o?: unknown) => Promise<{ data?: { path?: string }; error?: { message?: string } }>; getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').upload(name, editComprovanteFile, { upsert: true });
-          if (!up.error && up.data?.path) {
-            finalCompUrl = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
-            finalCompBase64 = null;
-          } else {
-             const reader = new FileReader();
-             await new Promise((resolve) => {
-                 reader.onload = () => { finalCompBase64 = String(reader.result || ''); resolve(true); };
-                 reader.readAsDataURL(editComprovanteFile);
-             });
-          }
-        } catch (e) { 
-             const reader = new FileReader();
-             await new Promise((resolve) => {
-                 reader.onload = () => { finalCompBase64 = String(reader.result || ''); resolve(true); };
-                 reader.readAsDataURL(editComprovanteFile);
-             });
-        }
-      }
-      if (editMotoDocFile) {
-        try {
-          const name = `entregadores/${editing.id}/motodoc-${Date.now()}-${(editMotoDocFile.name || 'motodoc').replace(/[^a-zA-Z0-9_.-]/g, '')}`;
-          const up = await (supabase as unknown as { storage: { from: (b: string) => { upload: (p: string, f: File, o?: unknown) => Promise<{ data?: { path?: string }; error?: { message?: string } }>; getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').upload(name, editMotoDocFile, { upsert: true });
-          if (!up.error && up.data?.path) {
-            finalMotoUrl = (supabase as unknown as { storage: { from: (b: string) => { getPublicUrl: (p: string) => { data: { publicUrl: string } } } } }).storage.from('images').getPublicUrl(up.data.path).data.publicUrl;
-            finalMotoBase64 = null;
-          } else {
-             const reader = new FileReader();
-             await new Promise((resolve) => {
-                 reader.onload = () => { finalMotoBase64 = String(reader.result || ''); resolve(true); };
-                 reader.readAsDataURL(editMotoDocFile);
-             });
-          }
-        } catch (e) { 
-             const reader = new FileReader();
-             await new Promise((resolve) => {
-                 reader.onload = () => { finalMotoBase64 = String(reader.result || ''); resolve(true); };
-                 reader.readAsDataURL(editMotoDocFile);
-             });
+      const editAssets: Array<[File | null, 'foto' | 'cnh' | 'comprovante' | 'motodoc']> = [
+        [editFotoFile, 'foto'],
+        [editCnhFile, 'cnh'],
+        [editComprovanteFile, 'comprovante'],
+        [editMotoDocFile, 'motodoc'],
+      ];
+      for (const [file, kind] of editAssets) {
+        if (!file) continue;
+        const { url, base64 } = await uploadEntregadorImage(editing.id, kind, file);
+        if (kind === 'foto') {
+          if (url) { finalFotoUrl = url; finalFotoBase64 = null; } else { finalFotoBase64 = base64; }
+        } else if (kind === 'cnh') {
+          if (url) { finalCnhUrl = url; finalCnhBase64 = null; } else { finalCnhBase64 = base64; }
+        } else if (kind === 'comprovante') {
+          if (url) { finalCompUrl = url; finalCompBase64 = null; } else { finalCompBase64 = base64; }
+        } else {
+          if (url) { finalMotoUrl = url; finalMotoBase64 = null; } else { finalMotoBase64 = base64; }
         }
       }
     }
@@ -1404,7 +1341,19 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
                            ) : (
                               items.map(c => (
                                  <div key={c.id} className="p-4 hover:bg-slate-50 transition-colors group">
-                                   <div className="flex justify-between items-start mb-2">
+                                   <div className="flex items-center gap-3 mb-2">
+                                      <div className="relative w-10 h-10 shrink-0 rounded-full overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center">
+                                         <span className="text-sm font-semibold text-slate-400">{(c.nome_completo || '?').trim().charAt(0).toUpperCase() || '?'}</span>
+                                         {c.foto_url && (
+                                            <img
+                                               src={c.foto_url}
+                                               alt={c.nome_completo || 'Entregador'}
+                                               loading="lazy"
+                                               className="absolute inset-0 w-full h-full object-cover"
+                                               onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                                            />
+                                         )}
+                                      </div>
                                       <div className="font-semibold text-slate-800 text-sm leading-tight">{c.nome_completo}</div>
                                    </div>
                                    <div className="text-xs text-slate-600 space-y-1.5">
