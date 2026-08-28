@@ -7,7 +7,7 @@ import { MapView, MapDeliveryPerson } from '../MapViewOwnApi';
 
 import type { Database } from '../../lib/database.types';
 import { Geolocation } from '@capacitor/geolocation';
-import { ForegroundService } from '@capawesome-team/capacitor-android-foreground-service';
+import { ForegroundService, ServiceType } from '@capawesome-team/capacitor-android-foreground-service';
 import { App } from '@capacitor/app';
 import { getDistanceFromLatLonInKm, getCoordsFromAddress } from '../../utils/geo';
 import { Modal } from '../Modal';
@@ -294,7 +294,8 @@ export function EntregadorPedidosEmAndamentoPanel({ onNavigate }: { onNavigate?:
           id: 1,
           title: 'Route Delivery',
           body: 'Rastreamento de localização ativo',
-          smallIcon: 'ic_stat_name'
+          smallIcon: 'ic_stat_name',
+          serviceType: ServiceType.Location // obrigatório no Android 14+ para GPS com o app minimizado
         });
         foregroundServiceStarted = true;
         console.log('[Foreground Service EmAndamento] Started');

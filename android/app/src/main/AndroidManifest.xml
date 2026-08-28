@@ -21,7 +21,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
-        <!-- nosemgrep: java.android.security.exported_activity.exported_activity -- é a activity de launcher (intent-filter MAIN/LAUNCHER); exported=true é obrigatório, inclusive exigido explicitamente pelo Android 12+ para qualquer activity com intent-filter -->
+        <!-- nosemgrep: java.android.security.exported_activity.exported_activity | é a activity de launcher (intent-filter MAIN/LAUNCHER); exported=true é obrigatório, inclusive exigido explicitamente pelo Android 12+ para qualquer activity com intent-filter -->
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"
@@ -50,5 +50,11 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
+
+        <!-- @capawesome-team/capacitor-android-foreground-service: exige service + receiver declarados aqui -->
+        <receiver android:name="io.capawesome.capacitorjs.plugins.foregroundservice.NotificationActionBroadcastReceiver" />
+        <service
+            android:name="io.capawesome.capacitorjs.plugins.foregroundservice.AndroidForegroundService"
+            android:foregroundServiceType="location" />
     </application>
 </manifest>
