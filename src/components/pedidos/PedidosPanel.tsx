@@ -894,6 +894,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [items, setItems] = useState<Pedido[]>([]);
   const [allItems, setAllItems] = useState<Pedido[]>([]);
+  const [statusCountsWindow, setStatusCountsWindow] = useState<Record<string, number>>({});
   const [entregasMap, setEntregasMap] = useState<Record<string, Entrega>>({});
   const [entregadores, setEntregadores] = useState<Record<string, Entregador>>({});
   const [expandedMultiPedidos, setExpandedMultiPedidos] = useState<Record<string, boolean>>({});
@@ -2525,17 +2526,25 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   }, []);
 
   useEffect(() => {
+    const isFinalizado = (p: Pedido) => {
+      if (p.status === 'entregue' || p.status === 'cancelado') return true;
+      const e = entregasMap[p.id];
+      return !!e && (e.status === 'entregue' || e.status === 'cancelada');
+    };
     const displayedItems = filters.status === 'todos'
-        ? allItems.filter(p => p.status !== 'entregue' && p.status !== 'cancelado')
-        : allItems.filter(p => p.status === filters.status);
+        ? allItems
+        : filters.status === 'finalizados'
+            ? allItems.filter(isFinalizado)
+            : allItems.filter(p => p.status === filters.status);
     setItems(displayedItems);
-  }, [filters.status, allItems]);
+  }, [filters.status, allItems, entregasMap]);
 
-  const statusCounters = useMemo(() => {
-    const c: Record<string, number> = { criado: 0, confirmado: 0, em_preparo: 0, pronto: 0, cancelado: 0, entregue: 0 };
-    for (const p of allItems) { if (p.status && p.status in c) c[p.status]++; }
-    return c;
-  }, [allItems]);
+  // Contadores por status da JANELA DE DATA inteira (não da lista filtrada):
+  // preenchidos por fetchPedidos via query separada, sem esconder finalizados.
+  const statusCounters = useMemo(
+    () => ({ criado: 0, confirmado: 0, em_preparo: 0, pronto: 0, cancelado: 0, entregue: 0, ...statusCountsWindow }),
+    [statusCountsWindow],
+  );
 
   const uniqueCidades = useMemo(() => {
     const dbCities = clientes.map(c => c.cidade).filter(Boolean) as string[];
@@ -2666,17 +2675,12 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
     
     try {
         
+        // "Status: Todos" = mostra TUDO que cai no filtro de data, inclusive
+        // entregue/cancelado. Não há mais `.neq` de status finalizado nem
+        // reconciliação de status-stale — a lista respeita só data + status.
         let qPedidos = supabase.from('pedidos').select('*').order('created_at', { ascending: false });
         let qEntregas = supabase.from('nova_entrega').select('*').order('created_at', { ascending: false });
 
-        const shouldExcludeFinished = filters.status === 'todos';
-
-        if (shouldExcludeFinished) {
-            qPedidos = qPedidos.neq('status', 'entregue').neq('status', 'cancelado');
-            qEntregas = qEntregas.neq('status', 'entregue').neq('status', 'cancelada');
-        }
-
-        
         if (filters.cliente_id) {
             qPedidos = qPedidos.eq('cliente_id', filters.cliente_id);
             qEntregas = qEntregas.eq('cliente_id', filters.cliente_id);
@@ -2691,22 +2695,45 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             }
         }
         
-        const dateConditions: string[] = [];
-        // Limites em UTC a partir do dia-calendário de São Paulo; limite superior exclusivo (`.lt`).
-        if (filters.de) dateConditions.push(`created_at.gte.${toUtcRange(filters.de, filters.de).gte}`);
-        if (filters.ate) dateConditions.push(`created_at.lt.${toUtcRange(filters.ate, filters.ate).lt}`);
+        // Filtro de data: inclui o pedido se o `created_at` OU o `agendar_em`
+        // cair dentro do período. Limites em UTC a partir do dia-calendário de
+        // São Paulo; limite superior exclusivo (`.lt`).
+        const gteBound = filters.de ? toUtcRange(filters.de, filters.de).gte : null;
+        const ltBound = filters.ate ? toUtcRange(filters.ate, filters.ate).lt : null;
+        let dateOrExpr: string | null = null;
 
-        if (dateConditions.length > 0) {
-             const dateClause = dateConditions.length > 1 ? `and(${dateConditions.join(',')})` : dateConditions[0];
-             const orExpr = `${dateClause},agendar_em.not.is.null`;
-             qPedidos = qPedidos.or(orExpr);
-             qEntregas = qEntregas.or(orExpr);
+        if (gteBound || ltBound) {
+             // Condição da janela para uma coluna; se só um dos limites existir,
+             // usa só ele (sem quebrar o `and(...)`).
+             const rangeFor = (col: string) => {
+                 const parts: string[] = [];
+                 if (gteBound) parts.push(`${col}.gte.${gteBound}`);
+                 if (ltBound) parts.push(`${col}.lt.${ltBound}`);
+                 return parts.length > 1 ? `and(${parts.join(',')})` : parts[0];
+             };
+             dateOrExpr = `${rangeFor('created_at')},${rangeFor('agendar_em')}`;
+             qPedidos = qPedidos.or(dateOrExpr);
+             qEntregas = qEntregas.or(dateOrExpr);
         }
 
-        const [resPedidos, resEntregas] = await Promise.all([qPedidos, qEntregas]);
+        // Contadores por status: contagem SEPARADA da lista. Aplica só o filtro de
+        // data (created_at OU agendar_em na janela) + cliente/cidade/origem — SEM o
+        // "esconder finalizados" nem a reconciliação de status-stale. Assim os tiles
+        // Entregue/Cancelado refletem o período inteiro mesmo com status='todos'
+        // (que na lista mostra só os ativos).
+        let qContadores = supabase.from('pedidos').select('status, origem');
+        if (filters.cliente_id) {
+            qContadores = qContadores.eq('cliente_id', filters.cliente_id);
+        } else if (filters.cidade && filters.cidade !== 'todos') {
+            const idsCidade = clientes.filter(c => c.cidade === filters.cidade).map(c => c.id);
+            qContadores = qContadores.in('cliente_id', idsCidade.length > 0 ? idsCidade : ['00000000-0000-0000-0000-000000000000']);
+        }
+        if (dateOrExpr) qContadores = qContadores.or(dateOrExpr);
+
+        const [resPedidos, resEntregas, resContadores] = await Promise.all([qPedidos, qEntregas, qContadores]);
         if (resPedidos.error) throw resPedidos.error;
         if (resEntregas.error) throw resEntregas.error;
-        
+
         const pedidosList = (resPedidos.data || []) as Pedido[];
         const entregasList = (resEntregas.data || []) as Entrega[];
 
@@ -2724,31 +2751,6 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
                 unlinkedEntregas.push(e);
             }
         });
-
-        
-        if (shouldExcludeFinished && pedidosList.length > 0) {
-            const pedidoIds = pedidosList.map(p => p.id).filter(Boolean);
-            const BATCH_SIZE = 40;
-            for (let i = 0; i < pedidoIds.length; i += BATCH_SIZE) {
-                const batch = pedidoIds.slice(i, i + BATCH_SIZE);
-                const { data: completedDeliveries, error: reconcileError } = await supabase
-                    .from('nova_entrega')
-                    .select('pedido_id, status')
-                    .in('pedido_id', batch)
-                    .in('status', ['entregue', 'cancelada']);
-                if (reconcileError) {
-                    console.error('Erro ao reconciliar status de pedidos finalizados:', reconcileError);
-                    continue;
-                }
-                if (completedDeliveries) {
-                    completedDeliveries.forEach(e => {
-                        if (e.pedido_id && !eMap[e.pedido_id]) {
-                            eMap[e.pedido_id] = e as any;
-                        }
-                    });
-                }
-            }
-        }
 
         const syntheticPedidos: Pedido[] = unlinkedEntregas.map(e => ({
             id: e.pedido_id || e.id, 
@@ -2782,24 +2784,12 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
         const finalPedidos = [...pedidosList, ...syntheticPedidos];
 
-        const finalPedidosSemEntregues = finalPedidos.filter(p => {
-            if (!shouldExcludeFinished) return true;
-
-            if (p.status === 'entregue' || p.status === 'cancelado') return false;
-            
-            const entrega = eMap[p.id];
-            if (entrega && (entrega.status === 'entregue' || entrega.status === 'cancelada')) return false;
-            
-            return true;
-        });
-
         const finalPedidosComOrigem = filters.origem === 'todos'
-          ? finalPedidosSemEntregues
-          : finalPedidosSemEntregues.filter(p => (filters.origem === 'manual' ? p.origem === 'manual' : p.origem === 'online'));
+          ? finalPedidos
+          : finalPedidos.filter(p => (filters.origem === 'manual' ? p.origem === 'manual' : p.origem === 'online'));
 
-        
         unlinkedEntregas.forEach(e => {
-            eMap[e.id] = e; 
+            eMap[e.id] = e;
         });
 
         if (fetchSeq !== pedidosFetchSeqRef.current) return;
@@ -2819,7 +2809,18 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
         setItems(displayedItems);
         setEntregasMap(eMap);
-        
+
+        // Contadores da janela inteira (ver query qContadores acima).
+        if (!resContadores.error) {
+            const rows = (resContadores.data || []) as { status: string | null; origem: string | null }[];
+            const rowsComOrigem = filters.origem === 'todos'
+              ? rows
+              : rows.filter(r => (filters.origem === 'manual' ? r.origem === 'manual' : r.origem === 'online'));
+            const c: Record<string, number> = { criado: 0, confirmado: 0, em_preparo: 0, pronto: 0, cancelado: 0, entregue: 0 };
+            for (const r of rowsComOrigem) { if (r.status && r.status in c) c[r.status]++; }
+            setStatusCountsWindow(c);
+        }
+
     } catch (e: any) {
         console.error('Fetch error', e);
         if (fetchSeq === pedidosFetchSeqRef.current) setError(e.message);
@@ -2843,6 +2844,17 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
 
   useEffect(() => {
     fetchPedidos();
+    // Ao trocar de filtro (fetchPedidos muda de identidade), cancela qualquer
+    // "silent refresh" pendente. Sem isso, um setTimeout agendado antes da troca
+    // dispara depois com o fetchPedidos ANTIGO (filtros velhos), incrementa o
+    // fetchSeq e faz o fetch novo abortar no guard — deixando lista e contadores
+    // presos na janela anterior.
+    return () => {
+      if (pedidosRefreshTimeoutRef.current) {
+        clearTimeout(pedidosRefreshTimeoutRef.current);
+        pedidosRefreshTimeoutRef.current = null;
+      }
+    };
   }, [fetchPedidos]);
 
   useEffect(() => {
