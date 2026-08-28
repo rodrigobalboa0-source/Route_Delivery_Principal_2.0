@@ -52,12 +52,16 @@ export function EntregadorMinhaContaPanel() {
         .from('images')
         .getPublicUrl(data.path);
 
-      const { error: updateError } = await supabase
+      const { data: updated, error: updateError } = await supabase
         .from('entregadores')
         .update({ foto_url: publicUrl })
-        .eq('id', perfil.id);
+        .eq('id', perfil.id)
+        .select('id');
 
       if (updateError) throw updateError;
+      if (!updated || updated.length === 0) {
+        throw new Error('A atualização da foto não afetou nenhuma linha (possível bloqueio de permissão).');
+      }
 
       setPerfil({ ...perfil, foto_url: publicUrl });
       alert('Foto atualizada com sucesso!');

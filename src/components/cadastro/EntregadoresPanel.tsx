@@ -602,7 +602,7 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
         }
       }
 
-      const docsRes = await (supabase as unknown as { from: (t: string) => { update: (v: unknown) => { eq: (c: string, v: unknown) => Promise<{ error?: { message?: string } }> } } }).from('entregadores').update({
+      const docsRes = await (supabase as unknown as { from: (t: string) => { update: (v: unknown) => { eq: (c: string, v: unknown) => { select: (s: string) => Promise<{ data?: unknown[] | null; error?: { message?: string } }> } } } }).from('entregadores').update({
         foto_url: finalFotoUrl || null,
         foto_base64: finalFotoBase64 || null,
         cnh_foto_url: finalCnhUrl || null,
@@ -611,10 +611,16 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
         comprovante_residencia_base64: finalCompBase64 || null,
         documento_veiculo_url: finalMotoUrl || null,
         documento_veiculo_base64: finalMotoBase64 || null,
-      }).eq('id', idNew);
+      }).eq('id', idNew).select('id');
       if (docsRes.error?.message) {
         console.error('Erro ao salvar foto/documentos do entregador:', docsRes.error.message);
         setError(`Cadastro criado, mas houve falha ao salvar foto/documentos: ${docsRes.error.message}`);
+        setLoading(false);
+        return;
+      }
+      if (!docsRes.data || docsRes.data.length === 0) {
+        console.error('Foto/documentos do entregador não persistiram: update não afetou nenhuma linha (id:', idNew, ')');
+        setError('Cadastro criado, mas a foto/documentos não foram salvos (nenhuma linha atualizada). Edite o entregador e reenvie.');
         setLoading(false);
         return;
       }
@@ -921,7 +927,7 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
         }
       }
     }
-    const res = await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown) => Promise<unknown> } })
+    const res = await (supabase as unknown as { from: (t: string) => { upsert: (v: unknown) => { select: (s: string) => Promise<unknown> } } })
       .from('entregadores')
       .upsert({
         id: editing.id,
@@ -957,10 +963,17 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
         clientes_permitidos: (editForm as any).clientes_permitidos || [],
         prioridade_busca: (editForm as any).prioridade_busca,
         prioridade_tempo: (editForm as any).prioridade_tempo ? Number((editForm as any).prioridade_tempo) : 0,
-      });
-    const r = res as unknown as { error?: { message?: string } };
+      })
+      .select('id');
+    const r = res as unknown as { data?: unknown[] | null; error?: { message?: string } };
     if (r.error?.message) {
       setError(r.error.message);
+      setLoading(false);
+      return;
+    }
+    if (!r.data || r.data.length === 0) {
+      console.error('Edição do entregador não persistiu: upsert não afetou nenhuma linha (id:', editing.id, ')');
+      setError('A alteração não foi aplicada (nenhuma linha afetada). Verifique suas permissões e tente novamente.');
       setLoading(false);
       return;
     }
