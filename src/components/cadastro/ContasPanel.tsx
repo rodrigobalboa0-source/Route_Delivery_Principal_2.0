@@ -56,21 +56,29 @@ export function ContasPanel() {
   const handleSubmit = async () => {
     setLoading(true);
     setError(null);
-    const senha_hash = form.senha ? await sha256(form.senha) : null;
-    const res = await sbInsert('contas_gerenciais', {
-      nome_completo: form.nome_completo,
-      cargo: form.cargo || null,
-      email_acesso: form.email_acesso || null,
-      telefone: form.telefone || null,
-      usuario_login: form.usuario_login || null,
-      senha_hash,
-      nivel_permissao: form.nivel_permissao as Conta['nivel_permissao'],
-      status: form.status as Conta['status'],
+    // Provisiona a conta de verdade (auth.users + public.users role='operador' +
+    // contas_gerenciais) via RPC SECURITY DEFINER. O INSERT direto de antes só
+    // gravava contas_gerenciais com um hash SHA-256 que o login nunca lê.
+    const { error } = await supabase.rpc('cadastrar_conta_gerencial', {
+      payload: {
+        nome_completo: form.nome_completo || null,
+        cargo: form.cargo || null,
+        email_acesso: form.email_acesso || null,
+        telefone: form.telefone || null,
+        usuario_login: form.usuario_login || null,
+        senha: form.senha,
+        nivel_permissao: form.nivel_permissao,
+        status: form.status,
+      },
     });
-    const r = res as unknown as { error?: { message?: string } };
-    if (r.error?.message) setError(r.error.message);
+    if (error) {
+      setError(error.message || 'Falha ao criar conta.');
+      setLoading(false);
+      return;
+    }
     setForm({ nome_completo: '', cargo: '', email_acesso: '', telefone: '', usuario_login: '', senha: '', nivel_permissao: 'operacional', status: 'ativa' });
     await fetchContas();
+    setLoading(false);
   };
 
   const handleDelete = async (id: string) => {
@@ -250,4 +258,3 @@ export function ContasPanel() {
   </div>
 );
 }
-  const sbInsert = (table: string, values: unknown) => (supabase as unknown as { from: (rel: string) => { insert: (vals: unknown) => Promise<unknown> } }).from(table).insert(values);
