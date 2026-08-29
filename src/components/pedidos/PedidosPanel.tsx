@@ -2531,8 +2531,11 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
       const e = entregasMap[p.id];
       return !!e && (e.status === 'entregue' || e.status === 'cancelada');
     };
+    // "Status: Todos" SEMPRE esconde entregues/cancelados (com ou sem filtro de
+    // data). Finalizados só aparecem ao filtrar explicitamente por um status
+    // específico ('Entregue'/'Cancelado', ou 'Finalizados' no comércio).
     const displayedItems = filters.status === 'todos'
-        ? allItems
+        ? allItems.filter(p => !isFinalizado(p))
         : filters.status === 'finalizados'
             ? allItems.filter(isFinalizado)
             : allItems.filter(p => p.status === filters.status);
@@ -2721,6 +2724,14 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         // "esconder finalizados" nem a reconciliação de status-stale. Assim os tiles
         // Entregue/Cancelado refletem o período inteiro mesmo com status='todos'
         // (que na lista mostra só os ativos).
+        // Sem filtro de data explícito, a janela dos tiles é o DIA ATUAL (nunca a
+        // tabela inteira) — Opção A.
+        let contadoresOrExpr = dateOrExpr;
+        if (!contadoresOrExpr) {
+            const hoje = todayYmd();
+            const r = toUtcRange(hoje, hoje);
+            contadoresOrExpr = `and(created_at.gte.${r.gte},created_at.lt.${r.lt}),and(agendar_em.gte.${r.gte},agendar_em.lt.${r.lt})`;
+        }
         let qContadores = supabase.from('pedidos').select('status, origem');
         if (filters.cliente_id) {
             qContadores = qContadores.eq('cliente_id', filters.cliente_id);
@@ -2728,7 +2739,7 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             const idsCidade = clientes.filter(c => c.cidade === filters.cidade).map(c => c.id);
             qContadores = qContadores.in('cliente_id', idsCidade.length > 0 ? idsCidade : ['00000000-0000-0000-0000-000000000000']);
         }
-        if (dateOrExpr) qContadores = qContadores.or(dateOrExpr);
+        qContadores = qContadores.or(contadoresOrExpr);
 
         const [resPedidos, resEntregas, resContadores] = await Promise.all([qPedidos, qEntregas, qContadores]);
         if (resPedidos.error) throw resPedidos.error;
@@ -2801,8 +2812,11 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             return !!entrega && (entrega.status === 'entregue' || entrega.status === 'cancelada');
         };
 
+        // "Status: Todos" SEMPRE esconde entregues/cancelados (com ou sem filtro de
+        // data). Finalizados só aparecem ao filtrar explicitamente por um status
+        // específico ('Entregue'/'Cancelado', ou 'Finalizados' no comércio).
         const displayedItems = filters.status === 'todos'
-            ? finalPedidosComOrigem
+            ? finalPedidosComOrigem.filter(p => !isPedidoFinalizado(p))
             : filters.status === 'finalizados'
                 ? finalPedidosComOrigem.filter(isPedidoFinalizado)
                 : finalPedidosComOrigem.filter(p => p.status === filters.status);
@@ -2810,7 +2824,8 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
         setItems(displayedItems);
         setEntregasMap(eMap);
 
-        // Contadores da janela inteira (ver query qContadores acima).
+        // Contadores da janela de data (ou do dia atual, se não houver filtro de
+        // data — ver query qContadores acima).
         if (!resContadores.error) {
             const rows = (resContadores.data || []) as { status: string | null; origem: string | null }[];
             const rowsComOrigem = filters.origem === 'todos'
