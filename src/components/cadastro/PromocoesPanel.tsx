@@ -162,13 +162,20 @@ export function PromocoesPanel() {
 
   const handleToggleStatus = async (id: string, currentStatus: boolean) => {
     try {
-        const { error } = await supabase
+        const { data, error } = await supabase
             .from('promocoes')
             .update({ ativa: !currentStatus })
-            .eq('id', id);
+            .eq('id', id)
+            .select();
 
         if (error) throw error;
-        
+
+        if (!data || data.length === 0) {
+            console.error('Update de status não afetou nenhuma linha (id:', id, ')');
+            alert('Não foi possível alterar o status: nenhuma linha foi atualizada. Verifique suas permissões ou recarregue a página.');
+            return;
+        }
+
         setPromocoes(promocoes.map(p => p.id === id ? { ...p, ativa: !currentStatus } : p));
     } catch (err) {
         console.error('Erro ao atualizar status:', err);
