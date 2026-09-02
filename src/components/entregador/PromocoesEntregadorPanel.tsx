@@ -16,6 +16,19 @@ export function PromocoesEntregadorPanel() {
 
   useEffect(() => {
     fetchPromocoes();
+
+    const channel = supabase
+      .channel('promocoes_entregador')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'promocoes' },
+        () => fetchPromocoes()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const fetchPromocoes = async () => {
