@@ -862,6 +862,32 @@ export function NovaEntregaPanel() {
     }
   };
 
+  const applyDriverDynamicRules = (
+    baseVal: number,
+    rules: DynamicDriverRule[],
+    entregadorId?: string | null
+  ): { total: number, bonuses: { description: string, value: number }[] } => {
+    let val = baseVal;
+    const bonuses: { description: string, value: number }[] = [];
+    rules
+      .filter(r => r.ativa && (r.entregador_id === entregadorId || r.entregador_id === null))
+      .forEach(r => {
+        if (!r.multiplicador) return;
+        let bonus = 0;
+        if (r.criterio === 'TAXA_FIXA') {
+          bonus = r.multiplicador;
+          val += bonus;
+        } else {
+          bonus = val * (r.multiplicador - 1);
+          val *= r.multiplicador;
+        }
+        if (bonus > 0) {
+          bonuses.push({ description: r.observacao || 'Bônus Dinâmico', value: bonus });
+        }
+      });
+    return { total: val, bonuses };
+  };
+
   const calculateDriverCommission = (
     km: number,
     hasReturn: boolean,
@@ -950,28 +976,9 @@ export function NovaEntregaPanel() {
          }
          
          const sourceRules = rulesOverride ?? dynamicDriverRules;
-         const rules = sourceRules.filter(r => 
-             r.ativa && 
-             (r.entregador_id === entregadorId || r.entregador_id === null)
-         );
-         
-         rules.forEach(r => {
-           if (r.multiplicador) {
-             let bonus = 0;
-             if (r.criterio === 'TAXA_FIXA') {
-               bonus = r.multiplicador;
-               val += bonus;
-             } else {
-               const increase = val * (r.multiplicador - 1);
-               bonus = increase;
-               val *= r.multiplicador;
-             }
-             
-             if (bonus > 0) {
-                breakdown.push({ description: r.observacao || 'Bônus Dinâmico', value: bonus });
-             }
-           }
-         });
+         const dynamicResult = applyDriverDynamicRules(val, sourceRules, entregadorId);
+         val = dynamicResult.total;
+         breakdown.push(...dynamicResult.bonuses);
          
          
         if (pointsCount > 0) {
@@ -1282,23 +1289,31 @@ export function NovaEntregaPanel() {
         }
 
         const total = destinos.reduce((acc: number, d: any) => acc + Number(d.valor || 0), 0) + (retornoValor || 0);
-        return { destinos, retornoValor: retornoValor && retornoValor > 0 ? retornoValor : null, total: total > 0 ? total : null };
+        const { total: totalComRegras, bonuses: dynamicBonuses } = applyDriverDynamicRules(total, freshDriverRules, entregadorEscolhido);
+        return {
+          destinos,
+          retornoValor: retornoValor && retornoValor > 0 ? retornoValor : null,
+          total: totalComRegras > 0 ? totalComRegras : null,
+          dynamicBonuses,
+        };
       };
 
     const commission = buildCommissionDestinos();
-    
+
 
     const finalDriverValue = (commission && commission.total && extraPointsFilled > 0)
       ? commission.total
       : driverValue;
 
-    
+
     const retornoBonus = !commission
       ? driverBonuses.find(b => b.description === 'Com retorno' || b.description === 'Adicional Retorno')
       : undefined;
 
+    const effectiveDriverBonuses = (commission && extraPointsFilled > 0) ? commission.dynamicBonuses : driverBonuses;
+
     const opcionaisPayload = {
-      ...(driverBonuses.length > 0 ? { driver_bonuses: driverBonuses } : {}),
+      ...(effectiveDriverBonuses.length > 0 ? { driver_bonuses: effectiveDriverBonuses } : {}),
       ...(segmentPricing ? { pricing_destinos: segmentPricing } : {}),
       ...(valorMultiploInfo ? { valor_multiplo: valorMultiploInfo } : {}),
       ...(commission ? { comissao_destinos: commission.destinos, comissao_retorno: commission.retornoValor, comissao_total: commission.total } : {}),

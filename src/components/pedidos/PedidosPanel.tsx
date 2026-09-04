@@ -1100,6 +1100,25 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
   }, []);
 
   useEffect(() => {
+    const channel = supabase
+      .channel('preco_dinamico_entregador_pedidos_panel')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'preco_dinamico_entregador' },
+        () => {
+          supabase.from('preco_dinamico_entregador').select('*').then(({ data }) => {
+            if (data) setDriverDynamicRules(data);
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  useEffect(() => {
     if (pricingMode !== 'Distância') return;
     if (!pricingTables || pricingTables.length === 0) return;
 
