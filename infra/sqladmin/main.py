@@ -1,4 +1,6 @@
 import os
+import hmac
+import time
 import httpx
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Form, Depends, HTTPException, UploadFile, File
@@ -14,26 +16,51 @@ from sqladmin.authentication import AuthenticationBackend
 from starlette.requests import Request as StarletteRequest
 import json
 
-# ── Configuração ─────────────────────────────────────────────
 DB_URL = os.environ.get(
     "DATABASE_URL",
     "postgresql://postgres:postgres@db:5432/postgres"
 )
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "http://kong:8000")
 SERVICE_ROLE_KEY = os.environ.get("SERVICE_ROLE_KEY", "")
-ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
-ADMIN_PASS = os.environ.get("ADMIN_PASS", "admin")
-SECRET_KEY = os.environ.get("SECRET_KEY", "routedelivery-secret-key-change-me")
+
+ADMIN_USER = os.environ["ADMIN_USER"]
+ADMIN_PASS = os.environ["ADMIN_PASS"]
+SECRET_KEY = os.environ["SECRET_KEY"]
+if len(SECRET_KEY) < 32 or len(ADMIN_PASS) < 12:
+    raise RuntimeError("SECRET_KEY (>=32) e ADMIN_PASS (>=12) precisam ser fortes.")
 
 engine = create_engine(DB_URL, pool_pre_ping=True, pool_recycle=300)
 
-# ── Auth do painel ───────────────────────────────────────────
+_LOGIN_FAILS: dict[str, list[float]] = {}
+_LOCKOUT_WINDOW = 900
+_LOCKOUT_MAX = 5
+
+def _client_ip(request: StarletteRequest) -> str:
+    xff = request.headers.get("x-forwarded-for", "")
+    return (xff.split(",")[0].strip() if xff else "") or (request.client.host if request.client else "unknown")
+
+def _is_locked(ip: str) -> bool:
+    now = time.time()
+    fails = [t for t in _LOGIN_FAILS.get(ip, []) if now - t < _LOCKOUT_WINDOW]
+    _LOGIN_FAILS[ip] = fails
+    return len(fails) >= _LOCKOUT_MAX
+
+def _record_fail(ip: str) -> None:
+    _LOGIN_FAILS.setdefault(ip, []).append(time.time())
+
 class AdminAuth(AuthenticationBackend):
     async def login(self, request: StarletteRequest) -> bool:
+        ip = _client_ip(request)
+        if _is_locked(ip):
+            return False
         form = await request.form()
-        if form.get("username") == ADMIN_USER and form.get("password") == ADMIN_PASS:
-            request.session.update({"authenticated": True})
+        user_ok = hmac.compare_digest(str(form.get("username") or ""), ADMIN_USER)
+        pass_ok = hmac.compare_digest(str(form.get("password") or ""), ADMIN_PASS)
+        if user_ok and pass_ok:
+            _LOGIN_FAILS.pop(ip, None)
+            request.session.update({"authenticated": True, "ts": int(time.time())})
             return True
+        _record_fail(ip)
         return False
 
     async def logout(self, request: StarletteRequest) -> bool:
@@ -43,7 +70,6 @@ class AdminAuth(AuthenticationBackend):
     async def authenticate(self, request: StarletteRequest) -> bool:
         return request.session.get("authenticated", False)
 
-# ── Auto-descoberta de tabelas ───────────────────────────────
 def get_table_views():
     """Gera ModelViews para todas as tabelas do schema public via automap."""
     try:
@@ -59,7 +85,6 @@ def get_table_views():
             table_name = cls.__table__.name
             display_name = table_name.replace("_", " ").title()
 
-            # Determina colunas para exibir na listagem (primeiras 8)
             mapper = cls.__mapper__
             col_names = [c.key for c in mapper.columns]
             list_cols = col_names[:8]
@@ -89,13 +114,19 @@ def get_table_views():
             continue
     return views
 
-# ── App ──────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title="RouteDelivery Admin", lifespan=lifespan)
-app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
+
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SECRET_KEY,
+    same_site="strict",
+    https_only=os.environ.get("SQLADMIN_HTTPS_ONLY", "true").lower() == "true",
+    max_age=60 * 60 * 8,
+)
 
 templates = Jinja2Templates(directory="/app/templates")
 
@@ -108,14 +139,12 @@ admin = Admin(
     base_url="/admin",
 )
 
-# Registrar views de todas as tabelas
 for view in get_table_views():
     try:
         admin.add_view(view)
     except Exception as e:
         print(f"Erro ao registrar view {view}: {e}")
 
-# ── Helpers HTTP ─────────────────────────────────────────────
 def supabase_headers():
     return {
         "Authorization": f"Bearer {SERVICE_ROLE_KEY}",
@@ -123,7 +152,6 @@ def supabase_headers():
         "Content-Type": "application/json",
     }
 
-# ── Rotas customizadas: Auth Users ───────────────────────────
 @app.get("/admin-panel/auth-users", response_class=HTMLResponse)
 async def list_auth_users(request: Request, page: int = 1):
     if not request.session.get("authenticated"):
@@ -227,15 +255,29 @@ async def storage_files(request: Request, bucket: str, prefix: str = ""):
         "prefix": prefix,
     })
 
+# SEGURANÇA C7: normaliza um caminho de storage rejeitando '..', barra inicial,
+# byte nulo e segmentos vazios (path traversal).
+def _safe_storage_path(*parts: str) -> str:
+    segs: list[str] = []
+    for part in parts:
+        for seg in str(part or "").replace("\\", "/").split("/"):
+            seg = seg.strip()
+            if seg in ("", "."):
+                continue
+            if seg == ".." or "\x00" in seg:
+                raise HTTPException(status_code=400, detail="caminho inválido")
+            segs.append(seg)
+    return "/".join(segs)
+
 @app.post("/admin-panel/storage/{bucket}/upload")
 async def upload_file(request: Request, bucket: str, file: UploadFile = File(...), path: str = Form("")):
     if not request.session.get("authenticated"):
         raise HTTPException(status_code=401)
 
     content = await file.read()
-    obj_path = f"{path}/{file.filename}".lstrip("/") if path else file.filename
-    headers = {**supabase_headers(), "Content-Type": file.content_type or "application/octet-stream"}
-    del headers["Content-Type"]
+    obj_path = _safe_storage_path(path, file.filename or "")
+    if not obj_path:
+        raise HTTPException(status_code=400, detail="nome de arquivo inválido")
 
     async with httpx.AsyncClient(timeout=60) as client:
         resp = await client.post(
@@ -250,12 +292,16 @@ async def delete_file(request: Request, bucket: str, path: str = Form(...)):
     if not request.session.get("authenticated"):
         raise HTTPException(status_code=401)
 
+    safe_path = _safe_storage_path(path)
+    if not safe_path:
+        raise HTTPException(status_code=400, detail="caminho inválido")
+
     async with httpx.AsyncClient(timeout=15) as client:
         await client.delete(
-            f"{SUPABASE_URL}/storage/v1/object/{bucket}/{path}",
+            f"{SUPABASE_URL}/storage/v1/object/{bucket}/{safe_path}",
             headers=supabase_headers(),
         )
-    prefix = "/".join(path.split("/")[:-1])
+    prefix = "/".join(safe_path.split("/")[:-1])
     return RedirectResponse(f"/admin-panel/storage/{bucket}?prefix={prefix}", status_code=303)
 
 @app.post("/admin-panel/storage/bucket/create")

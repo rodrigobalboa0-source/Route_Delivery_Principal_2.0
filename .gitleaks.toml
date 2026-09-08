@@ -16,3 +16,11 @@ regexes = [
   '''SUBSTITUA_POR_UMA_SENHA_FORTE''',
   '''SUA_CHAVE_GOOGLE_MAPS''',
 ]
+# google-services.json não guarda segredo: a "api_key" ali é a chave pública
+# de identificação do app Firebase/Android, sempre restrita por package name +
+# assinatura SHA-1/SHA-256 no Google Cloud Console, não por sigilo (é o mesmo
+# arquivo que o próprio Google recomenda versionar). Ver:
+# https://firebase.google.com/docs/projects/api-keys
+paths = [
+  '''android/app/google-services\.json''',
+]

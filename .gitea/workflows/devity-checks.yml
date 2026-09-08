@@ -13,8 +13,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Gitleaks (segredos e chaves commitadas)
+      - name: Gitleaks (segredos e chaves na árvore de trabalho)
         run: gitleaks detect --source . --no-git -v --exit-code 1
+
+      # SEGURANÇA C6: o .env e o infra/volumes/api/kong.yml já foram removidos da
+      # árvore, mas os segredos continuam recuperáveis no HISTÓRICO do Git. Este
+      # passo varre TODA a história. Está como não-bloqueante até a limpeza do
+      # histórico + rotação de credenciais (ver SEGURANCA-RUNBOOK.md, C6).
+      # Depois de limpar, troque para "--exit-code 1" sem "|| true".
+      - name: Gitleaks (histórico completo - informativo)
+        run: gitleaks detect --source . --log-opts="--all" -v --exit-code 1 || true
 
       - name: Trivy (vulnerabilidades em dependências)
         run: trivy fs --scanners vuln --severity HIGH,CRITICAL --exit-code 1 .

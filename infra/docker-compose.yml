@@ -26,7 +26,9 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXP: ${JWT_EXPIRY:-3600}
     ports:
-      - "${POSTGRES_PORT:-5432}:${POSTGRES_PORT:-5432}"
+      # SEGURANÇA A2: Postgres NÃO deve ficar exposto na internet. Bind só em
+      # localhost — para acessar de fora, use um túnel SSH.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:${POSTGRES_PORT:-5432}"
     volumes:
       - db_data:/var/lib/postgresql/data
       - ./volumes/db/init:/docker-entrypoint-initdb.d:z
@@ -196,8 +198,12 @@ services:
     restart: unless-stopped
     environment:
       IMGPROXY_BIND: ":5001"
-      IMGPROXY_LOCAL_FILESYSTEM_ROOT: /
+      # SEGURANÇA A8: limitar a raiz do filesystem ao diretório do storage
+      # (era "/", expondo o container inteiro via local://).
+      IMGPROXY_LOCAL_FILESYSTEM_ROOT: /var/lib/storage
       IMGPROXY_USE_ETAG: "true"
+      # SEGURANÇA A8: habilitar assinatura de URL do imgproxy — ver
+      # SEGURANCA-RUNBOOK.md (definir IMGPROXY_KEY/IMGPROXY_SALT e passá-los aqui).
       IMGPROXY_ENABLE_WEBP_DETECTION: ${IMGPROXY_ENABLE_WEBP_DETECTION:-true}
     volumes:
       - storage_data:/var/lib/storage:ro
@@ -233,11 +239,18 @@ services:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@${POSTGRES_HOST:-db}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-postgres}
       SUPABASE_URL: http://kong:8000
       SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
-      ADMIN_USER: ${DASHBOARD_USERNAME:-supabase}
-      ADMIN_PASS: ${DASHBOARD_PASSWORD}
-      SECRET_KEY: ${JWT_SECRET}
-    ports:
-      - "${SQLADMIN_PORT:-4000}:4000"
+      # SEGURANÇA C7: credenciais e chave de sessão PRÓPRIAS do painel — não
+      # reaproveitar DASHBOARD_PASSWORD nem, principalmente, o JWT_SECRET (com o
+      # JWT_SECRET dava pra forjar o cookie de sessão e pular o login).
+      # Gere no .env:  SQLADMIN_ADMIN_USER, SQLADMIN_ADMIN_PASS (forte),
+      #                SQLADMIN_SECRET_KEY (openssl rand -hex 32)
+      ADMIN_USER: ${SQLADMIN_ADMIN_USER:?defina SQLADMIN_ADMIN_USER no .env}
+      ADMIN_PASS: ${SQLADMIN_ADMIN_PASS:?defina SQLADMIN_ADMIN_PASS no .env}
+      SECRET_KEY: ${SQLADMIN_SECRET_KEY:?defina SQLADMIN_SECRET_KEY no .env}
+      SQLADMIN_HTTPS_ONLY: ${SQLADMIN_HTTPS_ONLY:-true}
+    # SEGURANÇA C7/A2: sem porta publicada. O Nginx faz proxy de /admin e
+    # /admin-panel pela rede interna do Docker. Para acesso direto em manutenção,
+    # use túnel SSH:  ssh -L 4000:routedelivery-sqladmin:4000 servidor
     networks:
       - supabase_net
     depends_on:
@@ -261,6 +274,9 @@ services:
       SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
       SUPABASE_DB_URL: postgresql://postgres:${POSTGRES_PASSWORD}@${POSTGRES_HOST:-db}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-postgres}
       VERIFY_JWT: "false"
+      # SEGURANÇA C4: fallback global do X-Webhook-Token (o ideal é preencher
+      # o "Webhook Token" por estabelecimento no painel).
+      CARDAPIOWEB_WEBHOOK_TOKEN: ${CARDAPIOWEB_WEBHOOK_TOKEN:-}
     volumes:
       - ./volumes/functions:/home/deno/functions:Z
     networks:

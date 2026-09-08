@@ -1,5 +1,17 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+import { requireUser } from "../_shared/auth.ts";
+
+// SEGURANÇA A1: qualquer string que entra no XML da NF-e precisa ser escapada,
+// senão o cliente injeta estrutura no documento (e no XML assinado da SEFAZ).
+function xmlEscape(v: unknown): string {
+  return String(v ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
 
 function corsHeaders() {
   return {
@@ -81,7 +93,7 @@ async function emitirViaSefaz(p: Payload, req: Request): Promise<{ numero?: stri
   const numero = `NF-${Date.now()}-${hint}`;
   const serie = "1";
   const chave = `CH-${Date.now()}`;
-  const xml = `<NFe><ide><serie>${serie}</serie><nNF>${numero}</nNF><tpAmb>${ambiente}</tpAmb></ide><dest><id>${p.cliente_id}</id></dest><det><vProd>${p.valor}</vProd><xProd>${p.descricao}</xProd></det></NFe>`;
+  const xml = `<NFe><ide><serie>${xmlEscape(serie)}</serie><nNF>${xmlEscape(numero)}</nNF><tpAmb>${xmlEscape(ambiente)}</tpAmb></ide><dest><id>${xmlEscape(p.cliente_id)}</id></dest><det><vProd>${xmlEscape(p.valor)}</vProd><xProd>${xmlEscape(p.descricao)}</xProd></det></NFe>`;
   const assinatura = btoa(xml + ":" + certPwd.slice(0, 2));
   const xml_assinado = `<NFeAssinada>${xml}</NFeAssinada><Signature>${assinatura}</Signature>`;
   let protocolo = `PR-${Date.now()}`;
@@ -110,6 +122,11 @@ serve(async (req) => {
       headers: corsHeaders(),
     });
   }
+
+  // SEGURANÇA C4: emissão fiscal exige usuário autenticado (rejeita anon).
+  // TODO(runbook A1): restringir por cliente_id (user_can_access_cliente).
+  const gate = await requireUser(req, corsHeaders());
+  if (gate instanceof Response) return gate;
 
   try {
     const body = (await req.json()) as Partial<Payload>;

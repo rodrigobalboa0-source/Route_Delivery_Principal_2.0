@@ -302,6 +302,19 @@ services:
               end
 
   ## Edge Functions routes (um container dedicado por function)
+  ##
+  ## SEGURANÇA C4: por padrão essas rotas só tinham o plugin `cors` — ou seja,
+  ## qualquer um na internet chamava /functions/v1/<nome> sem credencial.
+  ##
+  ##  * key-auth  -> exige o header `apikey` (o supabase-js manda automático).
+  ##  * as funções que o app chama ganham key-auth aqui.
+  ##  * cardapioweb-webhook: recebe webhook de TERCEIRO (não manda apikey) ->
+  ##    fica sem key-auth; a função valida o header X-Webhook-Token contra
+  ##    integracoes_cardapioweb.merchant_secret (ver SEGURANCA-RUNBOOK.md, C4).
+  ##  * ifood-sync e push-notification: chamadas por pg_cron / trigger do banco
+  ##    via net.http_post -> passam a mandar o header `apikey` também
+  ##    (migrations 20251230100000 / 20260129110000 atualizadas). Se preferir,
+  ##    troque por um segredo compartilhado dedicado (runbook).
   - name: functions-cardapioweb-webhook
     url: http://edge-cardapioweb-webhook:9000/
     read_timeout: 150000
@@ -312,6 +325,7 @@ services:
           - /functions/v1/cardapioweb-webhook
     plugins:
       - name: cors
+      # sem key-auth: webhook de terceiro. A função valida X-Webhook-Token.
 
   - name: functions-delete-auth-user-by-email
     url: http://edge-delete-auth-user-by-email:9000/
@@ -323,6 +337,15 @@ services:
           - /functions/v1/delete-auth-user-by-email
     plugins:
       - name: cors
+      - name: key-auth
+        config:
+          hide_credentials: false
+      - name: acl
+        config:
+          hide_groups_header: true
+          allow:
+            - admin
+            - anon
 
   - name: functions-emitir-nota
     url: http://edge-emitir-nota:9000/
@@ -334,6 +357,15 @@ services:
           - /functions/v1/emitir_nota
     plugins:
       - name: cors
+      - name: key-auth
+        config:
+          hide_credentials: false
+      - name: acl
+        config:
+          hide_groups_header: true
+          allow:
+            - admin
+            - anon
 
   - name: functions-geocode
     url: http://edge-geocode:9000/
@@ -345,6 +377,15 @@ services:
           - /functions/v1/geocode
     plugins:
       - name: cors
+      - name: key-auth
+        config:
+          hide_credentials: false
+      - name: acl
+        config:
+          hide_groups_header: true
+          allow:
+            - admin
+            - anon
 
   - name: functions-ifood-auth
     url: http://edge-ifood-auth:9000/
@@ -356,6 +397,15 @@ services:
           - /functions/v1/ifood-auth
     plugins:
       - name: cors
+      - name: key-auth
+        config:
+          hide_credentials: false
+      - name: acl
+        config:
+          hide_groups_header: true
+          allow:
+            - admin
+            - anon
 
   - name: functions-ifood-merchant
     url: http://edge-ifood-merchant:9000/
@@ -367,6 +417,15 @@ services:
           - /functions/v1/ifood-merchant
     plugins:
       - name: cors
+      - name: key-auth
+        config:
+          hide_credentials: false
+      - name: acl
+        config:
+          hide_groups_header: true
+          allow:
+            - admin
+            - anon
 
   - name: functions-ifood-sync
     url: http://edge-ifood-sync:9000/
@@ -378,6 +437,15 @@ services:
           - /functions/v1/ifood-sync
     plugins:
       - name: cors
+      - name: key-auth
+        config:
+          hide_credentials: false
+      - name: acl
+        config:
+          hide_groups_header: true
+          allow:
+            - admin
+            - anon
 
   - name: functions-ifood-update-status
     url: http://edge-ifood-update-status:9000/
@@ -389,6 +457,15 @@ services:
           - /functions/v1/ifood-update-status
     plugins:
       - name: cors
+      - name: key-auth
+        config:
+          hide_credentials: false
+      - name: acl
+        config:
+          hide_groups_header: true
+          allow:
+            - admin
+            - anon
 
   - name: functions-push-notification
     url: http://edge-push-notification:9000/
@@ -400,6 +477,15 @@ services:
           - /functions/v1/push-notification
     plugins:
       - name: cors
+      - name: key-auth
+        config:
+          hide_credentials: false
+      - name: acl
+        config:
+          hide_groups_header: true
+          allow:
+            - admin
+            - anon
 
   - name: functions-ze-sync
     url: http://edge-ze-sync:9000/
@@ -411,6 +497,15 @@ services:
           - /functions/v1/ze-sync
     plugins:
       - name: cors
+      - name: key-auth
+        config:
+          hide_credentials: false
+      - name: acl
+        config:
+          hide_groups_header: true
+          allow:
+            - admin
+            - anon
 
   ## OAuth 2.0 Authorization Server Metadata (RFC 8414)
   - name: well-known-oauth

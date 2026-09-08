@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { Modal } from '../Modal';
 import { AccountUnderAnalysis } from '../AccountUnderAnalysis';
 import { Copy, Check, X } from 'lucide-react';
@@ -665,19 +665,13 @@ export function EntregadoresPanel({ mode = 'admin', initialEditId }: { mode?: 'a
         }
 
         try {
-
-          const response = await fetch(`${SUPABASE_URL}/functions/v1/delete-auth-user-by-email`, {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json', 
-              apikey: SUPABASE_ANON_KEY, 
-              Authorization: `Bearer ${SUPABASE_ANON_KEY}` 
-            },
-            body: JSON.stringify({ email }),
+          // Usa functions.invoke para enviar o JWT da sessão do admin logado
+          // (a Edge Function agora exige admin autenticado — SEGURANÇA C4).
+          const { error: fnError } = await supabase.functions.invoke('delete-auth-user-by-email', {
+            body: { email },
           });
-          
-          if (!response.ok) {
-            console.warn('Falha ao deletar usuário do Auth via Edge Function:', await response.text());
+          if (fnError) {
+            console.warn('Falha ao deletar usuário do Auth via Edge Function:', fnError.message);
           }
         } catch (e) {
           console.error('Erro ao chamar Edge Function:', e);

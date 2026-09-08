@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase, SUPABASE_URL } from '../../lib/supabase';
 import { Plus, Edit, Trash2, AlertCircle, Store, Copy, Check } from 'lucide-react';
 import { Database } from '../../lib/database.types';
 import { Modal } from '../Modal';
@@ -13,8 +13,9 @@ type Cliente = {
   nome_completo: string;
 };
 
-const PROJECT_REF = 'mtanrihprbgrrtgwcyia'; 
-const WEBHOOK_URL = `https://${PROJECT_REF}.supabase.co/functions/v1/cardapioweb-webhook`;
+// Usa a URL do Supabase do ambiente (self-hosted) — antes estava fixo no ref
+// do projeto antigo do Supabase Cloud, que não recebe mais nada.
+const WEBHOOK_URL = `${String(SUPABASE_URL || '').replace(/\/+$/, '')}/functions/v1/cardapioweb-webhook`;
 
 export function CardapioWebPanel() {
   const [integracoes, setIntegracoes] = useState<Integracao[]>([]);
@@ -275,15 +276,20 @@ export function CardapioWebPanel() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Segredo do Estabelecimento (Opcional)</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Webhook Token (X-Webhook-Token)</label>
             <input
               type="password"
               value={formData.merchant_secret || ''}
               onChange={(e) => setFormData(prev => ({ ...prev, merchant_secret: e.target.value }))}
               className="w-full border rounded-lg p-2 bg-white font-mono text-sm"
-              placeholder="••••••••"
+              placeholder="Cole o mesmo token configurado no Cardápio Web"
             />
-            <p className="text-xs text-slate-500 mt-1">Usado para validar requisições (se aplicável).</p>
+            <p className="text-xs text-slate-500 mt-1">
+              O Cardápio Web envia este token no header <code>X-Webhook-Token</code> de
+              cada chamada. Defina o mesmo valor aqui e no portal do Cardápio Web
+              (Configurações &gt; Integrações &gt; Webhook). Enquanto ficar em branco, o
+              webhook aceita qualquer requisição — <strong>recomendado preencher</strong>.
+            </p>
           </div>
 
           <div>

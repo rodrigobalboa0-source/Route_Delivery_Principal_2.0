@@ -34,4 +34,7 @@ android/app/google-services.json
 
 infra/volumes/api/kong.yml
 
-supabase
+# supabase/ (migrations + edge functions) É versionado. Só artefatos locais
+# da CLI ficam de fora:
+supabase/.temp
+supabase/.branches
