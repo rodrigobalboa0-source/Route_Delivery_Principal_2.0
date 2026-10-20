@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Filter, Users } from 'lucide-react';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase';
 // import { MapView, MapDeliveryPerson } from './MapView'; // Google Maps SDK — fallback rápido, ver plano-integracao-routedelivery.md
-import { MapView, MapDeliveryPerson } from './MapViewOwnApi';
+import { MapDeliveryPerson } from './MapViewOwnApi';
+import MapaEntregadoresV1 from './MapaEntregadoresV1';
 import { DeliveryPersonCard } from './DeliveryPersonCard';
 import { getCoordsFromAddress } from '../utils/geo';
 import type { Database } from '../lib/database.types';
@@ -262,12 +263,21 @@ export function OperationsDashboard() {
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 p-6 overflow-hidden">
           <div className="h-full bg-white rounded-lg border border-slate-200 overflow-hidden">
-            <MapView 
-              deliveryPersons={filteredPersons} 
-              selectedEntregadorId={selectedEntregadorId}
-              center={mapCenter}
-              origin={!selectedEntregadorId ? storeLocation : undefined}
-              originTitle="Minha Loja"
+            <MapaEntregadoresV1
+              altura="100%"
+              entregadores={filteredPersons
+                .filter((p) => (p as any).current_latitude != null && (p as any).current_longitude != null)
+                .map((p) => ({
+                  id: p.id,
+                  lat: Number((p as any).current_latitude),
+                  lng: Number((p as any).current_longitude),
+                  fotoUrl: (p as any).foto_url || undefined,
+                  nomeCompleto: (p as any).nome_completo || '',
+                  veiculoTipo: (p as any).veiculo_tipo || '',
+                  pedidos: p.status === 'em_entrega' ? [{ codigo: '' }] : [],
+                  localizacaoEm: (p as any).last_location_update,
+                  online: (p as any).is_online !== false,
+                }))}
             />
           </div>
         </div>
