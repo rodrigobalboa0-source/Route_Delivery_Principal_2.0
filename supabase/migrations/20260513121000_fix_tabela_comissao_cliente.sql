@@ -1,3 +1,5 @@
+ALTER TABLE public.tabelas_comissoes ADD COLUMN IF NOT EXISTS ativo boolean NOT NULL DEFAULT true;
+ALTER TABLE public.tabelas_comissoes ADD COLUMN IF NOT EXISTS cliente_ids jsonb;
 -- Migration para criar tabela de comissão para o cliente específico
 -- Cliente: 4eca734d-5bf3-417a-b65b-339968be38bb
 

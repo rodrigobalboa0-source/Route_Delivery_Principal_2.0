@@ -537,6 +537,14 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
     setFotoPreview('');
     setEnderecos([]);
     if (mode !== 'public') setNewMembers([]);
+    // Cadastro público de comércio: confirma e leva para a área do lojista (login),
+    // em vez de deixar o usuário "voltar" para o painel ADM.
+    if (mode === 'public') {
+      setLoading(false);
+      alert('Comércio cadastrado com sucesso! Faça login para acessar.');
+      window.location.href = '/comercio';
+      return;
+    }
     await fetchClientes();
   };
 

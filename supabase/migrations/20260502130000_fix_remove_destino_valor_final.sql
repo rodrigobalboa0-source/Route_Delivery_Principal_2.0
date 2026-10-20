@@ -120,7 +120,7 @@ BEGIN
     END IF;
     v_novo_contato := v_primeiro_ponto->>'contato';
     v_novo_telefone := v_primeiro_ponto->>'telefone';
-    v_novo_cep := v_primeiro_ponto->>'cep;
+    v_novo_cep := v_primeiro_ponto->>'cep';
     v_novo_complemento := v_primeiro_ponto->>'complemento';
     v_novo_observacoes := v_primeiro_ponto->>'observacoes';
     

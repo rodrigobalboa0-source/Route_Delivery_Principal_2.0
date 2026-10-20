@@ -47,7 +47,8 @@ export function Cadastro({ onBack, darkMode = false, initialType }: { onBack?: (
             {onBack ? (
               <button onClick={onBack} className="text-sm md:text-base text-sky-200 hover:text-white">Voltar</button>
             ) : (
-              <a href="/" className="text-sm md:text-base text-sky-200 hover:text-white">Voltar</a>
+              // Comércio volta para a área do lojista (/comercio); entregador volta para a raiz.
+              <a href={tipo === 'cliente' ? '/comercio' : '/'} className="text-sm md:text-base text-sky-200 hover:text-white">Voltar</a>
             )}
           </div>
           {!tipo && (
