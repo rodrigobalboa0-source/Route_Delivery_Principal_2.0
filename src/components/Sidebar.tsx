@@ -67,6 +67,7 @@ export function Sidebar({ activeMenu, onMenuChange, isOpen, onClose, userRole, o
     { id: 'config_integracao_cardapioweb', label: 'Integração Cardápio Web', icon: Layers },
     { id: 'config_integracao_ze_delivery', label: 'Integração Zé Delivery', icon: Layers },
     { id: 'config_operacao', label: 'Configurações de operação', icon: Settings },
+    { id: 'config_mapa', label: 'Mapa e Geolocalização', icon: MapPin },
   ];
 
   const mensagensItems = [

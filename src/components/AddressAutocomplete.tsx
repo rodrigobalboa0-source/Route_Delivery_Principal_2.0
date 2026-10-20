@@ -1,5 +1,6 @@
 ﻿import { useEffect, useState, useRef, forwardRef, useImperativeHandle } from 'react';
 import { AddressPinPicker, type AddressPinPickerConfirmedResult } from './AddressPinPicker';
+import { getMapaConfig } from '../lib/mapaConfig';
 
 // Faixa Unicode de marcas diacríticas combinantes (resultado de normalize('NFD')),
 // construída via charCode para evitar problemas de encoding no source.
@@ -208,21 +209,67 @@ export const AddressAutocomplete = forwardRef<AddressAutocompleteHandle, {
           query = `${query}, Campinas, SP`;
         }
 
-        const call = async () => {
+        // Provedor da geolocalização definido na aba Configurações (Google ou
+        // OpenStreetMap). O mapa (tiles) segue sempre em OpenStreetMap.
+        const googleCall = async (apiKey: string) => {
           try {
-            const url = new URL('/v1/autocomplete', import.meta.env.VITE_MAPS_API_URL);
-            url.searchParams.set('input', query);
-            const res = await fetch(url.toString(), {
-              headers: { 'X-API-Key': import.meta.env.VITE_MAPS_API_KEY },
-            });
+            const url = new URL('https://maps.googleapis.com/maps/api/geocode/json');
+            url.searchParams.set('address', query);
+            url.searchParams.set('region', 'br');
+            url.searchParams.set('language', 'pt-BR');
+            url.searchParams.set('components', 'country:BR');
+            url.searchParams.set('key', apiKey);
+            const res = await fetch(url.toString());
             if (!res.ok) return { ok: false as const, results: [] as any[] };
             const data = await res.json();
-            const results = Array.isArray(data?.predictions) ? data.predictions : [];
+            if (data?.status !== 'OK' || !Array.isArray(data.results)) {
+              if (data?.status && data.status !== 'ZERO_RESULTS') {
+                console.error('[AddressAutocomplete] Geocoding API:', data.status, data.error_message || '');
+              }
+              return { ok: false as const, results: [] as any[] };
+            }
+            const results = data.results.map((r: any) => ({
+              description: String(r.formatted_address || ''),
+              lat: r?.geometry?.location?.lat,
+              lng: r?.geometry?.location?.lng,
+            }));
             return { ok: true as const, results };
           } catch (err) {
-            console.error('[AddressAutocomplete] falha ao chamar /v1/autocomplete da Carbymaps:', err);
+            console.error('[AddressAutocomplete] Google Geocoding falhou, caindo para OpenStreetMap:', err);
             return { ok: false as const, results: [] as any[] };
           }
+        };
+
+        const osmCall = async () => {
+          try {
+            const url = new URL('https://nominatim.openstreetmap.org/search');
+            url.searchParams.set('format', 'json');
+            url.searchParams.set('limit', '6');
+            url.searchParams.set('countrycodes', 'br');
+            url.searchParams.set('accept-language', 'pt-BR');
+            url.searchParams.set('q', query);
+            const res = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
+            if (!res.ok) return { ok: false as const, results: [] as any[] };
+            const data = await res.json();
+            const results = (Array.isArray(data) ? data : []).map((item: any) => ({
+              description: String(item.display_name || ''),
+              lat: item.lat != null ? Number(item.lat) : undefined,
+              lng: item.lon != null ? Number(item.lon) : undefined,
+            }));
+            return { ok: true as const, results };
+          } catch (err) {
+            console.error('[AddressAutocomplete] OpenStreetMap (Nominatim) falhou:', err);
+            return { ok: false as const, results: [] as any[] };
+          }
+        };
+
+        const call = async () => {
+          const cfg = await getMapaConfig();
+          if (cfg.provider === 'google' && cfg.apiKey) {
+            const g = await googleCall(cfg.apiKey);
+            if (g.ok && g.results.length) return g;
+          }
+          return osmCall();
         };
 
         const first = await call();
