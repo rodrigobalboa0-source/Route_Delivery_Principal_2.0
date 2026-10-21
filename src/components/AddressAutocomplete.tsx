@@ -263,13 +263,38 @@ export const AddressAutocomplete = forwardRef<AddressAutocompleteHandle, {
           }
         };
 
+        // Fallback final: a API própria (Carbymaps) — garante que a busca sempre
+        // retorne algo, mesmo se Google/OSM falharem no navegador.
+        const carbyCall = async () => {
+          try {
+            const base = import.meta.env.VITE_MAPS_API_URL as string;
+            const key = import.meta.env.VITE_MAPS_API_KEY as string;
+            if (!base) return { ok: false as const, results: [] as any[] };
+            const url = new URL('/v1/autocomplete', base);
+            url.searchParams.set('input', query);
+            const res = await fetch(url.toString(), { headers: key ? { 'X-API-Key': key } : undefined });
+            if (!res.ok) return { ok: false as const, results: [] as any[] };
+            const data = await res.json();
+            const results = (Array.isArray(data?.predictions) ? data.predictions : []).map((item: any) => ({
+              description: String(item.description || ''),
+              lat: typeof item.lat === 'number' ? item.lat : undefined,
+              lng: typeof item.lng === 'number' ? item.lng : undefined,
+            }));
+            return { ok: true as const, results };
+          } catch {
+            return { ok: false as const, results: [] as any[] };
+          }
+        };
+
         const call = async () => {
           const cfg = await getMapaConfig();
           if (cfg.provider === 'google' && cfg.apiKey) {
             const g = await googleCall(cfg.apiKey);
             if (g.ok && g.results.length) return g;
           }
-          return osmCall();
+          const o = await osmCall();
+          if (o.ok && o.results.length) return o;
+          return carbyCall();
         };
 
         const first = await call();
