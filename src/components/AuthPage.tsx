@@ -356,6 +356,7 @@ export function AuthPage({ forceResetMode = false, onResetComplete }: { forceRes
   // Recuperação/redefinição de senha caem no layout padrão abaixo.
   if (isComercioLogin && !isNative && !resetPasswordMode && !forgotPasswordOpen) {
     return (
+      <>
       <div className="rd-login-v1 acesso">
         <div className="acesso-capa" aria-hidden="true">
           <svg className="capa-mapa" viewBox="0 0 800 800" preserveAspectRatio="xMidYMid slice">
@@ -452,8 +453,9 @@ export function AuthPage({ forceResetMode = false, onResetComplete }: { forceRes
             </button>
           </div>
         </div>
-        {signupModal}
       </div>
+      {signupModal}
+      </>
     );
   }
 
