@@ -36,7 +36,10 @@ export async function getMapaConfig(): Promise<MapaConfig> {
     } catch {
       // Tabela pode ainda não existir no backend — segue no fallback.
     }
-    cache = { provider: envKey ? 'google' : 'openstreetmap', apiKey: envKey, mapId: envMapId };
+    // Sem config legível (ex.: cadastro público/anônimo): usa OpenStreetMap,
+    // que funciona sem chave. O Google só é usado quando a config do banco
+    // (lida por usuário autenticado ou liberada para anon) indicar 'google'.
+    cache = { provider: 'openstreetmap', apiKey: envKey, mapId: envMapId };
     return cache;
   })();
   return cachePromise;
