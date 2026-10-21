@@ -73,6 +73,7 @@ import { EntregadorHomePanel } from './components/entregador/EntregadorHomePanel
 import { ComercioNotificacoesPanel } from './components/comercio/ComercioNotificacoesPanel';
 import { ComercioCreditosPanel } from './components/comercio/ComercioCreditosPanel';
 import { ComercioFaturamentoPanel } from './components/comercio/ComercioFaturamentoPanel';
+import { ComercioApp } from './comercio/ComercioApp';
 import { EntregadorBottomBar } from './components/entregador/EntregadorBottomBar';
 
 function App() {
@@ -700,6 +701,11 @@ function App() {
 
   if (accountPending) {
     return <AccountUnderAnalysis onBack={handleLogout} isLoginAttempt={true} />;
+  }
+
+  // Comércio (loja): sistema próprio portado fiel do V1 (menu no topo, tema escuro), independente do shell ADM.
+  if (userRole === 'cliente') {
+    return <ComercioApp onLogout={handleLogout} />;
   }
 
   return (

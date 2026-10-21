@@ -1,0 +1,228 @@
+/* ============================================================
+   Sistema do comerciante — PORTE FIEL do V1 (comerciante: styles.css + loja.css)
+   Tudo escopado em .loja-app para não vazar no resto do 2.0 (Tailwind).
+   ============================================================ */
+
+.loja-app {
+  color-scheme: dark;
+  --fundo: #171b2c;
+  --superficie: #20253a;
+  --superficie-2: #272d46;
+  --borda: #323955;
+  --borda-forte: #3f4768;
+  --texto: #eef1f8;
+  --texto-2: #b7bfd4;
+  --texto-3: #8891ab;
+  --primaria: #3d8bfd;
+  --primaria-hover: #5d9ffd;
+  --primaria-suave: #1c2c4d;
+  --menu-fundo: #141828;
+  --menu-texto: #aab4ca;
+  --menu-ativo: #222a44;
+  --ok: #4cc24c;        --ok-fundo: #12301a;
+  --aviso: #f0b429;     --aviso-fundo: #33280c;
+  --critico: #f07070;   --critico-fundo: #3a1717;
+  --info: #6aa8f0;      --info-fundo: #14263d;
+  --neutro: #c3cad4;    --neutro-fundo: #2a3048;
+  --sombra: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --sombra-alta: 0 12px 30px rgba(0, 0, 0, 0.55);
+  --laranja: #d9653b;   --laranja-hover: #e8764b;
+  --amarelo: #f5b41a;   --amarelo-hover: #ffc53a;
+  --verde: #2fa84f;
+  --link-topo: #4aa3ff;
+  --raio: 9px;
+  --raio-sm: 5.5px;
+  --fonte: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  min-height: 100vh; display: flex; flex-direction: column;
+  background: var(--fundo); color: var(--texto);
+  font-family: var(--fonte); font-size: 12.5px; line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- Base ---------- */
+.loja-app * { box-sizing: border-box; }
+.loja-app h1, .loja-app h2, .loja-app h3 { margin: 0; line-height: 1.25; }
+.loja-app h1 { font-size: 19.5px; font-weight: 650; }
+.loja-app h2 { font-size: 13px; font-weight: 600; }
+.loja-app h3 { font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--texto-2); }
+.loja-app p { margin: 0 0 10.5px; }
+.loja-app a { color: var(--primaria); }
+.loja-app img { max-width: 100%; }
+.loja-app input, .loja-app select, .loja-app textarea, .loja-app button { font: inherit; color: inherit; }
+.loja-app input, .loja-app select, .loja-app textarea {
+  border: 1px solid var(--borda-forte); border-radius: var(--raio-sm);
+  background: #1b2033; padding: 6px 9px; max-width: 100%;
+}
+.loja-app input::placeholder, .loja-app textarea::placeholder { color: #7c85a0; }
+.loja-app input[type="datetime-local"], .loja-app input[type="date"] { color-scheme: dark; }
+.loja-app input:focus, .loja-app select:focus, .loja-app textarea:focus,
+.loja-app button:focus-visible, .loja-app .btn:focus-visible { outline: 2px solid var(--primaria); outline-offset: 1px; }
+.loja-app .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.loja-app .apagado { color: var(--texto-3); }
+.loja-app .centro { text-align: center; }
+.loja-app .num { text-align: right; font-variant-numeric: tabular-nums; }
+.loja-app .icone { width: 16px; height: 16px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---------- Campos ---------- */
+.loja-app .campo { display: flex; flex-direction: column; gap: 3.5px; min-width: 0; }
+.loja-app .campo input, .loja-app .campo select, .loja-app .campo textarea { width: 100%; }
+.loja-app .campo-rotulo { font-size: 11.5px; font-weight: 550; color: var(--texto-2); }
+.loja-app .campo-check { display: flex; flex-direction: row; align-items: center; gap: 7px; cursor: pointer; }
+.loja-app .campo-check input[type="checkbox"] { width: 14px; height: 14px; flex: 0 0 auto; accent-color: var(--primaria); }
+
+/* ---------- Botões ---------- */
+.loja-app .btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 5.5px;
+  border-radius: var(--raio-sm); padding: 7px 12.5px; font-weight: 550;
+  border: 1px solid var(--borda-forte); background: var(--superficie);
+  cursor: pointer; text-decoration: none; white-space: nowrap; color: var(--texto);
+}
+.loja-app .btn:hover:not(:disabled) { background: var(--superficie-2); }
+.loja-app .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.loja-app .btn-sm { padding: 4.5px 9px; font-size: 11.5px; }
+.loja-app .btn-bloco { width: 100%; }
+.loja-app .btn-primario { background: var(--primaria); border-color: var(--primaria); color: #fff; }
+.loja-app .btn-primario:hover:not(:disabled) { background: var(--primaria-hover); }
+.loja-app .btn-fantasma { border-color: transparent; background: transparent; color: var(--texto-2); }
+.loja-app .btn-fantasma:hover:not(:disabled) { background: var(--superficie-2); }
+.loja-app .btn-laranja { background: var(--laranja); border-color: var(--laranja); color: #fff; font-weight: 600; }
+.loja-app .btn-laranja:hover:not(:disabled) { background: var(--laranja-hover); }
+.loja-app .btn-amarelo { background: var(--amarelo); border-color: var(--amarelo); color: #1c1c1c; font-weight: 600; }
+.loja-app .link { background: none; border: 0; padding: 0; color: var(--primaria); cursor: pointer; text-decoration: none; font-weight: 550; }
+.loja-app .link:hover { text-decoration: underline; }
+
+/* ---------- Badges ---------- */
+.loja-app .badge { display: inline-flex; align-items: center; gap: 3.5px; padding: 2px 7px; border-radius: 874px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.loja-app .badge-ok { background: var(--ok-fundo); color: var(--ok); }
+.loja-app .badge-aviso { background: var(--aviso-fundo); color: var(--aviso); }
+.loja-app .badge-critico { background: var(--critico-fundo); color: var(--critico); }
+.loja-app .badge-info { background: var(--info-fundo); color: var(--info); }
+.loja-app .badge-neutro { background: var(--neutro-fundo); color: var(--neutro); }
+.loja-app .badge-apagado { background: var(--neutro-fundo); color: var(--texto-3); }
+
+/* ---------- Feedback ---------- */
+.loja-app .carregando { display: flex; align-items: center; gap: 9px; color: var(--texto-3); padding: 21px; justify-content: center; }
+.loja-app .spinner { width: 14px; height: 14px; border: 2px solid var(--borda-forte); border-top-color: var(--primaria); border-radius: 50%; animation: loja-girar 0.8s linear infinite; }
+@keyframes loja-girar { to { transform: rotate(360deg); } }
+.loja-app .vazio { text-align: center; padding: 28px 14px; color: var(--texto-3); }
+.loja-app .erro-caixa, .loja-app .aviso-caixa {
+  border-radius: var(--raio-sm); padding: 9px 10.5px; margin-bottom: 10.5px;
+  display: flex; flex-wrap: wrap; gap: 7px; align-items: center; justify-content: space-between;
+}
+.loja-app .erro-caixa { background: var(--critico-fundo); color: var(--critico); }
+
+/* ---------- Tabelas ---------- */
+.loja-app .tabela-rolagem { overflow-x: auto; }
+.loja-app .tabela { width: 100%; border-collapse: collapse; }
+.loja-app .tabela th { text-align: left; font-size: 11px; font-weight: 600; color: var(--texto-3); text-transform: uppercase; letter-spacing: 0.04em; padding: 9px 12.5px; border-bottom: 1px solid var(--borda); background: var(--superficie-2); white-space: nowrap; }
+.loja-app .tabela td { padding: 9px 12.5px; border-bottom: 1px solid var(--borda); vertical-align: top; }
+.loja-app .tabela tbody tr:last-child td { border-bottom: 0; }
+.loja-app .tabela th.num, .loja-app .tabela td.num { text-align: right; }
+.loja-app .tabela-compacta th, .loja-app .tabela-compacta td { padding: 6px 7px; }
+.loja-app .celula-sub { font-size: 11px; color: var(--texto-3); margin-top: 2px; }
+
+/* ---------- Topo (shell) ---------- */
+.loja-app .loja-topo {
+  position: sticky; top: 0; z-index: 40;
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 20px; min-height: 60px;
+  background: #151a2b; border-bottom: 1px solid #262c45; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+.loja-app .loja-marca { flex: 0 0 auto; padding: 4px 10px; border-radius: 8px; background: #1e2439; margin-right: 18px; }
+.loja-app .loja-marca img { display: block; height: 34px; width: auto; }
+.loja-app .logo-atualizar { display: block; padding: 0; border: 0; background: none; cursor: pointer; border-radius: 6px; }
+.loja-app .logo-atualizar:hover { opacity: 0.85; }
+.loja-app .loja-nav { display: flex; align-items: center; gap: 6px; flex: 1; flex-wrap: wrap; }
+.loja-app .topo-link {
+  display: inline-flex; align-items: center; gap: 7px; padding: 8px 12px; border-radius: 7px;
+  color: var(--link-topo); font-weight: 650; font-size: 13px; text-decoration: none;
+  background: none; border: 0; cursor: pointer; white-space: nowrap;
+}
+.loja-app .topo-link:hover { background: #1f2640; color: #7cbcff; }
+.loja-app .topo-link.ativo { background: #1f2742; color: #fff; box-shadow: inset 0 -2px 0 var(--link-topo); }
+.loja-app .topo-link .icone { opacity: 0.85; }
+.loja-app .icone-seta { width: 13px; height: 13px; opacity: 0.7; }
+.loja-app .topo-grupo { position: relative; }
+.loja-app .topo-suspenso {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 50; min-width: 210px;
+  background: #20263d; border: 1px solid var(--borda); border-radius: 9px; box-shadow: var(--sombra-alta);
+  padding: 6px; display: flex; flex-direction: column; gap: 2px;
+}
+.loja-app .topo-suspenso-direita { left: auto; right: 0; }
+.loja-app .topo-suspenso-item {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px;
+  color: var(--texto); text-decoration: none; background: none; border: 0; text-align: left; cursor: pointer; font: inherit;
+}
+.loja-app .topo-suspenso-item:hover { background: var(--superficie-2); color: #fff; }
+.loja-app .topo-suspenso-item .badge { margin-left: auto; }
+.loja-app .topo-suspenso-cabeca { padding: 6px 10px 10px; border-bottom: 1px solid var(--borda); margin-bottom: 4px; }
+.loja-app .topo-suspenso-cabeca strong { display: block; }
+.loja-app .topo-suspenso-cabeca small { color: var(--texto-3); }
+.loja-app .topo-conta { margin-left: auto; }
+.loja-app .topo-avatar {
+  position: relative; width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--borda-forte);
+  background: #232a44; color: #fff; font-weight: 700; font-size: 13px; cursor: pointer; display: grid; place-items: center; overflow: visible;
+}
+.loja-app .topo-avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+.loja-app .topo-avatar .menu-bolinha { position: absolute; top: 0; right: 0; }
+.loja-app .menu-bolinha { width: 9px; height: 9px; border-radius: 50%; background: #ff5b5b; box-shadow: 0 0 0 2px #151a2b; display: inline-block; }
+.loja-app .loja-hamburguer { display: none; color: #fff; }
+.loja-app .loja-conteudo { padding: 18px 20px 28px; flex: 1; width: 100%; max-width: 1600px; margin: 0 auto; }
+
+/* Botão de ícone genérico (barra, filtros) */
+.loja-app .botao-icone {
+  position: relative; width: 36px; height: 36px; flex: 0 0 36px; border-radius: 8px; border: 1px solid var(--borda-forte);
+  background: #1b2033; color: var(--texto-2); cursor: pointer; display: grid; place-items: center;
+}
+.loja-app .botao-icone:hover:not(:disabled) { color: #fff; border-color: var(--primaria); }
+.loja-app .botao-icone:disabled { opacity: 0.45; cursor: default; }
+.loja-app .botao-icone svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.loja-app .botao-icone.sem-borda { border-color: transparent; background: none; }
+.loja-app .botao-icone.ativo { color: var(--link-topo); }
+
+/* ---------- Painel ---------- */
+.loja-app .painel { display: flex; flex-direction: column; gap: 14px; }
+.loja-app .painel-bloco { background: var(--superficie); border: 1px solid var(--borda); border-radius: 10px; padding: 14px; }
+.loja-app .painel-grade { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; }
+.loja-app .painel-principal { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.loja-app .linha-clicavel { cursor: pointer; }
+.loja-app .linha-clicavel:hover { background: var(--superficie-2); }
+.loja-app .selo-retorno { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: 10.5px; font-weight: 600; background: var(--aviso-fundo); color: var(--aviso); vertical-align: 1px; white-space: nowrap; }
+
+.loja-app .sem-registros { display: flex; flex-direction: column; align-items: center; gap: 9px; padding: 28px 10px; color: var(--texto-2); }
+.loja-app .sem-registros span { width: 42px; height: 42px; border-radius: 50%; background: #2c3350; color: #c9d1e6; display: grid; place-items: center; font-size: 22px; line-height: 1; }
+.loja-app .sem-registros strong { font-size: 12px; }
+
+.loja-app .em-aberto { padding: 0; }
+.loja-app .em-aberto-topo { display: flex; justify-content: flex-end; align-items: center; gap: 14px; padding: 10px 14px; border-bottom: 1px solid var(--borda); flex-wrap: wrap; }
+.loja-app .em-aberto-contagem { display: inline-flex; align-items: center; gap: 6px; color: var(--texto-2); }
+.loja-app .em-aberto-contagem svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.loja-app .em-aberto-contagem strong { color: #fff; }
+.loja-app .em-aberto-ferramentas { display: flex; justify-content: flex-end; align-items: center; gap: 6px; padding: 10px 14px; border-bottom: 1px solid var(--borda); }
+.loja-app .em-aberto-ferramentas .busca-icone { width: min(260px, 100%); }
+.loja-app .tabela-aberto th { background: transparent; }
+.loja-app .tabela-aberto .col-endereco { max-width: 230px; white-space: normal; }
+
+.loja-app .busca-icone { position: relative; display: flex; align-items: center; }
+.loja-app .busca-icone svg { position: absolute; left: 10px; width: 15px; height: 15px; fill: none; stroke: var(--texto-3); stroke-width: 2; pointer-events: none; }
+.loja-app .busca-icone input { width: 100%; padding-left: 32px; height: 34px; border-radius: 8px; }
+
+/* Seletor de loja (multi-loja) */
+.loja-app .seletor-loja { display: flex; align-items: center; gap: 8px; color: var(--texto-2); font-size: 13px; margin-left: auto; margin-right: 10px; }
+.loja-app .seletor-loja select { min-width: 170px; max-width: 240px; padding: 6px 10px; border-radius: 8px; font-weight: 700; }
+
+/* ---------- Telas menores ---------- */
+@media (max-width: 900px) {
+  .loja-app .loja-hamburguer { display: inline-grid; order: 2; margin-left: auto; }
+  .loja-app .topo-conta { order: 3; margin-left: 4px; }
+  .loja-app .loja-nav { display: none; order: 4; flex-basis: 100%; flex-direction: column; align-items: stretch; padding: 6px 0 4px; }
+  .loja-app .loja-nav.aberto { display: flex; }
+  .loja-app .loja-nav .topo-suspenso { position: static; box-shadow: none; margin: 2px 0 4px 20px; }
+  .loja-app .loja-topo { flex-wrap: wrap; padding: 8px 14px; }
+  .loja-app .loja-marca { margin-right: 0; }
+  .loja-app .seletor-loja span { display: none; }
+}
+@media (max-width: 640px) {
+  .loja-app .loja-conteudo { padding: 12px 12px 24px; }
+}
