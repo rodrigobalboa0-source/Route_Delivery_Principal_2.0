@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../lib/supabase';
 import { Modal } from '../Modal';
 import { AddressPinPicker, type AddressPinPickerConfirmedResult } from '../AddressPinPicker';
+import { AddressAutocomplete } from '../AddressAutocomplete';
 import type { Database } from '../../lib/database.types';
 
 type TabelaPreco = Database['public']['Tables']['tabelas_precos']['Row'];
@@ -299,8 +300,10 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
     const hasEnderecoAtual = Boolean((enderecoAtual.cep || '').trim() || (enderecoAtual.rua || '').trim() || (enderecoAtual.numero || '').trim());
 
     if (hasEnderecoAtual) {
-      if (!enderecoAtual.cep || !enderecoAtual.rua || !enderecoAtual.numero || !enderecoAtual.bairro || !enderecoAtual.cidade) {
-        setError('Para cadastrar o endereço, preencha obrigatoriamente: CEP, Rua, Número, Bairro e Cidade.');
+      // Se o endereço veio do mapa (tem coordenadas), não exige os campos manuais.
+      const temCoordenadas = Boolean(String(form.latitude || '').trim() && String(form.longitude || '').trim());
+      if (!temCoordenadas && (!enderecoAtual.rua || !enderecoAtual.numero)) {
+        setError('Busque o endereço no mapa e informe o número.');
         setLoading(false);
         return;
       }
@@ -1281,27 +1284,50 @@ export function ClientesPanel({ mode = 'admin', initialEditId }: { mode?: 'admin
             <textarea value={form.observacoes} onChange={(e) => setForm({ ...form, observacoes: e.target.value })} className="w-full px-3 py-2 border border-slate-300 rounded" />
           </div>
         </div>
-        <div className="mt-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <input placeholder="CEP" value={enderecoAtual.cep || ''} onChange={(e) => setEnderecoAtual({ ...enderecoAtual, cep: e.target.value })} onBlur={(e) => handleCepBlur(e.target.value)} className="px-3 py-2 border border-slate-300 rounded" />
-            <input placeholder="Rua" value={enderecoAtual.rua || ''} onChange={(e) => setEnderecoAtual({ ...enderecoAtual, rua: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-            <input placeholder="Número" value={enderecoAtual.numero || ''} onChange={(e) => setEnderecoAtual({ ...enderecoAtual, numero: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-            <input placeholder="Complemento" value={enderecoAtual.complemento || ''} onChange={(e) => setEnderecoAtual({ ...enderecoAtual, complemento: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-            <input placeholder="Bairro" value={enderecoAtual.bairro || ''} onChange={(e) => setEnderecoAtual({ ...enderecoAtual, bairro: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-            <input placeholder="Cidade" value={enderecoAtual.cidade || ''} onChange={(e) => setEnderecoAtual({ ...enderecoAtual, cidade: e.target.value })} className="px-3 py-2 border border-slate-300 rounded" />
-            <input placeholder="Referência de entrega" value={enderecoAtual.referencia_entrega || ''} onChange={(e) => setEnderecoAtual({ ...enderecoAtual, referencia_entrega: e.target.value })} className="px-3 py-2 border border-slate-300 rounded md:col-span-3" />
+        <div className="mt-5">
+          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-base">📍</span>
+              <h3 className="text-sm font-semibold text-slate-800">Endereço do comércio</h3>
+            </div>
+            <p className="text-xs text-slate-500 mb-3">Digite o endereço e selecione na lista — o mapa encontra e marca a localização automaticamente.</p>
+
+            <AddressAutocomplete
+              value={enderecoAtual.rua || ''}
+              onChange={(v) => setEnderecoAtual((prev) => ({ ...prev, rua: v }))}
+              placeholder="Buscar endereço (rua, número, bairro, cidade)…"
+              inputClassName="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+              onSelectCoords={(coords, text) => {
+                if (text) setEnderecoAtual((prev) => ({ ...prev, rua: text }));
+                if (coords) setForm((prev) => ({ ...prev, latitude: String(coords[0]), longitude: String(coords[1]) }));
+              }}
+            />
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+              <input placeholder="Número" value={enderecoAtual.numero || ''} onChange={(e) => setEnderecoAtual({ ...enderecoAtual, numero: e.target.value })} className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+              <input placeholder="Complemento" value={enderecoAtual.complemento || ''} onChange={(e) => setEnderecoAtual({ ...enderecoAtual, complemento: e.target.value })} className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+              <input placeholder="Bairro" value={enderecoAtual.bairro || ''} onChange={(e) => setEnderecoAtual({ ...enderecoAtual, bairro: e.target.value })} className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+              <input placeholder="Cidade" value={enderecoAtual.cidade || ''} onChange={(e) => setEnderecoAtual({ ...enderecoAtual, cidade: e.target.value })} className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+              <input placeholder="CEP" value={enderecoAtual.cep || ''} onChange={(e) => setEnderecoAtual({ ...enderecoAtual, cep: e.target.value })} onBlur={(e) => handleCepBlur(e.target.value)} className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+              <input placeholder="Referência de entrega" value={enderecoAtual.referencia_entrega || ''} onChange={(e) => setEnderecoAtual({ ...enderecoAtual, referencia_entrega: e.target.value })} className="px-3 py-2 border border-slate-300 rounded-lg text-sm col-span-2 md:col-span-3" />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 mt-3">
+              <button
+                type="button"
+                onClick={() => openPinPicker('create', [enderecoAtual.rua, enderecoAtual.numero, enderecoAtual.bairro, enderecoAtual.cidade, enderecoAtual.cep].filter(Boolean).join(', '))}
+                className="px-3 py-2 rounded-lg bg-white text-slate-700 text-sm border border-slate-300 hover:bg-slate-100"
+              >
+                📍 Ajustar no mapa
+              </button>
+              {mode !== 'public' && (
+                <button onClick={addEndereco} className="px-3 py-2 rounded-lg bg-slate-200 text-slate-800 text-sm">Adicionar outro endereço</button>
+              )}
+              {(form.latitude && form.longitude) && (
+                <span className="text-xs text-emerald-600 font-medium">✓ Localização confirmada no mapa</span>
+              )}
+            </div>
           </div>
-          <button onClick={addEndereco} className="mt-3 px-3 py-2 rounded bg-slate-200 text-slate-800 text-sm">Adicionar endereço</button>
-          <button
-            type="button"
-            onClick={() => openPinPicker('create', [enderecoAtual.rua, enderecoAtual.numero, enderecoAtual.bairro, enderecoAtual.cidade, enderecoAtual.cep].filter(Boolean).join(', '))}
-            className="mt-3 ml-2 px-3 py-2 rounded bg-slate-100 text-slate-700 text-sm border border-slate-300 hover:bg-slate-200"
-          >
-            📍 Ajustar localização no mapa
-          </button>
-          {(form.latitude && form.longitude) && (
-            <span className="ml-2 text-xs text-emerald-600">Posição exata confirmada</span>
-          )}
           {enderecos.length > 0 && (
             <div className="mt-3 space-y-2">
               {enderecos.map((e, i) => (
