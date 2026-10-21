@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import './LojaV1.css';
 import MapaEntregadoresV1 from '../components/MapaEntregadoresV1';
 import { getLojaAtual, getEntregasAbertas, getEntregadoresOnline, marcarPronto, moeda, statusBadge, FILTROS_STATUS, type LojaAtual, type EntregaAberta, type EntregadorMapa } from './comercioData';
+import { calcularPreco, criarEntregaComercio, type ResultadoPreco } from './comercioPricing';
 
 // Ícones em traço (herdam a cor do texto) — iguais ao V1.
 const ICONES: Record<string, JSX.Element> = {
@@ -68,7 +69,123 @@ function MenuConta({ loja, onNavegar, onSair }: { loja: LojaAtual | null; onNave
   );
 }
 
-// Painel de Controle — mapa ao vivo + entregas em aberto (criação rápida vem na próxima etapa).
+const PAGAMENTOS = ['Pago (online)', 'Pix', 'Cartão na entrega', 'Dinheiro'];
+
+// Criação rápida de entrega (uma linha) — porte fiel do CriarRapido do V1, preço no Supabase.
+function CriarRapido({ loja, onCriado }: { loja: LojaAtual; onCriado: () => void }) {
+  const VAZIO = { clienteNome: '', clienteTelefone: '', endereco: '', complemento: '', formaPagamento: '', observacao: '', agendadoPara: '' };
+  const [v, setV] = useState(VAZIO);
+  const [retorno, setRetorno] = useState(false);
+  const [pronto, setPronto] = useState(false);
+  const [mais, setMais] = useState(false);
+  const [preco, setPreco] = useState<ResultadoPreco | null>(null);
+  const [calculando, setCalculando] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const calcIdRef = useRef(0);
+  const set = (k: keyof typeof VAZIO) => (val: string) => setV(x => ({ ...x, [k]: val }));
+
+  // Recalcula o preço quando o endereço (≥5 chars) ou o retorno mudam (debounce 700ms).
+  useEffect(() => {
+    const endereco = v.endereco.trim();
+    if (endereco.length < 5) { setPreco(null); return; }
+    const id = ++calcIdRef.current;
+    setCalculando(true);
+    const t = setTimeout(async () => {
+      try {
+        const r = await calcularPreco(loja, { enderecoTexto: endereco, retorno });
+        if (id === calcIdRef.current) setPreco(r);
+      } catch {
+        if (id === calcIdRef.current) setPreco({ valor: null, km: null, dinamico: false, erro: 'Erro ao calcular o preço.' });
+      } finally {
+        if (id === calcIdRef.current) setCalculando(false);
+      }
+    }, 700);
+    return () => clearTimeout(t);
+  }, [v.endereco, retorno, loja]);
+
+  async function criar(e: React.FormEvent) {
+    e.preventDefault();
+    setErro(null);
+    if (!v.clienteNome.trim()) { setErro('Informe o nome do cliente.'); return; }
+    if (v.endereco.trim().length < 5) { setErro('Informe o endereço de entrega.'); return; }
+    setEnviando(true);
+    try {
+      let p = preco;
+      if (!p || p.valor == null) p = await calcularPreco(loja, { enderecoTexto: v.endereco.trim(), retorno });
+      await criarEntregaComercio(loja, {
+        clienteNome: v.clienteNome.trim(),
+        clienteTelefone: v.clienteTelefone.trim(),
+        enderecoTexto: v.endereco.trim(),
+        complemento: v.complemento.trim(),
+        observacao: v.observacao.trim(),
+        formaPagamento: v.formaPagamento,
+        agendadoPara: v.agendadoPara ? new Date(v.agendadoPara).toISOString() : null,
+        retorno,
+        pronto,
+        valor: p?.valor ?? null,
+        km: p?.km ?? null,
+      });
+      setV(VAZIO); setRetorno(false); setPronto(false); setMais(false); setPreco(null);
+      onCriado();
+    } catch (err: any) {
+      setErro(err?.message || 'Erro ao criar a entrega.');
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <form className="criar-rapido" onSubmit={criar} aria-label="Criar entrega">
+      <div className="criar-linha">
+        <input className="cr-nome" value={v.clienteNome} onChange={e => set('clienteNome')(e.target.value)} placeholder="Nome do cliente" aria-label="Nome do cliente" required />
+        <input className="cr-tel" value={v.clienteTelefone} onChange={e => set('clienteTelefone')(e.target.value)} placeholder="Telefone" aria-label="Telefone" inputMode="tel" />
+        <input className="cr-end" value={v.endereco} onChange={e => set('endereco')(e.target.value)} placeholder="Endereço de entrega (rua, número, bairro)" aria-label="Endereço de entrega" required />
+        <input className="cr-comp" value={v.complemento} onChange={e => set('complemento')(e.target.value)} placeholder="Complemento" aria-label="Complemento" />
+        <label className="chave-rapida" title={`O entregador volta à loja depois de entregar. Acréscimo de ${loja.retornoPercentual ?? 20}% na taxa.`}>
+          <input type="checkbox" checked={retorno} onChange={e => setRetorno(e.target.checked)} />
+          <span className="interruptor" aria-hidden="true" /><span>Retorno?</span>
+        </label>
+        <label className="chave-rapida" title="Ligado: chama o entregador assim que criar. Desligado: fica Criado até você clicar em Pedido pronto.">
+          <input type="checkbox" checked={pronto} onChange={e => setPronto(e.target.checked)} />
+          <span className="interruptor" aria-hidden="true" /><span>Pronto?</span>
+        </label>
+        <button type="button" className={`botao-icone ${mais ? 'ativo' : ''}`} onClick={() => setMais(m => !m)} aria-expanded={mais} aria-label="Mais opções" title="Mais opções (pagamento, observação, agendamento)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d={mais ? 'm6 15 6-6 6 6' : 'M12 5v14M5 12h14'} /></svg>
+        </button>
+      </div>
+      {mais && (
+        <div className="criar-linha criar-mais">
+          <select value={v.formaPagamento} onChange={e => set('formaPagamento')(e.target.value)} aria-label="Forma de pagamento">
+            <option value="">Pagamento do cliente…</option>
+            {PAGAMENTOS.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <input className="cr-obs" value={v.observacao} onChange={e => set('observacao')(e.target.value)} placeholder="Observação para o entregador (troco, apto, interfone…)" aria-label="Observação" />
+          <label className="cr-agenda"><span>Agendar para</span>
+            <input type="datetime-local" value={v.agendadoPara} onChange={e => set('agendadoPara')(e.target.value)} aria-label="Agendar para" />
+          </label>
+        </div>
+      )}
+      <div className="criar-rodape">
+        <span className="criar-calculo" aria-live="polite">
+          {erro && <span style={{ color: 'var(--critico)' }}>{erro}</span>}
+          {calculando ? <span className="apagado">Calculando valor…</span>
+            : preco?.erro ? <span className="apagado">{preco.erro}</span>
+            : preco && preco.valor != null ? (
+              <span className="criar-valor">
+                ✓ Taxa: <strong>{moeda(preco.valor)}</strong>
+                {preco.km != null && <span className="apagado"> · {preco.km.toFixed(1)} km</span>}
+                {preco.dinamico && <span className="selo-dinamico" title="Preço dinâmico ativo agora">⚡ Preço dinâmico</span>}
+              </span>
+            ) : null}
+        </span>
+        <button type="submit" className="btn btn-laranja" disabled={enviando}>{enviando ? 'Criando…' : v.agendadoPara ? 'Agendar Entrega' : 'Criar Entrega'}</button>
+      </div>
+    </form>
+  );
+}
+
+// Painel de Controle — criação rápida + mapa ao vivo + entregas em aberto.
 function PainelView({ loja }: { loja: LojaAtual }) {
   const [entregas, setEntregas] = useState<EntregaAberta[] | null>(null);
   const [entregadores, setEntregadores] = useState<EntregadorMapa[]>([]);
@@ -123,6 +240,7 @@ function PainelView({ loja }: { loja: LojaAtual }) {
   return (
     <div className="painel">
       <h1 className="sr-only">Painel de Controle — {loja.nomeFantasia}</h1>
+      <CriarRapido loja={loja} onCriado={() => carregar(true)} />
       {erro && <div className="erro-caixa" role="alert"><span>{erro}</span><button className="link" onClick={() => carregar()}>Tentar de novo</button></div>}
 
       <div className="painel-grade">

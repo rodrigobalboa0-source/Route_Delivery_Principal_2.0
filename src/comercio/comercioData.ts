@@ -16,6 +16,8 @@ export interface LojaAtual {
   lat: number | null;
   lng: number | null;
   endereco: string | null;
+  precificacaoConfig: any[] | null;
+  retornoPercentual: number | null;
 }
 
 function num(v: any): number | null {
@@ -50,6 +52,8 @@ export async function getLojaAtual(): Promise<LojaAtual | null> {
     lat: num(row.latitude ?? row.lat),
     lng: num(row.longitude ?? row.lng),
     endereco: row.endereco || row.endereco_texto || [row.logradouro, row.numero].filter(Boolean).join(', ') || null,
+    precificacaoConfig: Array.isArray(row.precificacao_config) ? row.precificacao_config : null,
+    retornoPercentual: num(row.retorno_percentual) ?? 20,
   };
 }
 
