@@ -208,6 +208,26 @@
 .loja-app .busca-icone svg { position: absolute; left: 10px; width: 15px; height: 15px; fill: none; stroke: var(--texto-3); stroke-width: 2; pointer-events: none; }
 .loja-app .busca-icone input { width: 100%; padding-left: 32px; height: 34px; border-radius: 8px; }
 
+/* Barra do mapa + mapa */
+.loja-app .mapa-barra { display: flex; gap: 8px; }
+.loja-app .mb { width: 32px; height: 28px; border-radius: 6px; border: 0; cursor: pointer; display: grid; place-items: center; background: #2f7de1; color: #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3); }
+.loja-app .mb:hover:not(:disabled) { filter: brightness(1.12); }
+.loja-app .mb:disabled { opacity: 0.4; cursor: default; }
+.loja-app .mb svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.loja-app .mb-verde { background: var(--verde); }
+.loja-app .mb-verde.desligado { background: #4a526e; }
+.loja-app .painel-mapa { border-radius: 10px; overflow: hidden; border: 1px solid var(--borda); box-shadow: 0 0 0 3px rgba(61, 139, 253, 0.08); }
+.loja-app .painel-mapa .mapa { border-radius: 0; }
+
+/* Filtro suspenso + ações em lote */
+.loja-app .filtro-suspenso { min-width: 190px; padding: 10px 12px; gap: 8px; }
+.loja-app .filtro-suspenso .campo-check { padding-top: 0; }
+.loja-app .contador { position: absolute; top: -2px; right: -2px; min-width: 16px; height: 16px; border-radius: 999px; padding: 0 4px; background: var(--amarelo); color: #1c1c1c; font-size: 10px; font-weight: 700; display: grid; place-items: center; }
+.loja-app .lote-acoes { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; }
+.loja-app .tabela-aberto .col-check { width: 34px; text-align: center; }
+.loja-app .tabela-aberto .col-check input { width: 16px; height: 16px; cursor: pointer; }
+.loja-app .tabela-aberto tr.linha-selecionada td { background: var(--primaria-suave); }
+
 /* Seletor de loja (multi-loja) */
 .loja-app .seletor-loja { display: flex; align-items: center; gap: 8px; color: var(--texto-2); font-size: 13px; margin-left: auto; margin-right: 10px; }
 .loja-app .seletor-loja select { min-width: 170px; max-width: 240px; padding: 6px 10px; border-radius: 8px; font-weight: 700; }

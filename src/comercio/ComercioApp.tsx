@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import './LojaV1.css';
-import { getLojaAtual, getEntregasAbertas, moeda, statusBadge, type LojaAtual, type EntregaAberta } from './comercioData';
+import MapaEntregadoresV1 from '../components/MapaEntregadoresV1';
+import { getLojaAtual, getEntregasAbertas, getEntregadoresOnline, marcarPronto, moeda, statusBadge, FILTROS_STATUS, type LojaAtual, type EntregaAberta, type EntregadorMapa } from './comercioData';
 
 // Ícones em traço (herdam a cor do texto) — iguais ao V1.
 const ICONES: Record<string, JSX.Element> = {
@@ -67,76 +68,162 @@ function MenuConta({ loja, onNavegar, onSair }: { loja: LojaAtual | null; onNave
   );
 }
 
-// Painel de Controle — por enquanto a lista de entregas em aberto (criação rápida e mapa vêm na próxima etapa).
+// Painel de Controle — mapa ao vivo + entregas em aberto (criação rápida vem na próxima etapa).
 function PainelView({ loja }: { loja: LojaAtual }) {
   const [entregas, setEntregas] = useState<EntregaAberta[] | null>(null);
+  const [entregadores, setEntregadores] = useState<EntregadorMapa[]>([]);
   const [erro, setErro] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
+  const [filtros, setFiltros] = useState<string[]>([]);
+  const [filtroAberto, setFiltroAberto] = useState(false);
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+  const [mostrarMapa, setMostrarMapa] = useState(true);
+  const [ocupado, setOcupado] = useState(false);
+  const filtroRef = useRef<HTMLDivElement>(null);
+  useFora(filtroRef, filtroAberto, () => setFiltroAberto(false));
 
-  async function carregar() {
+  async function carregar(silencioso = false) {
     setErro(null);
-    try { setEntregas(await getEntregasAbertas(loja.id)); }
-    catch (e: any) { setErro(e?.message || 'Erro ao carregar entregas'); setEntregas([]); }
+    try {
+      const [es, ents] = await Promise.all([getEntregasAbertas(loja.id), getEntregadoresOnline()]);
+      setEntregas(es); setEntregadores(ents);
+    } catch (e: any) {
+      if (!silencioso) setErro(e?.message || 'Erro ao carregar entregas');
+      setEntregas(prev => prev ?? []);
+    }
   }
-  useEffect(() => { carregar(); /* eslint-disable-next-line */ }, [loja.id]);
+  useEffect(() => { carregar(); const t = setInterval(() => carregar(true), 20000); return () => clearInterval(t); /* eslint-disable-next-line */ }, [loja.id]);
+
+  async function pronto(p: EntregaAberta) {
+    setOcupado(true);
+    try { await marcarPronto(p.id); await carregar(true); }
+    catch (e: any) { setErro(e?.message || 'Erro ao marcar como pronto'); }
+    finally { setOcupado(false); }
+  }
 
   const q = busca.trim().toLowerCase();
-  const lista = (entregas || []).filter(p =>
-    !q || [p.numero, p.clienteNome, p.clienteTelefone, p.endereco, p.entregadorNome].some(x => x && x.toLowerCase().includes(q))
-  );
+  const lista = (entregas || []).filter(p => {
+    const b = statusBadge(p.status);
+    const passaFiltro = !filtros.length || filtros.includes(b.filtro);
+    const passaBusca = !q || [p.numero, p.clienteNome, p.clienteTelefone, p.endereco, p.entregadorNome].some(x => x && x.toLowerCase().includes(q));
+    return passaFiltro && passaBusca;
+  });
+
+  const marcados = lista.filter(p => selecionados.has(p.id));
+  const todosMarcados = lista.length > 0 && marcados.length === lista.length;
+  const prontosParaMarcar = marcados.filter(p => statusBadge(p.status).filtro === 'CRIADO');
+  const alternar = (id: string) => setSelecionados(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  async function marcarProntos() { setOcupado(true); try { for (const p of prontosParaMarcar) await marcarPronto(p.id); await carregar(true); setSelecionados(new Set()); } finally { setOcupado(false); } }
+
+  // Pedidos no mapa: posicionados ao redor da loja (o mapa espalha por `loja`).
+  const lojaPonto = loja.lat != null && loja.lng != null ? { id: loja.id, lat: loja.lat, lng: loja.lng, nome: loja.nomeFantasia, endereco: loja.endereco } : null;
+  const pedidosMapa = lojaPonto ? (entregas || []).map(p => ({ id: p.id, codigo: p.numero, status: p.status, createdAt: p.createdAt, loja: lojaPonto })) : [];
+  const entregadoresMapa = entregadores.map(e => ({ id: e.id, nomeCompleto: e.nome, fotoUrl: e.fotoUrl, lat: e.lat, lng: e.lng, status: e.status }));
 
   return (
     <div className="painel">
       <h1 className="sr-only">Painel de Controle — {loja.nomeFantasia}</h1>
-      {erro && <div className="erro-caixa" role="alert"><span>{erro}</span><button className="link" onClick={carregar}>Tentar de novo</button></div>}
+      {erro && <div className="erro-caixa" role="alert"><span>{erro}</span><button className="link" onClick={() => carregar()}>Tentar de novo</button></div>}
 
-      <section className="painel-bloco em-aberto">
-        <div className="em-aberto-topo">
-          <span className="em-aberto-contagem">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 6h12v10H2zM14 10h4l3 3v3h-7" /><circle cx="6" cy="17.5" r="1.8" /><circle cx="17" cy="17.5" r="1.8" /></svg>
-            Entregas em aberto: <strong>{entregas?.length ?? 0}</strong>
-          </span>
-        </div>
-        <div className="em-aberto-ferramentas">
-          <div className="busca-icone">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
-            <input type="search" value={busca} onChange={e => setBusca(e.target.value)} placeholder="Pesquisar" aria-label="Pesquisar entregas em aberto" />
+      <div className="painel-grade">
+        <div className="painel-principal">
+          <div className="mapa-barra" role="toolbar" aria-label="Mapa">
+            <button type="button" className={`mb mb-verde ${mostrarMapa ? '' : 'desligado'}`} onClick={() => setMostrarMapa(m => !m)} aria-pressed={mostrarMapa} title={mostrarMapa ? 'Ocultar mapa' : 'Mostrar mapa'} aria-label={mostrarMapa ? 'Ocultar mapa' : 'Mostrar mapa'}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></svg>
+            </button>
           </div>
-        </div>
+          {mostrarMapa && (
+            <div className="painel-mapa">
+              {!lojaPonto ? (
+                <div className="carregando" style={{ height: 320 }}>A loja ainda não tem localização no mapa. Informe o endereço no cadastro.</div>
+              ) : (
+                <MapaEntregadoresV1 pedidos={pedidosMapa} entregadores={entregadoresMapa} altura="clamp(360px, 58vh, 720px)" carregado />
+              )}
+            </div>
+          )}
 
-        {entregas === null ? (
-          <div className="carregando"><span className="spinner" /> Carregando…</div>
-        ) : lista.length === 0 ? (
-          <div className="sem-registros"><span aria-hidden="true">×</span><strong>Sem registros</strong></div>
-        ) : (
-          <div className="tabela-rolagem">
-            <table className="tabela tabela-aberto">
-              <thead>
-                <tr><th>Nº Pedido</th><th>Cliente</th><th>Entrega</th><th className="num">Taxa</th><th>Status</th><th>Entregador</th></tr>
-              </thead>
-              <tbody>
-                {lista.map(p => {
-                  const b = statusBadge(p.status);
-                  return (
-                    <tr key={p.id}>
-                      <td><strong>{p.numero}</strong></td>
-                      <td>
-                        {p.clienteNome}
-                        {p.retorno && <span className="selo-retorno" title="Com retorno à loja">↩ retorno</span>}
-                        {p.clienteTelefone && <div className="celula-sub">{p.clienteTelefone}</div>}
-                      </td>
-                      <td className="col-endereco">{p.endereco || <span className="apagado">—</span>}</td>
-                      <td className="num">{moeda(p.valor)}</td>
-                      <td><span className={`badge ${b.classe}`}>{b.rotulo}</span></td>
-                      <td>{p.entregadorNome ? `🏍 ${p.entregadorNome}` : <span className="apagado">—</span>}</td>
+          <section className="painel-bloco em-aberto">
+            <div className="em-aberto-topo">
+              <span className="em-aberto-contagem">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 6h12v10H2zM14 10h4l3 3v3h-7" /><circle cx="6" cy="17.5" r="1.8" /><circle cx="17" cy="17.5" r="1.8" /></svg>
+                Entregas em aberto: <strong>{entregas?.length ?? 0}</strong>
+              </span>
+            </div>
+            <div className="em-aberto-ferramentas">
+              <div className="busca-icone">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+                <input type="search" value={busca} onChange={e => setBusca(e.target.value)} placeholder="Pesquisar" aria-label="Pesquisar entregas em aberto" />
+              </div>
+              <div className="topo-grupo" ref={filtroRef}>
+                <button type="button" className="botao-icone sem-borda" onClick={() => setFiltroAberto(a => !a)} aria-expanded={filtroAberto} aria-label="Filtrar por status" title="Filtrar por status">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h18l-7 9v6l-4 2v-8z" /></svg>
+                  {filtros.length > 0 && <span className="contador">{filtros.length}</span>}
+                </button>
+                {filtroAberto && (
+                  <div className="topo-suspenso topo-suspenso-direita filtro-suspenso">
+                    {FILTROS_STATUS.map(f => (
+                      <label key={f.valor} className="campo-check">
+                        <input type="checkbox" checked={filtros.includes(f.valor)} onChange={e => setFiltros(l => e.target.checked ? [...l, f.valor] : l.filter(x => x !== f.valor))} />
+                        <span>{f.rotulo}</span>
+                      </label>
+                    ))}
+                    {filtros.length > 0 && <button type="button" className="link" onClick={() => setFiltros([])}>Limpar filtro</button>}
+                  </div>
+                )}
+              </div>
+              {marcados.length > 0 && (
+                <span className="lote-acoes">
+                  <span className="apagado">{marcados.length} selecionado(s)</span>
+                  {prontosParaMarcar.length > 0 && <button className="btn btn-sm btn-primario" disabled={ocupado} onClick={marcarProntos}>Marcar {prontosParaMarcar.length} como pronto</button>}
+                  <button className="btn btn-sm btn-fantasma" onClick={() => setSelecionados(new Set())}>Limpar</button>
+                </span>
+              )}
+            </div>
+
+            {entregas === null ? (
+              <div className="carregando"><span className="spinner" /> Carregando…</div>
+            ) : lista.length === 0 ? (
+              <div className="sem-registros"><span aria-hidden="true">×</span><strong>Sem registros</strong></div>
+            ) : (
+              <div className="tabela-rolagem">
+                <table className="tabela tabela-aberto">
+                  <thead>
+                    <tr>
+                      <th className="col-check"><input type="checkbox" checked={todosMarcados} aria-label="Selecionar todos" onChange={() => setSelecionados(todosMarcados ? new Set() : new Set(lista.map(p => p.id)))} /></th>
+                      <th>Nº Pedido</th><th>Cliente</th><th>Entrega</th><th className="num">Taxa</th><th>Status</th><th>Pedido pronto</th><th>Entregador</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+                  </thead>
+                  <tbody>
+                    {lista.map(p => {
+                      const b = statusBadge(p.status);
+                      return (
+                        <tr key={p.id} className={selecionados.has(p.id) ? 'linha-selecionada' : ''}>
+                          <td className="col-check"><input type="checkbox" checked={selecionados.has(p.id)} onChange={() => alternar(p.id)} aria-label={`Selecionar ${p.numero}`} /></td>
+                          <td><strong>{p.numero}</strong></td>
+                          <td>
+                            {p.clienteNome}
+                            {p.retorno && <span className="selo-retorno" title="Com retorno à loja">↩ retorno</span>}
+                            {p.clienteTelefone && <div className="celula-sub">{p.clienteTelefone}</div>}
+                          </td>
+                          <td className="col-endereco">{p.endereco || <span className="apagado">—</span>}</td>
+                          <td className="num">{moeda(p.valor)}</td>
+                          <td><span className={`badge ${b.classe}`}>{b.rotulo}</span></td>
+                          <td>
+                            {b.filtro === 'CRIADO'
+                              ? <button className="btn btn-sm btn-primario" disabled={ocupado} onClick={() => pronto(p)}>Pedido pronto</button>
+                              : <span className="apagado">✓ Pronto</span>}
+                          </td>
+                          <td>{p.entregadorNome ? `🏍 ${p.entregadorNome}` : <span className="apagado">{b.filtro === 'PRONTO' ? 'Procurando…' : '—'}</span>}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </div>
+      </div>
     </div>
   );
 }

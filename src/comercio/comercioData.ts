@@ -3,7 +3,9 @@ import { supabase } from '../lib/supabase';
 /**
  * Dados da loja (comerciante) para o sistema do comércio portado do V1.
  * No 2.0 a loja é uma linha de `clientes`, ligada ao usuário por `users.cliente_id`
- * (com fallback por e-mail). Entregas são linhas de `nova_entrega` com `cliente_id`.
+ * (com fallback por e-mail). O pedido/ciclo fica em `pedidos` (status: criado,
+ * pronto, confirmado, entregue, cancelado) e os detalhes da entrega em `nova_entrega`
+ * (ligada por `pedido_id`). "Marcar pronto" atualiza `pedidos.status`.
  */
 export interface LojaAtual {
   id: string;
@@ -11,96 +13,126 @@ export interface LojaAtual {
   email: string;
   fotoUrl: string | null;
   modalidadeCobranca: string | null;
+  lat: number | null;
+  lng: number | null;
+  endereco: string | null;
+}
+
+function num(v: any): number | null {
+  const n = typeof v === 'string' ? parseFloat(v) : v;
+  return Number.isFinite(n) ? n : null;
 }
 
 export async function getLojaAtual(): Promise<LojaAtual | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  // 1) cliente_id pelo registro do usuário
   let clienteId: string | null = null;
-  const { data: udata } = await supabase
-    .from('users')
-    .select('cliente_id')
-    .eq('id', user.id)
-    .maybeSingle();
+  const { data: udata } = await supabase.from('users').select('cliente_id').eq('id', user.id).maybeSingle();
   clienteId = (udata as any)?.cliente_id ?? null;
 
-  // 2) fallback: casa pelo e-mail
   if (!clienteId && user.email) {
-    const { data: byEmail } = await supabase
-      .from('clientes')
-      .select('id')
-      .ilike('email', user.email)
-      .maybeSingle();
+    const { data: byEmail } = await supabase.from('clientes').select('id').ilike('email', user.email).maybeSingle();
     clienteId = (byEmail as any)?.id ?? null;
   }
   if (!clienteId) return null;
 
-  const { data: c } = await supabase
-    .from('clientes')
-    .select('*')
-    .eq('id', clienteId)
-    .maybeSingle();
+  const { data: c } = await supabase.from('clientes').select('*').eq('id', clienteId).maybeSingle();
   if (!c) return null;
 
   const row = c as any;
-  const nome = row.nome_fantasia || row.nome_completo || row.nome || 'Minha loja';
-  const foto = row.foto_url || row.foto || null;
-  const modalidade = row.modalidade_cobranca || row.modalidade || null;
   return {
     id: String(row.id),
-    nomeFantasia: nome,
+    nomeFantasia: row.nome_fantasia || row.nome_completo || row.nome || 'Minha loja',
     email: row.email || user.email || '',
-    fotoUrl: foto,
-    modalidadeCobranca: modalidade,
+    fotoUrl: row.foto_url || row.foto || null,
+    modalidadeCobranca: row.modalidade_cobranca || row.modalidade || null,
+    lat: num(row.latitude ?? row.lat),
+    lng: num(row.longitude ?? row.lng),
+    endereco: row.endereco || row.endereco_texto || [row.logradouro, row.numero].filter(Boolean).join(', ') || null,
   };
 }
 
 export interface EntregaAberta {
-  id: string;
+  id: string;            // id do pedido
+  entregaId: string | null;
   numero: string;
   clienteNome: string;
   clienteTelefone: string;
   endereco: string;
   valor: number | null;
-  status: string;
+  status: string;        // status do pedido
   entregadorNome: string | null;
   retorno: boolean;
   createdAt: string | null;
 }
 
-// Status que NÃO estão em aberto (finalizados).
 const FINALIZADOS = new Set(['entregue', 'cancelada', 'cancelado', 'finalizada', 'finalizado']);
 
 export async function getEntregasAbertas(clienteId: string): Promise<EntregaAberta[]> {
-  const { data, error } = await supabase
-    .from('nova_entrega')
-    .select(`
-      id, pedido_id, created_at, status, valor_entrega, retorno,
-      entrega_contato, entrega_telefone, entrega_endereco_texto,
-      pedidos ( id, numero, status ),
-      entregadores ( id, nome_completo )
-    `)
-    .eq('cliente_id', clienteId)
-    .order('created_at', { ascending: false })
-    .limit(300);
-  if (error) throw error;
+  const [resPedidos, resEntregas] = await Promise.all([
+    supabase.from('pedidos').select('id, numero, status, created_at').eq('cliente_id', clienteId).order('created_at', { ascending: false }).limit(400),
+    supabase.from('nova_entrega').select('id, pedido_id, entrega_contato, entrega_telefone, entrega_endereco_texto, valor_entrega, retorno, entregadores ( id, nome_completo )').eq('cliente_id', clienteId).limit(600),
+  ]);
+  if (resPedidos.error) throw resPedidos.error;
+  if (resEntregas.error) throw resEntregas.error;
 
-  return (data || [])
-    .filter((r: any) => !FINALIZADOS.has(String(r.status || '').toLowerCase()))
-    .map((r: any) => ({
-      id: String(r.id),
-      numero: r.pedidos?.numero ? String(r.pedidos.numero) : String(r.id).slice(0, 8),
-      clienteNome: r.entrega_contato || '—',
-      clienteTelefone: r.entrega_telefone || '',
-      endereco: r.entrega_endereco_texto || '',
-      valor: r.valor_entrega ?? null,
-      status: String(r.status || ''),
-      entregadorNome: r.entregadores?.nome_completo || null,
-      retorno: Boolean(r.retorno),
-      createdAt: r.created_at || null,
-    }));
+  const entregaPorPedido = new Map<string, any>();
+  for (const e of (resEntregas.data || []) as any[]) {
+    if (e.pedido_id) entregaPorPedido.set(String(e.pedido_id), e);
+  }
+
+  return ((resPedidos.data || []) as any[])
+    .filter(p => !FINALIZADOS.has(String(p.status || '').toLowerCase()))
+    .map(p => {
+      const e = entregaPorPedido.get(String(p.id));
+      return {
+        id: String(p.id),
+        entregaId: e ? String(e.id) : null,
+        numero: p.numero ? String(p.numero) : String(p.id).slice(0, 8),
+        clienteNome: e?.entrega_contato || '—',
+        clienteTelefone: e?.entrega_telefone || '',
+        endereco: e?.entrega_endereco_texto || '',
+        valor: e?.valor_entrega ?? null,
+        status: String(p.status || ''),
+        entregadorNome: e?.entregadores?.nome_completo || null,
+        retorno: Boolean(e?.retorno),
+        createdAt: p.created_at || null,
+      } as EntregaAberta;
+    });
+}
+
+// "Pedido pronto" — espelha o handleSetReady do PedidosPanel: atualiza o pedido e
+// toca o updated_at da entrega (chama o entregador no fluxo do 2.0).
+export async function marcarPronto(pedidoId: string): Promise<void> {
+  const { error } = await supabase.from('pedidos').update({ status: 'pronto' }).eq('id', pedidoId);
+  if (error) throw error;
+  await supabase.from('nova_entrega').update({ updated_at: new Date().toISOString() }).eq('pedido_id', pedidoId);
+}
+
+export interface EntregadorMapa {
+  id: string;
+  nome: string;
+  fotoUrl: string | null;
+  lat: number;
+  lng: number;
+  status: string;
+}
+
+export async function getEntregadoresOnline(): Promise<EntregadorMapa[]> {
+  const { data } = await supabase
+    .from('entregadores')
+    .select('id, nome_completo, foto_url, latitude, longitude, current_lat, current_lng, is_online, status')
+    .eq('is_online', true)
+    .limit(200);
+  return ((data || []) as any[])
+    .map(e => {
+      const lat = num(e.current_lat ?? e.latitude);
+      const lng = num(e.current_lng ?? e.longitude);
+      if (lat == null || lng == null) return null;
+      return { id: String(e.id), nome: e.nome_completo || 'Entregador', fotoUrl: e.foto_url || null, lat, lng, status: String(e.status || '') };
+    })
+    .filter(Boolean) as EntregadorMapa[];
 }
 
 export function moeda(v: number | null | undefined): string {
@@ -108,12 +140,19 @@ export function moeda(v: number | null | undefined): string {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-// Rótulo + cor (badge) de um status de entrega no 2.0.
-export function statusBadge(status: string): { rotulo: string; classe: string } {
+// Status do pedido (2.0) na visão "em aberto" do comércio.
+export function statusBadge(status: string): { rotulo: string; classe: string; filtro: string } {
   const s = status.toLowerCase();
-  if (s.includes('preparando') || s.includes('criado')) return { rotulo: 'Criado', classe: 'badge-neutro' };
-  if (s.includes('pendente') || s.includes('pronto')) return { rotulo: 'Pedido pronto', classe: 'badge-aviso' };
-  if (s.includes('atras')) return { rotulo: 'Atrasado', classe: 'badge-critico' };
-  if (s.includes('confirmado') || s.includes('aceito') || s.includes('coleta') || s.includes('caminho') || s.includes('rota')) return { rotulo: 'Com entregador', classe: 'badge-info' };
-  return { rotulo: status || '—', classe: 'badge-apagado' };
+  if (s.includes('criado') || s.includes('preparando') || s.includes('em_preparo')) return { rotulo: 'Criado', classe: 'badge-neutro', filtro: 'CRIADO' };
+  if (s === 'pronto' || s.includes('pendente')) return { rotulo: 'Pedido pronto', classe: 'badge-aviso', filtro: 'PRONTO' };
+  if (s.includes('atras')) return { rotulo: 'Atrasado', classe: 'badge-critico', filtro: 'ATRASADO' };
+  if (s.includes('confirmado') || s.includes('aceito') || s.includes('coleta') || s.includes('caminho') || s.includes('rota') || s.includes('entregador')) return { rotulo: 'Com entregador', classe: 'badge-info', filtro: 'COM_ENTREGADOR' };
+  return { rotulo: status || '—', classe: 'badge-apagado', filtro: 'OUTRO' };
 }
+
+export const FILTROS_STATUS = [
+  { valor: 'CRIADO', rotulo: 'Criado' },
+  { valor: 'PRONTO', rotulo: 'Pedido pronto' },
+  { valor: 'COM_ENTREGADOR', rotulo: 'Com entregador' },
+  { valor: 'ATRASADO', rotulo: 'Atrasado' },
+];
