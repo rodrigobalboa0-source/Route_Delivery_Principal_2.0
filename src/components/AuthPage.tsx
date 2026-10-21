@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Cadastro } from './Cadastro';
 import { AccountUnderAnalysis } from './AccountUnderAnalysis';
-import { Key, Eye, EyeOff, CheckCircle, Mail, ArrowLeft, Store, Bike, MapPin } from 'lucide-react';
+import { Key, Eye, EyeOff, CheckCircle, Mail, ArrowLeft } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
+import './LoginComercioV1.css';
 
 export function AuthPage({ forceResetMode = false, onResetComplete }: { forceResetMode?: boolean; onResetComplete?: () => void }) {
   const [email, setEmail] = useState('');
@@ -350,82 +351,99 @@ export function AuthPage({ forceResetMode = false, onResetComplete }: { forceRes
     </div>
   );
 
-  // Login dedicado do comerciante (rota /comercio no navegador): tela inspirada na
-  // identidade Route Delivery — fundo de mapa escuro, chamada comercial e rota animada.
-  if (isComercioLogin && !isNative) {
+  // Login dedicado do comerciante (rota /comercio no navegador): PORTE FIEL do V1
+  // (comerciante/src/pages/Login.jsx). Capa com mapa SVG, rota animada e cartão.
+  // Recuperação/redefinição de senha caem no layout padrão abaixo.
+  if (isComercioLogin && !isNative && !resetPasswordMode && !forgotPasswordOpen) {
     return (
-      <div className="min-h-screen w-full overflow-y-auto bg-[#0b1b34] relative">
-        <style>{`
-          @keyframes rd-dash { to { stroke-dashoffset: -340; } }
-          @keyframes rd-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
-          .rd-route { stroke-dasharray: 10 14; animation: rd-dash 6s linear infinite; }
-          .rd-float { animation: rd-float 3.5s ease-in-out infinite; }
-        `}</style>
-
-        {/* Fundo: grade de mapa */}
-        <div className="absolute inset-0 opacity-[0.18]" style={{
-          backgroundImage: 'linear-gradient(#2b4a7a 1px, transparent 1px), linear-gradient(90deg, #2b4a7a 1px, transparent 1px)',
-          backgroundSize: '64px 64px'
-        }} />
-        <div className="absolute inset-0" style={{ background: 'radial-gradient(1200px 600px at 20% 10%, rgba(37,99,235,0.18), transparent 60%)' }} />
-
-        {/* Logo topo-esquerda */}
-        <div className="relative z-10 flex items-center gap-3 px-6 md:px-10 pt-6">
-          <img src="/Screenshot_20251113_103247-Photoroom.png" alt="Route Delivery" className="h-12 md:h-14 object-contain" />
-        </div>
-
-        <div className="relative z-10 max-w-6xl mx-auto px-6 md:px-10 pb-10 grid grid-cols-1 lg:grid-cols-2 gap-10 items-center min-h-[calc(100vh-88px)]">
-          {/* Coluna esquerda: chamada + rota animada */}
-          <div className="text-white">
-            <h1 className="text-3xl md:text-5xl font-extrabold leading-tight">
-              Sua loja chamando<br />entregador em segundos.
-            </h1>
-            <ul className="mt-6 space-y-3 text-slate-200 text-sm md:text-base">
-              {[
-                'Lance a entrega e veja o valor na hora',
-                'Acompanhe o motoboy no mapa até o cliente',
-                'Faturas e histórico de entregas sempre à mão',
-              ].map((t) => (
-                <li key={t} className="flex items-center gap-3">
-                  <CheckCircle size={20} className="text-emerald-400 shrink-0" />
-                  <span>{t}</span>
-                </li>
-              ))}
+      <div className="rd-login-v1 acesso">
+        <div className="acesso-capa" aria-hidden="true">
+          <svg className="capa-mapa" viewBox="0 0 800 800" preserveAspectRatio="xMidYMid slice">
+            <defs>
+              <linearGradient id="capa-fundo" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stopColor="#0b1628" />
+                <stop offset="0.55" stopColor="#10284a" />
+                <stop offset="1" stopColor="#123a6b" />
+              </linearGradient>
+              <radialGradient id="capa-brilho" cx="0.72" cy="0.3" r="0.6">
+                <stop offset="0" stopColor="#2a78d6" stopOpacity="0.45" />
+                <stop offset="1" stopColor="#2a78d6" stopOpacity="0" />
+              </radialGradient>
+            </defs>
+            <rect width="800" height="800" fill="url(#capa-fundo)" />
+            <rect width="800" height="800" fill="url(#capa-brilho)" />
+            <g fill="#ffffff" fillOpacity="0.035">
+              {Array.from({ length: 7 }).map((_, i) =>
+                Array.from({ length: 7 }).map((__, j) => (
+                  <rect key={`${i}-${j}`} x={20 + i * 115 + (j % 2) * 18} y={20 + j * 115} width={88} height={88} rx={10} />
+                ))
+              )}
+            </g>
+            <g stroke="#ffffff" strokeOpacity="0.09" strokeWidth="14" fill="none" strokeLinecap="round">
+              <path d="M-20 250 C 180 230, 330 300, 520 260 S 760 200, 840 230" />
+              <path d="M-20 560 C 160 600, 360 520, 560 560 S 760 640, 840 600" />
+              <path d="M230 -20 C 250 200, 190 420, 260 620 S 300 760, 290 840" />
+              <path d="M600 -20 C 570 180, 640 380, 590 560 S 560 760, 580 840" />
+            </g>
+            <path className="capa-rota" d="M140 585 C 220 560, 250 480, 330 440 S 470 410, 520 330 S 600 230, 650 215"
+              stroke="#4da3ff" strokeWidth="5" fill="none" strokeLinecap="round" strokeDasharray="4 14" />
+            <g transform="translate(140 585)">
+              <circle r="26" fill="#ea580c" fillOpacity="0.18" />
+              <rect x="-15" y="-15" width="30" height="30" rx="8" fill="#ea580c" stroke="#fff" strokeWidth="3" />
+              <path d="M-7 -3h14M-7 -3l2-6h10l2 6M-6 -3v10h12v-10" stroke="#fff" strokeWidth="2" fill="none" strokeLinejoin="round" />
+            </g>
+            <g transform="translate(650 215)">
+              <circle className="capa-pulso" r="34" fill="#22c55e" fillOpacity="0.2" />
+              <path d="M0 16 C -14 2, -16 -4, -16 -10 A16 16 0 0 1 16 -10 C 16 -4, 14 2, 0 16 Z" fill="#22c55e" stroke="#fff" strokeWidth="3" />
+              <circle cy="-10" r="5" fill="#fff" />
+            </g>
+            <g transform="translate(424 398)">
+              <circle r="30" fill="#2a78d6" stroke="#fff" strokeWidth="4" />
+              <g stroke="#fff" strokeWidth="2.6" fill="none" strokeLinecap="round" strokeLinejoin="round" transform="translate(-14 -10)">
+                <circle cx="5" cy="17" r="4.5" />
+                <circle cx="23" cy="17" r="4.5" />
+                <path d="M5 17h8l5-8h5M13 17l-3-7h-5M18 9l-2-5h-3" />
+              </g>
+            </g>
+          </svg>
+          <div className="capa-texto">
+            <img src="/logo-route-delivery.png" alt="Route Delivery" className="capa-logo" />
+            <h2>Sua loja chamando entregador em segundos.</h2>
+            <ul>
+              <li>Lance a entrega e veja o valor na hora</li>
+              <li>Acompanhe o motoboy no mapa até o cliente</li>
+              <li>Faturas e histórico de entregas sempre à mão</li>
             </ul>
-
-            {/* Ilustração da rota: loja → moto → destino */}
-            <div className="mt-10 relative h-56 hidden sm:block">
-              <svg viewBox="0 0 520 220" className="w-full h-full">
-                <path d="M70 180 C 180 180, 150 70, 260 110 S 420 120, 450 30"
-                  fill="none" stroke="#38bdf8" strokeWidth="4" strokeLinecap="round" className="rd-route" />
-              </svg>
-              {/* Loja (origem) */}
-              <div className="rd-float absolute left-[6%] bottom-[8%] w-12 h-12 rounded-xl bg-orange-500 flex items-center justify-center shadow-lg shadow-orange-900/40">
-                <Store className="w-6 h-6 text-white" />
-              </div>
-              {/* Moto (a caminho) */}
-              <div className="rd-float absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-sky-500 flex items-center justify-center shadow-lg shadow-sky-900/50" style={{ animationDelay: '0.6s' }}>
-                <Bike className="w-8 h-8 text-white" />
-              </div>
-              {/* Destino */}
-              <div className="rd-float absolute right-[8%] top-[2%] w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-900/40" style={{ animationDelay: '1.2s' }}>
-                <MapPin className="w-6 h-6 text-white" />
-              </div>
+          </div>
+        </div>
+        <div className="acesso-cartao">
+          <div className="marca marca-acesso">
+            <span className="marca-selo" aria-hidden="true"><img src="/logo-leao.png" alt="" /></span>
+            <div>
+              <strong>Route Delivery</strong>
+              <small>Sistema do comerciante</small>
             </div>
           </div>
-
-          {/* Coluna direita: card de login */}
-          <div className="w-full max-w-md justify-self-center lg:justify-self-end">
-            <div className="bg-white rounded-2xl shadow-2xl border border-white/10 overflow-hidden">
-              <div className="flex items-center gap-3 px-8 pt-7">
-                <img src="/Screenshot_20251113_103247-Photoroom.png" alt="Route Delivery" className="h-10 w-10 object-contain" />
-                <div>
-                  <div className="font-bold text-slate-900 leading-tight">Route Delivery</div>
-                  <div className="text-xs text-slate-500">Sistema do comerciante</div>
-                </div>
-              </div>
-              {formContent}
-            </div>
+          <h1>Entrar na sua loja</h1>
+          <p className="subtitulo">Use o e-mail e a senha da sua loja.</p>
+          <form onSubmit={(e) => { e.preventDefault(); handleSignIn(); }} className="form-acesso">
+            <label className="campo">
+              <span className="campo-rotulo">E-mail</span>
+              <input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
+            </label>
+            <label className="campo">
+              <span className="campo-rotulo">Senha</span>
+              <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            </label>
+            {error && <div className="erro-caixa" role="alert">{error}</div>}
+            <button type="submit" className="btn btn-primario btn-bloco" disabled={loading}>
+              {loading ? 'Entrando…' : 'Entrar'}
+            </button>
+            <p className="apagado centro" style={{ fontSize: 12, margin: 0 }}>Esqueceu a senha? Fale com a equipe Route Delivery.</p>
+          </form>
+          <div className="cadastre-loja">
+            <span>Ainda não trabalha com a gente?</span>
+            <button type="button" className="btn btn-laranja btn-bloco" onClick={() => handleSignUpStart('comercio')}>Cadastre sua Loja</button>
           </div>
         </div>
         {signupModal}

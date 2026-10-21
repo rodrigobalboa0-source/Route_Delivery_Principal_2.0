@@ -1,0 +1,149 @@
+/* ============================================================
+   Login do comerciante — PORTE FIEL do V1 (comerciante/src/pages/Login.jsx)
+   Tudo escopado em .rd-login-v1 para não afetar o restante do app 2.0 (Tailwind).
+   Tokens e regras extraídos de comerciante/src/styles.css + loja.css.
+   ============================================================ */
+
+.rd-login-v1 {
+  color-scheme: dark;
+  --fundo: #171b2c;
+  --superficie: #20253a;
+  --superficie-2: #272d46;
+  --borda: #323955;
+  --borda-forte: #3f4768;
+  --texto: #eef1f8;
+  --texto-2: #b7bfd4;
+  --texto-3: #8891ab;
+  --primaria: #3d8bfd;
+  --primaria-hover: #5d9ffd;
+  --primaria-suave: #1c2c4d;
+  --ok: #4cc24c;        --ok-fundo: #12301a;
+  --aviso: #f0b429;     --aviso-fundo: #33280c;
+  --critico: #f07070;   --critico-fundo: #3a1717;
+  --laranja: #d9653b;   --laranja-hover: #e8764b;
+  --raio-sm: 5.5px;
+  --fonte: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  font-family: var(--fonte);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--texto);
+  -webkit-font-smoothing: antialiased;
+}
+
+.rd-login-v1 * { box-sizing: border-box; }
+.rd-login-v1 h1, .rd-login-v1 h2, .rd-login-v1 h3 { margin: 0; line-height: 1.25; }
+.rd-login-v1 h1 { font-size: 19.5px; font-weight: 650; color: var(--texto); }
+.rd-login-v1 p { margin: 0 0 10.5px; }
+.rd-login-v1 img { max-width: 100%; }
+.rd-login-v1 input, .rd-login-v1 select, .rd-login-v1 textarea, .rd-login-v1 button { font: inherit; color: inherit; }
+.rd-login-v1 .apagado { color: var(--texto-3); }
+.rd-login-v1 .centro { text-align: center; }
+.rd-login-v1 .subtitulo { color: var(--texto-3); margin: 3.5px 0 0; font-size: 11.5px; }
+
+/* ---------- Campos ---------- */
+.rd-login-v1 input, .rd-login-v1 select, .rd-login-v1 textarea {
+  border: 1px solid var(--borda-forte); border-radius: var(--raio-sm);
+  background: #1b2033; padding: 6px 9px; width: auto; max-width: 100%;
+}
+.rd-login-v1 input::placeholder, .rd-login-v1 textarea::placeholder { color: #7c85a0; }
+.rd-login-v1 input:focus, .rd-login-v1 select:focus, .rd-login-v1 textarea:focus,
+.rd-login-v1 button:focus-visible, .rd-login-v1 .btn:focus-visible {
+  outline: 2px solid var(--primaria); outline-offset: 1px;
+}
+.rd-login-v1 .campo { display: flex; flex-direction: column; gap: 3.5px; min-width: 0; }
+.rd-login-v1 .campo input, .rd-login-v1 .campo select, .rd-login-v1 .campo textarea { width: 100%; }
+.rd-login-v1 .campo-rotulo { font-size: 11.5px; font-weight: 550; color: var(--texto-2); }
+
+/* ---------- Botões ---------- */
+.rd-login-v1 .btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 5.5px;
+  border-radius: var(--raio-sm); padding: 7px 12.5px; font-weight: 550;
+  border: 1px solid var(--borda-forte); background: var(--superficie);
+  cursor: pointer; text-decoration: none; white-space: nowrap; color: var(--texto);
+}
+.rd-login-v1 .btn:hover:not(:disabled) { background: var(--superficie-2); }
+.rd-login-v1 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.rd-login-v1 .btn-sm { padding: 4.5px 9px; font-size: 11.5px; }
+.rd-login-v1 .btn-bloco { width: 100%; }
+.rd-login-v1 .btn-primario { background: var(--primaria); border-color: var(--primaria); color: #fff; }
+.rd-login-v1 .btn-primario:hover:not(:disabled) { background: var(--primaria-hover); }
+.rd-login-v1 .btn-fantasma { border-color: transparent; background: transparent; color: var(--texto-2); }
+.rd-login-v1 .btn-fantasma:hover:not(:disabled) { background: var(--superficie-2); }
+.rd-login-v1 .btn-laranja { background: var(--laranja); border-color: var(--laranja); color: #fff; font-weight: 600; }
+.rd-login-v1 .btn-laranja:hover:not(:disabled) { background: var(--laranja-hover); }
+.rd-login-v1 .link { background: none; border: 0; padding: 0; color: var(--primaria); cursor: pointer; text-decoration: none; font-weight: 550; }
+.rd-login-v1 .link:hover { text-decoration: underline; }
+
+/* ---------- Feedback ---------- */
+.rd-login-v1 .erro-caixa {
+  border-radius: var(--raio-sm); padding: 9px 10.5px; margin-bottom: 10.5px;
+  display: flex; flex-wrap: wrap; gap: 7px; align-items: center; justify-content: space-between;
+  background: var(--critico-fundo); color: var(--critico);
+}
+
+/* ---------- Marca ---------- */
+.rd-login-v1 .marca { display: flex; align-items: center; gap: 9px; padding: 3.5px 7px 16px; }
+.rd-login-v1 .marca-selo {
+  width: 44px; height: 44px; flex: 0 0 44px; border-radius: 11px; background: #0b1628;
+  display: grid; place-items: center; box-shadow: 0 2px 6px rgba(11, 22, 40, 0.35);
+}
+.rd-login-v1 .marca-selo img { width: 38px; height: 38px; object-fit: contain; }
+.rd-login-v1 .marca strong { display: block; color: #fff; font-size: 13px; }
+.rd-login-v1 .marca small { display: block; font-size: 11px; opacity: 0.75; }
+.rd-login-v1 .marca-acesso { padding: 0 0 19.5px; }
+.rd-login-v1 .marca-acesso strong { color: var(--texto); }
+.rd-login-v1 .marca-acesso small { color: var(--texto-3); opacity: 1; }
+
+/* ---------- Acesso (capa + cartão) ---------- */
+.rd-login-v1.acesso {
+  position: relative; min-height: 100vh; overflow: hidden; background: #0b1628;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
+  padding: 24px clamp(16px, 6vw, 96px);
+}
+.rd-login-v1 .acesso-capa { position: absolute; inset: 0; z-index: 0; }
+.rd-login-v1 .capa-mapa { position: absolute; inset: 0; width: 100%; height: 100%; }
+.rd-login-v1 .capa-rota { animation: rd-capa-rota 1.6s linear infinite; }
+@keyframes rd-capa-rota { to { stroke-dashoffset: -36; } }
+.rd-login-v1 .capa-pulso { transform-box: fill-box; transform-origin: center; animation: rd-capa-pulso 2.2s ease-out infinite; }
+@keyframes rd-capa-pulso { 0% { transform: scale(0.6); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .rd-login-v1 .capa-rota, .rd-login-v1 .capa-pulso { animation: none; } }
+.rd-login-v1 .capa-texto {
+  position: absolute; left: clamp(16px, 6vw, 96px); top: clamp(24px, 11vh, 110px);
+  max-width: min(440px, 38vw); color: #fff;
+}
+.rd-login-v1 .capa-logo { display: block; width: min(320px, 100%); height: auto; margin-left: -6px; filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.35)); }
+.rd-login-v1 .capa-texto h2 { font-size: clamp(24px, 2.6vw, 34px); line-height: 1.2; font-weight: 750; margin: 14px 0 16px; color: #fff; }
+.rd-login-v1 .capa-texto ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 9px; }
+.rd-login-v1 .capa-texto li { position: relative; padding-left: 24px; font-size: 14px; color: #c9d7ea; }
+.rd-login-v1 .capa-texto li::before {
+  content: "✓"; position: absolute; left: 0; top: 0; width: 17px; height: 17px; border-radius: 50%;
+  background: rgba(34, 197, 94, 0.2); color: #4ade80; font-size: 11px; font-weight: 800; display: grid; place-items: center;
+}
+.rd-login-v1 .acesso-cartao {
+  position: relative; z-index: 1; grid-column: 2; grid-row: 1;
+  width: min(370px, 100%); background: var(--superficie); border-radius: 14px;
+  padding: 26px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+.rd-login-v1 .acesso-cartao h1 { margin-bottom: 3.5px; }
+.rd-login-v1 .form-acesso { display: flex; flex-direction: column; gap: 12.5px; margin-top: 16px; }
+.rd-login-v1 .cadastre-loja { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--borda); display: flex; flex-direction: column; gap: 8px; text-align: center; }
+.rd-login-v1 .cadastre-loja span { font-size: 13px; color: var(--texto-2); }
+
+@media (max-width: 900px) {
+  .rd-login-v1.acesso { grid-template-columns: 1fr; justify-items: center; padding: 24px 16px; }
+  .rd-login-v1 .acesso-cartao { grid-column: 1; }
+  .rd-login-v1 .capa-texto { display: none; }
+}
+
+/* ---------- Cadastro da loja ---------- */
+.rd-login-v1 .form-cadastro-loja h3 { margin: 10px 0 0; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--texto-2); }
+.rd-login-v1 .form-cadastro-loja .linha-campos { display: flex; gap: 10px; flex-wrap: wrap; }
+.rd-login-v1 .form-cadastro-loja .linha-campos .campo { min-width: 0; }
+@media (max-width: 520px) { .rd-login-v1 .form-cadastro-loja .linha-campos .campo { flex: 1 1 100% !important; } }
+.rd-login-v1 .foto-loja-cadastro { display: flex; gap: 14px; align-items: center; }
+.rd-login-v1 .foto-loja-cadastro p { margin: 2px 0 8px; font-size: 12px; }
+.rd-login-v1 .foto-loja-previa { position: relative; flex: 0 0 84px; width: 84px; height: 84px; border-radius: 16px; border: 2px dashed var(--borda); display: grid; place-items: center; font-size: 28px; overflow: hidden; cursor: pointer; background: var(--superficie-2); }
+.rd-login-v1 .foto-loja-previa img { width: 100%; height: 100%; object-fit: cover; }
+.rd-login-v1 .foto-loja-previa input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.rd-login-v1 .botoes { display: flex; flex-wrap: wrap; gap: 7px; }
