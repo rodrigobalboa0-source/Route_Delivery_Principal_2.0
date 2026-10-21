@@ -25,7 +25,7 @@
   --fonte: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 
   font-family: var(--fonte);
-  font-size: 12.5px;
+  font-size: 14.5px;
   line-height: 1.45;
   color: var(--texto);
   -webkit-font-smoothing: antialiased;
@@ -33,18 +33,18 @@
 
 .rd-login-v1 * { box-sizing: border-box; }
 .rd-login-v1 h1, .rd-login-v1 h2, .rd-login-v1 h3 { margin: 0; line-height: 1.25; }
-.rd-login-v1 h1 { font-size: 19.5px; font-weight: 650; color: var(--texto); }
+.rd-login-v1 h1 { font-size: 25px; font-weight: 700; color: var(--texto); }
 .rd-login-v1 p { margin: 0 0 10.5px; }
 .rd-login-v1 img { max-width: 100%; }
 .rd-login-v1 input, .rd-login-v1 select, .rd-login-v1 textarea, .rd-login-v1 button { font: inherit; color: inherit; }
 .rd-login-v1 .apagado { color: var(--texto-3); }
 .rd-login-v1 .centro { text-align: center; }
-.rd-login-v1 .subtitulo { color: var(--texto-3); margin: 3.5px 0 0; font-size: 11.5px; }
+.rd-login-v1 .subtitulo { color: var(--texto-3); margin: 5px 0 0; font-size: 13.5px; }
 
 /* ---------- Campos ---------- */
 .rd-login-v1 input, .rd-login-v1 select, .rd-login-v1 textarea {
   border: 1px solid var(--borda-forte); border-radius: var(--raio-sm);
-  background: #1b2033; padding: 6px 9px; width: auto; max-width: 100%;
+  background: #1b2033; padding: 10px 12px; width: auto; max-width: 100%;
 }
 .rd-login-v1 input::placeholder, .rd-login-v1 textarea::placeholder { color: #7c85a0; }
 .rd-login-v1 input:focus, .rd-login-v1 select:focus, .rd-login-v1 textarea:focus,
@@ -53,12 +53,12 @@
 }
 .rd-login-v1 .campo { display: flex; flex-direction: column; gap: 3.5px; min-width: 0; }
 .rd-login-v1 .campo input, .rd-login-v1 .campo select, .rd-login-v1 .campo textarea { width: 100%; }
-.rd-login-v1 .campo-rotulo { font-size: 11.5px; font-weight: 550; color: var(--texto-2); }
+.rd-login-v1 .campo-rotulo { font-size: 13px; font-weight: 550; color: var(--texto-2); }
 
 /* ---------- Botões ---------- */
 .rd-login-v1 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 5.5px;
-  border-radius: var(--raio-sm); padding: 7px 12.5px; font-weight: 550;
+  border-radius: var(--raio-sm); padding: 11px 16px; font-weight: 600;
   border: 1px solid var(--borda-forte); background: var(--superficie);
   cursor: pointer; text-decoration: none; white-space: nowrap; color: var(--texto);
 }
@@ -85,12 +85,12 @@
 /* ---------- Marca ---------- */
 .rd-login-v1 .marca { display: flex; align-items: center; gap: 9px; padding: 3.5px 7px 16px; }
 .rd-login-v1 .marca-selo {
-  width: 44px; height: 44px; flex: 0 0 44px; border-radius: 11px; background: #0b1628;
+  width: 52px; height: 52px; flex: 0 0 52px; border-radius: 13px; background: #0b1628;
   display: grid; place-items: center; box-shadow: 0 2px 6px rgba(11, 22, 40, 0.35);
 }
-.rd-login-v1 .marca-selo img { width: 38px; height: 38px; object-fit: contain; }
-.rd-login-v1 .marca strong { display: block; color: #fff; font-size: 13px; }
-.rd-login-v1 .marca small { display: block; font-size: 11px; opacity: 0.75; }
+.rd-login-v1 .marca-selo img { width: 44px; height: 44px; object-fit: contain; }
+.rd-login-v1 .marca strong { display: block; color: #fff; font-size: 15px; }
+.rd-login-v1 .marca small { display: block; font-size: 12.5px; opacity: 0.75; }
 .rd-login-v1 .marca-acesso { padding: 0 0 19.5px; }
 .rd-login-v1 .marca-acesso strong { color: var(--texto); }
 .rd-login-v1 .marca-acesso small { color: var(--texto-3); opacity: 1; }
@@ -122,11 +122,11 @@
 }
 .rd-login-v1 .acesso-cartao {
   position: relative; z-index: 1; grid-column: 2; grid-row: 1;
-  width: min(370px, 100%); background: var(--superficie); border-radius: 14px;
-  padding: 26px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  width: min(460px, 100%); background: var(--superficie); border-radius: 16px;
+  padding: 36px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
 }
 .rd-login-v1 .acesso-cartao h1 { margin-bottom: 3.5px; }
-.rd-login-v1 .form-acesso { display: flex; flex-direction: column; gap: 12.5px; margin-top: 16px; }
+.rd-login-v1 .form-acesso { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; }
 .rd-login-v1 .cadastre-loja { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--borda); display: flex; flex-direction: column; gap: 8px; text-align: center; }
 .rd-login-v1 .cadastre-loja span { font-size: 13px; color: var(--texto-2); }
 

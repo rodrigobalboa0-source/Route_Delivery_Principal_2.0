@@ -443,7 +443,13 @@ export function AuthPage({ forceResetMode = false, onResetComplete }: { forceRes
           </form>
           <div className="cadastre-loja">
             <span>Ainda não trabalha com a gente?</span>
-            <button type="button" className="btn btn-laranja btn-bloco" onClick={() => handleSignUpStart('comercio')}>Cadastre sua Loja</button>
+            <button
+              type="button"
+              className="btn btn-laranja btn-bloco"
+              onClick={() => { setError(null); setSignupType('cliente'); setSignupOpen(true); }}
+            >
+              Cadastre sua Loja
+            </button>
           </div>
         </div>
         {signupModal}
