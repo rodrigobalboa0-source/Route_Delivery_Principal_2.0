@@ -203,14 +203,43 @@ function OpcoesPedido({ p, loja, ocupado, onDetalhes, onPronto, onFinalizar, onO
   onObservacao: (p: EntregaAberta) => void; onClonar: (p: EntregaAberta) => void; onCancelar: (p: EntregaAberta) => void;
 }) {
   const [aberto, setAberto] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
   useFora(ref, aberto, () => setAberto(false));
+
+  // Fecha o menu se a página/tabela rolar (o menu é fixo e não acompanha).
+  useEffect(() => {
+    if (!aberto) return;
+    const fechar = () => setAberto(false);
+    window.addEventListener('scroll', fechar, true);
+    window.addEventListener('resize', fechar);
+    return () => { window.removeEventListener('scroll', fechar, true); window.removeEventListener('resize', fechar); };
+  }, [aberto]);
+
   const b = statusBadge(p.status);
   const show = (k: string) => opcaoAtiva(loja, k);
   const fechar = () => setAberto(false);
-  const item = (k: string, label: string, fn: () => void, extra?: { perigo?: boolean; disabled?: boolean }) =>
+
+  function alternar() {
+    if (aberto) { setAberto(false); return; }
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) {
+      const menuW = 210;
+      const visiveis = [show('detalhes'), show('pronto') && b.filtro === 'CRIADO', show('finalizar'), show('rastreio'), show('observacao'), show('clonar'), show('cancelar')].filter(Boolean).length;
+      const menuH = visiveis * 36 + 10;
+      let left = r.right - menuW;
+      if (left < 8) left = 8;
+      let top = r.bottom + 4;
+      if (top + menuH > window.innerHeight - 8) top = Math.max(8, r.top - menuH - 4); // abre pra cima se não couber embaixo
+      setPos({ top, left });
+    }
+    setAberto(true);
+  }
+
+  const item = (k: string, label: string, fn: () => void, extra?: { perigo?: boolean }) =>
     show(k) ? (
-      <button type="button" className={extra?.perigo ? 'perigo' : ''} disabled={extra?.disabled || ocupado} onClick={() => { fn(); fechar(); }}>{label}</button>
+      <button type="button" className={extra?.perigo ? 'perigo' : ''} disabled={ocupado} onClick={() => { fn(); fechar(); }}>{label}</button>
     ) : null;
 
   const copiarRastreio = () => {
@@ -220,9 +249,9 @@ function OpcoesPedido({ p, loja, ocupado, onDetalhes, onPronto, onFinalizar, onO
 
   return (
     <div className="opcoes-menu" ref={ref}>
-      <button type="button" className="btn btn-sm btn-fantasma" onClick={() => setAberto(a => !a)} aria-haspopup="menu" aria-expanded={aberto}>Opções ▾</button>
-      {aberto && (
-        <div className="opcoes-lista" role="menu">
+      <button ref={btnRef} type="button" className="btn btn-sm btn-fantasma" onClick={alternar} aria-haspopup="menu" aria-expanded={aberto}>Opções ▾</button>
+      {aberto && pos && (
+        <div className="opcoes-lista" role="menu" style={{ position: 'fixed', top: pos.top, left: pos.left, right: 'auto' }}>
           {item('detalhes', 'Detalhes', () => onDetalhes(p))}
           {show('pronto') && b.filtro === 'CRIADO' && (
             <button type="button" disabled={ocupado} onClick={() => { onPronto(p); fechar(); }}>Pronto</button>
