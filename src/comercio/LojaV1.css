@@ -212,6 +212,8 @@
 .loja-app .criar-rapido { background: var(--superficie); border: 1px solid var(--borda); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
 .loja-app .criar-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .loja-app .criar-linha > input, .loja-app .criar-linha > select { height: 36px; }
+/* Campo de endereço com autocomplete (container div + input interno). */
+.loja-app .criar-linha > .cr-end input { height: 36px; width: 100%; }
 .loja-app .cr-nome { flex: 2 1 170px; }
 .loja-app .cr-tel { flex: 1 1 130px; }
 .loja-app .cr-end { flex: 3 1 230px; }

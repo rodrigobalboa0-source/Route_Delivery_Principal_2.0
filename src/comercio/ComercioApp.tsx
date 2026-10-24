@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import './LojaV1.css';
 import MapaEntregadoresV1 from '../components/MapaEntregadoresV1';
+import { AddressAutocomplete } from '../components/AddressAutocomplete';
 import { getLojaAtual, getEntregasAbertas, getEntregadoresOnline, marcarPronto, moeda, statusBadge, FILTROS_STATUS, type LojaAtual, type EntregaAberta, type EntregadorMapa } from './comercioData';
 import { calcularPreco, criarEntregaComercio, type ResultadoPreco } from './comercioPricing';
 
@@ -140,7 +141,7 @@ function CriarRapido({ loja, onCriado }: { loja: LojaAtual; onCriado: () => void
       <div className="criar-linha">
         <input className="cr-nome" value={v.clienteNome} onChange={e => set('clienteNome')(e.target.value)} placeholder="Nome do cliente" aria-label="Nome do cliente" required />
         <input className="cr-tel" value={v.clienteTelefone} onChange={e => set('clienteTelefone')(e.target.value)} placeholder="Telefone" aria-label="Telefone" inputMode="tel" />
-        <input className="cr-end" value={v.endereco} onChange={e => set('endereco')(e.target.value)} placeholder="Endereço de entrega (rua, número, bairro)" aria-label="Endereço de entrega" required />
+        <AddressAutocomplete value={v.endereco} onChange={set('endereco')} placeholder="Endereço de entrega (rua, número, bairro)" containerClassName="cr-end" />
         <input className="cr-comp" value={v.complemento} onChange={e => set('complemento')(e.target.value)} placeholder="Complemento" aria-label="Complemento" />
         <label className="chave-rapida" title={`O entregador volta à loja depois de entregar. Acréscimo de ${loja.retornoPercentual ?? 20}% na taxa.`}>
           <input type="checkbox" checked={retorno} onChange={e => setRetorno(e.target.checked)} />
