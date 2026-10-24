@@ -8,7 +8,8 @@ type Cliente = Database['public']['Tables']['clientes']['Row'];
 
 // Opções do menu "Opções" de cada pedido no painel do comerciante.
 const OPCOES_COMERCIANTE: { chave: string; label: string }[] = [
-  { chave: 'detalhes', label: 'Detalhes' },
+  { chave: 'detalhes', label: 'Detalhes do pedido' },
+  { chave: 'editar', label: 'Editar pedido' },
   { chave: 'pronto', label: 'Pronto' },
   { chave: 'finalizar', label: 'Finalizar pedido' },
   { chave: 'rastreio', label: 'Copiar link de rastreio' },

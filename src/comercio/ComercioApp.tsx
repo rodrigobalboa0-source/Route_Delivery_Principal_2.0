@@ -10,7 +10,7 @@ function ehModoCredito(loja: LojaAtual | null): boolean {
   if (!m) return false;
   return !(m.includes('fatur') || m.includes('pospago') || m.includes('pos-pago') || m.includes('pos pago'));
 }
-import { getLojaAtual, getEntregasAbertas, getEntregadoresOnline, marcarPronto, moeda, statusBadge, FILTROS_STATUS, getRelatorioEntregas, getAgendamentos, cancelarPedido, finalizarPedido, escreverObservacaoPedido, clonarPedido, opcaoAtiva, type LojaAtual, type EntregaAberta, type EntregadorMapa, type RelatorioResultado, type Agendamento } from './comercioData';
+import { getLojaAtual, getEntregasAbertas, getEntregadoresOnline, marcarPronto, moeda, statusBadge, FILTROS_STATUS, getRelatorioEntregas, getAgendamentos, cancelarPedido, finalizarPedido, escreverObservacaoPedido, clonarPedido, atualizarEntregaComercio, opcaoAtiva, type LojaAtual, type EntregaAberta, type EntregadorMapa, type RelatorioResultado, type Agendamento } from './comercioData';
 import { calcularPreco, criarEntregaComercio, type ResultadoPreco } from './comercioPricing';
 
 // Ícones em traço (herdam a cor do texto) — iguais ao V1.
@@ -197,9 +197,9 @@ function CriarRapido({ loja, onCriado }: { loja: LojaAtual; onCriado: () => void
 
 // Menu "Opções" de cada pedido na lista do comerciante. Mostra só as opções que
 // o ADM deixou ligadas para a loja (Configurações Gerais do Comércio).
-function OpcoesPedido({ p, loja, ocupado, onDetalhes, onPronto, onFinalizar, onObservacao, onClonar, onCancelar }: {
+function OpcoesPedido({ p, loja, ocupado, onDetalhes, onEditar, onPronto, onFinalizar, onObservacao, onClonar, onCancelar }: {
   p: EntregaAberta; loja: LojaAtual; ocupado: boolean;
-  onDetalhes: (p: EntregaAberta) => void; onPronto: (p: EntregaAberta) => void; onFinalizar: (p: EntregaAberta) => void;
+  onDetalhes: (p: EntregaAberta) => void; onEditar: (p: EntregaAberta) => void; onPronto: (p: EntregaAberta) => void; onFinalizar: (p: EntregaAberta) => void;
   onObservacao: (p: EntregaAberta) => void; onClonar: (p: EntregaAberta) => void; onCancelar: (p: EntregaAberta) => void;
 }) {
   const [aberto, setAberto] = useState(false);
@@ -226,7 +226,7 @@ function OpcoesPedido({ p, loja, ocupado, onDetalhes, onPronto, onFinalizar, onO
     const r = btnRef.current?.getBoundingClientRect();
     if (r) {
       const menuW = 210;
-      const visiveis = [show('detalhes'), show('pronto') && b.filtro === 'CRIADO', show('finalizar'), show('rastreio'), show('observacao'), show('clonar'), show('cancelar')].filter(Boolean).length;
+      const visiveis = [show('detalhes'), show('editar'), show('pronto') && b.filtro === 'CRIADO', show('finalizar'), show('rastreio'), show('observacao'), show('clonar'), show('cancelar')].filter(Boolean).length;
       const menuH = visiveis * 36 + 10;
       let left = r.right - menuW;
       if (left < 8) left = 8;
@@ -252,7 +252,8 @@ function OpcoesPedido({ p, loja, ocupado, onDetalhes, onPronto, onFinalizar, onO
       <button ref={btnRef} type="button" className="btn btn-sm btn-fantasma" onClick={alternar} aria-haspopup="menu" aria-expanded={aberto}>Opções ▾</button>
       {aberto && pos && (
         <div className="opcoes-lista" role="menu" style={{ position: 'fixed', top: pos.top, left: pos.left, right: 'auto' }}>
-          {item('detalhes', 'Detalhes', () => onDetalhes(p))}
+          {item('detalhes', 'Detalhes do pedido', () => onDetalhes(p))}
+          {item('editar', 'Editar pedido', () => onEditar(p))}
           {show('pronto') && b.filtro === 'CRIADO' && (
             <button type="button" disabled={ocupado} onClick={() => { onPronto(p); fechar(); }}>Pronto</button>
           )}
@@ -334,6 +335,48 @@ function PainelView({ loja }: { loja: LojaAtual }) {
   }
 
   const [detalhe, setDetalhe] = useState<EntregaAberta | null>(null);
+  const [editando, setEditando] = useState<EntregaAberta | null>(null);
+  const [editForm, setEditForm] = useState({ clienteNome: '', clienteTelefone: '', endereco: '', retorno: false });
+  const [salvandoEdicao, setSalvandoEdicao] = useState(false);
+
+  function abrirEdicao(p: EntregaAberta) {
+    setEditForm({
+      clienteNome: p.clienteNome === '—' ? '' : p.clienteNome,
+      clienteTelefone: p.clienteTelefone || '',
+      endereco: p.endereco || '',
+      retorno: p.retorno,
+    });
+    setEditando(p);
+  }
+
+  async function salvarEdicao() {
+    if (!editando) return;
+    if (editForm.endereco.trim().length < 5) { setErro('Informe o endereço de entrega.'); return; }
+    setSalvandoEdicao(true);
+    try {
+      const enderecoMudou = editForm.endereco.trim() !== (editando.endereco || '').trim();
+      const retornoMudou = editForm.retorno !== editando.retorno;
+      let valor: number | null | undefined;
+      let km: number | null | undefined;
+      if (enderecoMudou || retornoMudou) {
+        const r = await calcularPreco(loja, { enderecoTexto: editForm.endereco.trim(), retorno: editForm.retorno });
+        if (r.valor != null) { valor = r.valor; km = r.km; }
+      }
+      await atualizarEntregaComercio(editando.id, {
+        clienteNome: editForm.clienteNome.trim(),
+        clienteTelefone: editForm.clienteTelefone.trim(),
+        enderecoTexto: editForm.endereco.trim(),
+        retorno: editForm.retorno,
+        valor, km,
+      });
+      setEditando(null);
+      await carregar(true);
+    } catch (e: any) {
+      setErro(e?.message || 'Erro ao editar o pedido');
+    } finally {
+      setSalvandoEdicao(false);
+    }
+  }
 
   const q = busca.trim().toLowerCase();
   const lista = (entregas || []).filter(p => {
@@ -454,7 +497,7 @@ function PainelView({ loja }: { loja: LojaAtual }) {
                           <td>
                             <OpcoesPedido
                               p={p} loja={loja} ocupado={ocupado}
-                              onDetalhes={setDetalhe} onPronto={pronto} onFinalizar={finalizar}
+                              onDetalhes={setDetalhe} onEditar={abrirEdicao} onPronto={pronto} onFinalizar={finalizar}
                               onObservacao={observacao} onClonar={clonar} onCancelar={cancelar}
                             />
                           </td>
@@ -496,6 +539,40 @@ function PainelView({ loja }: { loja: LojaAtual }) {
             </div>
             <div className="px-4 py-3 border-t border-slate-200 flex justify-end">
               <button type="button" onClick={() => setDetalhe(null)} className="px-3 py-1.5 text-sm bg-slate-100 rounded-lg hover:bg-slate-200">Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editando && (
+        <div className="fixed inset-0 z-[1000] bg-black/50 flex items-center justify-center p-4" onClick={() => !salvandoEdicao && setEditando(null)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden text-slate-800" onClick={(e) => e.stopPropagation()}>
+            <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="font-semibold text-sm">Editar pedido {editando.numero}</h3>
+              <button type="button" onClick={() => setEditando(null)} className="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+            <div className="p-4 space-y-3 text-sm">
+              <label className="block">
+                <span className="text-slate-500 text-xs">Cliente</span>
+                <input className="w-full px-3 py-2 border border-slate-300 rounded mt-1" style={{ background: '#fff', color: '#0f172a' }} value={editForm.clienteNome} onChange={(e) => setEditForm(f => ({ ...f, clienteNome: e.target.value }))} />
+              </label>
+              <label className="block">
+                <span className="text-slate-500 text-xs">Telefone</span>
+                <input className="w-full px-3 py-2 border border-slate-300 rounded mt-1" style={{ background: '#fff', color: '#0f172a' }} value={editForm.clienteTelefone} onChange={(e) => setEditForm(f => ({ ...f, clienteTelefone: e.target.value }))} />
+              </label>
+              <label className="block">
+                <span className="text-slate-500 text-xs">Endereço de entrega</span>
+                <input className="w-full px-3 py-2 border border-slate-300 rounded mt-1" style={{ background: '#fff', color: '#0f172a' }} value={editForm.endereco} onChange={(e) => setEditForm(f => ({ ...f, endereco: e.target.value }))} />
+              </label>
+              <label className="flex items-center gap-2 text-slate-700">
+                <input type="checkbox" checked={editForm.retorno} onChange={(e) => setEditForm(f => ({ ...f, retorno: e.target.checked }))} />
+                <span>Com retorno à loja</span>
+              </label>
+              <p className="text-xs text-slate-400">Se mudar o endereço ou o retorno, a taxa é recalculada ao salvar.</p>
+            </div>
+            <div className="px-4 py-3 border-t border-slate-200 flex justify-end gap-2">
+              <button type="button" disabled={salvandoEdicao} onClick={() => setEditando(null)} className="px-3 py-1.5 text-sm bg-slate-100 rounded-lg hover:bg-slate-200 disabled:opacity-50">Cancelar</button>
+              <button type="button" disabled={salvandoEdicao} onClick={salvarEdicao} className="px-3 py-1.5 text-sm bg-sky-600 text-white rounded-lg hover:bg-sky-700 disabled:opacity-50">{salvandoEdicao ? 'Salvando...' : 'Salvar'}</button>
             </div>
           </div>
         </div>

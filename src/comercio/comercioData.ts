@@ -288,6 +288,29 @@ export async function cancelarPedido(pedidoId: string): Promise<void> {
   if (error) throw error;
 }
 
+// Edita os dados de um pedido/entrega (cliente, telefone, endereço, retorno e,
+// quando recalculado, o valor/distância).
+export async function atualizarEntregaComercio(
+  pedidoId: string,
+  d: { clienteNome: string; clienteTelefone: string; enderecoTexto: string; retorno: boolean; valor?: number | null; km?: number | null }
+): Promise<void> {
+  const pedidoPatch: any = { endereco_texto: d.enderecoTexto || null };
+  if (d.valor != null) pedidoPatch.valor_total = d.valor;
+  const { error: pErr } = await (supabase.from('pedidos') as any).update(pedidoPatch).eq('id', pedidoId);
+  if (pErr) throw pErr;
+
+  const entregaPatch: any = {
+    entrega_contato: d.clienteNome || null,
+    entrega_telefone: d.clienteTelefone || null,
+    entrega_endereco_texto: d.enderecoTexto || null,
+    retorno: d.retorno,
+    updated_at: new Date().toISOString(),
+  };
+  if (d.valor != null) entregaPatch.valor_entrega = d.valor;
+  if (d.km != null) entregaPatch.distancia_km = d.km;
+  await (supabase.from('nova_entrega') as any).update(entregaPatch).eq('pedido_id', pedidoId);
+}
+
 // Finaliza (marca como entregue) o pedido e a entrega.
 export async function finalizarPedido(pedidoId: string): Promise<void> {
   const { error } = await supabase.from('pedidos').update({ status: 'entregue' }).eq('id', pedidoId);
