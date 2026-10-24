@@ -80,6 +80,7 @@ function CriarRapido({ loja, onCriado }: { loja: LojaAtual; onCriado: () => void
   const [pronto, setPronto] = useState(false);
   const [mais, setMais] = useState(false);
   const [preco, setPreco] = useState<ResultadoPreco | null>(null);
+  const [destino, setDestino] = useState<[number, number] | null>(null);
   const [calculando, setCalculando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -94,7 +95,7 @@ function CriarRapido({ loja, onCriado }: { loja: LojaAtual; onCriado: () => void
     setCalculando(true);
     const t = setTimeout(async () => {
       try {
-        const r = await calcularPreco(loja, { enderecoTexto: endereco, retorno });
+        const r = await calcularPreco(loja, { destino, enderecoTexto: endereco, retorno });
         if (id === calcIdRef.current) setPreco(r);
       } catch {
         if (id === calcIdRef.current) setPreco({ valor: null, km: null, dinamico: false, erro: 'Erro ao calcular o preço.' });
@@ -103,7 +104,7 @@ function CriarRapido({ loja, onCriado }: { loja: LojaAtual; onCriado: () => void
       }
     }, 700);
     return () => clearTimeout(t);
-  }, [v.endereco, retorno, loja]);
+  }, [v.endereco, destino, retorno, loja]);
 
   async function criar(e: React.FormEvent) {
     e.preventDefault();
@@ -113,7 +114,7 @@ function CriarRapido({ loja, onCriado }: { loja: LojaAtual; onCriado: () => void
     setEnviando(true);
     try {
       let p = preco;
-      if (!p || p.valor == null) p = await calcularPreco(loja, { enderecoTexto: v.endereco.trim(), retorno });
+      if (!p || p.valor == null) p = await calcularPreco(loja, { destino, enderecoTexto: v.endereco.trim(), retorno });
       await criarEntregaComercio(loja, {
         clienteNome: v.clienteNome.trim(),
         clienteTelefone: v.clienteTelefone.trim(),
@@ -127,7 +128,7 @@ function CriarRapido({ loja, onCriado }: { loja: LojaAtual; onCriado: () => void
         valor: p?.valor ?? null,
         km: p?.km ?? null,
       });
-      setV(VAZIO); setRetorno(false); setPronto(false); setMais(false); setPreco(null);
+      setV(VAZIO); setRetorno(false); setPronto(false); setMais(false); setPreco(null); setDestino(null);
       onCriado();
     } catch (err: any) {
       setErro(err?.message || 'Erro ao criar a entrega.');
@@ -141,7 +142,7 @@ function CriarRapido({ loja, onCriado }: { loja: LojaAtual; onCriado: () => void
       <div className="criar-linha">
         <input className="cr-nome" value={v.clienteNome} onChange={e => set('clienteNome')(e.target.value)} placeholder="Nome do cliente" aria-label="Nome do cliente" required />
         <input className="cr-tel" value={v.clienteTelefone} onChange={e => set('clienteTelefone')(e.target.value)} placeholder="Telefone" aria-label="Telefone" inputMode="tel" />
-        <AddressAutocomplete value={v.endereco} onChange={set('endereco')} placeholder="Endereço de entrega (rua, número, bairro)" containerClassName="cr-end" />
+        <AddressAutocomplete value={v.endereco} onChange={(val) => { set('endereco')(val); setDestino(null); }} onSelectCoords={(coords) => setDestino(coords ?? null)} placeholder="Endereço de entrega (rua, número, bairro)" containerClassName="cr-end" />
         <input className="cr-comp" value={v.complemento} onChange={e => set('complemento')(e.target.value)} placeholder="Complemento" aria-label="Complemento" />
         <label className="chave-rapida" title={`O entregador volta à loja depois de entregar. Acréscimo de ${loja.retornoPercentual ?? 20}% na taxa.`}>
           <input type="checkbox" checked={retorno} onChange={e => setRetorno(e.target.checked)} />

@@ -214,6 +214,10 @@
 .loja-app .criar-linha > input, .loja-app .criar-linha > select { height: 36px; }
 /* Campo de endereço com autocomplete (container div + input interno). */
 .loja-app .criar-linha > .cr-end input { height: 36px; width: 100%; }
+/* O dropdown de sugestões tem fundo branco; força texto escuro (senão herda o
+   branco do tema da loja e some). */
+.loja-app .cr-end .bg-white, .loja-app .cr-end .bg-white * { color: #334155; }
+.loja-app .cr-end .bg-white .text-red-700 { color: #b91c1c; }
 .loja-app .cr-nome { flex: 2 1 170px; }
 .loja-app .cr-tel { flex: 1 1 130px; }
 .loja-app .cr-end { flex: 3 1 230px; }

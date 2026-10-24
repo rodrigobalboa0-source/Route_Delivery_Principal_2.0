@@ -7,6 +7,7 @@ interface LojaRoteirizacao {
   nome: string;
   roteirizacao_automatica: boolean;
   roteirizacao_qtd_pedidos: number;
+  roteirizacao_tempo_segundos: number;
 }
 
 // Seção da aba Operação: por loja, escolher Roteirização Automática (o sistema
@@ -31,7 +32,7 @@ export function RoteirizacaoLojasConfig() {
     try {
       const { data, error } = await supabase
         .from('clientes')
-        .select('id, nome_fantasia, nome_completo, roteirizacao_automatica, roteirizacao_qtd_pedidos')
+        .select('id, nome_fantasia, nome_completo, roteirizacao_automatica, roteirizacao_qtd_pedidos, roteirizacao_tempo_segundos')
         .order('nome_fantasia', { ascending: true });
       if (error) throw error;
       const lista: LojaRoteirizacao[] = (data || []).map((c: any) => ({
@@ -39,6 +40,7 @@ export function RoteirizacaoLojasConfig() {
         nome: c.nome_fantasia || c.nome_completo || 'Loja sem nome',
         roteirizacao_automatica: Boolean(c.roteirizacao_automatica),
         roteirizacao_qtd_pedidos: Number(c.roteirizacao_qtd_pedidos) > 0 ? Number(c.roteirizacao_qtd_pedidos) : 1,
+        roteirizacao_tempo_segundos: Number(c.roteirizacao_tempo_segundos) > 0 ? Number(c.roteirizacao_tempo_segundos) : 30,
       }));
       setLojas(lista);
       setDirty(new Set());
@@ -74,8 +76,9 @@ export function RoteirizacaoLojasConfig() {
       const alvo = lojas.filter((l) => dirty.has(l.id));
       for (const l of alvo) {
         const qtd = l.roteirizacao_automatica ? Math.max(1, Math.floor(l.roteirizacao_qtd_pedidos || 1)) : (l.roteirizacao_qtd_pedidos || 1);
+        const tempo = Math.max(5, Math.floor(l.roteirizacao_tempo_segundos || 30));
         const { error } = await (supabase.from('clientes') as any)
-          .update({ roteirizacao_automatica: l.roteirizacao_automatica, roteirizacao_qtd_pedidos: qtd })
+          .update({ roteirizacao_automatica: l.roteirizacao_automatica, roteirizacao_qtd_pedidos: qtd, roteirizacao_tempo_segundos: tempo })
           .eq('id', l.id);
         if (error) throw error;
       }
@@ -163,16 +166,29 @@ export function RoteirizacaoLojasConfig() {
               </div>
 
               {l.roteirizacao_automatica && (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500">Pedidos por rota</span>
-                  <input
-                    type="number"
-                    min={1}
-                    step={1}
-                    value={l.roteirizacao_qtd_pedidos}
-                    onChange={(e) => alterar(l.id, { roteirizacao_qtd_pedidos: Math.max(1, parseInt(e.target.value, 10) || 1) })}
-                    className="w-20 px-2 py-1.5 border border-slate-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
+                <div className="flex items-center gap-4 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-500">Pedidos por rota</span>
+                    <input
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={l.roteirizacao_qtd_pedidos}
+                      onChange={(e) => alterar(l.id, { roteirizacao_qtd_pedidos: Math.max(1, parseInt(e.target.value, 10) || 1) })}
+                      className="w-20 px-2 py-1.5 border border-slate-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-500" title="O sistema espera esse tempo juntando pedidos antes de montar a rota automática.">Tempo p/ roteirizar (seg)</span>
+                    <input
+                      type="number"
+                      min={5}
+                      step={5}
+                      value={l.roteirizacao_tempo_segundos}
+                      onChange={(e) => alterar(l.id, { roteirizacao_tempo_segundos: Math.max(5, parseInt(e.target.value, 10) || 30) })}
+                      className="w-20 px-2 py-1.5 border border-slate-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    />
+                  </div>
                 </div>
               )}
 
