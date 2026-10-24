@@ -103,6 +103,12 @@ export interface EntregaAberta {
   entregadorNome: string | null;
   retorno: boolean;
   createdAt: string | null;
+  destinoLat: number | null;   // coords do cliente (entrega)
+  destinoLng: number | null;
+  entregadorId: string | null;
+  entregadorLat: number | null; // posição atual do entregador
+  entregadorLng: number | null;
+  entregadorFoto: string | null;
 }
 
 const FINALIZADOS = new Set(['entregue', 'cancelada', 'cancelado', 'finalizada', 'finalizado']);
@@ -116,7 +122,7 @@ export async function getEntregasAbertas(clienteId: string): Promise<EntregaAber
   const cutoff = new Date(Date.now() - DIAS_JANELA_ABERTO * 24 * 60 * 60 * 1000).toISOString();
   const [resPedidos, resEntregas] = await Promise.all([
     supabase.from('pedidos').select('id, numero, status, created_at').eq('cliente_id', clienteId).gte('created_at', cutoff).order('created_at', { ascending: false }).limit(400),
-    supabase.from('nova_entrega').select('id, pedido_id, entrega_contato, entrega_telefone, entrega_endereco_texto, valor_entrega, retorno, entregadores ( id, nome_completo )').eq('cliente_id', clienteId).limit(600),
+    supabase.from('nova_entrega').select('id, pedido_id, entrega_contato, entrega_telefone, entrega_endereco_texto, entrega_lat, entrega_lng, valor_entrega, retorno, entregador_id, entregadores ( id, nome_completo, current_latitude, current_longitude, foto_url )').eq('cliente_id', clienteId).limit(600),
   ]);
   if (resPedidos.error) throw resPedidos.error;
   if (resEntregas.error) throw resEntregas.error;
@@ -142,6 +148,12 @@ export async function getEntregasAbertas(clienteId: string): Promise<EntregaAber
         entregadorNome: e?.entregadores?.nome_completo || null,
         retorno: Boolean(e?.retorno),
         createdAt: p.created_at || null,
+        destinoLat: num(e?.entrega_lat),
+        destinoLng: num(e?.entrega_lng),
+        entregadorId: e?.entregador_id ? String(e.entregador_id) : null,
+        entregadorLat: num(e?.entregadores?.current_latitude),
+        entregadorLng: num(e?.entregadores?.current_longitude),
+        entregadorFoto: e?.entregadores?.foto_url || null,
       } as EntregaAberta;
     });
 }

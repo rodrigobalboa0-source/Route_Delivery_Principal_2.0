@@ -82,9 +82,10 @@ function MenuConta({ loja, onNavegar, onSair }: { loja: LojaAtual | null; onNave
 const PAGAMENTOS = ['Pago (online)', 'Pix', 'Cartão na entrega', 'Dinheiro'];
 
 // Criação rápida de entrega (uma linha) — porte fiel do CriarRapido do V1, preço no Supabase.
-function CriarRapido({ loja, onCriado }: { loja: LojaAtual; onCriado: () => void }) {
+function CriarRapido({ loja, onCriado, permitirInverter = false }: { loja: LojaAtual; onCriado: () => void; permitirInverter?: boolean }) {
   const VAZIO = { clienteNome: '', clienteTelefone: '', endereco: '', complemento: '', formaPagamento: '', observacao: '', agendadoPara: '' };
   const [v, setV] = useState(VAZIO);
+  const [inverter, setInverter] = useState(false);
   const [retorno, setRetorno] = useState(false);
   const [pronto, setPronto] = useState(false);
   const [mais, setMais] = useState(false);
@@ -119,7 +120,8 @@ function CriarRapido({ loja, onCriado }: { loja: LojaAtual; onCriado: () => void
     e.preventDefault();
     setErro(null);
     if (!v.clienteNome.trim()) { setErro('Informe o nome do cliente.'); return; }
-    if (v.endereco.trim().length < 5) { setErro('Informe o endereço de entrega.'); return; }
+    if (v.endereco.trim().length < 5) { setErro(inverter ? 'Informe o endereço de coleta.' : 'Informe o endereço de entrega.'); return; }
+    if (inverter && !loja.endereco) { setErro('Sua loja não tem endereço cadastrado para usar como entrega.'); return; }
     setEnviando(true);
     try {
       let p = preco;
@@ -127,7 +129,8 @@ function CriarRapido({ loja, onCriado }: { loja: LojaAtual; onCriado: () => void
       await criarEntregaComercio(loja, {
         clienteNome: v.clienteNome.trim(),
         clienteTelefone: v.clienteTelefone.trim(),
-        enderecoTexto: v.endereco.trim(),
+        enderecoTexto: inverter ? (loja.endereco || '') : v.endereco.trim(),
+        coletaTexto: inverter ? v.endereco.trim() : null,
         complemento: v.complemento.trim(),
         observacao: v.observacao.trim(),
         formaPagamento: v.formaPagamento,
@@ -137,7 +140,7 @@ function CriarRapido({ loja, onCriado }: { loja: LojaAtual; onCriado: () => void
         valor: p?.valor ?? null,
         km: p?.km ?? null,
       });
-      setV(VAZIO); setRetorno(false); setPronto(false); setMais(false); setPreco(null); setDestino(null);
+      setV(VAZIO); setRetorno(false); setPronto(false); setMais(false); setPreco(null); setDestino(null); setInverter(false);
       onCriado();
     } catch (err: any) {
       setErro(err?.message || 'Erro ao criar a entrega.');
@@ -148,10 +151,16 @@ function CriarRapido({ loja, onCriado }: { loja: LojaAtual; onCriado: () => void
 
   return (
     <form className="criar-rapido" onSubmit={criar} aria-label="Criar entrega">
+      {permitirInverter && (
+        <label className="chave-rapida" style={{ marginBottom: 8 }} title="Coletar fora da loja e entregar na própria loja">
+          <input type="checkbox" checked={inverter} onChange={e => setInverter(e.target.checked)} />
+          <span className="interruptor" aria-hidden="true" /><span>Inverter endereços (coleta fora da loja, entrega na loja)</span>
+        </label>
+      )}
       <div className="criar-linha">
         <input className="cr-nome" value={v.clienteNome} onChange={e => set('clienteNome')(e.target.value)} placeholder="Nome do cliente" aria-label="Nome do cliente" required />
         <input className="cr-tel" value={v.clienteTelefone} onChange={e => set('clienteTelefone')(e.target.value)} placeholder="Telefone" aria-label="Telefone" inputMode="tel" />
-        <AddressAutocomplete value={v.endereco} onChange={(val) => { set('endereco')(val); setDestino(null); }} onSelectCoords={(coords) => setDestino(coords ?? null)} placeholder="Endereço de entrega (rua, número, bairro)" containerClassName="cr-end" />
+        <AddressAutocomplete value={v.endereco} onChange={(val) => { set('endereco')(val); setDestino(null); }} onSelectCoords={(coords) => setDestino(coords ?? null)} placeholder={inverter ? 'Endereço de coleta (rua, número, bairro)' : 'Endereço de entrega (rua, número, bairro)'} containerClassName="cr-end" />
         <input className="cr-comp" value={v.complemento} onChange={e => set('complemento')(e.target.value)} placeholder="Complemento" aria-label="Complemento" />
         <label className="chave-rapida" title={`O entregador volta à loja depois de entregar. Acréscimo de ${loja.retornoPercentual ?? 20}% na taxa.`}>
           <input type="checkbox" checked={retorno} onChange={e => setRetorno(e.target.checked)} />
@@ -179,6 +188,7 @@ function CriarRapido({ loja, onCriado }: { loja: LojaAtual; onCriado: () => void
       )}
       <div className="criar-rodape">
         <span className="criar-calculo" aria-live="polite">
+          {inverter && <span className="apagado" style={{ marginRight: 8 }}>Entrega na loja: <strong>{loja.endereco || '—'}</strong></span>}
           {erro && <span style={{ color: 'var(--critico)' }}>{erro}</span>}
           {calculando ? <span className="apagado">Calculando valor…</span>
             : preco?.erro ? <span className="apagado">{preco.erro}</span>
@@ -395,8 +405,27 @@ function PainelView({ loja }: { loja: LojaAtual }) {
 
   // Pedidos no mapa: posicionados ao redor da loja (o mapa espalha por `loja`).
   const lojaPonto = loja.lat != null && loja.lng != null ? { id: loja.id, lat: loja.lat, lng: loja.lng, nome: loja.nomeFantasia, endereco: loja.endereco } : null;
-  const pedidosMapa = lojaPonto ? (entregas || []).map(p => ({ id: p.id, codigo: p.numero, status: p.status, createdAt: p.createdAt, loja: lojaPonto })) : [];
-  const entregadoresMapa = entregadores.map(e => ({ id: e.id, nomeCompleto: e.nome, fotoUrl: e.fotoUrl, lat: e.lat, lng: e.lng, status: e.status }));
+  const pedidosMapa = lojaPonto ? (entregas || []).map(p => ({
+    id: p.id,
+    codigo: p.numero,
+    clienteNome: p.clienteNome,
+    status: p.status,
+    createdAt: p.createdAt,
+    loja: lojaPonto,
+    // Posiciona o pedido no endereço do cliente (quando geolocalizado).
+    destino: (p.destinoLat != null && p.destinoLng != null) ? { lat: p.destinoLat, lng: p.destinoLng } : null,
+    // Liga o entregador designado ao pedido (para mostrar o motoboy indo até o cliente).
+    entregador: (p.entregadorId && p.entregadorLat != null && p.entregadorLng != null)
+      ? { id: p.entregadorId, lat: p.entregadorLat, lng: p.entregadorLng, nomeCompleto: p.entregadorNome || 'Entregador', fotoUrl: p.entregadorFoto }
+      : null,
+  })) : [];
+  // Entregadores no mapa: os online + os designados aos pedidos abertos desta loja.
+  const entregadoresMapa = [
+    ...entregadores.map(e => ({ id: e.id, nomeCompleto: e.nome, fotoUrl: e.fotoUrl, lat: e.lat, lng: e.lng, status: e.status })),
+    ...(entregas || [])
+      .filter(p => p.entregadorId && p.entregadorLat != null && p.entregadorLng != null && !entregadores.some(e => e.id === p.entregadorId))
+      .map(p => ({ id: p.entregadorId!, nomeCompleto: p.entregadorNome || 'Entregador', fotoUrl: p.entregadorFoto, lat: p.entregadorLat!, lng: p.entregadorLng!, status: 'em_entrega' })),
+  ].filter((e, i, arr) => arr.findIndex(x => x.id === e.id) === i);
 
   return (
     <div className="painel">

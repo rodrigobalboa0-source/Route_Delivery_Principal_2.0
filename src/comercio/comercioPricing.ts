@@ -169,6 +169,17 @@ export async function criarEntregaComercio(loja: LojaAtual, d: DadosNovaEntrega)
   if (pErr) throw pErr;
   const pedidoId = (pData as any).id as string;
 
+  // Coordenadas para posicionar no mapa: entrega = cliente (ou loja, no invertido),
+  // coleta = loja (ou endereço informado, no invertido).
+  const [entregaCoords, coletaCoords] = await Promise.all([
+    d.enderecoTexto ? getCoordsFromAddress(d.enderecoTexto) : Promise.resolve(undefined),
+    d.coletaTexto ? getCoordsFromAddress(d.coletaTexto) : Promise.resolve(undefined),
+  ]);
+  const entregaLat = entregaCoords?.[0] ?? null;
+  const entregaLng = entregaCoords?.[1] ?? null;
+  const coletaLat = coletaCoords?.[0] ?? loja.lat ?? null;
+  const coletaLng = coletaCoords?.[1] ?? loja.lng ?? null;
+
   const { error: eErr } = await supabase
     .from('nova_entrega')
     .insert({
@@ -186,8 +197,12 @@ export async function criarEntregaComercio(loja: LojaAtual, d: DadosNovaEntrega)
       entrega_contato: d.clienteNome || null,
       entrega_telefone: d.clienteTelefone || null,
       entrega_endereco_texto: d.enderecoTexto || null,
+      entrega_lat: entregaLat,
+      entrega_lng: entregaLng,
       // Coleta: endereço informado (modo invertido) ou o endereço da própria loja.
       coleta_endereco_texto: d.coletaTexto || loja.endereco || null,
+      coleta_lat: coletaLat,
+      coleta_lng: coletaLng,
       entrega_complemento: d.complemento || null,
       entrega_observacoes: d.observacao || null,
       retorno: d.retorno,
