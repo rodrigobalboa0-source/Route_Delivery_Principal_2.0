@@ -228,6 +228,14 @@ function PainelView({ loja }: { loja: LojaAtual }) {
     finally { setOcupado(false); }
   }
 
+  async function cancelar(p: EntregaAberta) {
+    if (!window.confirm(`Cancelar o pedido ${p.numero}?`)) return;
+    setOcupado(true);
+    try { await cancelarPedido(p.id); await carregar(true); }
+    catch (e: any) { setErro(e?.message || 'Erro ao cancelar o pedido'); }
+    finally { setOcupado(false); }
+  }
+
   const q = busca.trim().toLowerCase();
   const lista = (entregas || []).filter(p => {
     const b = statusBadge(p.status);
@@ -318,7 +326,7 @@ function PainelView({ loja }: { loja: LojaAtual }) {
                   <thead>
                     <tr>
                       <th className="col-check"><input type="checkbox" checked={todosMarcados} aria-label="Selecionar todos" onChange={() => setSelecionados(todosMarcados ? new Set() : new Set(lista.map(p => p.id)))} /></th>
-                      <th>Nº Pedido</th><th>Cliente</th><th>Entrega</th><th className="num">Taxa</th><th>Status</th><th>Pedido pronto</th><th>Entregador</th>
+                      <th>Nº Pedido</th><th>Comércio</th><th>Cliente</th><th>Coleta</th><th>Entrega</th><th className="num">Taxa</th><th>Status</th><th>Pedido pronto</th><th>Entregador</th><th>Ações</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -328,11 +336,13 @@ function PainelView({ loja }: { loja: LojaAtual }) {
                         <tr key={p.id} className={selecionados.has(p.id) ? 'linha-selecionada' : ''}>
                           <td className="col-check"><input type="checkbox" checked={selecionados.has(p.id)} onChange={() => alternar(p.id)} aria-label={`Selecionar ${p.numero}`} /></td>
                           <td><strong>{p.numero}</strong></td>
+                          <td>{loja.nomeFantasia}</td>
                           <td>
                             {p.clienteNome}
                             {p.retorno && <span className="selo-retorno" title="Com retorno à loja">↩ retorno</span>}
                             {p.clienteTelefone && <div className="celula-sub">{p.clienteTelefone}</div>}
                           </td>
+                          <td className="col-endereco">{loja.endereco || <span className="apagado">—</span>}</td>
                           <td className="col-endereco">{p.endereco || <span className="apagado">—</span>}</td>
                           <td className="num">{moeda(p.valor)}</td>
                           <td><span className={`badge ${b.classe}`}>{b.rotulo}</span></td>
@@ -342,6 +352,9 @@ function PainelView({ loja }: { loja: LojaAtual }) {
                               : <span className="apagado">✓ Pronto</span>}
                           </td>
                           <td>{p.entregadorNome ? `🏍 ${p.entregadorNome}` : <span className="apagado">{b.filtro === 'PRONTO' ? 'Procurando…' : '—'}</span>}</td>
+                          <td>
+                            <button className="btn btn-sm btn-fantasma" disabled={ocupado} onClick={() => cancelar(p)} title="Cancelar pedido">Cancelar</button>
+                          </td>
                         </tr>
                       );
                     })}
