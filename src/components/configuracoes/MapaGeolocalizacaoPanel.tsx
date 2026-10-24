@@ -5,10 +5,11 @@ import { Map as MapIcon, Loader2, AlertCircle, CheckCircle2, Trash2 } from 'luci
 
 /**
  * Configuração de Mapa / Geolocalização (aba Configurações).
- * - Escolhe o provedor da GEOLOCALIZAÇÃO (busca de endereço): Google ou OpenStreetMap.
- * - Define/testa/remove a chave do Google (Geocoding API).
- * O MAPA (tiles) é sempre OpenStreetMap. Salva em `configuracoes_mapa`
- * (migration 20261019120000) e limpa o cache para valer na hora.
+ * - Escolhe o provedor da GEOLOCALIZAÇÃO: OpenStreetMap (padrão, sem chave) ou
+ *   Google (Geocoding API para endereço + Routes API para rota/distância).
+ * - Define/testa/remove a chave do Google.
+ * O MAPA (tiles) é sempre OpenStreetMap. Salva em `configuracoes_mapa` e limpa
+ * o cache para valer na hora.
  */
 export function MapaGeolocalizacaoPanel() {
   const [loading, setLoading] = useState(true);
@@ -21,7 +22,6 @@ export function MapaGeolocalizacaoPanel() {
   const [id, setId] = useState<string | null>(null);
   const [provider, setProvider] = useState<'google' | 'openstreetmap'>('openstreetmap');
   const [apiKey, setApiKey] = useState('');
-  const [mapId, setMapId] = useState('');
 
   useEffect(() => {
     void fetchConfig();
@@ -34,6 +34,7 @@ export function MapaGeolocalizacaoPanel() {
       const { data, error } = await supabase
         .from('configuracoes_mapa')
         .select('*')
+        .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle();
       if (error) throw error;
@@ -42,7 +43,6 @@ export function MapaGeolocalizacaoPanel() {
         setId(d.id ?? null);
         setProvider((d.provider as 'google' | 'openstreetmap') || 'openstreetmap');
         setApiKey(String(d.google_maps_api_key || ''));
-        setMapId(String(d.google_maps_map_id || ''));
       }
     } catch {
       setError('Não foi possível carregar. (A tabela pode ainda não existir — aplique a migration configuracoes_mapa.)');
@@ -51,14 +51,13 @@ export function MapaGeolocalizacaoPanel() {
     }
   };
 
-  const save = async (next?: Partial<{ provider: 'google' | 'openstreetmap'; apiKey: string; mapId: string }>) => {
+  const save = async (next?: Partial<{ provider: 'google' | 'openstreetmap'; apiKey: string }>) => {
     setSaving(true);
     setError(null);
     setSuccess(null);
     const payload = {
       provider: next?.provider ?? provider,
       google_maps_api_key: (next?.apiKey ?? apiKey).trim() || null,
-      google_maps_map_id: (next?.mapId ?? mapId).trim() || null,
       updated_at: new Date().toISOString(),
     };
     try {
@@ -81,9 +80,8 @@ export function MapaGeolocalizacaoPanel() {
 
   const removerChave = async () => {
     setApiKey('');
-    setMapId('');
     setProvider('openstreetmap');
-    await save({ provider: 'openstreetmap', apiKey: '', mapId: '' });
+    await save({ provider: 'openstreetmap', apiKey: '' });
     setSuccess('Chave removida — a geolocalização volta para o OpenStreetMap.');
   };
 
@@ -96,19 +94,46 @@ export function MapaGeolocalizacaoPanel() {
       setTesting(false);
       return;
     }
+    const linhas: string[] = [];
+    // 1) Geocoding API
     try {
       const url = new URL('https://maps.googleapis.com/maps/api/geocode/json');
-      url.searchParams.set('address', 'Avenida Paulista, São Paulo');
+      url.searchParams.set('address', 'Avenida Francisco Glicério, Campinas, SP');
       url.searchParams.set('key', key);
       const res = await fetch(url.toString());
       const data = await res.json();
-      if (data?.status === 'OK') setTestResult('✅ Chave válida — o Google respondeu corretamente.');
-      else setTestResult(`⚠️ Google respondeu: ${data?.status || 'erro'} ${data?.error_message || ''}`);
+      if (data?.status === 'OK') linhas.push('✅ Geocoding API: chave válida, respondeu certo.');
+      else linhas.push(`⚠️ Geocoding API: ${data?.status || 'erro'} ${data?.error_message || ''}`);
     } catch {
-      setTestResult('⚠️ Não deu para testar pelo navegador (bloqueio de CORS). O teste completo precisa do proxy no backend.');
-    } finally {
-      setTesting(false);
+      linhas.push('⚠️ Geocoding API: não deu para testar pelo navegador (bloqueio de CORS).');
     }
+    // 2) Routes API
+    try {
+      const res = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': key,
+          'X-Goog-FieldMask': 'routes.distanceMeters',
+        },
+        body: JSON.stringify({
+          origin: { location: { latLng: { latitude: -22.9099, longitude: -47.0626 } } },
+          destination: { location: { latLng: { latitude: -22.8997, longitude: -47.0632 } } },
+          travelMode: 'DRIVE',
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && typeof data?.routes?.[0]?.distanceMeters === 'number') {
+        linhas.push('✅ Routes API: chave válida, calculou a rota.');
+      } else {
+        const msg = data?.error?.message || `HTTP ${res.status}`;
+        linhas.push(`⚠️ Routes API: ${msg} (verifique se a Routes API está ativada no projeto).`);
+      }
+    } catch {
+      linhas.push('⚠️ Routes API: não deu para testar pelo navegador (bloqueio de CORS).');
+    }
+    setTestResult(linhas.join('\n'));
+    setTesting(false);
   };
 
   if (loading) {
@@ -129,7 +154,8 @@ export function MapaGeolocalizacaoPanel() {
       </div>
       <p className="text-sm text-slate-500 mb-5">
         O mapa usa sempre o <strong>OpenStreetMap</strong>. Aqui você escolhe o provedor da
-        <strong> geolocalização</strong> (busca de endereço): Google quando há chave, ou OpenStreetMap.
+        <strong> geolocalização</strong>: OpenStreetMap (padrão, sem chave) ou <strong>Google</strong>
+        {' '}(Geocoding API para o endereço + Routes API para a rota/distância).
       </p>
 
       {error && (
@@ -149,29 +175,29 @@ export function MapaGeolocalizacaoPanel() {
           <label className="block text-sm font-medium text-slate-700 mb-1">Provedor da geolocalização</label>
           <div className="flex gap-2">
             <button
-              onClick={() => setProvider('google')}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium border ${provider === 'google' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-300'}`}
-            >
-              Google
-            </button>
-            <button
               onClick={() => setProvider('openstreetmap')}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium border ${provider === 'openstreetmap' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-300'}`}
             >
               OpenStreetMap
             </button>
+            <button
+              onClick={() => setProvider('google')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium border ${provider === 'google' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-300'}`}
+            >
+              Google (Geocoding + Routes)
+            </button>
           </div>
+          <p className="text-xs text-slate-400 mt-1">
+            Com o Google selecionado e uma chave válida, o endereço e a rota usam o Google; se o Google falhar, cai automaticamente para o OpenStreetMap.
+          </p>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Chave do Google Maps (Geocoding API)</label>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Chave do Google Maps</label>
           <input type="text" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="AIzaSy..." className={`${inputCls} font-mono`} />
-          <p className="text-xs text-slate-400 mt-1">Deixe em branco para usar o OpenStreetMap.</p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Map ID (opcional)</label>
-          <input type="text" value={mapId} onChange={(e) => setMapId(e.target.value)} placeholder="opcional" className={`${inputCls} font-mono`} />
+          <p className="text-xs text-slate-400 mt-1">
+            No Google Cloud, ative a <strong>Geocoding API</strong> e a <strong>Routes API</strong> no mesmo projeto e habilite o faturamento. Deixe em branco para usar o OpenStreetMap.
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3 pt-1">
@@ -187,7 +213,7 @@ export function MapaGeolocalizacaoPanel() {
         </div>
 
         {testResult && (
-          <div className="rounded-lg bg-slate-50 border border-slate-200 text-slate-700 px-3 py-2 text-sm">{testResult}</div>
+          <div className="rounded-lg bg-slate-50 border border-slate-200 text-slate-700 px-3 py-2 text-sm whitespace-pre-line">{testResult}</div>
         )}
       </section>
     </div>

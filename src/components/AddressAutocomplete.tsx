@@ -1,6 +1,7 @@
 ﻿import { useEffect, useState, useRef, forwardRef, useImperativeHandle } from 'react';
-import { AddressPinPicker, type AddressPinPickerConfirmedResult } from './AddressPinPicker';
+import type { AddressPinPickerConfirmedResult } from './AddressPinPicker';
 import { getMapaConfig } from '../lib/mapaConfig';
+import { geocodeGoogleSuggestions } from '../utils/googleMaps';
 
 // Faixa Unicode de marcas diacríticas combinantes (resultado de normalize('NFD')),
 // construída via charCode para evitar problemas de encoding no source.
@@ -68,15 +69,6 @@ export const AddressAutocomplete = forwardRef<AddressAutocompleteHandle, {
   const [didSearch, setDidSearch] = useState(false);
   const [activeIndex, setActiveIndex] = useState<number>(-1);
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
-  const [pinPickerOpen, setPinPickerOpen] = useState(false);
-
-  const handleConfirmManualPin = (result: AddressPinPickerConfirmedResult) => {
-    onChange(result.formattedAddress);
-    onSelectCoords?.([result.lat, result.lng], result.formattedAddress);
-    onConfirmManualPin?.(result);
-    setPinPickerOpen(false);
-    setOpen(false);
-  };
 
   const selectSuggestion = (s: AddressSuggestion) => {
     onChange(s.display_name);
@@ -209,35 +201,12 @@ export const AddressAutocomplete = forwardRef<AddressAutocompleteHandle, {
           query = `${query}, Campinas, SP`;
         }
 
-        // Provedor da geolocalização definido na aba Configurações (Google ou
-        // OpenStreetMap). O mapa (tiles) segue sempre em OpenStreetMap.
+        // Provedor da geolocalização definido na aba Configurações: Google
+        // (Geocoding API) ou OpenStreetMap (Nominatim). O mapa (tiles) segue
+        // sempre em OpenStreetMap.
         const googleCall = async (apiKey: string) => {
-          try {
-            const url = new URL('https://maps.googleapis.com/maps/api/geocode/json');
-            url.searchParams.set('address', query);
-            url.searchParams.set('region', 'br');
-            url.searchParams.set('language', 'pt-BR');
-            url.searchParams.set('components', 'country:BR');
-            url.searchParams.set('key', apiKey);
-            const res = await fetch(url.toString());
-            if (!res.ok) return { ok: false as const, results: [] as any[] };
-            const data = await res.json();
-            if (data?.status !== 'OK' || !Array.isArray(data.results)) {
-              if (data?.status && data.status !== 'ZERO_RESULTS') {
-                console.error('[AddressAutocomplete] Geocoding API:', data.status, data.error_message || '');
-              }
-              return { ok: false as const, results: [] as any[] };
-            }
-            const results = data.results.map((r: any) => ({
-              description: String(r.formatted_address || ''),
-              lat: r?.geometry?.location?.lat,
-              lng: r?.geometry?.location?.lng,
-            }));
-            return { ok: true as const, results };
-          } catch (err) {
-            console.error('[AddressAutocomplete] Google Geocoding falhou, caindo para OpenStreetMap:', err);
-            return { ok: false as const, results: [] as any[] };
-          }
+          const results = await geocodeGoogleSuggestions(query, apiKey);
+          return { ok: results.length > 0, results };
         };
 
         const osmCall = async () => {
@@ -263,38 +232,13 @@ export const AddressAutocomplete = forwardRef<AddressAutocompleteHandle, {
           }
         };
 
-        // Fallback final: a API própria (Carbymaps) — garante que a busca sempre
-        // retorne algo, mesmo se Google/OSM falharem no navegador.
-        const carbyCall = async () => {
-          try {
-            const base = import.meta.env.VITE_MAPS_API_URL as string;
-            const key = import.meta.env.VITE_MAPS_API_KEY as string;
-            if (!base) return { ok: false as const, results: [] as any[] };
-            const url = new URL('/v1/autocomplete', base);
-            url.searchParams.set('input', query);
-            const res = await fetch(url.toString(), { headers: key ? { 'X-API-Key': key } : undefined });
-            if (!res.ok) return { ok: false as const, results: [] as any[] };
-            const data = await res.json();
-            const results = (Array.isArray(data?.predictions) ? data.predictions : []).map((item: any) => ({
-              description: String(item.description || ''),
-              lat: typeof item.lat === 'number' ? item.lat : undefined,
-              lng: typeof item.lng === 'number' ? item.lng : undefined,
-            }));
-            return { ok: true as const, results };
-          } catch {
-            return { ok: false as const, results: [] as any[] };
-          }
-        };
-
         const call = async () => {
           const cfg = await getMapaConfig();
           if (cfg.provider === 'google' && cfg.apiKey) {
             const g = await googleCall(cfg.apiKey);
             if (g.ok && g.results.length) return g;
           }
-          const o = await osmCall();
-          if (o.ok && o.results.length) return o;
-          return carbyCall();
+          return osmCall();
         };
 
         const first = await call();
@@ -394,7 +338,7 @@ export const AddressAutocomplete = forwardRef<AddressAutocompleteHandle, {
         placeholder={placeholder}
         className={`w-full px-3 py-2 border rounded ${inputClassName || 'border-slate-300'}`}
       />
-      {open && !pinPickerOpen && trimmedValue.length > 0 && (
+      {open && trimmedValue.length > 0 && (
         <div className="absolute z-[10000] w-full mt-1 bg-white border border-slate-200 rounded shadow-lg pointer-events-auto">
           {trimmedValue.length < 3 ? (
             <div className="px-3 py-2 text-sm text-slate-500">Digite pelo menos 3 caracteres</div>
@@ -429,16 +373,6 @@ export const AddressAutocomplete = forwardRef<AddressAutocompleteHandle, {
                   ))}
                 </ul>
               )}
-              <button
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  setPinPickerOpen(true);
-                }}
-                className="w-full text-left px-3 pb-2 text-sky-600 hover:text-sky-700 font-medium text-sm"
-              >
-                📍 Não encontrou seu endereço? Marque no mapa
-              </button>
             </div>
           ) : (
             <ul className="max-h-60 overflow-auto">
@@ -461,13 +395,6 @@ export const AddressAutocomplete = forwardRef<AddressAutocompleteHandle, {
             </ul>
           )}
         </div>
-      )}
-      {pinPickerOpen && (
-        <AddressPinPicker
-          addressText={trimmedValue}
-          onConfirm={handleConfirmManualPin}
-          onCancel={() => setPinPickerOpen(false)}
-        />
       )}
     </div>
   );

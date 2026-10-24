@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Save, AlertCircle, Clock, DollarSign, Settings, Zap } from 'lucide-react';
 import { Database } from '../../lib/database.types';
+import { RoteirizacaoLojasConfig } from './RoteirizacaoLojasConfig';
 
 type ConfigOperacao = Database['public']['Tables']['configuracoes_operacao']['Row'];
 
@@ -336,6 +337,8 @@ export function ConfiguracoesOperacaoPanel() {
                 </label>
               </div>
             </div>
+
+            <RoteirizacaoLojasConfig />
 
           </div>
         </div>

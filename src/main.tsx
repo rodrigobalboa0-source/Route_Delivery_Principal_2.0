@@ -2,7 +2,6 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import { Cadastro } from './components/Cadastro';
-import { GoogleMapsKeyProvider } from './lib/GoogleMapsKeyContext';
 import './index.css';
 
 
@@ -54,9 +53,7 @@ try {
 
   createRoot(rootElement).render(
     <StrictMode>
-      <GoogleMapsKeyProvider>
-        {isCadastroPage ? <Cadastro /> : <App />}
-      </GoogleMapsKeyProvider>
+      {isCadastroPage ? <Cadastro /> : <App />}
     </StrictMode>
   );
 } catch (error: any) {

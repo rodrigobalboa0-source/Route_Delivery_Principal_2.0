@@ -1,9 +1,22 @@
+// Geolocalização com provedor configurável na aba Configurações:
+//  - OpenStreetMap (padrão): Nominatim (endereço) + OSRM (rota).
+//  - Google (opcional): Geocoding API (endereço) + Routes API (rota), com
+//    reserva automática no OpenStreetMap quando o Google não responde.
+// O mapa (tiles) é sempre OpenStreetMap, independente do provedor escolhido.
+import { getMapaConfig } from '../lib/mapaConfig';
+import { geocodeGoogle, reverseGeocodeGoogle, routeDistanceGoogle } from './googleMaps';
 
-const MAPS_API_URL = import.meta.env.VITE_MAPS_API_URL;
-const MAPS_API_KEY = import.meta.env.VITE_MAPS_API_KEY;
+async function googleAtivo(): Promise<string | null> {
+  try {
+    const cfg = await getMapaConfig();
+    return cfg.provider === 'google' && cfg.apiKey ? cfg.apiKey : null;
+  } catch {
+    return null;
+  }
+}
 
 export function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const R = 6371; 
+  const R = 6371;
   const dLat = deg2rad(lat2 - lat1);
   const dLon = deg2rad(lon2 - lon1);
   const a =
@@ -11,7 +24,7 @@ export function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: numb
     Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
     Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const d = R * c; 
+  const d = R * c;
   return d;
 }
 
@@ -33,7 +46,7 @@ function sanitizeAddressQuery(address: string) {
 function normalizeAddressKey(address: string) {
   return sanitizeAddressQuery(address)
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
     .trim()
     .replace(/\s+/g, ' ');
@@ -81,7 +94,7 @@ function buildGeocodeCandidates(address: string) {
 
   if (!hasCityOrStateHint(base)) candidates.push(`${base}, Campinas, SP`);
 
-  const baseNoAccents = base.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const baseNoAccents = base.normalize('NFD').replace(/[̀-ͯ]/g, '');
   if (normalizeAddressKey(baseNoAccents) !== normalizeAddressKey(base)) {
     candidates.push(baseNoAccents);
     const movedNoAccents = moveTrailingNumberAfterStreet(baseNoAccents);
@@ -121,19 +134,23 @@ function hasCityOrStateHint(address: string) {
   return false;
 }
 
-/** Geocodifica um texto de endereço via /v1/geocode da Maps API própria (aceita CEP ou texto livre). */
-async function invokeGeocodeApi(q: string): Promise<[number, number] | undefined> {
+/** Geocodifica um texto de endereço via Nominatim (OpenStreetMap). */
+async function geocodeNominatim(q: string): Promise<[number, number] | undefined> {
   try {
-    const url = new URL(`${String(MAPS_API_URL || '').replace(/\/+$/, '')}/v1/geocode`);
-    url.searchParams.set('address', q);
-    const res = await fetchWithTimeout(url.toString(), 12000, {
-      headers: { 'X-API-Key': MAPS_API_KEY },
-    });
+    const url = new URL('https://nominatim.openstreetmap.org/search');
+    url.searchParams.set('format', 'json');
+    url.searchParams.set('limit', '1');
+    url.searchParams.set('countrycodes', 'br');
+    url.searchParams.set('accept-language', 'pt-BR');
+    url.searchParams.set('q', q);
+    const res = await fetchWithTimeout(url.toString(), 12000, { headers: { Accept: 'application/json' } });
     if (!res.ok) return undefined;
     const data = await res.json();
-    const location = data?.results?.[0]?.geometry?.location;
-    if (data?.status === 'OK' && typeof location?.lat === 'number' && typeof location?.lng === 'number') {
-      return [location.lat, location.lng];
+    const first = Array.isArray(data) ? data[0] : undefined;
+    if (first && first.lat != null && first.lon != null) {
+      const lat = Number(first.lat);
+      const lon = Number(first.lon);
+      if (!Number.isNaN(lat) && !Number.isNaN(lon)) return [lat, lon];
     }
   } catch (e) {
     void e;
@@ -141,22 +158,9 @@ async function invokeGeocodeApi(q: string): Promise<[number, number] | undefined
   return undefined;
 }
 
-async function getCoordsFromMapsApi(address: string): Promise<[number, number] | undefined> {
-  const uniqueCandidates = buildGeocodeCandidates(address);
-  if (uniqueCandidates.length === 0) return undefined;
-
-  for (const q of uniqueCandidates) {
-    const coords = await invokeGeocodeApi(q);
-    if (coords) return coords;
-  }
-
-  return undefined;
-}
-
 export async function getCoordsFromAddress(address: string): Promise<[number, number] | undefined> {
     if (!address) return undefined;
     const sanitized = sanitizeAddressQuery(address);
-
 
     const match = sanitized.match(/(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
     if (match) {
@@ -166,16 +170,33 @@ export async function getCoordsFromAddress(address: string): Promise<[number, nu
     const key = normalizeAddressKey(sanitized);
     if (!key) return undefined;
 
-
     if (coordsCache.has(key)) {
         return coordsCache.get(key);
     }
 
+    // 1) Google (Geocoding API) — quando configurado na aba Configurações.
     try {
-      const coords = await getCoordsFromMapsApi(sanitized);
-      if (coords) {
-        coordsCache.set(key, coords);
-        return coords;
+      const apiKey = await googleAtivo();
+      if (apiKey) {
+        const g = await geocodeGoogle(sanitized, apiKey);
+        if (g) {
+          coordsCache.set(key, g);
+          return g;
+        }
+      }
+    } catch (e) {
+      void e;
+    }
+
+    // 2) OpenStreetMap (Nominatim) — padrão e reserva. Tenta cada variação.
+    try {
+      const candidates = buildGeocodeCandidates(sanitized);
+      for (const q of candidates) {
+        const coords = await geocodeNominatim(q);
+        if (coords) {
+          coordsCache.set(key, coords);
+          return coords;
+        }
       }
     } catch (e) {
       console.error('Error fetching coords for address:', address, e);
@@ -207,31 +228,20 @@ export interface ConfirmarPinResult {
   error?: string;
 }
 
-/** Salva uma posição confirmada manualmente na Maps API própria (POST /v1/geocode/confirmar) — fica permanente (fonte='confirmado_manual', prioridade máxima em /v1/geocode e /v1/autocomplete futuros pro mesmo CEP). */
+/**
+ * Confirma a posição marcada manualmente no mapa. Como a geolocalização é
+ * 100% OpenStreetMap (sem serviço próprio pra salvar pin), a posição marcada
+ * é usada diretamente — não é persistida num geocoder externo.
+ */
 export async function confirmarPinPreciso(input: ConfirmarPinInput): Promise<ConfirmarPinResult> {
-  try {
-    const url = `${String(MAPS_API_URL || '').replace(/\/+$/, '')}/v1/geocode/confirmar`;
-    const res = await fetchWithTimeout(url, 8000, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-API-Key': MAPS_API_KEY },
-      body: JSON.stringify(input),
-    });
-    const data = await res.json().catch(() => null);
-    if (!res.ok || data?.status !== 'OK') {
-      return { ok: false, error: data?.error_message || `Falha ao confirmar localização (HTTP ${res.status})` };
-    }
-    const result = data?.results?.[0];
-    const location = result?.geometry?.location;
-    return {
-      ok: true,
-      lat: typeof location?.lat === 'number' ? location.lat : input.lat,
-      lng: typeof location?.lng === 'number' ? location.lng : input.lng,
-      formattedAddress: result?.formatted_address,
-    };
-  } catch (e) {
-    void e;
-    return { ok: false, error: 'Falha de conexão ao confirmar localização' };
-  }
+  const formattedAddress = [
+    input.numero && input.logradouro ? `${input.logradouro}, ${input.numero}` : input.logradouro,
+    input.bairro,
+    input.cidade && input.uf ? `${input.cidade} - ${input.uf}` : (input.cidade || input.uf),
+    input.cep,
+  ].filter(Boolean).join(', ') || undefined;
+
+  return { ok: true, lat: input.lat, lng: input.lng, formattedAddress };
 }
 
 export interface ReverseGeocodeResult {
@@ -239,20 +249,34 @@ export interface ReverseGeocodeResult {
   formattedAddress?: string;
 }
 
-/** Descobre o CEP mais próximo de uma coordenada (GET /v1/geocode/reverse) — usado pelo AddressPinPicker pra preencher o CEP sozinho a partir da posição do pin, sem depender do usuário saber/digitar o CEP no texto de busca. */
+/** Descobre o endereço/CEP mais próximo de uma coordenada via Nominatim (OpenStreetMap) — usado pelo AddressPinPicker pra preencher o CEP a partir da posição do pin. */
 export async function reverseGeocode(lat: number, lng: number): Promise<ReverseGeocodeResult | undefined> {
+  // 1) Google (reverse) — quando configurado.
   try {
-    const url = new URL(`${String(MAPS_API_URL || '').replace(/\/+$/, '')}/v1/geocode/reverse`);
+    const apiKey = await googleAtivo();
+    if (apiKey) {
+      const g = await reverseGeocodeGoogle(lat, lng, apiKey);
+      if (g?.cep || g?.formattedAddress) return g;
+    }
+  } catch (e) {
+    void e;
+  }
+
+  // 2) OpenStreetMap (Nominatim) — padrão e reserva.
+  try {
+    const url = new URL('https://nominatim.openstreetmap.org/reverse');
+    url.searchParams.set('format', 'jsonv2');
     url.searchParams.set('lat', String(lat));
-    url.searchParams.set('lng', String(lng));
-    const res = await fetchWithTimeout(url.toString(), 8000, {
-      headers: { 'X-API-Key': MAPS_API_KEY },
-    });
+    url.searchParams.set('lon', String(lng));
+    url.searchParams.set('accept-language', 'pt-BR');
+    const res = await fetchWithTimeout(url.toString(), 8000, { headers: { Accept: 'application/json' } });
     if (!res.ok) return undefined;
     const data = await res.json();
-    const result = data?.results?.[0];
-    if (data?.status !== 'OK' || !result?.cep) return undefined;
-    return { cep: result.cep, formattedAddress: result.formatted_address };
+    const cepDigits = data?.address?.postcode ? String(data.address.postcode).replace(/\D/g, '') : '';
+    const cep = cepDigits.length === 8 ? `${cepDigits.slice(0, 5)}-${cepDigits.slice(5)}` : undefined;
+    const formattedAddress = data?.display_name ? String(data.display_name) : undefined;
+    if (!cep && !formattedAddress) return undefined;
+    return { cep, formattedAddress };
   } catch (e) {
     void e;
     return undefined;
@@ -261,14 +285,36 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
 
 export async function getDrivingRouteDistance(coords: {lat: number, lon: number}[]): Promise<number | null> {
   if (coords.length < 2) return 0;
+
+  // Distância em linha reta (para a checagem de plausibilidade).
+  let straightLineKm = 0;
+  for (let i = 0; i < coords.length - 1; i++) {
+    straightLineKm += getDistanceFromLatLonInKm(coords[i].lat, coords[i].lon, coords[i + 1].lat, coords[i + 1].lon);
+  }
+  const implausivel = (km: number) => straightLineKm > 0.05 && km > straightLineKm * 2.5 + 3;
+
+  // 1) Google (Routes API) — quando configurado.
+  try {
+    const apiKey = await googleAtivo();
+    if (apiKey) {
+      const gkm = await routeDistanceGoogle(coords, apiKey);
+      if (typeof gkm === 'number' && gkm > 0 && !implausivel(gkm)) {
+        return gkm;
+      }
+    }
+  } catch (e) {
+    void e;
+  }
+
+  // 2) OSRM público (OpenStreetMap) — padrão e reserva.
   try {
     const coordString = coords.map(c => `${c.lon},${c.lat}`).join(';');
-    
+
     const url = `https://router.project-osrm.org/route/v1/driving/${coordString}?overview=false&alternatives=true&steps=false`;
     const response = await fetchWithTimeout(url, 12000);
     if (!response.ok) return null;
     const data = await response.json();
-    
+
     if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
 
       const shortestRoute = data.routes.reduce((min: any, current: any) => {
@@ -277,11 +323,7 @@ export async function getDrivingRouteDistance(coords: {lat: number, lon: number}
 
       const drivingKm = shortestRoute.distance / 1000;
 
-      let straightLineKm = 0;
-      for (let i = 0; i < coords.length - 1; i++) {
-        straightLineKm += getDistanceFromLatLonInKm(coords[i].lat, coords[i].lon, coords[i + 1].lat, coords[i + 1].lon);
-      }
-      if (straightLineKm > 0.05 && drivingKm > straightLineKm * 2.5 + 3) {
+      if (implausivel(drivingKm)) {
         console.warn('[getDrivingRouteDistance] Distância implausível descartada:', { drivingKm, straightLineKm });
         return null;
       }
