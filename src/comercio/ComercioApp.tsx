@@ -3,6 +3,7 @@ import './LojaV1.css';
 import MapaEntregadoresV1 from '../components/MapaEntregadoresV1';
 import { AddressAutocomplete } from '../components/AddressAutocomplete';
 import { ComercioCreditosPanel } from '../components/comercio/ComercioCreditosPanel';
+import * as XLSX from 'xlsx';
 
 // Modo crédito = NÃO é faturamento. A aba Créditos só aparece para lojas em crédito.
 function ehModoCredito(loja: LojaAtual | null): boolean {
@@ -727,11 +728,16 @@ function SolicitarEntrega({ loja }: { loja: LojaAtual }) {
 }
 
 // Aba "Relatórios": entregas de um período, com totais.
+function escHtml(s: any): string {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+}
+
 function RelatoriosComercio({ loja }: { loja: LojaAtual }) {
   const fmt = (d: Date) => d.toISOString().slice(0, 10);
   const hoje = new Date();
   const [desde, setDesde] = useState(fmt(new Date(hoje.getTime() - 30 * 24 * 60 * 60 * 1000)));
   const [ate, setAte] = useState(fmt(hoje));
+  const [statusFiltro, setStatusFiltro] = useState<'todos' | 'entregue' | 'cancelado'>('todos');
   const [res, setRes] = useState<RelatorioResultado | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -750,13 +756,56 @@ function RelatoriosComercio({ loja }: { loja: LojaAtual }) {
   }
   useEffect(() => { carregar(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
+  const linhas = (res?.linhas || []).filter(l => {
+    const s = l.status.toLowerCase();
+    if (statusFiltro === 'entregue') return s === 'entregue';
+    if (statusFiltro === 'cancelado') return s === 'cancelado' || s === 'cancelada';
+    return true;
+  });
+  const totalFiltrado = linhas.reduce((s, l) => s + (Number(l.valor) || 0), 0);
+  const nomeArq = `relatorio-${(loja.nomeFantasia || 'loja').replace(/[^a-zA-Z0-9]+/g, '_')}-${desde}_a_${ate}`;
+
+  function exportarExcel() {
+    const dados = linhas.map(l => ({
+      'Nº': l.numero,
+      'Data': fmtDataHora(l.data),
+      'Cliente': l.cliente,
+      'Endereço': l.endereco,
+      'Entregador': l.entregadorNome || '—',
+      'Status': statusBadge(l.status).rotulo,
+      'Valor (R$)': Number(l.valor || 0),
+    }));
+    const ws = XLSX.utils.json_to_sheet(dados);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Relatório');
+    XLSX.writeFile(wb, `${nomeArq}.xlsx`);
+  }
+
+  function exportarWord() {
+    const corpo = linhas.map(l => `<tr><td>${escHtml(l.numero)}</td><td>${escHtml(fmtDataHora(l.data))}</td><td>${escHtml(l.cliente)}</td><td>${escHtml(l.endereco)}</td><td>${escHtml(l.entregadorNome || '—')}</td><td>${escHtml(statusBadge(l.status).rotulo)}</td><td>${escHtml(moeda(l.valor))}</td></tr>`).join('');
+    const html = `<!doctype html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><title>Relatório</title></head><body style="font-family:Arial,sans-serif"><h2>Relatório de Entregas — ${escHtml(loja.nomeFantasia)}</h2><p>Período: ${escHtml(desde)} a ${escHtml(ate)} · ${linhas.length} registro(s) · Total: ${escHtml(moeda(totalFiltrado))}</p><table border="1" cellspacing="0" cellpadding="5" style="border-collapse:collapse;font-size:12px"><thead><tr style="background:#eee"><th>Nº</th><th>Data</th><th>Cliente</th><th>Endereço</th><th>Entregador</th><th>Status</th><th>Valor</th></tr></thead><tbody>${corpo}</tbody></table></body></html>`;
+    const blob = new Blob(['﻿', html], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `${nomeArq}.doc`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="painel">
       <section className="painel-bloco">
         <h2 style={{ marginBottom: 12 }}>Relatórios · Entregas</h2>
-        <div className="criar-linha" style={{ marginBottom: 12 }}>
+        <div className="criar-linha" style={{ marginBottom: 12, flexWrap: 'wrap' }}>
           <label className="cr-agenda">De <input type="date" value={desde} onChange={e => setDesde(e.target.value)} /></label>
           <label className="cr-agenda">Até <input type="date" value={ate} onChange={e => setAte(e.target.value)} /></label>
+          <label className="cr-agenda">Status
+            <select value={statusFiltro} onChange={e => setStatusFiltro(e.target.value as any)} style={{ marginLeft: 6 }}>
+              <option value="todos">Todos</option>
+              <option value="entregue">Entregue</option>
+              <option value="cancelado">Cancelado</option>
+            </select>
+          </label>
           <button type="button" className="btn" onClick={carregar} disabled={carregando}>{carregando ? 'Gerando…' : 'Gerar'}</button>
         </div>
 
@@ -764,19 +813,21 @@ function RelatoriosComercio({ loja }: { loja: LojaAtual }) {
 
         {res && (
           <>
-            <div className="criar-linha" style={{ gap: 18, marginBottom: 12 }}>
-              <div className="criar-calculo"><strong>{res.quantidade}</strong> entregas</div>
-              <div className="criar-calculo"><strong>{res.entregues}</strong> entregues</div>
-              <div className="criar-calculo">Total: <strong>{moeda(res.total)}</strong></div>
+            <div className="criar-linha" style={{ gap: 18, marginBottom: 12, flexWrap: 'wrap' }}>
+              <div className="criar-calculo"><strong>{linhas.length}</strong> registro(s)</div>
+              <div className="criar-calculo">Total: <strong>{moeda(totalFiltrado)}</strong></div>
+              <span style={{ flex: 1 }} />
+              <button type="button" className="btn btn-fantasma" onClick={exportarExcel} disabled={linhas.length === 0}>⬇ Excel</button>
+              <button type="button" className="btn btn-fantasma" onClick={exportarWord} disabled={linhas.length === 0}>⬇ Word</button>
             </div>
-            {res.linhas.length === 0 ? (
-              <div className="sem-registros"><span>∅</span> Nenhuma entrega no período.</div>
+            {linhas.length === 0 ? (
+              <div className="sem-registros"><span>∅</span> Nenhum pedido {statusFiltro === 'todos' ? 'no período' : statusFiltro === 'entregue' ? 'entregue no período' : 'cancelado no período'}.</div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table className="tabela">
                   <thead><tr><th>Nº</th><th>Data</th><th>Cliente</th><th>Endereço</th><th>Entregador</th><th>Status</th><th>Valor</th></tr></thead>
                   <tbody>
-                    {res.linhas.map(l => {
+                    {linhas.map(l => {
                       const b = statusBadge(l.status);
                       return (
                         <tr key={l.id}>
