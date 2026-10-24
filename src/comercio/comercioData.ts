@@ -46,6 +46,17 @@ function num(v: any): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+// Monta o endereço da loja a partir dos campos reais de `clientes`
+// (rua, numero, bairro, cidade, cep). É esse endereço que vira a COLETA.
+function montarEnderecoLoja(row: any): string | null {
+  if (row?.endereco) return String(row.endereco);
+  const partes = [row?.rua, row?.numero, row?.bairro, row?.cidade].map((p) => String(p ?? '').trim()).filter(Boolean);
+  if (partes.length === 0) return null;
+  const base = partes.join(', ');
+  const cep = String(row?.cep ?? '').trim();
+  return cep ? `${base}, ${cep}` : base;
+}
+
 export async function getLojaAtual(): Promise<LojaAtual | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
@@ -72,7 +83,7 @@ export async function getLojaAtual(): Promise<LojaAtual | null> {
     modalidadeCobranca: row.modalidade_cobranca || row.modalidade || null,
     lat: num(row.latitude ?? row.lat),
     lng: num(row.longitude ?? row.lng),
-    endereco: row.endereco || row.endereco_texto || [row.logradouro, row.numero].filter(Boolean).join(', ') || null,
+    endereco: montarEnderecoLoja(row),
     precificacaoConfig: Array.isArray(row.precificacao_config) ? row.precificacao_config : null,
     retornoPercentual: num(row.retorno_percentual) ?? 20,
     modoFaturamento: row.modo_faturamento || null,

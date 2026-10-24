@@ -186,7 +186,8 @@ export async function criarEntregaComercio(loja: LojaAtual, d: DadosNovaEntrega)
       entrega_contato: d.clienteNome || null,
       entrega_telefone: d.clienteTelefone || null,
       entrega_endereco_texto: d.enderecoTexto || null,
-      coleta_endereco_texto: d.coletaTexto || null,
+      // Coleta: endereço informado (modo invertido) ou o endereço da própria loja.
+      coleta_endereco_texto: d.coletaTexto || loja.endereco || null,
       entrega_complemento: d.complemento || null,
       entrega_observacoes: d.observacao || null,
       retorno: d.retorno,
