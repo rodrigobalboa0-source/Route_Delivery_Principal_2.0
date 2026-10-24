@@ -49,6 +49,24 @@ export function ConfiguracoesOperacaoPanel() {
     setConfig({ ...(config as any), regras_saque: next } as any);
   };
 
+  // Regra: devolver a entrega se o entregador não chegar na loja a tempo.
+  const getRegraDevolver = () => {
+    const raw = (config as any)?.regras_auto_cancelamento;
+    const base = (raw && typeof raw === 'object') ? raw : {};
+    const r = (base as any).devolver_sem_coleta;
+    const obj = (r && typeof r === 'object') ? r : {};
+    return {
+      ativo: Boolean(obj.ativo),
+      minutos: typeof obj.minutos === 'number' && obj.minutos > 0 ? obj.minutos : 15,
+    };
+  };
+  const setRegraDevolver = (patch: Partial<{ ativo: boolean; minutos: number }>) => {
+    if (!config) return;
+    const atual = getRegraDevolver();
+    const base = ((config as any).regras_auto_cancelamento && typeof (config as any).regras_auto_cancelamento === 'object') ? (config as any).regras_auto_cancelamento : {};
+    setConfig({ ...(config as any), regras_auto_cancelamento: { ...base, devolver_sem_coleta: { ...atual, ...patch } } } as any);
+  };
+
   useEffect(() => {
     fetchConfig();
   }, []);
@@ -108,6 +126,7 @@ export function ConfiguracoesOperacaoPanel() {
           modo_automatico: config.modo_automatico,
           taxa_saque_rapido: config.taxa_saque_rapido,
           regras_saque: (config as any).regras_saque ?? {},
+          regras_auto_cancelamento: (config as any).regras_auto_cancelamento ?? {},
           updated_at: new Date().toISOString()
         })
         .eq('id', config.id);
@@ -336,6 +355,45 @@ export function ConfiguracoesOperacaoPanel() {
                   <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-sky-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sky-600"></div>
                 </label>
               </div>
+            </div>
+
+            <div className="border-t border-slate-100 pt-6">
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-lg ${getRegraDevolver().ativo ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-500'}`}>
+                    <Clock size={24} />
+                  </div>
+                  <div>
+                    <div className="font-medium text-slate-900">Devolver entrega se o entregador não chegar na loja</div>
+                    <div className="text-xs text-slate-500 max-w-xl">
+                      Depois que o entregador aceita, se ele não der "Cheguei na loja" dentro do tempo abaixo, a entrega sai da tela dele e volta para a nuvem procurar outro entregador.
+                    </div>
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={getRegraDevolver().ativo}
+                    onChange={(e) => setRegraDevolver({ ativo: e.target.checked })}
+                  />
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-amber-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                </label>
+              </div>
+              {getRegraDevolver().ativo && (
+                <div className="mt-4 flex items-center gap-2">
+                  <span className="text-sm text-slate-600">Tempo limite para chegar na loja:</span>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={getRegraDevolver().minutos}
+                    onChange={(e) => setRegraDevolver({ minutos: Math.max(1, parseInt(e.target.value, 10) || 15) })}
+                    className="w-20 px-2 py-1.5 border border-slate-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                  <span className="text-sm text-slate-600">minutos</span>
+                </div>
+              )}
             </div>
 
             <RoteirizacaoLojasConfig />
