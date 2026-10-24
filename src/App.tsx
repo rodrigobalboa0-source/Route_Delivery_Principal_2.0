@@ -272,7 +272,9 @@ function App() {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('activeMenu');
     }
-    window.location.href = '/';
+    // No comerciante, volta para a própria tela de login (/comercio) em vez do admin.
+    const noComercio = typeof window !== 'undefined' && window.location.pathname === '/comercio';
+    window.location.href = noComercio ? '/comercio' : '/';
   };
 
   const resolveRole = async (uid: string, emailRaw: string) => {
