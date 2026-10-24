@@ -134,7 +134,8 @@ function round2(v: number): number { return Math.round(v * 100) / 100; }
 export interface DadosNovaEntrega {
   clienteNome: string;
   clienteTelefone: string;
-  enderecoTexto: string;
+  enderecoTexto: string;      // endereço de ENTREGA
+  coletaTexto?: string | null; // endereço de COLETA (quando diferente da loja — endereços invertidos)
   complemento?: string;
   observacao?: string;
   formaPagamento?: string;
@@ -185,6 +186,7 @@ export async function criarEntregaComercio(loja: LojaAtual, d: DadosNovaEntrega)
       entrega_contato: d.clienteNome || null,
       entrega_telefone: d.clienteTelefone || null,
       entrega_endereco_texto: d.enderecoTexto || null,
+      coleta_endereco_texto: d.coletaTexto || null,
       entrega_complemento: d.complemento || null,
       entrega_observacoes: d.observacao || null,
       retorno: d.retorno,

@@ -599,19 +599,128 @@ function fmtDataHora(iso: string | null): string {
   return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
-// Aba "Solicitar Entrega": o mesmo fluxo de criação do painel, em página própria.
+// Aba "Solicitar Entrega": formulário completo com opção de inverter endereços
+// (coletar num endereço fora da loja e entregar na própria loja).
 function SolicitarEntrega({ loja }: { loja: LojaAtual }) {
-  const [feitos, setFeitos] = useState(0);
+  const VAZIO = { clienteNome: '', clienteTelefone: '', endereco: '', complemento: '', formaPagamento: '', observacao: '' };
+  const [v, setV] = useState(VAZIO);
+  const [inverter, setInverter] = useState(false);
+  const [retorno, setRetorno] = useState(false);
+  const [pronto, setPronto] = useState(false);
+  const [destino, setDestino] = useState<[number, number] | null>(null);
+  const [preco, setPreco] = useState<ResultadoPreco | null>(null);
+  const [calculando, setCalculando] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const [okMsg, setOkMsg] = useState<string | null>(null);
+  const calcIdRef = useRef(0);
+  const set = (k: keyof typeof VAZIO) => (val: string) => setV(x => ({ ...x, [k]: val }));
+
+  useEffect(() => {
+    const end = v.endereco.trim();
+    if (end.length < 5) { setPreco(null); return; }
+    const id = ++calcIdRef.current;
+    setCalculando(true);
+    const t = setTimeout(async () => {
+      try {
+        const r = await calcularPreco(loja, { destino, enderecoTexto: end, retorno });
+        if (id === calcIdRef.current) setPreco(r);
+      } catch {
+        if (id === calcIdRef.current) setPreco({ valor: null, km: null, dinamico: false, erro: 'Erro ao calcular o preço.' });
+      } finally {
+        if (id === calcIdRef.current) setCalculando(false);
+      }
+    }, 700);
+    return () => clearTimeout(t);
+  }, [v.endereco, destino, retorno, loja]);
+
+  async function criar(e: React.FormEvent) {
+    e.preventDefault();
+    setErro(null); setOkMsg(null);
+    if (!v.clienteNome.trim()) { setErro('Informe o nome do cliente.'); return; }
+    if (v.endereco.trim().length < 5) { setErro(inverter ? 'Informe o endereço de coleta.' : 'Informe o endereço de entrega.'); return; }
+    if (inverter && !loja.endereco) { setErro('Sua loja não tem endereço cadastrado para usar como entrega.'); return; }
+    setEnviando(true);
+    try {
+      let p = preco;
+      if (!p || p.valor == null) p = await calcularPreco(loja, { destino, enderecoTexto: v.endereco.trim(), retorno });
+      await criarEntregaComercio(loja, {
+        clienteNome: v.clienteNome.trim(),
+        clienteTelefone: v.clienteTelefone.trim(),
+        enderecoTexto: inverter ? (loja.endereco || '') : v.endereco.trim(),
+        coletaTexto: inverter ? v.endereco.trim() : null,
+        complemento: v.complemento.trim(),
+        observacao: v.observacao.trim(),
+        formaPagamento: v.formaPagamento,
+        agendadoPara: null,
+        retorno, pronto,
+        valor: p?.valor ?? null, km: p?.km ?? null,
+      });
+      setV(VAZIO); setRetorno(false); setPronto(false); setDestino(null); setPreco(null);
+      setOkMsg('Entrega criada com sucesso! Acompanhe no Painel de Controle.');
+    } catch (err: any) {
+      setErro(err?.message || 'Erro ao criar a entrega.');
+    } finally {
+      setEnviando(false);
+    }
+  }
+
   return (
     <div className="painel">
       <section className="painel-bloco">
         <h2 style={{ marginBottom: 12 }}>Solicitar Entrega</h2>
-        <CriarRapido loja={loja} onCriado={() => setFeitos(f => f + 1)} />
-        {feitos > 0 && (
-          <p className="apagado" style={{ marginTop: 12 }}>
-            {feitos === 1 ? 'Entrega criada' : `${feitos} entregas criadas`} nesta sessão. Acompanhe no Painel de Controle.
-          </p>
-        )}
+        <form onSubmit={criar} className="solicitar-form" style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 560 }}>
+          <label className="cr-agenda" style={{ gap: 10 }}>
+            <input type="checkbox" checked={inverter} onChange={e => setInverter(e.target.checked)} />
+            <span>Inverter endereços (coletar fora da loja e entregar na loja)</span>
+          </label>
+
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <input style={{ flex: '2 1 200px' }} value={v.clienteNome} onChange={e => set('clienteNome')(e.target.value)} placeholder="Nome do cliente" required />
+            <input style={{ flex: '1 1 140px' }} value={v.clienteTelefone} onChange={e => set('clienteTelefone')(e.target.value)} placeholder="Telefone" inputMode="tel" />
+          </div>
+
+          <div>
+            <div className="apagado" style={{ fontSize: 12, marginBottom: 4 }}>{inverter ? 'Endereço de COLETA (fora da loja)' : 'Endereço de ENTREGA (cliente)'}</div>
+            <AddressAutocomplete
+              value={v.endereco}
+              onChange={(val) => { set('endereco')(val); setDestino(null); }}
+              onSelectCoords={(coords) => setDestino(coords ?? null)}
+              placeholder={inverter ? 'Endereço de coleta (rua, número, bairro)' : 'Endereço de entrega (rua, número, bairro)'}
+            />
+          </div>
+
+          {inverter && (
+            <div className="apagado" style={{ fontSize: 12 }}>
+              Entrega será na sua loja: <strong>{loja.endereco || '— (cadastre o endereço da loja)'}</strong>
+            </div>
+          )}
+
+          <input value={v.complemento} onChange={e => set('complemento')(e.target.value)} placeholder="Complemento (opcional)" />
+
+          <select value={v.formaPagamento} onChange={e => set('formaPagamento')(e.target.value)} aria-label="Pagamento do cliente">
+            <option value="">Pagamento do cliente</option>
+            {PAGAMENTOS.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+
+          <textarea value={v.observacao} onChange={e => set('observacao')(e.target.value)} placeholder="Observação (opcional)" rows={2} />
+
+          <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
+            <label className="cr-agenda"><input type="checkbox" checked={retorno} onChange={e => setRetorno(e.target.checked)} /> <span>Retorno à loja</span></label>
+            <label className="cr-agenda"><input type="checkbox" checked={pronto} onChange={e => setPronto(e.target.checked)} /> <span>Já chamar entregador (pronto)</span></label>
+          </div>
+
+          <div className="criar-calculo">
+            {calculando ? 'Calculando preço…' : preco?.erro ? <span style={{ color: 'var(--aviso)' }}>{preco.erro}</span> : preco?.valor != null ? <>✓ Taxa: <strong>{moeda(preco.valor)}</strong>{preco.km != null ? ` · ${preco.km.toFixed(1)} km` : ''}{preco.dinamico ? ' · 🔥 Preço dinâmico' : ''}</> : null}
+          </div>
+
+          {erro && <div className="erro-caixa" role="alert"><span>{erro}</span></div>}
+          {okMsg && <div className="apagado" style={{ color: 'var(--ok)' }}>{okMsg}</div>}
+
+          <div>
+            <button type="submit" className="btn btn-primario" disabled={enviando}>{enviando ? 'Criando…' : 'Criar entrega'}</button>
+          </div>
+        </form>
       </section>
     </div>
   );

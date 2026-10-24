@@ -21,8 +21,11 @@ type SaqueRules = {
 export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) {
   const [extrato, setExtrato] = useState<any[]>([]);
   const [acertos, setAcertos] = useState<any[]>([]);
+  const [canceladas, setCanceladas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saldo, setSaldo] = useState(0);
+  type TipoFiltro = 'todos' | 'finalizados' | 'cancelados' | 'saques';
+  const [tipoFiltro, setTipoFiltro] = useState<TipoFiltro>('todos');
 
   function safeParseArray(value: any) {
     if (Array.isArray(value)) return value;
@@ -75,24 +78,29 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
     return isAcerto ? item.created_at : (item.updated_at || item.created_at);
   };
 
+  const isCancelada = (item: any) => !('valor_pago' in item) && (item?.status === 'cancelada' || item?.status === 'cancelado');
+
   const filteredItems = useMemo(() => {
-    const all = [...extrato, ...acertos].sort(
-      (a, b) => new Date(getItemDate(b)).getTime() - new Date(getItemDate(a)).getTime()
-    );
+    let base: any[];
+    if (tipoFiltro === 'finalizados') base = [...extrato];
+    else if (tipoFiltro === 'cancelados') base = [...canceladas];
+    else if (tipoFiltro === 'saques') base = [...acertos];
+    else base = [...extrato, ...acertos];
+    base = base.sort((a, b) => new Date(getItemDate(b)).getTime() - new Date(getItemDate(a)).getTime());
     const { from, to } = getFilterRange();
-    if (!from || !to) return all;
-    return all.filter(item => {
+    if (!from || !to) return base;
+    return base.filter(item => {
       const d = new Date(getItemDate(item));
       return d >= from && d <= to;
     });
-  }, [extrato, acertos, filterType, dateFrom, dateTo]);
+  }, [extrato, acertos, canceladas, tipoFiltro, filterType, dateFrom, dateTo]);
 
   const periodTotal = useMemo(() => {
     return filteredItems.reduce((acc, item) => {
       const isAcerto = 'valor_pago' in item;
       const val = isAcerto
         ? -((Number(item.valor_pago) || 0) + (Number(item.taxa_aplicada) || 0))
-        : calculateMultiDestinoTotal(item);
+        : (isCancelada(item) ? 0 : calculateMultiDestinoTotal(item));
       return acc + val;
     }, 0);
   }, [filteredItems]);
@@ -243,6 +251,15 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
         .order('updated_at', { ascending: false });
 
       if (entregasError) throw entregasError;
+
+      const { data: canceladasData } = await supabase
+        .from('nova_entrega')
+        .select('*')
+        .eq('entregador_id', entregadorId)
+        .in('status', ['cancelada', 'cancelado'])
+        .order('updated_at', { ascending: false })
+        .limit(500);
+      setCanceladas(canceladasData || []);
 
       const { data: acertosData, error: acertosError } = await supabase
         .from('acertos_entregadores')
@@ -658,6 +675,11 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
       <div className="bg-white p-6 rounded-lg shadow-sm mb-6 border border-slate-100">
          <h2 className="text-sm text-gray-500 uppercase font-semibold tracking-wide">Saldo Atual</h2>
          <p className="text-4xl font-bold text-gray-800 mt-2">R$ {saldo.toFixed(2)}</p>
+         {quickWithdrawFee > 0 && (
+           <p className="text-xs text-gray-500 mt-2 inline-flex items-center gap-1">
+             <Zap size={12} className="text-yellow-500" /> Saque rápido: taxa de <strong className="text-yellow-700">{quickWithdrawFee}%</strong>
+           </p>
+         )}
       </div>
 
       {pendingWithdrawals.length > 0 && (
@@ -686,6 +708,21 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
 
       {}
       <div className="bg-white rounded-lg border border-slate-100 shadow-sm p-3 mb-4 space-y-3">
+        {/* Filtro por tipo: tudo, finalizados, cancelados, saques */}
+        <div className="flex gap-2 flex-wrap">
+          {([['todos', 'Todos'], ['finalizados', 'Finalizados'], ['cancelados', 'Cancelados'], ['saques', 'Saques']] as const).map(([v, label]) => (
+            <button
+              key={v}
+              onClick={() => setTipoFiltro(v)}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors border ${
+                tipoFiltro === v ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-300 hover:border-emerald-400'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {/* Filtro por período (data) */}
         <div className="flex gap-2 flex-wrap">
           {(['tudo', 'personalizado'] as const).map(f => (
             <button
@@ -755,12 +792,15 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
              <tbody className="divide-y divide-gray-100">
                {filteredItems.map((item) => {
                  const isAcerto = 'valor_pago' in item;
-                 const valor = isAcerto ? -((Number(item.valor_pago) || 0) + (Number(item.taxa_aplicada) || 0)) : calculateMultiDestinoTotal(item);
+                 const cancelada = isCancelada(item);
+                 const valor = isAcerto
+                   ? -((Number(item.valor_pago) || 0) + (Number(item.taxa_aplicada) || 0))
+                   : (cancelada ? 0 : calculateMultiDestinoTotal(item));
                  const descricao = isAcerto
                    ? (item.status === 'pendente'
                        ? (item.tipo_saque === 'rapido' ? 'Saque Rápido (Pendente)' : 'Saque (Pendente)')
                        : (item.tipo_saque === 'rapido' ? 'Saque Rápido Realizado' : 'Saque Realizado'))
-                   : (item.descricao || 'Comissão de Entrega');
+                   : (cancelada ? 'Pedido cancelado' : (item.descricao || 'Comissão de Entrega'));
 
                  return (
                    <tr key={item.id} className="hover:bg-slate-50 transition-colors">
@@ -773,9 +813,12 @@ export function EntregadorExtratoPanel({ userId }: EntregadorExtratoPanelProps) 
                        {isAcerto && item.status === 'pendente' && (
                          <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">Pendente</span>
                        )}
+                       {cancelada && (
+                         <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">Cancelado</span>
+                       )}
                      </td>
-                     <td className={`p-4 text-right font-medium text-sm ${valor >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                       {valor >= 0 ? '+' : '-'} R$ {Math.abs(valor).toFixed(2)}
+                     <td className={`p-4 text-right font-medium text-sm ${cancelada ? 'text-slate-400' : valor >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                       {cancelada ? 'R$ 0,00' : `${valor >= 0 ? '+' : '-'} R$ ${Math.abs(valor).toFixed(2)}`}
                      </td>
                    </tr>
                  );
