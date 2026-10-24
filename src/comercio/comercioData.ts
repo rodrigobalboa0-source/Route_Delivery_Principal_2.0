@@ -145,6 +145,126 @@ export async function getEntregadoresOnline(): Promise<EntregadorMapa[]> {
     .filter(Boolean) as EntregadorMapa[];
 }
 
+// ----- Relatórios: entregas de um período -----
+export interface RelatorioEntrega {
+  id: string;
+  numero: string;
+  data: string | null;
+  cliente: string;
+  endereco: string;
+  valor: number | null;
+  status: string;
+  entregadorNome: string | null;
+}
+
+export interface RelatorioResultado {
+  linhas: RelatorioEntrega[];
+  total: number;        // soma dos valores
+  quantidade: number;   // nº de entregas
+  entregues: number;    // nº com status entregue
+}
+
+export async function getRelatorioEntregas(clienteId: string, desdeISO: string, ateISO: string): Promise<RelatorioResultado> {
+  const { data: pedidos, error } = await supabase
+    .from('pedidos')
+    .select('id, numero, status, created_at, valor_total')
+    .eq('cliente_id', clienteId)
+    .gte('created_at', desdeISO)
+    .lte('created_at', ateISO)
+    .order('created_at', { ascending: false })
+    .limit(2000);
+  if (error) throw error;
+
+  const ids = (pedidos || []).map((p: any) => String(p.id));
+  const entregaPorPedido = new Map<string, any>();
+  if (ids.length > 0) {
+    const { data: entregas } = await supabase
+      .from('nova_entrega')
+      .select('pedido_id, entrega_contato, entrega_endereco_texto, valor_entrega, entregadores ( nome_completo )')
+      .in('pedido_id', ids);
+    for (const e of (entregas || []) as any[]) {
+      if (e.pedido_id) entregaPorPedido.set(String(e.pedido_id), e);
+    }
+  }
+
+  const linhas: RelatorioEntrega[] = ((pedidos || []) as any[]).map((p) => {
+    const e = entregaPorPedido.get(String(p.id));
+    const valor = (e?.valor_entrega ?? p.valor_total ?? null) as number | null;
+    return {
+      id: String(p.id),
+      numero: p.numero ? String(p.numero) : String(p.id).slice(0, 8),
+      data: p.created_at || null,
+      cliente: e?.entrega_contato || '—',
+      endereco: e?.entrega_endereco_texto || '',
+      valor,
+      status: String(p.status || ''),
+      entregadorNome: e?.entregadores?.nome_completo || null,
+    };
+  });
+
+  const total = linhas.reduce((s, l) => s + (Number(l.valor) || 0), 0);
+  const entregues = linhas.filter((l) => l.status.toLowerCase() === 'entregue').length;
+  return { linhas, total, quantidade: linhas.length, entregues };
+}
+
+// ----- Agendamentos: pedidos agendados para o futuro -----
+export interface Agendamento {
+  id: string;
+  numero: string;
+  agendarEm: string | null;
+  cliente: string;
+  telefone: string;
+  endereco: string;
+  valor: number | null;
+  status: string;
+}
+
+export async function getAgendamentos(clienteId: string): Promise<Agendamento[]> {
+  const agora = new Date().toISOString();
+  const { data: pedidos, error } = await supabase
+    .from('pedidos')
+    .select('id, numero, status, agendar_em, valor_total')
+    .eq('cliente_id', clienteId)
+    .not('agendar_em', 'is', null)
+    .gte('agendar_em', agora)
+    .order('agendar_em', { ascending: true })
+    .limit(500);
+  if (error) throw error;
+
+  const ids = (pedidos || []).map((p: any) => String(p.id));
+  const entregaPorPedido = new Map<string, any>();
+  if (ids.length > 0) {
+    const { data: entregas } = await supabase
+      .from('nova_entrega')
+      .select('pedido_id, entrega_contato, entrega_telefone, entrega_endereco_texto, valor_entrega')
+      .in('pedido_id', ids);
+    for (const e of (entregas || []) as any[]) {
+      if (e.pedido_id) entregaPorPedido.set(String(e.pedido_id), e);
+    }
+  }
+
+  return ((pedidos || []) as any[])
+    .filter((p) => !FINALIZADOS.has(String(p.status || '').toLowerCase()))
+    .map((p) => {
+      const e = entregaPorPedido.get(String(p.id));
+      return {
+        id: String(p.id),
+        numero: p.numero ? String(p.numero) : String(p.id).slice(0, 8),
+        agendarEm: p.agendar_em || null,
+        cliente: e?.entrega_contato || '—',
+        telefone: e?.entrega_telefone || '',
+        endereco: e?.entrega_endereco_texto || '',
+        valor: (e?.valor_entrega ?? p.valor_total ?? null) as number | null,
+        status: String(p.status || ''),
+      } as Agendamento;
+    });
+}
+
+export async function cancelarPedido(pedidoId: string): Promise<void> {
+  const { error } = await supabase.from('pedidos').update({ status: 'cancelado' }).eq('id', pedidoId);
+  if (error) throw error;
+}
+
 export function moeda(v: number | null | undefined): string {
   if (v == null) return '—';
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import './LojaV1.css';
 import MapaEntregadoresV1 from '../components/MapaEntregadoresV1';
 import { AddressAutocomplete } from '../components/AddressAutocomplete';
-import { getLojaAtual, getEntregasAbertas, getEntregadoresOnline, marcarPronto, moeda, statusBadge, FILTROS_STATUS, type LojaAtual, type EntregaAberta, type EntregadorMapa } from './comercioData';
+import { getLojaAtual, getEntregasAbertas, getEntregadoresOnline, marcarPronto, moeda, statusBadge, FILTROS_STATUS, getRelatorioEntregas, getAgendamentos, cancelarPedido, type LojaAtual, type EntregaAberta, type EntregadorMapa, type RelatorioResultado, type Agendamento } from './comercioData';
 import { calcularPreco, criarEntregaComercio, type ResultadoPreco } from './comercioPricing';
 
 // Ícones em traço (herdam a cor do texto) — iguais ao V1.
@@ -359,6 +359,171 @@ function EmBreve({ titulo }: { titulo: string }) {
   );
 }
 
+function fmtDataHora(iso: string | null): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+// Aba "Solicitar Entrega": o mesmo fluxo de criação do painel, em página própria.
+function SolicitarEntrega({ loja }: { loja: LojaAtual }) {
+  const [feitos, setFeitos] = useState(0);
+  return (
+    <div className="painel">
+      <section className="painel-bloco">
+        <h2 style={{ marginBottom: 12 }}>Solicitar Entrega</h2>
+        <CriarRapido loja={loja} onCriado={() => setFeitos(f => f + 1)} />
+        {feitos > 0 && (
+          <p className="apagado" style={{ marginTop: 12 }}>
+            {feitos === 1 ? 'Entrega criada' : `${feitos} entregas criadas`} nesta sessão. Acompanhe no Painel de Controle.
+          </p>
+        )}
+      </section>
+    </div>
+  );
+}
+
+// Aba "Relatórios": entregas de um período, com totais.
+function RelatoriosComercio({ loja }: { loja: LojaAtual }) {
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  const hoje = new Date();
+  const [desde, setDesde] = useState(fmt(new Date(hoje.getTime() - 30 * 24 * 60 * 60 * 1000)));
+  const [ate, setAte] = useState(fmt(hoje));
+  const [res, setRes] = useState<RelatorioResultado | null>(null);
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  async function carregar() {
+    setCarregando(true); setErro(null);
+    try {
+      const desdeISO = new Date(desde + 'T00:00:00').toISOString();
+      const ateISO = new Date(ate + 'T23:59:59').toISOString();
+      setRes(await getRelatorioEntregas(loja.id, desdeISO, ateISO));
+    } catch (e: any) {
+      setErro(e?.message || 'Erro ao carregar o relatório.');
+    } finally {
+      setCarregando(false);
+    }
+  }
+  useEffect(() => { carregar(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  return (
+    <div className="painel">
+      <section className="painel-bloco">
+        <h2 style={{ marginBottom: 12 }}>Relatórios · Entregas</h2>
+        <div className="criar-linha" style={{ marginBottom: 12 }}>
+          <label className="cr-agenda">De <input type="date" value={desde} onChange={e => setDesde(e.target.value)} /></label>
+          <label className="cr-agenda">Até <input type="date" value={ate} onChange={e => setAte(e.target.value)} /></label>
+          <button type="button" className="btn" onClick={carregar} disabled={carregando}>{carregando ? 'Gerando…' : 'Gerar'}</button>
+        </div>
+
+        {erro && <div className="erro-caixa" role="alert"><span>{erro}</span></div>}
+
+        {res && (
+          <>
+            <div className="criar-linha" style={{ gap: 18, marginBottom: 12 }}>
+              <div className="criar-calculo"><strong>{res.quantidade}</strong> entregas</div>
+              <div className="criar-calculo"><strong>{res.entregues}</strong> entregues</div>
+              <div className="criar-calculo">Total: <strong>{moeda(res.total)}</strong></div>
+            </div>
+            {res.linhas.length === 0 ? (
+              <div className="sem-registros"><span>∅</span> Nenhuma entrega no período.</div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="tabela">
+                  <thead><tr><th>Nº</th><th>Data</th><th>Cliente</th><th>Endereço</th><th>Entregador</th><th>Status</th><th>Valor</th></tr></thead>
+                  <tbody>
+                    {res.linhas.map(l => {
+                      const b = statusBadge(l.status);
+                      return (
+                        <tr key={l.id}>
+                          <td>{l.numero}</td>
+                          <td>{fmtDataHora(l.data)}</td>
+                          <td>{l.cliente}</td>
+                          <td className="col-endereco">{l.endereco || <span className="apagado">—</span>}</td>
+                          <td>{l.entregadorNome || <span className="apagado">—</span>}</td>
+                          <td><span className={`badge ${b.classe}`}>{b.rotulo}</span></td>
+                          <td>{moeda(l.valor)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+      </section>
+    </div>
+  );
+}
+
+// Aba "Agendamentos": pedidos agendados para o futuro, com opção de cancelar.
+function AgendamentosComercio({ loja }: { loja: LojaAtual }) {
+  const [lista, setLista] = useState<Agendamento[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);
+
+  async function carregar() {
+    setCarregando(true); setErro(null);
+    try {
+      setLista(await getAgendamentos(loja.id));
+    } catch (e: any) {
+      setErro(e?.message || 'Erro ao carregar os agendamentos.');
+    } finally {
+      setCarregando(false);
+    }
+  }
+  useEffect(() => { carregar(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  async function cancelar(id: string) {
+    if (!window.confirm('Cancelar este agendamento?')) return;
+    try {
+      await cancelarPedido(id);
+      await carregar();
+    } catch (e: any) {
+      setErro(e?.message || 'Erro ao cancelar.');
+    }
+  }
+
+  return (
+    <div className="painel">
+      <section className="painel-bloco">
+        <h2 style={{ marginBottom: 12 }}>Agendamentos</h2>
+        {erro && <div className="erro-caixa" role="alert"><span>{erro}</span></div>}
+        {carregando ? (
+          <div className="carregando"><span className="spinner" /> Carregando…</div>
+        ) : lista.length === 0 ? (
+          <div className="sem-registros"><span>∅</span> Nenhum pedido agendado para frente.</div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table className="tabela">
+              <thead><tr><th>Nº</th><th>Agendado para</th><th>Cliente</th><th>Endereço</th><th>Status</th><th>Valor</th><th></th></tr></thead>
+              <tbody>
+                {lista.map(a => {
+                  const b = statusBadge(a.status);
+                  return (
+                    <tr key={a.id}>
+                      <td>{a.numero}</td>
+                      <td>{fmtDataHora(a.agendarEm)}</td>
+                      <td>{a.cliente}</td>
+                      <td className="col-endereco">{a.endereco || <span className="apagado">—</span>}</td>
+                      <td><span className={`badge ${b.classe}`}>{b.rotulo}</span></td>
+                      <td>{moeda(a.valor)}</td>
+                      <td><button type="button" className="btn btn-fantasma" onClick={() => cancelar(a.id)}>Cancelar</button></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
 export function ComercioApp({ onLogout }: { onLogout: () => void }) {
   const [loja, setLoja] = useState<LojaAtual | null>(null);
   const [carregando, setCarregando] = useState(true);
@@ -402,11 +567,11 @@ export function ComercioApp({ onLogout }: { onLogout: () => void }) {
         ) : view === 'painel' ? (
           <PainelView loja={loja} />
         ) : view === 'solicitar' ? (
-          <EmBreve titulo="Solicitar Entrega" />
+          <SolicitarEntrega loja={loja} />
         ) : view === 'relatorios' ? (
-          <EmBreve titulo="Relatórios · Entregas" />
+          <RelatoriosComercio loja={loja} />
         ) : view === 'agendamentos' ? (
-          <EmBreve titulo="Agendamentos" />
+          <AgendamentosComercio loja={loja} />
         ) : view === 'creditos' ? (
           <EmBreve titulo="Créditos" />
         ) : view === 'mensagens' ? (
