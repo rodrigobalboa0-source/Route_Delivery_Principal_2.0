@@ -9,6 +9,26 @@ type Entrega = Database['public']['Tables']['nova_entrega']['Row'];
 
 const fmtMoeda = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v) || 0);
 
+// Mesma regra do app do entregador (EntregadorExtratoPanel) para o ganho de uma
+// entrega: multi-destino usa opcionais.comissao_destinos + comissao_retorno.
+function safeParseArray(value: any): any[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') { try { const p = JSON.parse(value); return Array.isArray(p) ? p : []; } catch { return []; } }
+  return [];
+}
+function calcGanhoEntrega(entrega: any): number {
+  const extraPoints = safeParseArray(entrega?.pontos_adicionais);
+  const comissaoDestinos = safeParseArray(entrega?.opcionais?.comissao_destinos);
+  const comissaoRetorno = typeof entrega?.opcionais?.comissao_retorno === 'number' ? Number(entrega.opcionais.comissao_retorno) : 0;
+  const numDestinos = 1 + extraPoints.length;
+  if (numDestinos <= 1) return Number(entrega.valor_entregador || 0);
+  if (comissaoDestinos.length > 0) {
+    const totalDestinos = comissaoDestinos.reduce((sum: number, dd: any) => sum + (typeof dd?.valor === 'number' ? dd.valor : 0), 0);
+    return totalDestinos + comissaoRetorno;
+  }
+  return Number(entrega.valor_entregador || 0);
+}
+
 interface ResumoEntregador {
   id: string;
   nome: string;
@@ -36,8 +56,8 @@ function ResumoFinanceiroEntregadores() {
     try {
       const [ents, entregas, saques] = await Promise.all([
         supabase.from('entregadores').select('id, nome_completo').order('nome_completo'),
-        supabase.from('nova_entrega').select('entregador_id, valor_entregador, status, created_at').not('entregador_id', 'is', null).limit(10000),
-        supabase.from('acertos_entregadores').select('entregador_id, valor_pago, tipo_saque, taxa_aplicada, created_at').is('entrega_id', null).limit(5000),
+        supabase.from('nova_entrega').select('entregador_id, valor_entregador, pontos_adicionais, opcionais, status, created_at, updated_at').not('entregador_id', 'is', null).limit(10000),
+        supabase.from('acertos_entregadores').select('entregador_id, valor_pago, tipo_saque, taxa_aplicada, status, created_at').is('entrega_id', null).limit(5000),
       ]);
       const agora = new Date();
       const inicioHoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate()).getTime();
@@ -53,9 +73,10 @@ function ResumoFinanceiroEntregadores() {
       ((entregas.data || []) as any[]).forEach((d) => {
         const r = porEnt.get(d.entregador_id); if (!r) return;
         if (String(d.status || '').toLowerCase() !== 'entregue') return;
-        const v = Number(d.valor_entregador || 0);
+        const v = calcGanhoEntrega(d);
         r.totalGanhos += v;
-        const t = new Date(d.created_at || '').getTime();
+        // Mesma data que o app usa (updated_at = quando foi entregue; cai no created_at).
+        const t = new Date(d.updated_at || d.created_at || '').getTime();
         if (Number.isFinite(t)) {
           if (t >= inicioHoje) r.hoje += v;
           if (t >= inicioSemana) r.semana += v;
@@ -66,7 +87,11 @@ function ResumoFinanceiroEntregadores() {
       const ultimoSaqueData = new Map<string, number>();
       ((saques.data || []) as any[]).forEach((s) => {
         const r = porEnt.get(s.entregador_id); if (!r) return;
-        r.totalSacado += Number(s.valor_pago || 0);
+        // Igual ao app: desconta (valor_pago + taxa) dos saques pago/pendente.
+        const st = String(s.status || '').toLowerCase();
+        if (st === 'pago' || st === 'pendente') {
+          r.totalSacado += Number(s.valor_pago || 0) + Number(s.taxa_aplicada || 0);
+        }
         const t = new Date(s.created_at || '').getTime();
         if (!ultimoSaqueData.has(s.entregador_id) || t > (ultimoSaqueData.get(s.entregador_id) || 0)) {
           ultimoSaqueData.set(s.entregador_id, t);
