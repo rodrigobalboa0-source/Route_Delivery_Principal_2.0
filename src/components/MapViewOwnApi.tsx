@@ -56,6 +56,8 @@ interface MapViewOwnApiProps {
   originIconType?: 'truck' | 'store';
   additionalDestinations?: Array<{ coords: [number, number]; title: string; order: number }>;
   deliveryPins?: DeliveryPin[];
+  /** Quando passado, o popup do entregador mostra uma chave para deixá-lo offline. */
+  onOffline?: (id: string) => void;
 }
 
 const CAMPINAS_CENTER: [number, number] = [-22.9099, -47.0626];
@@ -175,8 +177,11 @@ export function MapView({
   originIconType = 'truck',
   additionalDestinations = [],
   deliveryPins = [],
+  onOffline,
 }: MapViewOwnApiProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const onOfflineRef = useRef(onOffline);
+  onOfflineRef.current = onOffline;
   const mapRef = useRef<L.Map | null>(null);
   const driverMarkersRef = useRef<Map<string, { marker: L.Marker; iconKey: string }>>(new Map());
   const originMarkerRef = useRef<L.Marker | null>(null);
@@ -246,15 +251,29 @@ export function MapView({
         }
       } else {
         const icon = driverIcon(person, isSelected);
+        const pid = person.id;
+        const chaveHtml = (onOfflineRef.current && person.is_online)
+          ? `<label class="mv-chave" title="Deixar offline"><input type="checkbox" checked data-offline="${escapeHtml(pid)}"/><span class="mv-trilho"></span><span class="mv-chave-txt">Online</span></label>`
+          : `<span>${person.is_online ? '🟢 Online' : '🔴 Offline'}</span>`;
         const popup = `
-          <div style="padding:4px;">
+          <div style="padding:4px;min-width:130px;">
             <strong>${escapeHtml(person.name)}</strong><br/>
             <span>Status: ${escapeHtml(formatStatus(person.status))}</span><br/>
-            <span>${person.is_online ? '🟢 Online' : '🔴 Offline'}</span>
+            ${chaveHtml}
           </div>
         `;
         const marker = L.marker(pos, { icon, zIndexOffset: isSelected ? 1000 : 0 }).addTo(map);
         marker.bindPopup(popup);
+        marker.on('popupopen', (ev: any) => {
+          const el = ev?.popup?.getElement?.()?.querySelector('[data-offline]') as HTMLInputElement | null;
+          if (el && !el.dataset.bound) {
+            el.dataset.bound = '1';
+            el.addEventListener('change', () => {
+              if (window.confirm('Deixar este entregador offline?')) onOfflineRef.current?.(pid);
+              else el.checked = true;
+            });
+          }
+        });
         driverMarkersRef.current.set(person.id, { marker, iconKey });
       }
     });

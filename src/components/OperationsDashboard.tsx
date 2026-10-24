@@ -20,6 +20,19 @@ export function OperationsDashboard() {
   const [mapCenter, setMapCenter] = useState<[number, number]>([-22.9099, -47.0626]);
   const [storeLocation, setStoreLocation] = useState<[number, number] | undefined>(undefined);
 
+  // Deixa o entregador offline (chave no popup do avatar no mapa).
+  const handleOffline = async (e: any) => {
+    const id = e?.id;
+    if (!id) return;
+    try {
+      const { error } = await supabase.from('entregadores').update({ is_online: false } as any).eq('id', id);
+      if (error) throw error;
+      setDeliveryPersons(prev => prev.map(p => (p.id === id ? { ...p, is_online: false } : p)));
+    } catch (err) {
+      console.error('Erro ao deixar o entregador offline:', err);
+    }
+  };
+
   useEffect(() => {
     const loadComercioAddress = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -265,6 +278,7 @@ export function OperationsDashboard() {
           <div className="h-full bg-white rounded-lg border border-slate-200 overflow-hidden">
             <MapaEntregadoresV1
               altura="100%"
+              onOffline={handleOffline}
               entregadores={filteredPersons
                 .filter((p) => (p as any).current_latitude != null && (p as any).current_longitude != null)
                 .map((p) => ({

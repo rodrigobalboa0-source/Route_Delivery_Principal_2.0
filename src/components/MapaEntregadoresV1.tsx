@@ -212,15 +212,18 @@ export default function MapaEntregadoresV1({ entregadores = [], pedidos = [], al
                   {info}
                   {e.online !== false && (
                     <span className="popup-offline">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const msg = e.levando.length || e.pedidos?.length ? 'Tem pedido em andamento. Deixar offline?' : 'Deixar offline?';
-                          if (window.confirm(msg)) onOffline(e);
-                        }}
-                      >
-                        Deixar offline
-                      </button>
+                      <label className="chave-online" title="Deixar offline">
+                        <input
+                          type="checkbox"
+                          checked
+                          onChange={() => {
+                            const msg = e.levando.length || e.pedidos?.length ? 'Tem pedido em andamento. Deixar offline?' : 'Deixar offline?';
+                            if (window.confirm(msg)) onOffline(e);
+                          }}
+                        />
+                        <span className="chave-trilho" aria-hidden="true" />
+                        <span className="chave-texto">Online</span>
+                      </label>
                     </span>
                   )}
                 </Popup>

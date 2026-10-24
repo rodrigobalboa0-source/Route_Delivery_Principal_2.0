@@ -11,3 +11,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Chave (switch) para deixar o entregador offline, no popup do avatar. */
+.mv-chave { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; margin-top: 4px; user-select: none; }
+.mv-chave input { position: absolute; opacity: 0; width: 0; height: 0; }
+.mv-trilho { position: relative; width: 36px; height: 20px; border-radius: 999px; background: #22c55e; flex: none; transition: background .15s; }
+.mv-trilho::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform .15s; }
+.mv-chave input:checked + .mv-trilho::after { transform: translateX(16px); }
+.mv-chave-txt { font-weight: 700; color: #16a34a; font-size: 12px; }

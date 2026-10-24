@@ -3693,6 +3693,13 @@ export function PedidosPanel({ onNavigate, userRole, userId }: PedidosPanelProps
             originIconType={isComercio ? 'store' : 'truck'}
             additionalDestinations={additionalDestinationsCoords}
             deliveryPins={deliveryPins}
+            onOffline={isComercio ? undefined : async (id: string) => {
+              try {
+                await supabase.from('entregadores').update({ is_online: false } as any).eq('id', id);
+              } catch (e) {
+                console.error('Erro ao deixar o entregador offline:', e);
+              }
+            }}
           />
         </div>
       </div>
