@@ -17,7 +17,10 @@ export function FinanceiroDashboard() {
   const [filteredEntregas, setFilteredEntregas] = useState<Entrega[]>([]);
   const [statusFilter, setStatusFilter] = useState<'todos' | 'finalizados' | 'cancelados'>('todos');
   const [startDate, setStartDate] = useState(() => {
-    return new Date().toLocaleDateString('en-CA');
+    // Abre mostrando o mês atual (1º dia), não só o dia de hoje.
+    const d = new Date();
+    d.setDate(1);
+    return d.toLocaleDateString('en-CA');
   });
   const [endDate, setEndDate] = useState(() => {
     return new Date().toLocaleDateString('en-CA');
@@ -275,10 +278,11 @@ export function FinanceiroDashboard() {
           {}
           <div className="bg-white rounded-lg shadow p-4 border-l-4 border-orange-500 flex items-start justify-between">
             <div>
-              <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Valor Total Comissão</div>
+              <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Comissão do App</div>
               <div className="text-2xl font-bold text-slate-800">{formatCurrency(metrics.comissao)}</div>
               <div className="text-xs text-slate-400 mt-1">
-                Ticket Médio: {metrics.pedidos > 0 ? formatCurrency(metrics.comissao / metrics.pedidos) : 'R$ 0,00'}
+                Margem: {metrics.cobrado > 0 ? `${((metrics.comissao / metrics.cobrado) * 100).toFixed(1)}%` : '0%'}
+                {metrics.pedidos > 0 ? ` · Média/pedido: ${formatCurrency(metrics.comissao / metrics.pedidos)}` : ''}
               </div>
             </div>
             <div className="bg-orange-100 p-2 rounded-lg text-orange-600">

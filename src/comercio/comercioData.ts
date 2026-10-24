@@ -18,6 +18,7 @@ export interface LojaAtual {
   endereco: string | null;
   precificacaoConfig: any[] | null;
   retornoPercentual: number | null;
+  modoFaturamento: string | null;
 }
 
 function num(v: any): number | null {
@@ -54,6 +55,7 @@ export async function getLojaAtual(): Promise<LojaAtual | null> {
     endereco: row.endereco || row.endereco_texto || [row.logradouro, row.numero].filter(Boolean).join(', ') || null,
     precificacaoConfig: Array.isArray(row.precificacao_config) ? row.precificacao_config : null,
     retornoPercentual: num(row.retorno_percentual) ?? 20,
+    modoFaturamento: row.modo_faturamento || null,
   };
 }
 

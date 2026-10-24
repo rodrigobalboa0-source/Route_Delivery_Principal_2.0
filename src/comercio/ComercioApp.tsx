@@ -2,6 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import './LojaV1.css';
 import MapaEntregadoresV1 from '../components/MapaEntregadoresV1';
 import { AddressAutocomplete } from '../components/AddressAutocomplete';
+import { ComercioCreditosPanel } from '../components/comercio/ComercioCreditosPanel';
+
+// Modo crédito = NÃO é faturamento. A aba Créditos só aparece para lojas em crédito.
+function ehModoCredito(loja: LojaAtual | null): boolean {
+  const m = (loja?.modoFaturamento || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  if (!m) return false;
+  return !(m.includes('fatur') || m.includes('pospago') || m.includes('pos-pago') || m.includes('pos pago'));
+}
 import { getLojaAtual, getEntregasAbertas, getEntregadoresOnline, marcarPronto, moeda, statusBadge, FILTROS_STATUS, getRelatorioEntregas, getAgendamentos, cancelarPedido, type LojaAtual, type EntregaAberta, type EntregadorMapa, type RelatorioResultado, type Agendamento } from './comercioData';
 import { calcularPreco, criarEntregaComercio, type ResultadoPreco } from './comercioPricing';
 
@@ -536,7 +544,7 @@ export function ComercioApp({ onLogout }: { onLogout: () => void }) {
     return () => { vivo = false; };
   }, []);
 
-  const menu = MENU.filter(i => !i.soCredito || loja?.modalidadeCobranca === 'CREDITO');
+  const menu = MENU.filter(i => !i.soCredito || ehModoCredito(loja));
 
   function navegar(v: View) { setView(v); setMenuAberto(false); }
 
@@ -573,7 +581,7 @@ export function ComercioApp({ onLogout }: { onLogout: () => void }) {
         ) : view === 'agendamentos' ? (
           <AgendamentosComercio loja={loja} />
         ) : view === 'creditos' ? (
-          <EmBreve titulo="Créditos" />
+          <ComercioCreditosPanel />
         ) : view === 'mensagens' ? (
           <EmBreve titulo="Mensagens" />
         ) : (
