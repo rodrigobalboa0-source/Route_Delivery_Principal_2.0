@@ -188,7 +188,6 @@ export default function MapaEntregadoresV1({ entregadores = [], pedidos = [], al
           >
             <Tooltip permanent direction="right" className={`rotulo-pedido st-${p.status}`} interactive={false}>
               <strong>{p.clienteNome}</strong>
-              {p.entregador && <span className="rotulo-linha">🏍 {primeiroNome(p.entregador.nomeCompleto)}</span>}
             </Tooltip>
           </Marker>
         ))}

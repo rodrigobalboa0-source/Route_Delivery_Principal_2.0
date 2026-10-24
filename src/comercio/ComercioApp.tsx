@@ -3,6 +3,7 @@ import './LojaV1.css';
 import MapaEntregadoresV1 from '../components/MapaEntregadoresV1';
 import { AddressAutocomplete } from '../components/AddressAutocomplete';
 import { ComercioCreditosPanel } from '../components/comercio/ComercioCreditosPanel';
+import { getCoordsFromAddress } from '../utils/geo';
 import * as XLSX from 'xlsx';
 
 // Modo crédito = NÃO é faturamento. A aba Créditos só aparece para lojas em crédito.
@@ -282,6 +283,7 @@ function OpcoesPedido({ p, loja, ocupado, onDetalhes, onEditar, onPronto, onFina
 // Painel de Controle — criação rápida + mapa ao vivo + entregas em aberto.
 function PainelView({ loja }: { loja: LojaAtual }) {
   const [entregas, setEntregas] = useState<EntregaAberta[] | null>(null);
+  const [destinosGeo, setDestinosGeo] = useState<Record<string, [number, number]>>({});
   const [entregadores, setEntregadores] = useState<EntregadorMapa[]>([]);
   const [erro, setErro] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
@@ -404,6 +406,22 @@ function PainelView({ loja }: { loja: LojaAtual }) {
   async function marcarProntos() { setOcupado(true); try { for (const p of prontosParaMarcar) await marcarPronto(p.id); await carregar(true); setSelecionados(new Set()); } finally { setOcupado(false); } }
 
   // Pedidos no mapa: posicionados ao redor da loja (o mapa espalha por `loja`).
+  // Geocodifica o endereço do cliente quando o pedido não tem coordenada salva,
+  // para posicionar o pedido no cliente (e não na loja).
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      const pendentes = (entregas || []).filter(p => (p.destinoLat == null || p.destinoLng == null) && p.endereco && p.endereco.trim().length >= 5 && !destinosGeo[p.id]);
+      for (const p of pendentes) {
+        const c = await getCoordsFromAddress(p.endereco);
+        if (cancel) return;
+        if (c) setDestinosGeo(prev => (prev[p.id] ? prev : { ...prev, [p.id]: c }));
+      }
+    })();
+    return () => { cancel = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entregas]);
+
   const lojaPonto = loja.lat != null && loja.lng != null ? { id: loja.id, lat: loja.lat, lng: loja.lng, nome: loja.nomeFantasia, endereco: loja.endereco } : null;
   const pedidosMapa = lojaPonto ? (entregas || []).map(p => ({
     id: p.id,
@@ -412,8 +430,10 @@ function PainelView({ loja }: { loja: LojaAtual }) {
     status: p.status,
     createdAt: p.createdAt,
     loja: lojaPonto,
-    // Posiciona o pedido no endereço do cliente (quando geolocalizado).
-    destino: (p.destinoLat != null && p.destinoLng != null) ? { lat: p.destinoLat, lng: p.destinoLng } : null,
+    // Posiciona o pedido no endereço do cliente (coordenada salva ou geocodificada na hora).
+    destino: (p.destinoLat != null && p.destinoLng != null)
+      ? { lat: p.destinoLat, lng: p.destinoLng }
+      : (destinosGeo[p.id] ? { lat: destinosGeo[p.id][0], lng: destinosGeo[p.id][1] } : null),
     // Liga o entregador designado ao pedido (para mostrar o motoboy indo até o cliente).
     entregador: (p.entregadorId && p.entregadorLat != null && p.entregadorLng != null)
       ? { id: p.entregadorId, lat: p.entregadorLat, lng: p.entregadorLng, nomeCompleto: p.entregadorNome || 'Entregador', fotoUrl: p.entregadorFoto }
