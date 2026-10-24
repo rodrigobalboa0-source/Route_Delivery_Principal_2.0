@@ -19,6 +19,26 @@ export interface LojaAtual {
   precificacaoConfig: any[] | null;
   retornoPercentual: number | null;
   modoFaturamento: string | null;
+  opcoes: Record<string, boolean>;
+}
+
+// Lê as opções do menu do comerciante salvas pelo ADM em clientes.observacoes
+// (JSON { extras: { opcoes_comerciante: {...} } }). Ausente = sem restrição.
+function lerOpcoesComerciante(observacoesRaw: any): Record<string, boolean> {
+  const text = String(observacoesRaw ?? '').trim();
+  if (!text.startsWith('{')) return {};
+  try {
+    const parsed = JSON.parse(text);
+    const o = parsed?.extras?.opcoes_comerciante;
+    return (o && typeof o === 'object') ? (o as Record<string, boolean>) : {};
+  } catch {
+    return {};
+  }
+}
+
+// Uma opção aparece a menos que o ADM a tenha desligado explicitamente (default: ligada).
+export function opcaoAtiva(loja: LojaAtual, chave: string): boolean {
+  return loja.opcoes?.[chave] !== false;
 }
 
 function num(v: any): number | null {
@@ -56,6 +76,7 @@ export async function getLojaAtual(): Promise<LojaAtual | null> {
     precificacaoConfig: Array.isArray(row.precificacao_config) ? row.precificacao_config : null,
     retornoPercentual: num(row.retorno_percentual) ?? 20,
     modoFaturamento: row.modo_faturamento || null,
+    opcoes: lerOpcoesComerciante(row.observacoes),
   };
 }
 
@@ -265,6 +286,61 @@ export async function getAgendamentos(clienteId: string): Promise<Agendamento[]>
 export async function cancelarPedido(pedidoId: string): Promise<void> {
   const { error } = await supabase.from('pedidos').update({ status: 'cancelado' }).eq('id', pedidoId);
   if (error) throw error;
+}
+
+// Finaliza (marca como entregue) o pedido e a entrega.
+export async function finalizarPedido(pedidoId: string): Promise<void> {
+  const { error } = await supabase.from('pedidos').update({ status: 'entregue' }).eq('id', pedidoId);
+  if (error) throw error;
+  await (supabase.from('nova_entrega') as any).update({ status: 'entregue', updated_at: new Date().toISOString() }).eq('pedido_id', pedidoId);
+}
+
+// Grava/atualiza a observação do pedido e da entrega.
+export async function escreverObservacaoPedido(pedidoId: string, texto: string): Promise<void> {
+  const { error } = await (supabase.from('pedidos') as any).update({ observacoes: texto || null }).eq('id', pedidoId);
+  if (error) throw error;
+  await (supabase.from('nova_entrega') as any).update({ entrega_observacoes: texto || null, observacoes: texto || null }).eq('pedido_id', pedidoId);
+}
+
+// Clona um pedido (cria um novo "criado" copiando os dados de entrega).
+export async function clonarPedido(clienteId: string, pedidoId: string): Promise<void> {
+  const { data: orig } = await supabase.from('nova_entrega').select('*').eq('pedido_id', pedidoId).maybeSingle();
+  const o = (orig || {}) as any;
+  const { data: p, error: pErr } = await (supabase.from('pedidos') as any)
+    .insert({
+      cliente_id: clienteId,
+      status: 'criado',
+      origem: 'manual',
+      endereco_texto: o.entrega_endereco_texto || null,
+      valor_total: o.valor_entrega ?? null,
+      retirada_no_local: false,
+    })
+    .select()
+    .single();
+  if (pErr) throw pErr;
+  const novoId = (p as any).id as string;
+  const { error: eErr } = await (supabase.from('nova_entrega') as any).insert({
+    pedido_id: novoId,
+    cliente_id: clienteId,
+    modal_tipo: o.modal_tipo || 'moto',
+    atribuicao_modo: 'automatica',
+    entregador_id: null,
+    retirada_no_local: false,
+    valor_manual: false,
+    valor_entrega: o.valor_entrega ?? null,
+    tipo_cobranca: o.tipo_cobranca || 'fatura',
+    entrega_contato: o.entrega_contato || null,
+    entrega_telefone: o.entrega_telefone || null,
+    entrega_endereco_texto: o.entrega_endereco_texto || null,
+    entrega_complemento: o.entrega_complemento || null,
+    retorno: Boolean(o.retorno),
+    status: 'criada',
+    distancia_km: o.distancia_km ?? null,
+  });
+  if (eErr) {
+    await supabase.from('pedidos').delete().eq('id', novoId);
+    throw eErr;
+  }
 }
 
 export function moeda(v: number | null | undefined): string {

@@ -10,7 +10,7 @@ function ehModoCredito(loja: LojaAtual | null): boolean {
   if (!m) return false;
   return !(m.includes('fatur') || m.includes('pospago') || m.includes('pos-pago') || m.includes('pos pago'));
 }
-import { getLojaAtual, getEntregasAbertas, getEntregadoresOnline, marcarPronto, moeda, statusBadge, FILTROS_STATUS, getRelatorioEntregas, getAgendamentos, cancelarPedido, type LojaAtual, type EntregaAberta, type EntregadorMapa, type RelatorioResultado, type Agendamento } from './comercioData';
+import { getLojaAtual, getEntregasAbertas, getEntregadoresOnline, marcarPronto, moeda, statusBadge, FILTROS_STATUS, getRelatorioEntregas, getAgendamentos, cancelarPedido, finalizarPedido, escreverObservacaoPedido, clonarPedido, opcaoAtiva, type LojaAtual, type EntregaAberta, type EntregadorMapa, type RelatorioResultado, type Agendamento } from './comercioData';
 import { calcularPreco, criarEntregaComercio, type ResultadoPreco } from './comercioPricing';
 
 // Ícones em traço (herdam a cor do texto) — iguais ao V1.
@@ -195,6 +195,49 @@ function CriarRapido({ loja, onCriado }: { loja: LojaAtual; onCriado: () => void
   );
 }
 
+// Menu "Opções" de cada pedido na lista do comerciante. Mostra só as opções que
+// o ADM deixou ligadas para a loja (Configurações Gerais do Comércio).
+function OpcoesPedido({ p, loja, ocupado, onDetalhes, onPronto, onFinalizar, onObservacao, onClonar, onCancelar }: {
+  p: EntregaAberta; loja: LojaAtual; ocupado: boolean;
+  onDetalhes: (p: EntregaAberta) => void; onPronto: (p: EntregaAberta) => void; onFinalizar: (p: EntregaAberta) => void;
+  onObservacao: (p: EntregaAberta) => void; onClonar: (p: EntregaAberta) => void; onCancelar: (p: EntregaAberta) => void;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useFora(ref, aberto, () => setAberto(false));
+  const b = statusBadge(p.status);
+  const show = (k: string) => opcaoAtiva(loja, k);
+  const fechar = () => setAberto(false);
+  const item = (k: string, label: string, fn: () => void, extra?: { perigo?: boolean; disabled?: boolean }) =>
+    show(k) ? (
+      <button type="button" className={extra?.perigo ? 'perigo' : ''} disabled={extra?.disabled || ocupado} onClick={() => { fn(); fechar(); }}>{label}</button>
+    ) : null;
+
+  const copiarRastreio = () => {
+    const id = p.entregaId || p.id;
+    try { navigator.clipboard?.writeText(`${window.location.origin}/rastreio/${id}`); } catch { /* ignore */ }
+  };
+
+  return (
+    <div className="opcoes-menu" ref={ref}>
+      <button type="button" className="btn btn-sm btn-fantasma" onClick={() => setAberto(a => !a)} aria-haspopup="menu" aria-expanded={aberto}>Opções ▾</button>
+      {aberto && (
+        <div className="opcoes-lista" role="menu">
+          {item('detalhes', 'Detalhes', () => onDetalhes(p))}
+          {show('pronto') && b.filtro === 'CRIADO' && (
+            <button type="button" disabled={ocupado} onClick={() => { onPronto(p); fechar(); }}>Pronto</button>
+          )}
+          {item('finalizar', 'Finalizar pedido', () => onFinalizar(p))}
+          {item('rastreio', 'Copiar link de rastreio', copiarRastreio)}
+          {item('observacao', 'Escrever observação', () => onObservacao(p))}
+          {item('clonar', 'Clonar', () => onClonar(p))}
+          {item('cancelar', 'Cancelar', () => onCancelar(p), { perigo: true })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Painel de Controle — criação rápida + mapa ao vivo + entregas em aberto.
 function PainelView({ loja }: { loja: LojaAtual }) {
   const [entregas, setEntregas] = useState<EntregaAberta[] | null>(null);
@@ -235,6 +278,33 @@ function PainelView({ loja }: { loja: LojaAtual }) {
     catch (e: any) { setErro(e?.message || 'Erro ao cancelar o pedido'); }
     finally { setOcupado(false); }
   }
+
+  async function finalizar(p: EntregaAberta) {
+    if (!window.confirm(`Finalizar (marcar como entregue) o pedido ${p.numero}?`)) return;
+    setOcupado(true);
+    try { await finalizarPedido(p.id); await carregar(true); }
+    catch (e: any) { setErro(e?.message || 'Erro ao finalizar o pedido'); }
+    finally { setOcupado(false); }
+  }
+
+  async function observacao(p: EntregaAberta) {
+    const t = window.prompt(`Observação do pedido ${p.numero}:`, '');
+    if (t === null) return;
+    setOcupado(true);
+    try { await escreverObservacaoPedido(p.id, t.trim()); await carregar(true); }
+    catch (e: any) { setErro(e?.message || 'Erro ao salvar a observação'); }
+    finally { setOcupado(false); }
+  }
+
+  async function clonar(p: EntregaAberta) {
+    if (!window.confirm(`Clonar o pedido ${p.numero}? Cria um novo pedido com os mesmos dados.`)) return;
+    setOcupado(true);
+    try { await clonarPedido(loja.id, p.id); await carregar(true); }
+    catch (e: any) { setErro(e?.message || 'Erro ao clonar o pedido'); }
+    finally { setOcupado(false); }
+  }
+
+  const [detalhe, setDetalhe] = useState<EntregaAberta | null>(null);
 
   const q = busca.trim().toLowerCase();
   const lista = (entregas || []).filter(p => {
@@ -326,7 +396,7 @@ function PainelView({ loja }: { loja: LojaAtual }) {
                   <thead>
                     <tr>
                       <th className="col-check"><input type="checkbox" checked={todosMarcados} aria-label="Selecionar todos" onChange={() => setSelecionados(todosMarcados ? new Set() : new Set(lista.map(p => p.id)))} /></th>
-                      <th>Nº Pedido</th><th>Comércio</th><th>Cliente</th><th>Coleta</th><th>Entrega</th><th className="num">Taxa</th><th>Status</th><th>Pedido pronto</th><th>Entregador</th><th>Ações</th>
+                      <th>Nº Pedido</th><th>Comércio</th><th>Cliente</th><th>Coleta</th><th>Entrega</th><th className="num">Taxa</th><th>Status</th><th>Pedido pronto</th><th>Entregador</th><th>Opções</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -353,7 +423,11 @@ function PainelView({ loja }: { loja: LojaAtual }) {
                           </td>
                           <td>{p.entregadorNome ? `🏍 ${p.entregadorNome}` : <span className="apagado">{b.filtro === 'PRONTO' ? 'Procurando…' : '—'}</span>}</td>
                           <td>
-                            <button className="btn btn-sm btn-fantasma" disabled={ocupado} onClick={() => cancelar(p)} title="Cancelar pedido">Cancelar</button>
+                            <OpcoesPedido
+                              p={p} loja={loja} ocupado={ocupado}
+                              onDetalhes={setDetalhe} onPronto={pronto} onFinalizar={finalizar}
+                              onObservacao={observacao} onClonar={clonar} onCancelar={cancelar}
+                            />
                           </td>
                         </tr>
                       );
@@ -365,6 +439,38 @@ function PainelView({ loja }: { loja: LojaAtual }) {
           </section>
         </div>
       </div>
+
+      {detalhe && (
+        <div className="fixed inset-0 z-[1000] bg-black/50 flex items-center justify-center p-4" onClick={() => setDetalhe(null)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden text-slate-800" onClick={(e) => e.stopPropagation()}>
+            <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="font-semibold text-sm">Pedido {detalhe.numero}</h3>
+              <button type="button" onClick={() => setDetalhe(null)} className="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+            <div className="p-4 space-y-2 text-sm">
+              {[
+                ['Comércio', loja.nomeFantasia],
+                ['Cliente', detalhe.clienteNome],
+                ['Telefone', detalhe.clienteTelefone || '—'],
+                ['Coleta', loja.endereco || '—'],
+                ['Entrega', detalhe.endereco || '—'],
+                ['Taxa', moeda(detalhe.valor)],
+                ['Status', statusBadge(detalhe.status).rotulo],
+                ['Entregador', detalhe.entregadorNome || '—'],
+                ['Retorno', detalhe.retorno ? 'Sim' : 'Não'],
+              ].map(([rotulo, valor]) => (
+                <div key={rotulo} className="flex justify-between gap-3">
+                  <span className="text-slate-500">{rotulo}</span>
+                  <span className="font-medium text-right">{valor}</span>
+                </div>
+              ))}
+            </div>
+            <div className="px-4 py-3 border-t border-slate-200 flex justify-end">
+              <button type="button" onClick={() => setDetalhe(null)} className="px-3 py-1.5 text-sm bg-slate-100 rounded-lg hover:bg-slate-200">Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -6,6 +6,17 @@ import { Database } from '../../lib/database.types';
 type ConfigComercio = Database['public']['Tables']['configuracoes_comercio']['Row'];
 type Cliente = Database['public']['Tables']['clientes']['Row'];
 
+// Opções do menu "Opções" de cada pedido no painel do comerciante.
+const OPCOES_COMERCIANTE: { chave: string; label: string }[] = [
+  { chave: 'detalhes', label: 'Detalhes' },
+  { chave: 'pronto', label: 'Pronto' },
+  { chave: 'finalizar', label: 'Finalizar pedido' },
+  { chave: 'rastreio', label: 'Copiar link de rastreio' },
+  { chave: 'observacao', label: 'Escrever observação' },
+  { chave: 'clonar', label: 'Clonar' },
+  { chave: 'cancelar', label: 'Cancelar' },
+];
+
 export function ConfiguracoesComercioPanel() {
   const [config, setConfig] = useState<ConfigComercio | null>(null);
   const [loading, setLoading] = useState(true);
@@ -16,6 +27,9 @@ export function ConfiguracoesComercioPanel() {
   const [clientes, setClientes] = useState<Pick<Cliente, 'id' | 'nome_completo'>[]>([]);
   const [selectedClienteId, setSelectedClienteId] = useState('');
   const [bloquearFinalizarPedido, setBloquearFinalizarPedido] = useState(false);
+  const [opcoesComerciante, setOpcoesComerciante] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(OPCOES_COMERCIANTE.map((o) => [o.chave, true]))
+  );
   const [loadingCliente, setLoadingCliente] = useState(false);
   const [savingCliente, setSavingCliente] = useState(false);
   const [clienteError, setClienteError] = useState<string | null>(null);
@@ -130,6 +144,8 @@ export function ConfiguracoesComercioPanel() {
       if (error) throw error;
       const { extras } = parseClienteObservacoes((data as any)?.observacoes);
       setBloquearFinalizarPedido(!!extras?.bloquear_finalizar_pedido);
+      const o = (extras?.opcoes_comerciante && typeof extras.opcoes_comerciante === 'object') ? extras.opcoes_comerciante : {};
+      setOpcoesComerciante(Object.fromEntries(OPCOES_COMERCIANTE.map((x) => [x.chave, o[x.chave] !== false])));
     } catch (e: any) {
       console.error('Erro ao carregar config do comércio:', e);
       setClienteError(e?.message || 'Falha ao carregar configurações do comércio');
@@ -153,7 +169,7 @@ export function ConfiguracoesComercioPanel() {
       if (error) throw error;
 
       const { parsed, extras, observacoesText } = parseClienteObservacoes((data as any)?.observacoes);
-      const nextExtras = { ...(extras || {}), bloquear_finalizar_pedido: bloquearFinalizarPedido };
+      const nextExtras = { ...(extras || {}), bloquear_finalizar_pedido: bloquearFinalizarPedido, opcoes_comerciante: opcoesComerciante };
       const nextPayload =
         parsed && typeof parsed === 'object'
           ? { ...(parsed as any), extras: nextExtras, observacoes: observacoesText }
@@ -291,6 +307,28 @@ export function ConfiguracoesComercioPanel() {
               </div>
             </label>
           </div>
+        </div>
+
+        <div className="border-t border-slate-100 pt-4">
+          <div className="text-sm font-medium text-slate-700 mb-2">Opções do menu de pedidos do comerciante</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {OPCOES_COMERCIANTE.map((o) => (
+              <label key={o.chave} className="flex items-center justify-between gap-2 p-2 rounded-lg border border-slate-200">
+                <span className="text-sm text-slate-700">{o.label}</span>
+                <div className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={opcoesComerciante[o.chave] !== false}
+                    disabled={!selectedClienteId || loadingCliente}
+                    onChange={(e) => setOpcoesComerciante((prev) => ({ ...prev, [o.chave]: e.target.checked }))}
+                  />
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-sky-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sky-600"></div>
+                </div>
+              </label>
+            ))}
+          </div>
+          <p className="text-xs text-slate-500 mt-2">Desligue para esconder a opção no menu "Opções" de cada pedido deste comércio. Clique em "Salvar" acima para aplicar.</p>
         </div>
       </div>
 
