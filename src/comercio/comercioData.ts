@@ -73,9 +73,15 @@ export interface EntregaAberta {
 
 const FINALIZADOS = new Set(['entregue', 'cancelada', 'cancelado', 'finalizada', 'finalizado']);
 
+// "Em aberto" mostra só pedidos recentes. Sem isso, pedidos antigos que ficaram
+// com status 'pronto' (entregues na vida real, mas o status nunca virou
+// 'entregue') poluem a lista e o mapa (um marcador por pedido).
+const DIAS_JANELA_ABERTO = 2;
+
 export async function getEntregasAbertas(clienteId: string): Promise<EntregaAberta[]> {
+  const cutoff = new Date(Date.now() - DIAS_JANELA_ABERTO * 24 * 60 * 60 * 1000).toISOString();
   const [resPedidos, resEntregas] = await Promise.all([
-    supabase.from('pedidos').select('id, numero, status, created_at').eq('cliente_id', clienteId).order('created_at', { ascending: false }).limit(400),
+    supabase.from('pedidos').select('id, numero, status, created_at').eq('cliente_id', clienteId).gte('created_at', cutoff).order('created_at', { ascending: false }).limit(400),
     supabase.from('nova_entrega').select('id, pedido_id, entrega_contato, entrega_telefone, entrega_endereco_texto, valor_entrega, retorno, entregadores ( id, nome_completo )').eq('cliente_id', clienteId).limit(600),
   ]);
   if (resPedidos.error) throw resPedidos.error;
