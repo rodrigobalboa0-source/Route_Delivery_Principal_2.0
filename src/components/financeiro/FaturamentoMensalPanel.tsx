@@ -211,12 +211,14 @@ export function FaturamentoMensalPanel({ onNavigate }: FaturamentoMensalPanelPro
     setProcessing(true);
     try {
       
-      const clientStats = stats[selectedClient.id] || {
+      const clientStats: ClientBillingStats = stats[selectedClient.id] || {
         clientId: selectedClient.id,
         count: 0,
         total: 0,
         minDate: null,
         maxDate: null,
+        periodStart: null,
+        periodEnd: null,
         deliveries: []
       };
 
@@ -344,49 +346,74 @@ export function FaturamentoMensalPanel({ onNavigate }: FaturamentoMensalPanelPro
         )}
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
-        <div className="bg-slate-800 text-white px-6 py-3 grid grid-cols-12 gap-4 text-sm font-medium">
-          <div className="col-span-5">Cliente</div>
-          <div className="col-span-3 text-center">Periodicidade</div>
-          <div className="col-span-4 text-center">Visualizar</div>
-        </div>
+      {(() => {
+        const fmtBRL = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
+        const comLancamentos = clients.filter(c => stats[c.id]?.count > 0);
+        const totalFaturar = comLancamentos.reduce((s, c) => s + (stats[c.id]?.total || 0), 0);
+        const totalEntregas = comLancamentos.reduce((s, c) => s + (stats[c.id]?.count || 0), 0);
+        return (
+          <>
+            {/* Resumo */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+              <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-4 border-l-4 border-blue-500">
+                <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Total a Faturar</div>
+                <div className="text-2xl font-bold text-slate-800">{fmtBRL(totalFaturar)}</div>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-4 border-l-4 border-emerald-500">
+                <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Comércios a Faturar</div>
+                <div className="text-2xl font-bold text-slate-800">{comLancamentos.length}</div>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-4 border-l-4 border-slate-400">
+                <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Entregas no Período</div>
+                <div className="text-2xl font-bold text-slate-800">{totalEntregas}</div>
+              </div>
+            </div>
 
-        <div className="divide-y divide-slate-100">
-          {clients.filter(c => stats[c.id]?.count > 0).length === 0 ? (
-            <div className="p-6 text-center text-slate-500">Nenhum comércio com lançamentos no período atual.</div>
-          ) : (
-            clients.filter(client => stats[client.id]?.count > 0).map(client => {
-              const clientStats = stats[client.id];
-              const hasDeliveries = clientStats && clientStats.count > 0;
-              
-              return (
-                <div key={client.id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-slate-50 transition-colors">
-                  <div className="col-span-5 font-medium text-slate-700">
-                    {client.nome_completo}
-                  </div>
-                  <div className="col-span-3 flex justify-center">
-                    <span className={`px-3 py-1 rounded text-white text-xs font-medium uppercase ${
-                      client.faturamento_periodo === 'semanal' ? 'bg-green-600' : 
-                      client.faturamento_periodo === 'quinzenal' ? 'bg-emerald-600' : 'bg-blue-600'
-                    }`}>
-                      {client.faturamento_periodo || 'Mensal'}
-                    </span>
-                  </div>
-                  <div className="col-span-4 flex justify-center gap-2">
-                    <button 
-                      onClick={() => handleOpenPreview(client)}
-                      className="px-4 py-2 rounded text-white text-sm font-medium transition-colors flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
-                    >
-                      Ver Serviços a Faturar
-                      {hasDeliveries && <span className="bg-white/20 px-1.5 py-0.5 rounded text-xs">{clientStats.count}</span>}
-                    </button>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
+            <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+              <div className="bg-slate-800 text-white px-6 py-3 grid grid-cols-12 gap-4 text-sm font-medium">
+                <div className="col-span-4">Comércio</div>
+                <div className="col-span-2 text-center">Periodicidade</div>
+                <div className="col-span-1 text-center">Entregas</div>
+                <div className="col-span-2 text-right">Valor a Faturar</div>
+                <div className="col-span-3 text-center">Ação</div>
+              </div>
+
+              <div className="divide-y divide-slate-100">
+                {comLancamentos.length === 0 ? (
+                  <div className="p-6 text-center text-slate-500">Nenhum comércio com lançamentos no período atual.</div>
+                ) : (
+                  comLancamentos.map(client => {
+                    const clientStats = stats[client.id];
+                    return (
+                      <div key={client.id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-slate-50 transition-colors">
+                        <div className="col-span-4 font-medium text-slate-700">{client.nome_completo}</div>
+                        <div className="col-span-2 flex justify-center">
+                          <span className={`px-3 py-1 rounded text-white text-xs font-medium uppercase ${
+                            client.faturamento_periodo === 'semanal' ? 'bg-green-600' :
+                            client.faturamento_periodo === 'quinzenal' ? 'bg-emerald-600' : 'bg-blue-600'
+                          }`}>
+                            {client.faturamento_periodo || 'Mensal'}
+                          </span>
+                        </div>
+                        <div className="col-span-1 text-center font-semibold text-slate-700">{clientStats.count}</div>
+                        <div className="col-span-2 text-right font-bold text-blue-600">{fmtBRL(clientStats.total)}</div>
+                        <div className="col-span-3 flex justify-center">
+                          <button
+                            onClick={() => handleOpenPreview(client)}
+                            className="px-4 py-2 rounded text-white text-sm font-medium transition-colors bg-blue-600 hover:bg-blue-700"
+                          >
+                            Ver / Faturar
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       {/* Modal 1: Preview */}
       {modalStep === 'preview' && selectedClient && (

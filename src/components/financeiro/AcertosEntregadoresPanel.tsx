@@ -7,6 +7,147 @@ type Acerto = any;
 type Entregador = Database['public']['Tables']['entregadores']['Row'];
 type Entrega = Database['public']['Tables']['nova_entrega']['Row'];
 
+const fmtMoeda = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v) || 0);
+
+interface ResumoEntregador {
+  id: string;
+  nome: string;
+  hoje: number;
+  semana: number;
+  mes: number;
+  totalGanhos: number;
+  totalSacado: number;
+  saldo: number;
+  ultimoSaqueTipo: string | null;
+  ultimoSaqueTaxa: number | null;
+}
+
+// Resumo financeiro por entregador: ganhos no dia/semana/mês, total sacado do app,
+// saldo que ficou no app, e o tipo/percentual do último saque.
+function ResumoFinanceiroEntregadores() {
+  const [rows, setRows] = useState<ResumoEntregador[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busca, setBusca] = useState('');
+
+  useEffect(() => { void carregar(); }, []);
+
+  async function carregar() {
+    setLoading(true);
+    try {
+      const [ents, entregas, saques] = await Promise.all([
+        supabase.from('entregadores').select('id, nome_completo').order('nome_completo'),
+        supabase.from('nova_entrega').select('entregador_id, valor_entregador, status, created_at').not('entregador_id', 'is', null).limit(10000),
+        supabase.from('acertos_entregadores').select('entregador_id, valor_pago, tipo_saque, taxa_aplicada, created_at').is('entrega_id', null).limit(5000),
+      ]);
+      const agora = new Date();
+      const inicioHoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate()).getTime();
+      const inicioSemana = inicioHoje - 6 * 24 * 60 * 60 * 1000;
+      const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1).getTime();
+
+      const porEnt = new Map<string, ResumoEntregador>();
+      ((ents.data || []) as any[]).forEach((e) => porEnt.set(e.id, {
+        id: e.id, nome: e.nome_completo || '—', hoje: 0, semana: 0, mes: 0,
+        totalGanhos: 0, totalSacado: 0, saldo: 0, ultimoSaqueTipo: null, ultimoSaqueTaxa: null,
+      }));
+
+      ((entregas.data || []) as any[]).forEach((d) => {
+        const r = porEnt.get(d.entregador_id); if (!r) return;
+        if (String(d.status || '').toLowerCase() !== 'entregue') return;
+        const v = Number(d.valor_entregador || 0);
+        r.totalGanhos += v;
+        const t = new Date(d.created_at || '').getTime();
+        if (Number.isFinite(t)) {
+          if (t >= inicioHoje) r.hoje += v;
+          if (t >= inicioSemana) r.semana += v;
+          if (t >= inicioMes) r.mes += v;
+        }
+      });
+
+      const ultimoSaqueData = new Map<string, number>();
+      ((saques.data || []) as any[]).forEach((s) => {
+        const r = porEnt.get(s.entregador_id); if (!r) return;
+        r.totalSacado += Number(s.valor_pago || 0);
+        const t = new Date(s.created_at || '').getTime();
+        if (!ultimoSaqueData.has(s.entregador_id) || t > (ultimoSaqueData.get(s.entregador_id) || 0)) {
+          ultimoSaqueData.set(s.entregador_id, t);
+          r.ultimoSaqueTipo = s.tipo_saque || null;
+          r.ultimoSaqueTaxa = s.taxa_aplicada != null ? Number(s.taxa_aplicada) : null;
+        }
+      });
+
+      const lista = [...porEnt.values()].map((r) => ({ ...r, saldo: r.totalGanhos - r.totalSacado }));
+      // Mostra primeiro quem tem movimento.
+      lista.sort((a, b) => (b.totalGanhos + b.totalSacado) - (a.totalGanhos + a.totalSacado) || a.nome.localeCompare(b.nome));
+      setRows(lista);
+    } catch (e) {
+      console.error('Erro ao carregar resumo de entregadores:', e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const q = busca.trim().toLowerCase();
+  const filtradas = q ? rows.filter((r) => r.nome.toLowerCase().includes(q)) : rows;
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-lg mb-6 overflow-hidden">
+      <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-3 flex-wrap">
+        <h3 className="text-base font-semibold text-slate-900">Resumo financeiro por entregador</h3>
+        <input
+          type="search"
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar entregador..."
+          className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+        />
+      </div>
+      {loading ? (
+        <div className="p-6 text-center text-slate-500 text-sm">Carregando resumo...</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-slate-200 text-sm">
+            <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+              <tr>
+                <th className="px-4 py-2 text-left">Entregador</th>
+                <th className="px-4 py-2 text-right">Hoje</th>
+                <th className="px-4 py-2 text-right">Semana</th>
+                <th className="px-4 py-2 text-right">Mês</th>
+                <th className="px-4 py-2 text-right">Total sacado</th>
+                <th className="px-4 py-2 text-right">Saldo no app</th>
+                <th className="px-4 py-2 text-center">Último saque</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filtradas.length === 0 ? (
+                <tr><td colSpan={7} className="px-4 py-4 text-center text-slate-500">Nenhum entregador.</td></tr>
+              ) : filtradas.map((r) => (
+                <tr key={r.id} className="hover:bg-slate-50">
+                  <td className="px-4 py-2 font-medium text-slate-800">{r.nome}</td>
+                  <td className="px-4 py-2 text-right text-slate-700">{fmtMoeda(r.hoje)}</td>
+                  <td className="px-4 py-2 text-right text-slate-700">{fmtMoeda(r.semana)}</td>
+                  <td className="px-4 py-2 text-right text-slate-700">{fmtMoeda(r.mes)}</td>
+                  <td className="px-4 py-2 text-right text-orange-600">{fmtMoeda(r.totalSacado)}</td>
+                  <td className="px-4 py-2 text-right font-semibold text-green-600">{fmtMoeda(r.saldo)}</td>
+                  <td className="px-4 py-2 text-center">
+                    {r.ultimoSaqueTipo ? (
+                      <span className="inline-flex items-center gap-1">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${/rap/i.test(r.ultimoSaqueTipo) ? 'bg-amber-100 text-amber-700' : 'bg-sky-100 text-sky-700'}`}>
+                          {/rap/i.test(r.ultimoSaqueTipo) ? 'Rápido' : 'Normal'}
+                        </span>
+                        {r.ultimoSaqueTaxa != null && <span className="text-xs text-slate-500">{r.ultimoSaqueTaxa.toFixed(1)}%</span>}
+                      </span>
+                    ) : <span className="text-xs text-slate-400">—</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AcertosEntregadoresPanel() {
   const [items, setItems] = useState<Acerto[]>([]);
   const [entregadores, setEntregadores] = useState<Entregador[]>([]);
@@ -150,6 +291,9 @@ export function AcertosEntregadoresPanel() {
   return (
     <div className="p-6">
       <h2 className="text-lg font-semibold text-slate-900 mb-4">Acerto de entregadores</h2>
+
+      <ResumoFinanceiroEntregadores />
+
       {error && <div className="mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</div>}
       <div className="bg-white border border-slate-200 rounded-lg p-4 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
