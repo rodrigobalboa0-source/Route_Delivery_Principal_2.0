@@ -297,6 +297,8 @@ export async function getAgendamentos(clienteId: string): Promise<Agendamento[]>
 export async function cancelarPedido(pedidoId: string): Promise<void> {
   const { error } = await supabase.from('pedidos').update({ status: 'cancelado' }).eq('id', pedidoId);
   if (error) throw error;
+  // Também cancela a entrega (admin e entregador leem a nova_entrega).
+  await (supabase.from('nova_entrega') as any).update({ status: 'cancelada', updated_at: new Date().toISOString() }).eq('pedido_id', pedidoId);
 }
 
 // Edita os dados de um pedido/entrega (cliente, telefone, endereço, retorno e,
