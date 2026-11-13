@@ -1,0 +1,69 @@
+name: Build Route Beta APK
+
+# APK de TESTE: WebView Capacitor apontando para https://routedeelivery.com/beta/
+# Package separado (com.routedeelivery.beta) para instalar ao lado do app de producao.
+# Nao toca em nada de producao. Dispara ao enviar esta branch ou manualmente.
+on:
+  workflow_dispatch:
+  push:
+    branches: [beta-apk]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar dependencias
+        run: npm ci || npm install
+
+      - name: webDir minimo (o APK carrega a URL remota /beta/, nao o bundle local)
+        run: |
+          mkdir -p dist
+          printf '<!doctype html><meta charset="utf-8"><title>Route Beta</title>' > dist/index.html
+
+      - name: Config Capacitor do beta
+        run: |
+          cat > capacitor.config.ts <<'EOF'
+          import type { CapacitorConfig } from '@capacitor/cli';
+          const config: CapacitorConfig = {
+            appId: 'com.routedeelivery.beta',
+            appName: 'Route Beta',
+            webDir: 'dist',
+            server: { url: 'https://routedeelivery.com/beta/', cleartext: false }
+          };
+          export default config;
+          EOF
+
+      - name: applicationId do beta + remover Firebase (beta sem push, evita erro de build)
+        run: |
+          sed -i 's/applicationId "com.routedeelivery"/applicationId "com.routedeelivery.beta"/' android/app/build.gradle
+          rm -f android/app/google-services.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Capacitor sync (android)
+        run: npx cap sync android
+
+      - name: Build APK debug
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Renomear APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk route-beta.apk
+
+      - name: Publicar APK como artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: route-beta-apk
+          path: route-beta.apk
+          if-no-files-found: error
