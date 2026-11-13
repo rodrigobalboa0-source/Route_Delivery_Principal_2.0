@@ -39,10 +39,15 @@ jobs:
           export default config;
           EOF
 
-      - name: applicationId do beta + remover Firebase (beta sem push, evita erro de build)
+      - name: applicationId do beta + entrada beta no google-services (Firebase inicializa sem crash)
         run: |
           sed -i 's/applicationId "com.routedeelivery"/applicationId "com.routedeelivery.beta"/' android/app/build.gradle
-          rm -f android/app/google-services.json
+          # Duplica o client "com.routedeelivery" como "com.routedeelivery.beta" para o
+          # plugin google-services achar o pacote e o Firebase inicializar (sem travar
+          # na abertura). Push real nao funciona no beta, mas o app abre normal.
+          jq '.client += [( .client[] | select(.client_info.android_client_info.package_name=="com.routedeelivery") | .client_info.android_client_info.package_name = "com.routedeelivery.beta" )]' android/app/google-services.json > /tmp/gs.json
+          mv /tmp/gs.json android/app/google-services.json
+          echo "Pacotes no google-services.json:"; jq -r '.client[].client_info.android_client_info.package_name' android/app/google-services.json
 
       - uses: actions/setup-java@v4
         with:
